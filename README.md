@@ -18,3 +18,6 @@ python -m solhunter_zero.main
 ```
 
 The current implementation is a minimal scaffold that demonstrates the system architecture. Further development is required to implement real trading logic.
+
+## RPC reliability
+`scan_tokens()` now detects HTTP 429 responses from the Birdeye API and retries with an exponential backoff. The delay doubles after each 429 up to 60 seconds and resets once a request succeeds.
