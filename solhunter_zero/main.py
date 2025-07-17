@@ -16,6 +16,7 @@ def main(
     memory_path: str = "sqlite:///memory.db",
     loop_delay: int = 60,
     *,
+    iterations: int | None = None,
     testnet: bool = False,
     dry_run: bool = False,
 ) -> None:
@@ -27,12 +28,14 @@ def main(
         Database URL for storing trades.
     loop_delay:
         Delay between iterations in seconds.
+    iterations:
+        Number of iterations to run before exiting. ``None`` runs forever.
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
-    while True:
+    def _run_iteration() -> None:
         tokens = scan_tokens()
         for token in tokens:
             sims = run_simulations(token, count=100)
@@ -49,7 +52,16 @@ def main(
                 if not dry_run:
                     memory.log_trade(token=token, direction="buy", amount=1, price=0)
                     portfolio.add(token, 1, 0)
-        time.sleep(loop_delay)
+
+    if iterations is None:
+        while True:
+            _run_iteration()
+            time.sleep(loop_delay)
+    else:
+        for i in range(iterations):
+            _run_iteration()
+            if i < iterations - 1:
+                time.sleep(loop_delay)
 
 
 if __name__ == "__main__":
@@ -66,6 +78,12 @@ if __name__ == "__main__":
         help="Delay between iterations in seconds",
     )
     parser.add_argument(
+        "--iterations",
+        type=int,
+        default=None,
+        help="Number of iterations to run before exiting",
+    )
+    parser.add_argument(
         "--testnet",
         action="store_true",
         help="Use testnet DEX endpoints",
@@ -79,6 +97,7 @@ if __name__ == "__main__":
     main(
         memory_path=args.memory_path,
         loop_delay=args.loop_delay,
+        iterations=args.iterations,
         testnet=args.testnet,
         dry_run=args.dry_run,
     )

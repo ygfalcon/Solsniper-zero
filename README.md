@@ -15,27 +15,37 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    ```
 
 3. **Configure API access**
-   The scanner can use the public BirdEye service or query the Solana blockchain
-   directly. If you want to use BirdEye, export the `BIRDEYE_API_KEY`
-   environment variable:
+   The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
+   is missing, it will fall back to scanning the blockchain directly using the
+   RPC endpoint specified by `SOLANA_RPC_URL`.
+   To use BirdEye, export the API key:
    ```bash
    export BIRDEYE_API_KEY=<your-api-key>
    ```
-   To scan the blockchain yourself, provide a Solana RPC endpoint instead:
+   Or provide a Solana RPC endpoint for on-chain scanning:
    ```bash
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
    ```
 
-4. **Run the bot**
+4. **Configure DEX endpoints**
+   Set the base URL of the DEX API for mainnet and (optionally) the testnet
+   endpoint. The defaults are placeholders, so you should provide your own:
+   ```bash
+   export DEX_BASE_URL=https://dex.example/api
+   export DEX_TESTNET_URL=https://dex.testnet/api
+   ```
+5. **Run the bot**
    ```bash
    ./run.sh
    # or
    python -m solhunter_zero.main
    ```
+codex/investigate-solana-dex-sdk-and-implement-order-placement
    Use the `--testnet` flag to submit orders to a Jupiter Aggregator testnet
    endpoint or `--dry-run` to skip order submission entirely. You can override
    the default URLs via the `DEX_MAINNET_URL` and `DEX_TESTNET_URL`
    environment variables if needed.
+
 
 ## Requirements
 - Python 3.11+
@@ -71,15 +81,15 @@ python -m solhunter_zero.main \
 ```
 
 The scanner can pull token information from BirdEye or directly from the
-blockchain. For BirdEye, set the `BIRDEYE_API_KEY` environment variable so
-requests are authenticated:
+blockchain. When `BIRDEYE_API_KEY` is set, requests are sent to BirdEye.
+If the key is absent, the scanner queries the blockchain using `SOLANA_RPC_URL`.
+Set the API key like this:
 
 ```bash
 export BIRDEYE_API_KEY=your_key_here
 ```
 
-If you prefer to scan the Solana blockchain without BirdEye, provide a Solana
-RPC URL instead:
+To scan the Solana blockchain directly, provide a Solana RPC URL instead:
 
 ```bash
 export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
