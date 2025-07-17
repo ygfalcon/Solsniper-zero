@@ -27,14 +27,24 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
    ```
 
-4. **Run the bot**
+4. **Configure DEX endpoints**
+   Set the base URL of the DEX API for mainnet and (optionally) the testnet
+   endpoint. The defaults are placeholders, so you should provide your own:
+   ```bash
+   export DEX_BASE_URL=https://dex.example/api
+   export DEX_TESTNET_URL=https://dex.testnet/api
+   ```
+5. **Run the bot**
    ```bash
    ./run.sh
    # or
    python -m solhunter_zero.main
    ```
    Use the `--testnet` flag to submit orders to a testnet DEX endpoint or
-   `--dry-run` to skip order submission entirely.
+   `--dry-run` to skip order submission entirely. For example:
+   ```bash
+   python -m solhunter_zero.main --testnet --dry-run
+   ```
 
 ## Requirements
 - Python 3.11+
