@@ -34,6 +34,10 @@ def test_scan_tokens_birdeye(monkeypatch):
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
     assert captured['headers'] == scanner.HEADERS
+
+
+
+
 def test_scan_tokens_offline(monkeypatch):
     called = {}
 

@@ -32,12 +32,16 @@ def main(
     offline:
         Return a predefined token list instead of querying the network.
 
+
+
+
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
-    def _run_iteration() -> None:
+    while True:
+
         tokens = scan_tokens(offline=offline)
 
         for token in tokens:
