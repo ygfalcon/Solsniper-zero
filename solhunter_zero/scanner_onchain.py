@@ -3,13 +3,22 @@ from __future__ import annotations
 import logging
 from typing import List
 
-from solana.publickey import PublicKey
+try:
+    from solana.publickey import PublicKey  # type: ignore
+except Exception:  # pragma: no cover - older solana versions
+    from solders.pubkey import Pubkey as PublicKey  # type: ignore
 from solana.rpc.api import Client
-from solana.publickey import PublicKey
 
 logger = logging.getLogger(__name__)
 
-TOKEN_PROGRAM_ID = PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+if hasattr(PublicKey, "from_string"):
+    TOKEN_PROGRAM_ID = PublicKey.from_string(
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    )
+else:  # pragma: no cover - older API
+    TOKEN_PROGRAM_ID = PublicKey(
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"  # type: ignore[arg-type]
+    )
 
 
 def scan_tokens_onchain(rpc_url: str) -> List[str]:
