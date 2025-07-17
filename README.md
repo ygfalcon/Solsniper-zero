@@ -57,8 +57,13 @@ You can customize the database path and the delay between iterations:
 python -m solhunter_zero.main --memory-path sqlite:///my.db --loop-delay 30
 ```
 
-The scanner uses the Birdeye API for token discovery. Set the `BIRDEYE_API_KEY`
-environment variable with your API key so requests are authenticated:
+The scanner uses the Birdeye API for token discovery when a `BIRDEYE_API_KEY`
+is provided. If no key is set, the bot falls back to querying a Solana RPC
+endpoint using the `solana` Python package. You can override the RPC URL with
+the `SOLANA_RPC_URL` environment variable.
+
+Set the `BIRDEYE_API_KEY` environment variable with your API key to enable the
+BirdEye scanner:
 
 ```bash
 export BIRDEYE_API_KEY=your_key_here

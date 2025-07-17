@@ -1,4 +1,3 @@
-import types
 from solhunter_zero import scanner
 
 class FakeResponse:
@@ -13,7 +12,7 @@ class FakeResponse:
     def json(self):
         return self._data
 
-def test_scan_tokens(monkeypatch):
+def test_scan_tokens_birdeye(monkeypatch):
     data = {
         'data': [
             {'address': 'abcbonk'},
@@ -34,3 +33,25 @@ def test_scan_tokens(monkeypatch):
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
     assert captured['headers'] == scanner.HEADERS
+
+
+def test_scan_tokens_onchain(monkeypatch):
+    """Ensure on-chain scanner is used when no API key is set."""
+    def fake_client(url):
+        class C:
+            def get_program_accounts(self, pubkey, encoding="jsonParsed"):
+                return {
+                    "result": [
+                        {"pubkey": "abcbonk"},
+                        {"pubkey": "xyzBONK"},
+                        {"pubkey": "other"},
+                    ]
+                }
+
+        return C()
+
+    monkeypatch.setattr(scanner, "Client", fake_client)
+    scanner.HEADERS = {}
+
+    tokens = scanner.scan_tokens()
+    assert tokens == ["abcbonk", "xyzBONK"]

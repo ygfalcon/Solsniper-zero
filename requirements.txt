@@ -3,3 +3,4 @@ sqlalchemy
 numpy
 pandas
 scikit-learn
+solana
