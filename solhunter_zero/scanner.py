@@ -26,7 +26,6 @@ def scan_tokens_onchain() -> List[str]:
     logger.info("Scanning tokens on-chain (offline fallback)")
     return []
 
-codex/add-offline-option-to-solhunter_zero.main
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 
 def scan_tokens(*, offline: bool = False) -> List[str]:
