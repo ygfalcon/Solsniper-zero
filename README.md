@@ -16,11 +16,7 @@ Run the bot with:
 ```bash
 python -m solhunter_zero.main
 ```
-
-The current implementation is a minimal scaffold that demonstrates the system architecture. Further development is required to implement real trading logic.
-
-## Running Tests
-Execute the test suite with:
+You can customize the database path and the delay between iterations:
 ```bash
-pytest
+python -m solhunter_zero.main --memory-path sqlite:///my.db --loop-delay 30
 ```
