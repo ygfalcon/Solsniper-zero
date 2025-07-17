@@ -41,7 +41,14 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    export DEX_BASE_URL=https://dex.example/api
    export DEX_TESTNET_URL=https://dex.testnet/api
    ```
-5. **Run the bot**
+5. **Provide a wallet keypair**
+   Generate a Solana keypair and point the bot to the JSON file:
+   ```bash
+   solana-keygen new -o keypair.json
+   export KEYPAIR_PATH=keypair.json
+   ```
+   Keep this file secret. It contains the private key as an array of integers.
+6. **Run the bot**
    ```bash
    ./run.sh
    # or

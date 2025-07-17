@@ -1,2 +1,5 @@
 memory.db
 solhunter_zero/__pycache__/
+
+# Local Solana keypair
+keypair.json

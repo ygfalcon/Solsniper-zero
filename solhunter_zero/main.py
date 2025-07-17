@@ -19,6 +19,7 @@ def _run_iteration(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    keypair=None,
 ) -> None:
     """Execute a single trading iteration."""
     tokens = scan_tokens(offline=offline)
@@ -34,6 +35,7 @@ def _run_iteration(
                 price=0,
                 testnet=testnet,
                 dry_run=dry_run,
+                keypair=keypair,
             )
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=1, price=0)
@@ -48,6 +50,7 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    keypair_path: str | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -74,6 +77,10 @@ def main(
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
+    from .keypair import load_keypair_from_env
+
+    keypair = load_keypair_from_env(keypair_path)
+
 
 
 
@@ -86,6 +93,7 @@ def main(
                 testnet=testnet,
                 dry_run=dry_run,
                 offline=offline,
+                keypair=keypair,
             )
             time.sleep(loop_delay)
     else:
@@ -96,6 +104,7 @@ def main(
                 testnet=testnet,
                 dry_run=dry_run,
                 offline=offline,
+                keypair=keypair,
             )
             if i < iterations - 1:
                 time.sleep(loop_delay)
@@ -135,6 +144,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Use a static token list and skip network requests",
     )
+    parser.add_argument(
+        "--keypair",
+        default=None,
+        help="Path to Solana keypair JSON file (or set KEYPAIR_PATH)",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -143,4 +157,5 @@ if __name__ == "__main__":
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
+        keypair_path=args.keypair,
     )

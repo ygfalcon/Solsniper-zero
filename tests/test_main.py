@@ -3,7 +3,11 @@ from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 
 
-def test_main_invokes_place_order(monkeypatch):
+import json
+from solders.keypair import Keypair
+
+
+def test_main_invokes_place_order(monkeypatch, tmp_path):
     # prepare mocks
     monkeypatch.setattr(main_module, "scan_tokens", lambda offline=False: ["tok"])
     monkeypatch.setattr(
@@ -15,8 +19,8 @@ def test_main_invokes_place_order(monkeypatch):
 
     called = {}
 
-    def fake_place_order(token, side, amount, price, testnet=False, dry_run=False):
-        called["args"] = (token, side, amount, price, testnet, dry_run)
+    def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order", fake_place_order)
@@ -27,14 +31,20 @@ def test_main_invokes_place_order(monkeypatch):
 
     monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
 
+    kp = Keypair()
+    path = tmp_path / "kp.json"
+    path.write_text(json.dumps(list(bytes(kp))))
+
     main_module.main(
         memory_path="sqlite:///:memory:",
         loop_delay=0,
         dry_run=True,
         iterations=1,
+        keypair_path=str(path),
     )
 
-    assert called["args"][-1] is True
+    assert called["args"][5] is True
+    assert called["args"][-1].pubkey() == kp.pubkey()
     assert called["args"][0] == "tok"
 
 

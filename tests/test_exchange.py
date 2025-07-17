@@ -1,5 +1,6 @@
 import types
 from solhunter_zero.exchange import place_order
+from solders.keypair import Keypair
 
 
 class FakeResponse:
@@ -24,9 +25,11 @@ def test_place_order_posts(monkeypatch):
         return FakeResponse({"order_id": "1"})
 
     monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
-    result = place_order("tok", "buy", 1.0, 0.5, testnet=True)
+    kp = Keypair()
+    result = place_order("tok", "buy", 1.0, 0.5, testnet=True, keypair=kp)
     assert result == {"order_id": "1"}
     assert captured["json"]["token"] == "tok"
+    assert captured["json"]["wallet"] == str(kp.pubkey())
     assert "/v6/swap" in captured["url"]
 
 

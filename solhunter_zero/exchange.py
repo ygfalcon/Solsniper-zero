@@ -20,6 +20,7 @@ def place_order(
     *,
     testnet: bool = False,
     dry_run: bool = False,
+    keypair=None,
 ) -> Optional[Dict[str, Any]]:
     """Submit an order to the DEX API.
 
@@ -50,6 +51,8 @@ def place_order(
         "price": price,
         "cluster": "devnet" if testnet else "mainnet-beta",
     }
+    if keypair is not None:  # pragma: no cover - simple assignment
+        payload["wallet"] = str(keypair.pubkey())
 
     if dry_run:
         logger.info(
