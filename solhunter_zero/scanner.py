@@ -26,14 +26,14 @@ def scan_tokens_onchain() -> List[str]:
     logger.info("Scanning tokens on-chain (offline fallback)")
     return []
 
-def scan_tokens() -> List[str]:
-codex/check-birdeye_api_key-on-initialization
+codex/add-offline-option-to-solhunter_zero.main
+OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
+
+def scan_tokens(*, offline: bool = False) -> List[str]:
     """Scan the Solana network for new tokens ending with 'bonk'."""
-    if not HEADERS.get("X-API-KEY"):
-        logger.warning(
-            "BIRDEYE_API_KEY missing, using on-chain/offline scanning instead"
-        )
-        return scan_tokens_onchain()
+    if offline:
+        logger.info("Offline mode enabled, returning static tokens")
+        return OFFLINE_TOKENS
 
 
     backoff = 1

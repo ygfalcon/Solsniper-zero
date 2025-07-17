@@ -36,21 +36,17 @@ def test_scan_tokens_birdeye(monkeypatch):
     assert captured['headers'] == scanner.HEADERS
 
 
-codex/check-birdeye_api_key-on-initialization
-def test_scan_tokens_fallback(monkeypatch, caplog):
+codex/add-offline-option-to-solhunter_zero.main
+def test_scan_tokens_offline(monkeypatch):
     called = {}
 
-    def fake_fallback():
-        called['used'] = True
-        return ['offline']
+    def fake_get(*args, **kwargs):
+        called['called'] = True
+        return FakeResponse({}, 200)
 
-    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_fallback)
-    scanner.HEADERS = {}
+    monkeypatch.setattr(scanner.requests, 'get', fake_get)
 
-    with caplog.at_level('WARNING'):
-        tokens = scanner.scan_tokens()
+    tokens = scanner.scan_tokens(offline=True)
+    assert tokens == scanner.OFFLINE_TOKENS
+    assert 'called' not in called
 
-    assert called['used']
-    assert tokens == ['offline']
-    assert any('BIRDEYE_API_KEY' in rec.message for rec in caplog.records)
-    

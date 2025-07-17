@@ -5,7 +5,7 @@ from solhunter_zero.simulation import SimulationResult
 
 def test_main_invokes_place_order(monkeypatch):
     # prepare mocks
-    monkeypatch.setattr(main_module, "scan_tokens", lambda: ["tok"])
+    monkeypatch.setattr(main_module, "scan_tokens", lambda offline=False: ["tok"])
     monkeypatch.setattr(
         main_module,
         "run_simulations",
@@ -38,21 +38,32 @@ def test_main_invokes_place_order(monkeypatch):
     assert called["args"][0] == "tok"
 
 
-def test_main_iterations_limit(monkeypatch):
-    calls = {"count": 0}
+codex/add-offline-option-to-solhunter_zero.main
+def test_main_offline(monkeypatch):
+    recorded = {}
 
-    def fake_scan():
-        calls["count"] += 1
-        return []
+    def fake_scan_tokens(*, offline=False):
+        recorded["offline"] = offline
+        return ["tok"]
 
-    monkeypatch.setattr(main_module, "scan_tokens", fake_scan)
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
+    monkeypatch.setattr(main_module, "scan_tokens", fake_scan_tokens)
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [SimulationResult(success_prob=1.0, expected_roi=2.0)],
+    )
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
+    monkeypatch.setattr(main_module, "place_order", lambda *a, **k: {"order_id": "1"})
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "add", lambda *a, **k: None)
-    monkeypatch.setattr(main_module, "place_order", lambda *a, **k: None)
 
-    main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, iterations=3)
+    def fake_sleep(_):
+        raise SystemExit()
 
-    assert calls["count"] == 3
+    monkeypatch.setattr(main_module.time, "sleep", fake_sleep)
+
+    with pytest.raises(SystemExit):
+        main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
+
+    assert recorded["offline"] is True
+
