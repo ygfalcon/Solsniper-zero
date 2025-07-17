@@ -1,3 +1,4 @@
+import pytest
 from solhunter_zero import scanner_onchain
 
 class FakeClient:
@@ -21,3 +22,8 @@ def test_scan_tokens_onchain(monkeypatch):
     tokens = scanner_onchain.scan_tokens_onchain("http://node")
     assert captured['url'] == "http://node"
     assert tokens == ["m1"]
+
+
+def test_scan_tokens_onchain_requires_url():
+    with pytest.raises(ValueError):
+        scanner_onchain.scan_tokens_onchain("")
