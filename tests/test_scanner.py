@@ -22,10 +22,15 @@ def test_scan_tokens(monkeypatch):
         ]
     }
 
-    def fake_get(url, timeout=10):
+    captured = {}
+
+    def fake_get(url, headers=None, timeout=10):
+        captured['headers'] = headers
         return FakeResponse(data)
 
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
+    scanner.HEADERS = {"X-API-KEY": "test"}
 
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
+    assert captured['headers'] == scanner.HEADERS

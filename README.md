@@ -20,3 +20,10 @@ You can customize the database path and the delay between iterations:
 ```bash
 python -m solhunter_zero.main --memory-path sqlite:///my.db --loop-delay 30
 ```
+
+The scanner uses the Birdeye API for token discovery. Set the `BIRDEYE_API_KEY`
+environment variable with your API key so requests are authenticated:
+
+```bash
+export BIRDEYE_API_KEY=your_key_here
+```
