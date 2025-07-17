@@ -71,8 +71,10 @@ class Memory:
             session.commit()
 
     def list_trades(self) -> List[Trade]:
+        """Return trades ordered by insertion order."""
         with self.Session() as session:
-            return list(session.query(Trade).order_by(Trade.timestamp.desc()).all())
+            # Ascending timestamp preserves the order trades were logged
+            return list(session.query(Trade).order_by(Trade.timestamp.asc()).all())
 
     # ------------------------------------------------------------------
     # Simulation logging
