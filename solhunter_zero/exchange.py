@@ -20,6 +20,7 @@ def place_order(
     *,
     testnet: bool = False,
     dry_run: bool = False,
+    keypair=None,
 ) -> Optional[Dict[str, Any]]:
     """Submit an order to the DEX API.
 
@@ -50,6 +51,17 @@ def place_order(
         "price": price,
         "cluster": "devnet" if testnet else "mainnet-beta",
     }
+
+    if keypair is not None:
+        try:
+            import base64
+            import json as _json
+
+            message = _json.dumps(payload, sort_keys=True).encode()
+            signature = keypair.sign_message(message)
+            payload["signature"] = base64.b64encode(bytes(signature)).decode()
+        except Exception as exc:  # pragma: no cover - signing errors
+            logger.error("Signing failed: %s", exc)
 
     if dry_run:
         logger.info(
