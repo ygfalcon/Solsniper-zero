@@ -1,0 +1,21 @@
+[project]
+name = "solhunter-zero"
+version = "0.1.0"
+description = "Autonomous AI-driven trading bot for the Solana blockchain"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "sqlalchemy",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["solhunter_zero*"]
