@@ -25,18 +25,20 @@ def test_main_invokes_place_order(monkeypatch):
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "add", lambda *a, **k: None)
 
-    def fake_sleep(_):
-        raise SystemExit()
+    monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
 
-    monkeypatch.setattr(main_module.time, "sleep", fake_sleep)
-
-    with pytest.raises(SystemExit):
-        main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True)
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=0,
+        dry_run=True,
+        iterations=1,
+    )
 
     assert called["args"][-1] is True
     assert called["args"][0] == "tok"
 
 
+codex/add-offline-option-to-solhunter_zero.main
 def test_main_offline(monkeypatch):
     recorded = {}
 
@@ -64,3 +66,4 @@ def test_main_offline(monkeypatch):
         main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
 
     assert recorded["offline"] is True
+

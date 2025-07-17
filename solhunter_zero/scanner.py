@@ -5,14 +5,28 @@ import logging
 import time
 from typing import List, Dict
 
+from .scanner_onchain import scan_tokens_onchain
+
 logger = logging.getLogger(__name__)
 
 BIRDEYE_API = "https://public-api.birdeye.so/defi/tokenlist"  # Example placeholder
 BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
+SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
 HEADERS: Dict[str, str] = {}
 if BIRDEYE_API_KEY:
     HEADERS["X-API-KEY"] = BIRDEYE_API_KEY
+else:
+    logger.warning(
+        "BIRDEYE_API_KEY not set. Falling back to on-chain scanning by default"
+    )
 
+
+def scan_tokens_onchain() -> List[str]:
+    """Placeholder for on-chain/offline token scanning."""
+    logger.info("Scanning tokens on-chain (offline fallback)")
+    return []
+
+codex/add-offline-option-to-solhunter_zero.main
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 
 def scan_tokens(*, offline: bool = False) -> List[str]:
@@ -20,6 +34,7 @@ def scan_tokens(*, offline: bool = False) -> List[str]:
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
+
 
     backoff = 1
     max_backoff = 60

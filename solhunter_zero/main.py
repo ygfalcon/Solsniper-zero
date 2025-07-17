@@ -16,6 +16,7 @@ def main(
     memory_path: str = "sqlite:///memory.db",
     loop_delay: int = 60,
     *,
+    iterations: int | None = None,
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
@@ -28,15 +29,19 @@ def main(
         Database URL for storing trades.
     loop_delay:
         Delay between iterations in seconds.
+codex/add-offline-option-to-solhunter_zero.main
     offline:
         Return a predefined token list instead of querying the network.
+in
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
+codex/add-offline-option-to-solhunter_zero.main
     while True:
         tokens = scan_tokens(offline=offline)
+
         for token in tokens:
             sims = run_simulations(token, count=100)
             if should_buy(sims):
@@ -52,7 +57,16 @@ def main(
                 if not dry_run:
                     memory.log_trade(token=token, direction="buy", amount=1, price=0)
                     portfolio.add(token, 1, 0)
-        time.sleep(loop_delay)
+
+    if iterations is None:
+        while True:
+            _run_iteration()
+            time.sleep(loop_delay)
+    else:
+        for i in range(iterations):
+            _run_iteration()
+            if i < iterations - 1:
+                time.sleep(loop_delay)
 
 
 if __name__ == "__main__":
@@ -67,6 +81,12 @@ if __name__ == "__main__":
         type=int,
         default=60,
         help="Delay between iterations in seconds",
+    )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=None,
+        help="Number of iterations to run before exiting",
     )
     parser.add_argument(
         "--testnet",
@@ -87,6 +107,7 @@ if __name__ == "__main__":
     main(
         memory_path=args.memory_path,
         loop_delay=args.loop_delay,
+        iterations=args.iterations,
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
