@@ -17,7 +17,7 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
 3. **Configure API access**
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
    is missing, it will fall back to scanning the blockchain directly using the
-   RPC endpoint specified by `SOLANA_RPC_URL`.
+   RPC endpoint specified by `SOLANA_RPC_URL` or the `--rpc-url` flag.
    To use BirdEye, export the API key:
 
    ```bash
@@ -25,13 +25,16 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    ```
    If this variable is unset, the bot logs a warning and automatically falls back
    to on-chain scanning.
-   To scan the blockchain yourself, provide a Solana RPC endpoint instead:
-
-
-   Or provide a Solana RPC endpoint for on-chain scanning
+   To scan the blockchain yourself, provide a Solana RPC endpoint instead.
+   You can set the environment variable or pass the value on the command line
+   using `--rpc-url`:
 
    ```bash
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+   ```
+   # or
+   ```bash
+   python -m solhunter_zero.main --rpc-url https://api.mainnet-beta.solana.com
    ```
 
 4. **Configure DEX endpoints**
@@ -83,12 +86,13 @@ submitted:
 ```bash
 python -m solhunter_zero.main \
   --memory-path sqlite:///my.db --loop-delay 30 \
-  --testnet --dry-run --offline
+  --testnet --dry-run --offline --rpc-url https://api.mainnet-beta.solana.com
 ```
 
 The scanner can pull token information from BirdEye or directly from the
 blockchain. When `BIRDEYE_API_KEY` is set, requests are sent to BirdEye.
-If the key is absent, the scanner queries the blockchain using `SOLANA_RPC_URL`.
+If the key is absent, the scanner queries the blockchain using `SOLANA_RPC_URL`
+or the value provided via `--rpc-url`.
 Set the API key like this:
 
 ```bash
@@ -97,10 +101,15 @@ export BIRDEYE_API_KEY=your_key_here
 If the key is not provided, a warning is emitted and on-chain scanning is used
 instead.
 
-To scan the Solana blockchain directly, provide a Solana RPC URL instead:
+To scan the Solana blockchain directly, provide a Solana RPC URL instead.
+You can set the environment variable or pass the command-line flag:
 
 ```bash
 export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+```
+
+```bash
+python -m solhunter_zero.main --rpc-url https://api.mainnet-beta.solana.com
 ```
 
 For testing or development without any network access, pass the `--offline`
