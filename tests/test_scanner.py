@@ -38,7 +38,6 @@ def test_scan_tokens_birdeye(monkeypatch):
 
 
 # codex/add-offline-option-to-solhunter_zero.main
-in
 def test_scan_tokens_offline(monkeypatch):
     called = {}
 
