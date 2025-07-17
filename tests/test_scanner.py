@@ -36,7 +36,7 @@ def test_scan_tokens_birdeye(monkeypatch):
     assert captured['headers'] == scanner.HEADERS
 
 
-codex/add-offline-option-to-solhunter_zero.main
+# codex/add-offline-option-to-solhunter_zero.main
 def test_scan_tokens_offline(monkeypatch):
     called = {}
 
@@ -49,4 +49,26 @@ def test_scan_tokens_offline(monkeypatch):
     tokens = scanner.scan_tokens(offline=True)
     assert tokens == scanner.OFFLINE_TOKENS
     assert 'called' not in called
+
+
+def test_scan_tokens_onchain_when_no_key(monkeypatch):
+    captured = {}
+
+    def fake_onchain(url):
+        captured['url'] = url
+        return ['tok']
+
+    def fake_get(*args, **kwargs):
+        raise AssertionError('should not call BirdEye')
+
+    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_onchain)
+    monkeypatch.setattr(scanner.requests, 'get', fake_get)
+
+    scanner.BIRDEYE_API_KEY = None
+    scanner.HEADERS = {}
+    scanner.SOLANA_RPC_URL = 'http://node'
+
+    tokens = scanner.scan_tokens()
+    assert tokens == ['tok']
+    assert captured['url'] == 'http://node'
 

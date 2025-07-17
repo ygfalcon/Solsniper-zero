@@ -38,7 +38,7 @@ def test_main_invokes_place_order(monkeypatch):
     assert called["args"][0] == "tok"
 
 
-codex/add-offline-option-to-solhunter_zero.main
+# codex/add-offline-option-to-solhunter_zero.main
 def test_main_offline(monkeypatch):
     recorded = {}
 
