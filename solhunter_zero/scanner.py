@@ -26,15 +26,25 @@ else:
 
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 
-def scan_tokens(*, offline: bool = False) -> List[str]:
-    """Scan the Solana network for new tokens ending with 'bonk'."""
+def scan_tokens(*, offline: bool = False, rpc_url: str | None = None) -> List[str]:
+    """Scan the Solana network for new tokens ending with 'bonk'.
+
+    Parameters
+    ----------
+    offline:
+        Return a small predefined token list without any network requests.
+    rpc_url:
+        Solana RPC endpoint to use for on-chain scanning when no BirdEye API key
+        is configured.  If ``None`` the ``SOLANA_RPC_URL`` environment variable
+        is used.
+    """
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")
-        return scan_tokens_onchain(SOLANA_RPC_URL)
+        return scan_tokens_onchain(rpc_url or SOLANA_RPC_URL)
 
     backoff = 1
     max_backoff = 60

@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from argparse import ArgumentParser
 
@@ -19,9 +20,13 @@ def _run_iteration(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    rpc_url: str | None = None,
 ) -> None:
     """Execute a single trading iteration."""
-    tokens = scan_tokens(offline=offline)
+    if rpc_url is None:
+        tokens = scan_tokens(offline=offline)
+    else:
+        tokens = scan_tokens(offline=offline, rpc_url=rpc_url)
 
     for token in tokens:
         sims = run_simulations(token, count=100)
@@ -48,6 +53,7 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    rpc_url: str | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -65,6 +71,9 @@ def main(
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+    rpc_url:
+        RPC endpoint used for on-chain scanning when no BirdEye API key is
+        configured.
 
 
 
@@ -86,6 +95,7 @@ def main(
                 testnet=testnet,
                 dry_run=dry_run,
                 offline=offline,
+                rpc_url=rpc_url,
             )
             time.sleep(loop_delay)
     else:
@@ -96,6 +106,7 @@ def main(
                 testnet=testnet,
                 dry_run=dry_run,
                 offline=offline,
+                rpc_url=rpc_url,
             )
             if i < iterations - 1:
                 time.sleep(loop_delay)
@@ -135,6 +146,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Use a static token list and skip network requests",
     )
+    parser.add_argument(
+        "--rpc-url",
+        default=os.environ.get("SOLANA_RPC_URL"),
+        help="Solana RPC endpoint for on-chain scanning",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -143,4 +159,5 @@ if __name__ == "__main__":
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
+        rpc_url=args.rpc_url,
     )
