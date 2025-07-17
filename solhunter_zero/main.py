@@ -7,11 +7,18 @@ from .simulation import run_simulations
 from .decision import should_buy
 from .memory import Memory
 from .portfolio import Portfolio
+from .exchange import place_order
 
 logging.basicConfig(level=logging.INFO)
 
 
-def main(memory_path: str = "sqlite:///memory.db", loop_delay: int = 60) -> None:
+def main(
+    memory_path: str = "sqlite:///memory.db",
+    loop_delay: int = 60,
+    *,
+    testnet: bool = False,
+    dry_run: bool = False,
+) -> None:
     """Run the trading loop.
 
     Parameters
@@ -31,8 +38,17 @@ def main(memory_path: str = "sqlite:///memory.db", loop_delay: int = 60) -> None
             sims = run_simulations(token, count=100)
             if should_buy(sims):
                 logging.info("Buying %s", token)
-                memory.log_trade(token=token, direction='buy', amount=1, price=0)
-                portfolio.add(token, 1, 0)
+                place_order(
+                    token,
+                    side="buy",
+                    amount=1,
+                    price=0,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                )
+                if not dry_run:
+                    memory.log_trade(token=token, direction="buy", amount=1, price=0)
+                    portfolio.add(token, 1, 0)
         time.sleep(loop_delay)
 
 
@@ -49,5 +65,20 @@ if __name__ == "__main__":
         default=60,
         help="Delay between iterations in seconds",
     )
+    parser.add_argument(
+        "--testnet",
+        action="store_true",
+        help="Use testnet DEX endpoints",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not submit orders, just simulate",
+    )
     args = parser.parse_args()
-    main(memory_path=args.memory_path, loop_delay=args.loop_delay)
+    main(
+        memory_path=args.memory_path,
+        loop_delay=args.loop_delay,
+        testnet=args.testnet,
+        dry_run=args.dry_run,
+    )
