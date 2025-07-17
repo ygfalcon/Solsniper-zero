@@ -29,17 +29,15 @@ def main(
         Database URL for storing trades.
     loop_delay:
         Delay between iterations in seconds.
-codex/add-offline-option-to-solhunter_zero.main
     offline:
         Return a predefined token list instead of querying the network.
-in
+
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
-codex/add-offline-option-to-solhunter_zero.main
-    while True:
+    def _run_iteration() -> None:
         tokens = scan_tokens(offline=offline)
 
         for token in tokens:

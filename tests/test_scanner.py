@@ -34,9 +34,6 @@ def test_scan_tokens_birdeye(monkeypatch):
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
     assert captured['headers'] == scanner.HEADERS
-
-
-codex/add-offline-option-to-solhunter_zero.main
 def test_scan_tokens_offline(monkeypatch):
     called = {}
 
