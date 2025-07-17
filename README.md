@@ -21,11 +21,8 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    To use BirdEye, export the API key:
 
    ```bash
-
-``
-
-export BIRDEYE_API_KEY=<your-api-key>
-```
+   export BIRDEYE_API_KEY=<your-api-key>
+   ```
    If this variable is unset, the bot logs a warning and automatically falls back
    to on-chain scanning.
    To scan the blockchain yourself, provide a Solana RPC endpoint instead:
