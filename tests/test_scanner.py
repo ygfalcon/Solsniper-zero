@@ -36,6 +36,8 @@ def test_scan_tokens_birdeye(monkeypatch):
     assert captured['headers'] == scanner.HEADERS
 
 
+
+
 def test_scan_tokens_offline(monkeypatch):
     called = {}
 
