@@ -16,6 +16,10 @@ Run the bot with:
 ```bash
 python -m solhunter_zero.main
 ```
+Or simply use the helper script which installs any missing dependencies:
+```bash
+./run.sh
+```
 You can customize the database path and the delay between iterations:
 ```bash
 python -m solhunter_zero.main --memory-path sqlite:///my.db --loop-delay 30
