@@ -2,14 +2,15 @@ import os
 import logging
 from typing import Optional, Dict, Any
 
-import requests
+from solana.rpc.api import Client
+from solana.transaction import Transaction
+from solders.keypair import Keypair
 
 logger = logging.getLogger(__name__)
 
-# Using Jupiter Aggregator REST API for token swaps.
-DEX_BASE_URL = os.getenv("DEX_BASE_URL", "https://quote-api.jup.ag")
-DEX_TESTNET_URL = os.getenv("DEX_TESTNET_URL", "https://quote-api.jup.ag")
-SWAP_PATH = "/v6/swap"
+# RPC endpoints for submitting transactions.
+DEX_BASE_URL = os.getenv("DEX_BASE_URL", "https://api.mainnet-beta.solana.com")
+DEX_TESTNET_URL = os.getenv("DEX_TESTNET_URL", "https://api.devnet.solana.com")
 
 
 def place_order(
@@ -39,28 +40,22 @@ def place_order(
         If ``True``, do not send any network requests.
     """
 
-    base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
-    url = f"{base_url}{SWAP_PATH}"
-
-    # Jupiter requires the target cluster explicitly.
-    payload = {
-        "token": token,
-        "side": side,
-        "amount": amount,
-        "price": price,
-        "cluster": "devnet" if testnet else "mainnet-beta",
-    }
+    endpoint = DEX_TESTNET_URL if testnet else DEX_BASE_URL
+    cluster = "devnet" if testnet else "mainnet-beta"
+    dex = Client(endpoint)
 
     if dry_run:
         logger.info(
             "Dry run: would place %s order for %s amount %s at price %s", side, token, amount, price
         )
-        return {"dry_run": True, **payload}
+        return {"dry_run": True, "cluster": cluster}
+
+    tx = Transaction()
+    payer = Keypair()  # In real usage load from a wallet
 
     try:
-        resp = requests.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
-    except requests.RequestException as exc:
+        resp = dex.send_transaction(tx, payer)
+        return resp
+    except Exception as exc:  # pragma: no cover - network errors
         logger.error("Order submission failed: %s", exc)
         return None
