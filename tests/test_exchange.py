@@ -27,7 +27,7 @@ def test_place_order_posts(monkeypatch):
     result = place_order("tok", "buy", 1.0, 0.5, testnet=True)
     assert result == {"order_id": "1"}
     assert captured["json"]["token"] == "tok"
-    assert "/order" in captured["url"]
+    assert "/v6/swap" in captured["url"]
 
 
 def test_place_order_dry_run(caplog):

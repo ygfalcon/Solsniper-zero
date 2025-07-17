@@ -5,10 +5,13 @@ import logging
 import time
 from typing import List, Dict
 
+from .scanner_onchain import scan_tokens_onchain
+
 logger = logging.getLogger(__name__)
 
 BIRDEYE_API = "https://public-api.birdeye.so/defi/tokenlist"  # Example placeholder
 BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
+SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
 HEADERS: Dict[str, str] = {}
 if BIRDEYE_API_KEY:
     HEADERS["X-API-KEY"] = BIRDEYE_API_KEY
@@ -24,12 +27,14 @@ def scan_tokens_onchain() -> List[str]:
     return []
 
 def scan_tokens() -> List[str]:
+codex/check-birdeye_api_key-on-initialization
     """Scan the Solana network for new tokens ending with 'bonk'."""
     if not HEADERS.get("X-API-KEY"):
         logger.warning(
             "BIRDEYE_API_KEY missing, using on-chain/offline scanning instead"
         )
         return scan_tokens_onchain()
+
 
     backoff = 1
     max_backoff = 60

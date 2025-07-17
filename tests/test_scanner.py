@@ -1,4 +1,3 @@
-import types
 from solhunter_zero import scanner
 
 class FakeResponse:
@@ -13,7 +12,7 @@ class FakeResponse:
     def json(self):
         return self._data
 
-def test_scan_tokens(monkeypatch):
+def test_scan_tokens_birdeye(monkeypatch):
     data = {
         'data': [
             {'address': 'abcbonk'},
@@ -29,6 +28,7 @@ def test_scan_tokens(monkeypatch):
         return FakeResponse(data)
 
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
+    scanner.BIRDEYE_API_KEY = "test"
     scanner.HEADERS = {"X-API-KEY": "test"}
 
     tokens = scanner.scan_tokens()
@@ -36,6 +36,7 @@ def test_scan_tokens(monkeypatch):
     assert captured['headers'] == scanner.HEADERS
 
 
+codex/check-birdeye_api_key-on-initialization
 def test_scan_tokens_fallback(monkeypatch, caplog):
     called = {}
 
@@ -52,3 +53,4 @@ def test_scan_tokens_fallback(monkeypatch, caplog):
     assert called['used']
     assert tokens == ['offline']
     assert any('BIRDEYE_API_KEY' in rec.message for rec in caplog.records)
+    
