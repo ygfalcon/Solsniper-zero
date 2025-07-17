@@ -1,10 +1,12 @@
 from solhunter_zero import scanner_onchain
+from solana.publickey import PublicKey
 
 class FakeClient:
     def __init__(self, url):
         self.url = url
     def get_program_accounts(self, program_id, encoding="jsonParsed"):
         assert encoding == "jsonParsed"
+        assert isinstance(program_id, PublicKey)
         return {
             "result": [
                 {"account": {"data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}}},
