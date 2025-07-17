@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import List
 
+from solana.publickey import PublicKey
 from solana.rpc.api import Client
 from solana.publickey import PublicKey
 
@@ -20,6 +21,9 @@ def scan_tokens_onchain(rpc_url: str) -> List[str]:
     rpc_url:
         Solana RPC endpoint.
     """
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
     client = Client(rpc_url)
     try:
         resp = client.get_program_accounts(TOKEN_PROGRAM_ID, encoding="jsonParsed")
