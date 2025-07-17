@@ -27,6 +27,9 @@ def test_main_invokes_place_order(monkeypatch):
 
     monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
 
+    # satisfy env validation
+    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
+
     main_module.main(
         memory_path="sqlite:///:memory:",
         loop_delay=0,
@@ -69,4 +72,19 @@ def test_main_offline(monkeypatch):
         main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
 
     assert recorded["offline"] is True
+
+
+def test_main_env_validation_fails(monkeypatch):
+    monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
+    monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
+
+    with pytest.raises(SystemExit):
+        main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, iterations=0)
+
+
+def test_main_env_validation_passes(monkeypatch):
+    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
+    monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
+
+    main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, iterations=0)
 
