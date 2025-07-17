@@ -4,6 +4,7 @@ from solhunter_zero.simulation import SimulationResult
 
 
 def test_main_invokes_place_order(monkeypatch):
+    monkeypatch.setenv("BIRDEYE_API_KEY", "k")
     # prepare mocks
     monkeypatch.setattr(main_module, "scan_tokens", lambda offline=False: ["tok"])
     monkeypatch.setattr(
@@ -69,4 +70,14 @@ def test_main_offline(monkeypatch):
         main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
 
     assert recorded["offline"] is True
+
+
+def test_main_requires_api_or_rpc(monkeypatch):
+    monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
+    monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        main_module.main(iterations=1, dry_run=True)
+
+    assert "BIRDEYE_API_KEY" in str(exc.value)
 

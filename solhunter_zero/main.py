@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 from argparse import ArgumentParser
 
 from .scanner import scan_tokens
@@ -70,6 +71,13 @@ def main(
 
 
     """
+
+    if not offline and not (
+        os.getenv("BIRDEYE_API_KEY") or os.getenv("SOLANA_RPC_URL")
+    ):
+        raise SystemExit(
+            "Either BIRDEYE_API_KEY or SOLANA_RPC_URL must be set"
+        )
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
