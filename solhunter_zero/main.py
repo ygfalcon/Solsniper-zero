@@ -58,16 +58,40 @@ def main(
     loop_delay:
         Delay between iterations in seconds.
 
+
+
+
     iterations:
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+
+
+
 
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
+
+    def _run_iteration() -> None:
+        tokens = scan_tokens(offline=offline)
+        for token in tokens:
+            sims = run_simulations(token, count=100)
+            if should_buy(sims):
+                logging.info("Buying %s", token)
+                place_order(
+                    token,
+                    side="buy",
+                    amount=1,
+                    price=0,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                )
+                if not dry_run:
+                    memory.log_trade(token=token, direction="buy", amount=1, price=0)
+                    portfolio.add(token, 1, 0)
 
 
     if iterations is None:
