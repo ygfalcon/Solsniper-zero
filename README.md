@@ -37,6 +37,12 @@ Install Python dependencies:
 pip install -r requirements.txt
 ```
 
+For development you can also install the package in editable mode so changes are
+picked up automatically:
+```bash
+pip install -e .
+```
+
 ## Usage
 Run the bot with:
 ```bash
