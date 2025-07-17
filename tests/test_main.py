@@ -25,13 +25,34 @@ def test_main_invokes_place_order(monkeypatch):
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "add", lambda *a, **k: None)
 
-    def fake_sleep(_):
-        raise SystemExit()
+    monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
 
-    monkeypatch.setattr(main_module.time, "sleep", fake_sleep)
-
-    with pytest.raises(SystemExit):
-        main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True)
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=0,
+        dry_run=True,
+        iterations=1,
+    )
 
     assert called["args"][-1] is True
     assert called["args"][0] == "tok"
+
+
+def test_main_iterations_limit(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_scan():
+        calls["count"] += 1
+        return []
+
+    monkeypatch.setattr(main_module, "scan_tokens", fake_scan)
+    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "add", lambda *a, **k: None)
+    monkeypatch.setattr(main_module, "place_order", lambda *a, **k: None)
+
+    main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, iterations=3)
+
+    assert calls["count"] == 3
