@@ -5,7 +5,9 @@ from solhunter_zero.simulation import SimulationResult
 
 def test_main_invokes_place_order(monkeypatch):
     # prepare mocks
-    monkeypatch.setattr(main_module, "scan_tokens", lambda offline=False: ["tok"])
+    monkeypatch.setattr(
+        main_module, "scan_tokens", lambda offline=False, rpc_url=None: ["tok"]
+    )
     monkeypatch.setattr(
         main_module,
         "run_simulations",
@@ -45,8 +47,9 @@ def test_main_invokes_place_order(monkeypatch):
 def test_main_offline(monkeypatch):
     recorded = {}
 
-    def fake_scan_tokens(*, offline=False):
+    def fake_scan_tokens(*, offline=False, rpc_url=None):
         recorded["offline"] = offline
+        recorded["rpc_url"] = rpc_url
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens", fake_scan_tokens)
@@ -69,4 +72,28 @@ def test_main_offline(monkeypatch):
         main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
 
     assert recorded["offline"] is True
+
+
+def test_rpc_url_override(monkeypatch):
+    monkeypatch.setenv("SOLANA_RPC_URL", "http://env")
+
+    captured = {}
+
+    def fake_scan_tokens(*, offline=False, rpc_url=None):
+        captured["rpc_url"] = rpc_url
+        return []
+
+    monkeypatch.setattr(main_module, "scan_tokens", fake_scan_tokens)
+    monkeypatch.setattr(main_module, "run_simulations", lambda *a, **k: [])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
+
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=0,
+        iterations=1,
+        rpc_url="http://cli",
+    )
+
+    assert captured["rpc_url"] == "http://cli"
 

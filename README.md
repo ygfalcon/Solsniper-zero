@@ -17,7 +17,8 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
 3. **Configure API access**
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
    is missing, it will fall back to scanning the blockchain directly using the
-   RPC endpoint specified by `SOLANA_RPC_URL`.
+   RPC endpoint specified by `SOLANA_RPC_URL` (or the `--rpc-url` command-line
+   option).
    To use BirdEye, export the API key:
 
    ```bash
@@ -32,6 +33,7 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
 
    ```bash
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+   # or pass --rpc-url on the command line
    ```
 
 4. **Configure DEX endpoints**
@@ -88,7 +90,8 @@ python -m solhunter_zero.main \
 
 The scanner can pull token information from BirdEye or directly from the
 blockchain. When `BIRDEYE_API_KEY` is set, requests are sent to BirdEye.
-If the key is absent, the scanner queries the blockchain using `SOLANA_RPC_URL`.
+If the key is absent, the scanner queries the blockchain using `SOLANA_RPC_URL`
+(or the value passed via `--rpc-url`).
 Set the API key like this:
 
 ```bash
@@ -101,6 +104,8 @@ To scan the Solana blockchain directly, provide a Solana RPC URL instead:
 
 ```bash
 export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+# or
+python -m solhunter_zero.main --rpc-url https://api.mainnet-beta.solana.com
 ```
 
 For testing or development without any network access, pass the `--offline`
