@@ -18,3 +18,9 @@ python -m solhunter_zero.main
 ```
 
 The current implementation is a minimal scaffold that demonstrates the system architecture. Further development is required to implement real trading logic.
+
+## Running Tests
+Execute the test suite with:
+```bash
+pytest
+```
