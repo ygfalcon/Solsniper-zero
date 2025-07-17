@@ -15,8 +15,8 @@ def test_main_invokes_place_order(monkeypatch):
 
     called = {}
 
-    def fake_place_order(token, side, amount, price, testnet=False, dry_run=False):
-        called["args"] = (token, side, amount, price, testnet, dry_run)
+    def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order", fake_place_order)
@@ -34,7 +34,7 @@ def test_main_invokes_place_order(monkeypatch):
         iterations=1,
     )
 
-    assert called["args"][-1] is True
+    assert called["args"][-2] is True
     assert called["args"][0] == "tok"
 
 

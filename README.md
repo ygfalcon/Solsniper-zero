@@ -41,7 +41,13 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    export DEX_BASE_URL=https://dex.example/api
    export DEX_TESTNET_URL=https://dex.testnet/api
    ```
-5. **Run the bot**
+5. **Provide a keypair for signing**
+   Generate a keypair with `solana-keygen new` if you don't already have one and
+   point the bot to it using `KEYPAIR_PATH` or the `--keypair` flag:
+   ```bash
+   export KEYPAIR_PATH=/path/to/your/keypair.json
+   ```
+6. **Run the bot**
    ```bash
    ./run.sh
    # or
@@ -85,6 +91,8 @@ python -m solhunter_zero.main \
   --memory-path sqlite:///my.db --loop-delay 30 \
   --testnet --dry-run --offline
 ```
+Set the keypair path with the `--keypair` flag or the `KEYPAIR_PATH`
+environment variable if you want to sign orders.
 
 The scanner can pull token information from BirdEye or directly from the
 blockchain. When `BIRDEYE_API_KEY` is set, requests are sent to BirdEye.
