@@ -1,0 +1,7 @@
+requests
+sqlalchemy
+numpy
+pandas
+scikit-learn
+solana
+solders
