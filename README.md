@@ -40,11 +40,12 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    # or
    python -m solhunter_zero.main
    ```
-   Use the `--testnet` flag to submit orders to a testnet DEX endpoint or
-   `--dry-run` to skip order submission entirely. For example:
-   ```bash
-   python -m solhunter_zero.main --testnet --dry-run
-   ```
+codex/investigate-solana-dex-sdk-and-implement-order-placement
+   Use the `--testnet` flag to submit orders to a Jupiter Aggregator testnet
+   endpoint or `--dry-run` to skip order submission entirely. You can override
+   the default URLs via the `DEX_MAINNET_URL` and `DEX_TESTNET_URL`
+   environment variables if needed.
+
 
 ## Requirements
 - Python 3.11+
