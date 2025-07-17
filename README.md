@@ -16,5 +16,9 @@ Run the bot with:
 ```bash
 python -m solhunter_zero.main
 ```
+You can customize the database path and the delay between iterations:
+```bash
+python -m solhunter_zero.main --memory-path sqlite:///my.db --loop-delay 30
+```
 
 The current implementation is a minimal scaffold that demonstrates the system architecture. Further development is required to implement real trading logic.
