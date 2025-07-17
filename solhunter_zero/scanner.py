@@ -12,9 +12,25 @@ BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
 HEADERS: Dict[str, str] = {}
 if BIRDEYE_API_KEY:
     HEADERS["X-API-KEY"] = BIRDEYE_API_KEY
+else:
+    logger.warning(
+        "BIRDEYE_API_KEY not set. Falling back to on-chain scanning by default"
+    )
+
+
+def scan_tokens_onchain() -> List[str]:
+    """Placeholder for on-chain/offline token scanning."""
+    logger.info("Scanning tokens on-chain (offline fallback)")
+    return []
 
 def scan_tokens() -> List[str]:
     """Scan the Solana network for new tokens ending with 'bonk'."""
+    if not HEADERS.get("X-API-KEY"):
+        logger.warning(
+            "BIRDEYE_API_KEY missing, using on-chain/offline scanning instead"
+        )
+        return scan_tokens_onchain()
+
     backoff = 1
     max_backoff = 60
     while True:

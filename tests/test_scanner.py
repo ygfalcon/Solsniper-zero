@@ -34,3 +34,21 @@ def test_scan_tokens(monkeypatch):
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
     assert captured['headers'] == scanner.HEADERS
+
+
+def test_scan_tokens_fallback(monkeypatch, caplog):
+    called = {}
+
+    def fake_fallback():
+        called['used'] = True
+        return ['offline']
+
+    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_fallback)
+    scanner.HEADERS = {}
+
+    with caplog.at_level('WARNING'):
+        tokens = scanner.scan_tokens()
+
+    assert called['used']
+    assert tokens == ['offline']
+    assert any('BIRDEYE_API_KEY' in rec.message for rec in caplog.records)
