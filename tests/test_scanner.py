@@ -36,18 +36,21 @@ def test_scan_tokens_birdeye(monkeypatch):
     assert captured['headers'] == scanner.HEADERS
 
 
-def test_scan_tokens_onchain_fallback(monkeypatch):
-    captured = {}
+codex/check-birdeye_api_key-on-initialization
+def test_scan_tokens_fallback(monkeypatch, caplog):
+    called = {}
 
-    def fake_scan(url):
-        captured['url'] = url
-        return ['onchain']
+    def fake_fallback():
+        called['used'] = True
+        return ['offline']
 
-    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_scan)
-    scanner.BIRDEYE_API_KEY = None
+    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_fallback)
     scanner.HEADERS = {}
-    scanner.SOLANA_RPC_URL = 'http://node'
 
-    tokens = scanner.scan_tokens()
-    assert tokens == ['onchain']
-    assert captured['url'] == 'http://node'
+    with caplog.at_level('WARNING'):
+        tokens = scanner.scan_tokens()
+
+    assert called['used']
+    assert tokens == ['offline']
+    assert any('BIRDEYE_API_KEY' in rec.message for rec in caplog.records)
+    

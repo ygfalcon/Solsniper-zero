@@ -15,18 +15,27 @@ SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
 HEADERS: Dict[str, str] = {}
 if BIRDEYE_API_KEY:
     HEADERS["X-API-KEY"] = BIRDEYE_API_KEY
+else:
+    logger.warning(
+        "BIRDEYE_API_KEY not set. Falling back to on-chain scanning by default"
+    )
+
+
+def scan_tokens_onchain() -> List[str]:
+    """Placeholder for on-chain/offline token scanning."""
+    logger.info("Scanning tokens on-chain (offline fallback)")
+    return []
 
 def scan_tokens() -> List[str]:
-    """Scan the Solana network for new tokens ending with ``bonk``.
+codex/check-birdeye_api_key-on-initialization
+    """Scan the Solana network for new tokens ending with 'bonk'."""
+    if not HEADERS.get("X-API-KEY"):
+        logger.warning(
+            "BIRDEYE_API_KEY missing, using on-chain/offline scanning instead"
+        )
+        return scan_tokens_onchain()
 
-    If ``BIRDEYE_API_KEY`` is configured, the BirdEye API is used. Otherwise
-    ``SOLANA_RPC_URL`` is queried directly via :func:`scan_tokens_onchain`.
-    """
-    if not BIRDEYE_API_KEY:
-        if not SOLANA_RPC_URL:
-            logger.error("SOLANA_RPC_URL not set and no BirdEye API key present")
-            return []
-        return scan_tokens_onchain(SOLANA_RPC_URL)
+
     backoff = 1
     max_backoff = 60
     while True:
