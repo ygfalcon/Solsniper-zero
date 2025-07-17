@@ -12,6 +12,34 @@ from .exchange import place_order
 logging.basicConfig(level=logging.INFO)
 
 
+def _run_iteration(
+    memory: Memory,
+    portfolio: Portfolio,
+    *,
+    testnet: bool = False,
+    dry_run: bool = False,
+    offline: bool = False,
+) -> None:
+    """Execute a single trading iteration."""
+    tokens = scan_tokens(offline=offline)
+
+    for token in tokens:
+        sims = run_simulations(token, count=100)
+        if should_buy(sims):
+            logging.info("Buying %s", token)
+            place_order(
+                token,
+                side="buy",
+                amount=1,
+                price=0,
+                testnet=testnet,
+                dry_run=dry_run,
+            )
+            if not dry_run:
+                memory.log_trade(token=token, direction="buy", amount=1, price=0)
+                portfolio.add(token, 1, 0)
+
+
 def main(
     memory_path: str = "sqlite:///memory.db",
     loop_delay: int = 60,
@@ -29,14 +57,23 @@ def main(
         Database URL for storing trades.
     loop_delay:
         Delay between iterations in seconds.
+
+
+
+
     iterations:
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+
+
+
+
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
+
 
     def _run_iteration() -> None:
         tokens = scan_tokens(offline=offline)
@@ -56,13 +93,26 @@ def main(
                     memory.log_trade(token=token, direction="buy", amount=1, price=0)
                     portfolio.add(token, 1, 0)
 
+
     if iterations is None:
         while True:
-            _run_iteration()
+            _run_iteration(
+                memory,
+                portfolio,
+                testnet=testnet,
+                dry_run=dry_run,
+                offline=offline,
+            )
             time.sleep(loop_delay)
     else:
         for i in range(iterations):
-            _run_iteration()
+            _run_iteration(
+                memory,
+                portfolio,
+                testnet=testnet,
+                dry_run=dry_run,
+                offline=offline,
+            )
             if i < iterations - 1:
                 time.sleep(loop_delay)
 

@@ -21,7 +21,9 @@ else:
     )
 
 
+
 # Predefined tokens returned in offline mode
+
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 
 def scan_tokens(*, offline: bool = False) -> List[str]:
