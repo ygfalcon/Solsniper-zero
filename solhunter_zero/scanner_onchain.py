@@ -4,10 +4,11 @@ import logging
 from typing import List
 
 from solana.rpc.api import Client
+from solana.publickey import PublicKey
 
 logger = logging.getLogger(__name__)
 
-TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+TOKEN_PROGRAM_ID = PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 
 
 def scan_tokens_onchain(rpc_url: str) -> List[str]:
