@@ -32,8 +32,9 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    # or
    python -m solhunter_zero.main
    ```
-   Use the `--testnet` flag to submit orders to a testnet DEX endpoint or
-   `--dry-run` to skip order submission entirely.
+   Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
+   `--dry-run` to skip order submission entirely, or `--offline` to avoid
+   network requests and use a static token list.
 
 ## Requirements
 - Python 3.11+
@@ -65,7 +66,7 @@ submitted:
 ```bash
 python -m solhunter_zero.main \
   --memory-path sqlite:///my.db --loop-delay 30 \
-  --testnet --dry-run
+  --testnet --dry-run --offline
 ```
 
 The scanner can pull token information from BirdEye or directly from the
@@ -82,3 +83,7 @@ RPC URL instead:
 ```bash
 export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
+
+For testing or development without any network access, pass the `--offline`
+flag to the bot. In this mode the scanner returns a small fixed list of tokens
+without making HTTP requests.

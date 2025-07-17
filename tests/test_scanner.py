@@ -34,3 +34,17 @@ def test_scan_tokens(monkeypatch):
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
     assert captured['headers'] == scanner.HEADERS
+
+
+def test_scan_tokens_offline(monkeypatch):
+    called = {}
+
+    def fake_get(*args, **kwargs):
+        called['called'] = True
+        return FakeResponse({}, 200)
+
+    monkeypatch.setattr(scanner.requests, 'get', fake_get)
+
+    tokens = scanner.scan_tokens(offline=True)
+    assert tokens == scanner.OFFLINE_TOKENS
+    assert 'called' not in called

@@ -13,8 +13,14 @@ HEADERS: Dict[str, str] = {}
 if BIRDEYE_API_KEY:
     HEADERS["X-API-KEY"] = BIRDEYE_API_KEY
 
-def scan_tokens() -> List[str]:
+OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
+
+def scan_tokens(*, offline: bool = False) -> List[str]:
     """Scan the Solana network for new tokens ending with 'bonk'."""
+    if offline:
+        logger.info("Offline mode enabled, returning static tokens")
+        return OFFLINE_TOKENS
+
     backoff = 1
     max_backoff = 60
     while True:

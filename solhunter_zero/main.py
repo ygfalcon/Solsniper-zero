@@ -18,6 +18,7 @@ def main(
     *,
     testnet: bool = False,
     dry_run: bool = False,
+    offline: bool = False,
 ) -> None:
     """Run the trading loop.
 
@@ -27,13 +28,15 @@ def main(
         Database URL for storing trades.
     loop_delay:
         Delay between iterations in seconds.
+    offline:
+        Return a predefined token list instead of querying the network.
     """
 
     memory = Memory(memory_path)
     portfolio = Portfolio()
 
     while True:
-        tokens = scan_tokens()
+        tokens = scan_tokens(offline=offline)
         for token in tokens:
             sims = run_simulations(token, count=100)
             if should_buy(sims):
@@ -75,10 +78,16 @@ if __name__ == "__main__":
         action="store_true",
         help="Do not submit orders, just simulate",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Use a static token list and skip network requests",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
         loop_delay=args.loop_delay,
         testnet=args.testnet,
         dry_run=args.dry_run,
+        offline=args.offline,
     )
