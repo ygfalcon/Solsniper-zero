@@ -1,24 +1,21 @@
 import logging
 import os
-import time
+import asyncio
 from argparse import ArgumentParser
 
-from .config import load_config, apply_env_overrides, set_env_from_config
 
-CONFIG = apply_env_overrides(load_config())
-set_env_from_config(CONFIG)
+from .scanner import scan_tokens_async
 
-from .scanner import scan_tokens
 from .simulation import run_simulations
 from .decision import should_buy
 from .memory import Memory
 from .portfolio import Portfolio
-from .exchange import place_order
+from .exchange import place_order_async
 
 logging.basicConfig(level=logging.INFO)
 
 
-def _run_iteration(
+async def _run_iteration(
     memory: Memory,
     portfolio: Portfolio,
     *,
@@ -27,14 +24,14 @@ def _run_iteration(
     offline: bool = False,
     keypair=None,
 ) -> None:
-    """Execute a single trading iteration."""
-    tokens = scan_tokens(offline=offline)
+    """Execute a single trading iteration asynchronously."""
+    tokens = await scan_tokens_async(offline=offline)
 
     for token in tokens:
         sims = run_simulations(token, count=100)
         if should_buy(sims):
             logging.info("Buying %s", token)
-            place_order(
+            await place_order_async(
                 token,
                 side="buy",
                 amount=1,
@@ -90,33 +87,35 @@ def main(
 
     keypair = load_keypair(keypair_path) if keypair_path else None
 
+    async def loop() -> None:
+        if iterations is None:
+            while True:
+                await _run_iteration(
+                    memory,
+                    portfolio,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    offline=offline,
+                    keypair=keypair,
+                )
+                await asyncio.sleep(loop_delay)
+        else:
+            for i in range(iterations):
+                await _run_iteration(
+                    memory,
+                    portfolio,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    offline=offline,
+                    keypair=keypair,
+                )
+                if i < iterations - 1:
+                    await asyncio.sleep(loop_delay)
+
+    asyncio.run(loop())
 
 
 
-
-    if iterations is None:
-        while True:
-            _run_iteration(
-                memory,
-                portfolio,
-                testnet=testnet,
-                dry_run=dry_run,
-                offline=offline,
-                keypair=keypair,
-            )
-            time.sleep(loop_delay)
-    else:
-        for i in range(iterations):
-            _run_iteration(
-                memory,
-                portfolio,
-                testnet=testnet,
-                dry_run=dry_run,
-                offline=offline,
-                keypair=keypair,
-            )
-            if i < iterations - 1:
-                time.sleep(loop_delay)
 
 
 if __name__ == "__main__":

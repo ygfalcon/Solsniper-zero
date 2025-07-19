@@ -59,3 +59,11 @@ def scan_tokens(*, offline: bool = False) -> List[str]:
         except requests.RequestException as e:
             logger.error("Scan failed: %s", e)
             return []
+
+
+async def scan_tokens_async(*, offline: bool = False) -> List[str]:
+    """Async wrapper around :func:`scan_tokens` using aiohttp."""
+    from .async_scanner import scan_tokens_async as _scan
+
+    return await _scan(offline=offline)
+

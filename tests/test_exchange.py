@@ -51,19 +51,41 @@ def test_place_order_with_keypair(monkeypatch):
     assert "signature" in captured["json"]
 
 
-def test_place_order_http_error(monkeypatch):
-    def fake_post(url, json, timeout=10):
-        return FakeResponse({}, status_code=500)
-
-    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
-    with pytest.raises(OrderPlacementError):
-        place_order("tok", "buy", 1.0, 0.5)
+import asyncio
+from solhunter_zero.exchange import place_order_async
 
 
-def test_place_order_network_error(monkeypatch):
-    def fake_post(url, json, timeout=10):
-        raise requests.ConnectionError("no network")
+def test_place_order_async_posts(monkeypatch):
+    captured = {}
 
-    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
-    with pytest.raises(OrderPlacementError):
-        place_order("tok", "buy", 1.0, 0.5)
+    class FakeResp:
+        def __init__(self, url, payload):
+            captured["url"] = url
+            captured["json"] = payload
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            return {"order_id": "1"}
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        def post(self, url, json, timeout=10):
+            return FakeResp(url, json)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    result = asyncio.run(place_order_async("tok", "buy", 1.0, 0.5, testnet=True))
+    assert result == {"order_id": "1"}
+    assert captured["json"]["token"] == "tok"

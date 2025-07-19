@@ -1,4 +1,4 @@
-class PublicKey(str):
-    """Minimal stand-in for solana-py's PublicKey"""
-    def __new__(cls, value: str):
-        return str.__new__(cls, value)
+
+class PublicKey:
+    def __init__(self, value: str):
+        self.value = value
