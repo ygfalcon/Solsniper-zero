@@ -10,8 +10,10 @@ dependencies = [
     "numpy",
     "pandas",
     "scikit-learn",
+
     "solana",
     "flask",
+
 ]
 
 [build-system]

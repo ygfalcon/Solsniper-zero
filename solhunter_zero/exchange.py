@@ -3,6 +3,11 @@ import logging
 from typing import Optional, Dict, Any
 
 import requests
+import aiohttp
+
+
+class OrderPlacementError(Exception):
+    """Raised when an order cannot be placed."""
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,66 @@ def place_order(
         resp = requests.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         return resp.json()
+    except requests.HTTPError as exc:
+        data = getattr(exc.response, "text", "") if getattr(exc, "response", None) else ""
+        status = exc.response.status_code if getattr(exc, "response", None) else "no-response"
+        logger.error("Order failed with status %s: %s", status, data)
+        raise OrderPlacementError(f"HTTP {status}: {data}") from exc
     except requests.RequestException as exc:
         logger.error("Order submission failed: %s", exc)
+
         return None
+
+async def place_order_async(
+    token: str,
+    side: str,
+    amount: float,
+    price: float,
+    *,
+    testnet: bool = False,
+    dry_run: bool = False,
+    keypair=None,
+) -> Optional[Dict[str, Any]]:
+    """Asynchronously submit an order to the DEX API."""
+
+    base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
+    url = f"{base_url}{SWAP_PATH}"
+
+    payload = {
+        "token": token,
+        "side": side,
+        "amount": amount,
+        "price": price,
+        "cluster": "devnet" if testnet else "mainnet-beta",
+    }
+
+    if keypair is not None:
+        try:
+            import base64
+            import json as _json
+
+            message = _json.dumps(payload, sort_keys=True).encode()
+            signature = keypair.sign_message(message)
+            payload["signature"] = base64.b64encode(bytes(signature)).decode()
+        except Exception as exc:  # pragma: no cover - signing errors
+            logger.error("Signing failed: %s", exc)
+
+    if dry_run:
+        logger.info(
+            "Dry run: would place %s order for %s amount %s at price %s",
+            side,
+            token,
+            amount,
+            price,
+        )
+        return {"dry_run": True, **payload}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=10) as resp:
+                resp.raise_for_status()
+                return await resp.json()
+    except aiohttp.ClientError as exc:
+        logger.error("Order submission failed: %s", exc)
+        return None
+

@@ -1,19 +1,21 @@
 import logging
 import os
-import time
+import asyncio
 from argparse import ArgumentParser
 
-from .scanner import scan_tokens
+
+from .scanner import scan_tokens_async
+
 from .simulation import run_simulations
 from .decision import should_buy
 from .memory import Memory
 from .portfolio import Portfolio
-from .exchange import place_order
+from .exchange import place_order_async
 
 logging.basicConfig(level=logging.INFO)
 
 
-def _run_iteration(
+async def _run_iteration(
     memory: Memory,
     portfolio: Portfolio,
     *,
@@ -22,14 +24,14 @@ def _run_iteration(
     offline: bool = False,
     keypair=None,
 ) -> None:
-    """Execute a single trading iteration."""
-    tokens = scan_tokens(offline=offline)
+    """Execute a single trading iteration asynchronously."""
+    tokens = await scan_tokens_async(offline=offline)
 
     for token in tokens:
         sims = run_simulations(token, count=100)
         if should_buy(sims):
             logging.info("Buying %s", token)
-            place_order(
+            await place_order_async(
                 token,
                 side="buy",
                 amount=1,
@@ -40,7 +42,7 @@ def _run_iteration(
             )
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=1, price=0)
-                portfolio.add(token, 1, 0)
+                portfolio.update(token, 1, 0)
 
 
 def main(
@@ -52,6 +54,7 @@ def main(
     dry_run: bool = False,
     offline: bool = False,
     keypair_path: str | None = None,
+    portfolio_path: str = "portfolio.json",
 ) -> None:
     """Run the trading loop.
 
@@ -69,6 +72,8 @@ def main(
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+    portfolio_path:
+        Path to the JSON file for persisting portfolio state.
 
 
 
@@ -78,37 +83,39 @@ def main(
     from .wallet import load_keypair
 
     memory = Memory(memory_path)
-    portfolio = Portfolio()
+    portfolio = Portfolio(path=portfolio_path)
 
     keypair = load_keypair(keypair_path) if keypair_path else None
 
+    async def loop() -> None:
+        if iterations is None:
+            while True:
+                await _run_iteration(
+                    memory,
+                    portfolio,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    offline=offline,
+                    keypair=keypair,
+                )
+                await asyncio.sleep(loop_delay)
+        else:
+            for i in range(iterations):
+                await _run_iteration(
+                    memory,
+                    portfolio,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    offline=offline,
+                    keypair=keypair,
+                )
+                if i < iterations - 1:
+                    await asyncio.sleep(loop_delay)
+
+    asyncio.run(loop())
 
 
 
-
-    if iterations is None:
-        while True:
-            _run_iteration(
-                memory,
-                portfolio,
-                testnet=testnet,
-                dry_run=dry_run,
-                offline=offline,
-                keypair=keypair,
-            )
-            time.sleep(loop_delay)
-    else:
-        for i in range(iterations):
-            _run_iteration(
-                memory,
-                portfolio,
-                testnet=testnet,
-                dry_run=dry_run,
-                offline=offline,
-                keypair=keypair,
-            )
-            if i < iterations - 1:
-                time.sleep(loop_delay)
 
 
 if __name__ == "__main__":
@@ -150,6 +157,11 @@ if __name__ == "__main__":
         default=os.getenv("KEYPAIR_PATH"),
         help="Path to a JSON keypair for signing transactions",
     )
+    parser.add_argument(
+        "--portfolio-path",
+        default="portfolio.json",
+        help="Path to a JSON file for persisting portfolio state",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -159,4 +171,5 @@ if __name__ == "__main__":
         dry_run=args.dry_run,
         offline=args.offline,
         keypair_path=args.keypair,
+        portfolio_path=args.portfolio_path,
     )

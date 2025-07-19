@@ -14,7 +14,20 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    pip install -r requirements.txt
    ```
 
-3. **Configure API access**
+3. **Create a configuration file**
+   Create a `config.yaml` or `config.toml` file in the project directory with
+   your API keys, RPC URL and DEX endpoints:
+
+   ```yaml
+   birdeye_api_key: YOUR_BIRDEYE_KEY
+   solana_rpc_url: https://api.mainnet-beta.solana.com
+   dex_base_url: https://dex.example/api
+   dex_testnet_url: https://dex.testnet/api
+   ```
+
+   Environment variables with the same names override values from the file.
+
+4. **Configure API access**
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
    is missing, it will fall back to scanning the blockchain directly using the
    RPC endpoint specified by `SOLANA_RPC_URL`.
@@ -34,20 +47,20 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
    ```
 
-4. **Configure DEX endpoints**
+5. **Configure DEX endpoints**
    Set the base URL of the DEX API for mainnet and (optionally) the testnet
    endpoint. The defaults are placeholders, so you should provide your own:
    ```bash
    export DEX_BASE_URL=https://dex.example/api
    export DEX_TESTNET_URL=https://dex.testnet/api
    ```
-5. **Provide a keypair for signing**
+6. **Provide a keypair for signing**
    Generate a keypair with `solana-keygen new` if you don't already have one and
    point the bot to it using `KEYPAIR_PATH` or the `--keypair` flag:
    ```bash
    export KEYPAIR_PATH=/path/to/your/keypair.json
    ```
-6. **Run the bot**
+7. **Run the bot**
    ```bash
    ./run.sh
    # or

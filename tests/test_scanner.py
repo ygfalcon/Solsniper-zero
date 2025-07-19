@@ -73,3 +73,35 @@ def test_scan_tokens_onchain_when_no_key(monkeypatch):
     assert tokens == ['tok']
     assert captured['url'] == 'http://node'
 
+
+import asyncio
+from solhunter_zero.async_scanner import scan_tokens_async as async_scan
+
+
+def test_scan_tokens_async(monkeypatch):
+    data = {"data": [{"address": "abcbonk"}, {"address": "otherbonk"}]}
+    class FakeResp:
+        status = 200
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        async def json(self):
+            return data
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, headers=None, timeout=10):
+            return FakeResp()
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    scanner_async_module = __import__('solhunter_zero.async_scanner', fromlist=[''])
+    scanner_async_module.BIRDEYE_API_KEY = 'key'
+    scanner_async_module.HEADERS = {"X-API-KEY": "key"}
+    tokens = asyncio.run(async_scan())
+    assert tokens == ["abcbonk", "otherbonk"]
