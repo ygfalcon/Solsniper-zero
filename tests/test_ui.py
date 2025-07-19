@@ -1,4 +1,6 @@
 import time
+import os
+from solders.keypair import Keypair
 from solhunter_zero import ui
 
 
@@ -33,6 +35,7 @@ def test_start_and_stop(monkeypatch):
     assert calls
 
 
+
 def test_balances_endpoint(monkeypatch):
     from solhunter_zero.portfolio import Portfolio, Position
 
@@ -45,3 +48,4 @@ def test_balances_endpoint(monkeypatch):
     resp = client.get("/balances")
     data = resp.get_json()
     assert data["tok"]["amount"] == 2
+

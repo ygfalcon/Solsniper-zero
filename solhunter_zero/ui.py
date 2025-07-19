@@ -1,7 +1,8 @@
 import threading
 import time
 import os
-from flask import Flask, jsonify
+import json
+from flask import Flask, jsonify, request
 
 from . import wallet
 from . import main as main_module
@@ -22,11 +23,14 @@ def trading_loop() -> None:
     global current_portfolio, current_keypair
     memory = Memory("sqlite:///memory.db")
     portfolio = Portfolio()
+
     current_portfolio = portfolio
     keypair_path = os.getenv("KEYPAIR_PATH")
     keypair = wallet.load_keypair(keypair_path) if keypair_path else None
     current_keypair = keypair
+
     while not stop_event.is_set():
+        keypair = wallet.load_selected_keypair()
         main_module._run_iteration(
             memory,
             portfolio,
@@ -58,6 +62,7 @@ def stop() -> dict:
     return jsonify({"status": "stopped"})
 
 
+
 @app.route("/balances")
 def balances() -> dict:
     """Return the portfolio balances as JSON."""
@@ -69,6 +74,7 @@ def balances() -> dict:
     }
     return jsonify(data)
 
+
 HTML_PAGE = """
 <!doctype html>
 <html>
@@ -78,10 +84,12 @@ HTML_PAGE = """
 <body>
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
+
     <table id='balances'>
         <thead><tr><th>Token</th><th>Amount</th></tr></thead>
         <tbody></tbody>
     </table>
+
     <script>
     document.getElementById('start').onclick = function() {
         fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
@@ -89,6 +97,7 @@ HTML_PAGE = """
     document.getElementById('stop').onclick = function() {
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+
 
     function loadBalances() {
         fetch('/balances').then(r => r.json()).then(data => {
@@ -108,6 +117,7 @@ HTML_PAGE = """
     }
     loadBalances();
     setInterval(loadBalances, 5000);
+
     </script>
 </body>
 </html>
