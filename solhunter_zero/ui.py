@@ -3,6 +3,8 @@ import time
 import os
 from flask import Flask, jsonify
 
+from .prices import fetch_token_prices
+
 from . import wallet
 from . import main as main_module
 from .memory import Memory
@@ -50,6 +52,20 @@ def stop() -> dict:
         trading_thread.join()
     return jsonify({"status": "stopped"})
 
+
+@app.route("/balances")
+def balances() -> dict:
+    """Return portfolio balances with USD values."""
+    pf = Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    result = {}
+    for token, pos in pf.balances.items():
+        price = prices.get(token)
+        usd = pos.amount * price if price is not None else None
+        result[token] = {"amount": pos.amount, "price": price, "usd": usd}
+    return jsonify(result)
+
 HTML_PAGE = """
 <!doctype html>
 <html>
@@ -59,13 +75,31 @@ HTML_PAGE = """
 <body>
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
+
+    <table id='balances'>
+        <thead><tr><th>Token</th><th>Amount</th><th>USD Value</th></tr></thead>
+        <tbody></tbody>
+    </table>
+
     <script>
+    function refresh() {
+        fetch('/balances').then(r => r.json()).then(data => {
+            const body = document.querySelector('#balances tbody');
+            body.innerHTML = '';
+            Object.entries(data).forEach(([token, info]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${token}</td><td>${info.amount}</td><td>${info.usd}</td>`;
+                body.appendChild(row);
+            });
+        });
+    }
     document.getElementById('start').onclick = function() {
         fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
     document.getElementById('stop').onclick = function() {
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+    refresh();
     </script>
 </body>
 </html>

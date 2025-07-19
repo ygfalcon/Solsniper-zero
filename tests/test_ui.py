@@ -1,5 +1,6 @@
 import time
 from solhunter_zero import ui
+from solhunter_zero.portfolio import Position
 
 
 def test_start_and_stop(monkeypatch):
@@ -31,3 +32,19 @@ def test_start_and_stop(monkeypatch):
     ui.trading_thread.join(timeout=1)
     assert not ui.trading_thread.is_alive()
     assert calls
+
+
+def test_balances_includes_usd(monkeypatch):
+    pf = ui.Portfolio(path=None)
+    pf.balances = {"tok": Position("tok", 2, 1.0)}
+
+    monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: pf)
+    monkeypatch.setattr(ui, "fetch_token_prices", lambda tokens: {"tok": 3.0})
+
+    client = ui.app.test_client()
+    resp = client.get("/balances")
+    data = resp.get_json()
+
+    assert data["tok"]["price"] == 3.0
+    assert data["tok"]["usd"] == 6.0
+    assert data["tok"]["amount"] == 2
