@@ -4,7 +4,19 @@ import logging
 import time
 from typing import List
 
-from solana.publickey import PublicKey
+try:
+    from solana.publickey import PublicKey  # type: ignore
+except Exception:  # pragma: no cover - fallback when solana lacks PublicKey
+    class PublicKey(str):
+        """Minimal stand-in for ``solana.publickey.PublicKey``."""
+
+        def __new__(cls, value: str):
+            return str.__new__(cls, value)
+
+    import types, sys
+    mod = types.ModuleType("solana.publickey")
+    mod.PublicKey = PublicKey
+    sys.modules.setdefault("solana.publickey", mod)
 from solana.rpc.api import Client
 
 logger = logging.getLogger(__name__)

@@ -23,7 +23,7 @@ def test_main_invokes_place_order(monkeypatch):
 
     # avoid DB writes
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
-    monkeypatch.setattr(main_module.Portfolio, "add", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     monkeypatch.setattr(main_module.time, "sleep", lambda _: None)
 
@@ -58,7 +58,7 @@ def test_main_offline(monkeypatch):
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     monkeypatch.setattr(main_module, "place_order", lambda *a, **k: {"order_id": "1"})
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
-    monkeypatch.setattr(main_module.Portfolio, "add", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     def fake_sleep(_):
         raise SystemExit()
