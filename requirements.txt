@@ -7,3 +7,5 @@ scikit-learn
 solana
 flask
 
+aiohttp
+
