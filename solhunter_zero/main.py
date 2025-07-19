@@ -3,6 +3,11 @@ import os
 import time
 from argparse import ArgumentParser
 
+from .config import load_config, apply_env_overrides, set_env_from_config
+
+CONFIG = apply_env_overrides(load_config())
+set_env_from_config(CONFIG)
+
 from .scanner import scan_tokens
 from .simulation import run_simulations
 from .decision import should_buy
