@@ -9,6 +9,9 @@ if not hasattr(Keypair, "to_bytes"):
 
     Keypair.to_bytes = _to_bytes  # type: ignore[attr-defined]
 
+
+    
+
 if not hasattr(Keypair, "to_bytes_array"):
     def _to_bytes_array(self) -> list[int]:  # pragma: no cover - shim for old versions
         return list(self.to_bytes())

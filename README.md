@@ -23,6 +23,7 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    solana_rpc_url: https://api.mainnet-beta.solana.com
    dex_base_url: https://dex.example/api
    dex_testnet_url: https://dex.testnet/api
+   metrics_base_url: https://api.example.com
    ```
 
    Environment variables with the same names override values from the file.
@@ -55,13 +56,19 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    export DEX_BASE_URL=https://dex.example/api
    export DEX_TESTNET_URL=https://dex.testnet/api
    ```
-6. **Provide a keypair for signing**
+6. **Set the metrics API endpoint**
+   Specify the base URL used by the simulator to fetch historical return
+   metrics:
+   ```bash
+   export METRICS_BASE_URL=https://api.example.com
+   ```
+7. **Provide a keypair for signing**
    Generate a keypair with `solana-keygen new` if you don't already have one and
    point the bot to it using `KEYPAIR_PATH` or the `--keypair` flag:
    ```bash
    export KEYPAIR_PATH=/path/to/your/keypair.json
    ```
-7. **Run the bot**
+8. **Run the bot**
    ```bash
    ./run.sh
    # or
