@@ -20,3 +20,12 @@ def test_should_buy_negative():
         SimulationResult(success_prob=0.6, expected_roi=0.9),
     ]
     assert should_buy(sims) is False
+
+
+def test_should_buy_high_thresholds():
+    sims = [
+        SimulationResult(success_prob=0.7, expected_roi=1.2),
+        SimulationResult(success_prob=0.65, expected_roi=1.5),
+    ]
+    # require very high sharpe ratio
+    assert should_buy(sims, min_sharpe=10.0) is False

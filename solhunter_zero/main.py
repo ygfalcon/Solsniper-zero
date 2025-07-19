@@ -3,7 +3,9 @@ import os
 import asyncio
 from argparse import ArgumentParser
 
+
 from .scanner import scan_tokens_async
+
 from .simulation import run_simulations
 from .decision import should_buy
 from .memory import Memory
@@ -40,7 +42,7 @@ async def _run_iteration(
             )
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=1, price=0)
-                portfolio.add(token, 1, 0)
+                portfolio.update(token, 1, 0)
 
 
 def main(
@@ -52,6 +54,7 @@ def main(
     dry_run: bool = False,
     offline: bool = False,
     keypair_path: str | None = None,
+    portfolio_path: str = "portfolio.json",
 ) -> None:
     """Run the trading loop.
 
@@ -69,6 +72,8 @@ def main(
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+    portfolio_path:
+        Path to the JSON file for persisting portfolio state.
 
 
 
@@ -78,7 +83,7 @@ def main(
     from .wallet import load_keypair
 
     memory = Memory(memory_path)
-    portfolio = Portfolio()
+    portfolio = Portfolio(path=portfolio_path)
 
     keypair = load_keypair(keypair_path) if keypair_path else None
 
@@ -152,6 +157,11 @@ if __name__ == "__main__":
         default=os.getenv("KEYPAIR_PATH"),
         help="Path to a JSON keypair for signing transactions",
     )
+    parser.add_argument(
+        "--portfolio-path",
+        default="portfolio.json",
+        help="Path to a JSON file for persisting portfolio state",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -161,4 +171,5 @@ if __name__ == "__main__":
         dry_run=args.dry_run,
         offline=args.offline,
         keypair_path=args.keypair,
+        portfolio_path=args.portfolio_path,
     )

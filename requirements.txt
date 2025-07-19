@@ -3,4 +3,5 @@ sqlalchemy
 numpy
 pandas
 scikit-learn
-solana
+solana==0.9.2
+PyYAML

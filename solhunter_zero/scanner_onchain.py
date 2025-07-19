@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import List
 
-from solana.publickey import PublicKey
+try:
+    from solana.publickey import PublicKey  # type: ignore
+except Exception:  # pragma: no cover - fallback when solana lacks PublicKey
+    class PublicKey(str):
+        """Minimal stand-in for ``solana.publickey.PublicKey``."""
+
+        def __new__(cls, value: str):
+            return str.__new__(cls, value)
+
+    import types, sys
+    mod = types.ModuleType("solana.publickey")
+    mod.PublicKey = PublicKey
+    sys.modules.setdefault("solana.publickey", mod)
 from solana.rpc.api import Client
-from solana.publickey import PublicKey
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +37,26 @@ def scan_tokens_onchain(rpc_url: str) -> List[str]:
         raise ValueError("rpc_url is required")
 
     client = Client(rpc_url)
-    try:
-        resp = client.get_program_accounts(TOKEN_PROGRAM_ID, encoding="jsonParsed")
-    except Exception as exc:  # pragma: no cover - network errors
-        logger.error("On-chain scan failed: %s", exc)
-        return []
+
+    backoff = 1
+    max_backoff = 60
+    attempts = 0
+    while True:
+        try:
+            resp = client.get_program_accounts(
+                TOKEN_PROGRAM_ID, encoding="jsonParsed"
+            )
+            break
+        except Exception as exc:  # pragma: no cover - network errors
+            attempts += 1
+            if attempts >= 5:
+                logger.error("On-chain scan failed: %s", exc)
+                return []
+            logger.warning(
+                "RPC error: %s. Sleeping %s seconds before retry", exc, backoff
+            )
+            time.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
 
     tokens: List[str] = []
     for acc in resp.get("result", []):
