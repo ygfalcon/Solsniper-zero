@@ -31,3 +31,17 @@ def test_start_and_stop(monkeypatch):
     ui.trading_thread.join(timeout=1)
     assert not ui.trading_thread.is_alive()
     assert calls
+
+
+def test_balances_endpoint(monkeypatch):
+    from solhunter_zero.portfolio import Portfolio, Position
+
+    pf = Portfolio(path=None)
+    pf.balances["tok"] = Position("tok", 2, 1.0)
+
+    monkeypatch.setattr(ui, "current_portfolio", pf)
+
+    client = ui.app.test_client()
+    resp = client.get("/balances")
+    data = resp.get_json()
+    assert data["tok"]["amount"] == 2
