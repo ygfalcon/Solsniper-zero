@@ -1,5 +1,6 @@
-import types
-from solhunter_zero.exchange import place_order
+import pytest
+import requests
+from solhunter_zero.exchange import place_order, OrderPlacementError
 from solders.keypair import Keypair
 
 
@@ -7,10 +8,11 @@ class FakeResponse:
     def __init__(self, data, status_code=200):
         self._data = data
         self.status_code = status_code
+        self.text = "response"
 
     def raise_for_status(self):
         if self.status_code != 200:
-            raise Exception("bad status")
+            raise requests.HTTPError("bad status", response=self)
 
     def json(self):
         return self._data
@@ -47,3 +49,21 @@ def test_place_order_with_keypair(monkeypatch):
     monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
     place_order("tok", "buy", 1.0, 0.5, keypair=kp)
     assert "signature" in captured["json"]
+
+
+def test_place_order_http_error(monkeypatch):
+    def fake_post(url, json, timeout=10):
+        return FakeResponse({}, status_code=500)
+
+    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
+    with pytest.raises(OrderPlacementError):
+        place_order("tok", "buy", 1.0, 0.5)
+
+
+def test_place_order_network_error(monkeypatch):
+    def fake_post(url, json, timeout=10):
+        raise requests.ConnectionError("no network")
+
+    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
+    with pytest.raises(OrderPlacementError):
+        place_order("tok", "buy", 1.0, 0.5)
