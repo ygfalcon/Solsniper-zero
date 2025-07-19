@@ -4,6 +4,8 @@ import os
 import json
 from flask import Flask, jsonify, request
 
+from .prices import fetch_token_prices
+
 from . import wallet
 from . import main as main_module
 from .memory import Memory
@@ -65,14 +67,16 @@ def stop() -> dict:
 
 @app.route("/balances")
 def balances() -> dict:
-    """Return the portfolio balances as JSON."""
-    if current_portfolio is None:
-        return jsonify({})
-    data = {
-        token: {"amount": pos.amount, "entry_price": pos.entry_price}
-        for token, pos in current_portfolio.balances.items()
-    }
-    return jsonify(data)
+    """Return portfolio balances with USD values."""
+    pf = Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    result = {}
+    for token, pos in pf.balances.items():
+        price = prices.get(token)
+        usd = pos.amount * price if price is not None else None
+        result[token] = {"amount": pos.amount, "price": price, "usd": usd}
+    return jsonify(result)
 
 
 HTML_PAGE = """
@@ -86,11 +90,24 @@ HTML_PAGE = """
     <button id='stop'>Stop</button>
 
     <table id='balances'>
-        <thead><tr><th>Token</th><th>Amount</th></tr></thead>
+
+        <thead><tr><th>Token</th><th>Amount</th><th>USD Value</th></tr></thead>
+
         <tbody></tbody>
     </table>
 
     <script>
+    function refresh() {
+        fetch('/balances').then(r => r.json()).then(data => {
+            const body = document.querySelector('#balances tbody');
+            body.innerHTML = '';
+            Object.entries(data).forEach(([token, info]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${token}</td><td>${info.amount}</td><td>${info.usd}</td>`;
+                body.appendChild(row);
+            });
+        });
+    }
     document.getElementById('start').onclick = function() {
         fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
@@ -98,25 +115,7 @@ HTML_PAGE = """
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
 
-
-    function loadBalances() {
-        fetch('/balances').then(r => r.json()).then(data => {
-            const tbody = document.querySelector('#balances tbody');
-            tbody.innerHTML = '';
-            Object.entries(data).forEach(([token, info]) => {
-                const row = document.createElement('tr');
-                const t = document.createElement('td');
-                t.textContent = token;
-                const a = document.createElement('td');
-                a.textContent = info.amount ?? info;
-                row.appendChild(t);
-                row.appendChild(a);
-                tbody.appendChild(row);
-            });
-        });
-    }
-    loadBalances();
-    setInterval(loadBalances, 5000);
+    refresh();
 
     </script>
 </body>
