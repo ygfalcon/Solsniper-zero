@@ -4,6 +4,10 @@ from typing import Optional, Dict, Any
 
 import requests
 
+
+class OrderPlacementError(Exception):
+    """Raised when an order cannot be placed."""
+
 logger = logging.getLogger(__name__)
 
 # Using Jupiter Aggregator REST API for token swaps.
@@ -73,6 +77,11 @@ def place_order(
         resp = requests.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         return resp.json()
+    except requests.HTTPError as exc:
+        data = getattr(exc.response, "text", "") if getattr(exc, "response", None) else ""
+        status = exc.response.status_code if getattr(exc, "response", None) else "no-response"
+        logger.error("Order failed with status %s: %s", status, data)
+        raise OrderPlacementError(f"HTTP {status}: {data}") from exc
     except requests.RequestException as exc:
         logger.error("Order submission failed: %s", exc)
-        return None
+        raise OrderPlacementError(str(exc)) from exc
