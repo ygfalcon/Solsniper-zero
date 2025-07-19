@@ -114,3 +114,14 @@ export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 For testing or development without any network access, pass the `--offline`
 flag to the bot. In this mode the scanner returns a small fixed list of tokens
 without making HTTP requests.
+
+## Web UI
+
+Run a simple Flask-based UI with:
+
+```bash
+python -m solhunter_zero.ui
+```
+
+The UI provides **Start** and **Stop** buttons to control the trading loop. It
+is served on `http://localhost:5000` by default.
