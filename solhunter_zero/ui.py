@@ -1,7 +1,8 @@
 import threading
 import time
 import os
-from flask import Flask, jsonify
+import json
+from flask import Flask, jsonify, request
 
 from .prices import fetch_token_prices
 
@@ -16,12 +17,22 @@ trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
 
+# currently active portfolio and keypair used by the trading loop
+current_portfolio: Portfolio | None = None
+current_keypair = None
+
 def trading_loop() -> None:
+    global current_portfolio, current_keypair
     memory = Memory("sqlite:///memory.db")
     portfolio = Portfolio()
+
+    current_portfolio = portfolio
     keypair_path = os.getenv("KEYPAIR_PATH")
     keypair = wallet.load_keypair(keypair_path) if keypair_path else None
+    current_keypair = keypair
+
     while not stop_event.is_set():
+        keypair = wallet.load_selected_keypair()
         main_module._run_iteration(
             memory,
             portfolio,
@@ -53,6 +64,7 @@ def stop() -> dict:
     return jsonify({"status": "stopped"})
 
 
+
 @app.route("/balances")
 def balances() -> dict:
     """Return portfolio balances with USD values."""
@@ -66,6 +78,7 @@ def balances() -> dict:
         result[token] = {"amount": pos.amount, "price": price, "usd": usd}
     return jsonify(result)
 
+
 HTML_PAGE = """
 <!doctype html>
 <html>
@@ -77,7 +90,9 @@ HTML_PAGE = """
     <button id='stop'>Stop</button>
 
     <table id='balances'>
+
         <thead><tr><th>Token</th><th>Amount</th><th>USD Value</th></tr></thead>
+
         <tbody></tbody>
     </table>
 
@@ -99,7 +114,9 @@ HTML_PAGE = """
     document.getElementById('stop').onclick = function() {
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+
     refresh();
+
     </script>
 </body>
 </html>
