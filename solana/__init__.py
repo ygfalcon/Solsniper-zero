@@ -1,6 +1,4 @@
 
-class PublicKey:
-    def __init__(self, value: str):
-        self.value = value
-
+from pkgutil import extend_path
+__path__ = extend_path(__path__, __name__)
 
