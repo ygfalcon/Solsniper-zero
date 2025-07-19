@@ -1,7 +1,8 @@
 import threading
 import time
 import os
-from flask import Flask, jsonify
+import json
+from flask import Flask, jsonify, request
 
 from . import wallet
 from . import main as main_module
@@ -17,9 +18,8 @@ loop_delay = 60
 def trading_loop() -> None:
     memory = Memory("sqlite:///memory.db")
     portfolio = Portfolio()
-    keypair_path = os.getenv("KEYPAIR_PATH")
-    keypair = wallet.load_keypair(keypair_path) if keypair_path else None
     while not stop_event.is_set():
+        keypair = wallet.load_selected_keypair()
         main_module._run_iteration(
             memory,
             portfolio,
@@ -50,6 +50,30 @@ def stop() -> dict:
         trading_thread.join()
     return jsonify({"status": "stopped"})
 
+
+@app.route("/keypairs", methods=["GET"])
+def list_keypairs() -> dict:
+    return jsonify({"keypairs": wallet.list_keypairs(), "active": wallet.get_active_keypair_name()})
+
+
+@app.route("/keypairs", methods=["POST"])
+def add_keypair() -> dict:
+    data = request.get_json(force=True)
+    name = data.get("name")
+    keypair_data = data.get("keypair")
+    if isinstance(keypair_data, str):
+        keypair_data = json.loads(keypair_data)
+    wallet.save_keypair(name, keypair_data)
+    return jsonify({"status": "saved"})
+
+
+@app.route("/keypairs/select", methods=["POST"])
+def select_keypair() -> dict:
+    data = request.get_json(force=True)
+    name = data.get("name")
+    wallet.select_keypair(name)
+    return jsonify({"status": "selected"})
+
 HTML_PAGE = """
 <!doctype html>
 <html>
@@ -59,12 +83,41 @@ HTML_PAGE = """
 <body>
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
+    <form id='add-form'>
+        <input name='name' placeholder='Name'>
+        <textarea name='keypair' placeholder='Keypair JSON'></textarea>
+        <button type='submit'>Add</button>
+    </form>
+    <select id='keypair-select'></select>
     <script>
     document.getElementById('start').onclick = function() {
         fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
     document.getElementById('stop').onclick = function() {
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
+    };
+    function refreshKeypairs() {
+        fetch('/keypairs').then(r => r.json()).then(data => {
+            const sel = document.getElementById('keypair-select');
+            sel.innerHTML = '';
+            data.keypairs.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n;
+                if (n === data.active) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        });
+    }
+    refreshKeypairs();
+    document.getElementById('add-form').onsubmit = function(e) {
+        e.preventDefault();
+        const name = this.name.value;
+        const keypair = this.keypair.value;
+        fetch('/keypairs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, keypair})}).then(refreshKeypairs);
+    };
+    document.getElementById('keypair-select').onchange = function() {
+        fetch('/keypairs/select', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: this.value})});
     };
     </script>
 </body>
