@@ -26,6 +26,7 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    ```
 
    Environment variables with the same names override values from the file.
+   You can specify an alternative file with the `--config` command line option.
 
 4. **Configure API access**
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
@@ -103,6 +104,7 @@ submitted:
 python -m solhunter_zero.main \
   --memory-path sqlite:///my.db --loop-delay 30 \
   --testnet --dry-run --offline
+  --config myconfig.yaml
 ```
 Set the keypair path with the `--keypair` flag or the `KEYPAIR_PATH`
 environment variable if you want to sign orders.
