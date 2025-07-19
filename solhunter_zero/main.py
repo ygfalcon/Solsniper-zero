@@ -3,6 +3,13 @@ import os
 import asyncio
 from argparse import ArgumentParser
 
+from .config import load_config, apply_env_overrides, set_env_from_config
+
+# Load configuration at startup so modules relying on environment variables
+# pick up the values from config files or environment.
+_cfg = apply_env_overrides(load_config())
+set_env_from_config(_cfg)
+
 
 from .scanner import scan_tokens_async
 
@@ -55,6 +62,7 @@ def main(
     offline: bool = False,
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
+    config_path: str | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -81,6 +89,9 @@ def main(
     """
 
     from .wallet import load_keypair
+
+    cfg = apply_env_overrides(load_config(config_path))
+    set_env_from_config(cfg)
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
@@ -162,6 +173,11 @@ if __name__ == "__main__":
         default="portfolio.json",
         help="Path to a JSON file for persisting portfolio state",
     )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to a configuration file",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -172,4 +188,5 @@ if __name__ == "__main__":
         offline=args.offline,
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
+        config_path=args.config,
     )

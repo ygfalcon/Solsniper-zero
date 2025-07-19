@@ -9,8 +9,9 @@ if not hasattr(Keypair, "to_bytes"):
 
     Keypair.to_bytes = _to_bytes  # type: ignore[attr-defined]
 
-# Older versions of ``solders`` do not expose ``to_bytes_array`` either. Add a
-# compatibility shim that derives it from ``to_bytes``.
+
+    
+
 if not hasattr(Keypair, "to_bytes_array"):
     def _to_bytes_array(self) -> list[int]:  # pragma: no cover - shim for old versions
         return list(self.to_bytes())
