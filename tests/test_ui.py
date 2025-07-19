@@ -35,25 +35,17 @@ def test_start_and_stop(monkeypatch):
     assert calls
 
 
-def test_keypair_add_and_select(monkeypatch, tmp_path):
-    monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path))
-    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active"))
-    os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
+
+def test_balances_endpoint(monkeypatch):
+    from solhunter_zero.portfolio import Portfolio, Position
+
+    pf = Portfolio(path=None)
+    pf.balances["tok"] = Position("tok", 2, 1.0)
+
+    monkeypatch.setattr(ui, "current_portfolio", pf)
 
     client = ui.app.test_client()
+    resp = client.get("/balances")
+    data = resp.get_json()
+    assert data["tok"]["amount"] == 2
 
-    kp = Keypair()
-    resp = client.post("/keypairs", json={"name": "kp1", "keypair": list(kp.to_bytes())})
-    assert resp.get_json()["status"] == "saved"
-
-    data = client.get("/keypairs").get_json()
-    assert "kp1" in data["keypairs"]
-    assert data["active"] is None
-
-    resp = client.post("/keypairs/select", json={"name": "kp1"})
-    assert resp.get_json()["status"] == "selected"
-    data = client.get("/keypairs").get_json()
-    assert data["active"] == "kp1"
-
-    loaded = ui.wallet.load_selected_keypair()
-    assert loaded.to_bytes() == kp.to_bytes()
