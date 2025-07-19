@@ -16,6 +16,7 @@ ENV_VARS = {
     "solana_rpc_url": "SOLANA_RPC_URL",
     "dex_base_url": "DEX_BASE_URL",
     "dex_testnet_url": "DEX_TESTNET_URL",
+    "metrics_base_url": "METRICS_BASE_URL",
 }
 
 

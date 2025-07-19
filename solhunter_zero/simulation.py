@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import List
 
@@ -8,6 +9,11 @@ import numpy as np
 import requests
 
 logger = logging.getLogger(__name__)
+
+# Default base URL for the metrics API. Can be overridden by the
+# ``METRICS_BASE_URL`` environment variable or via a configuration file that
+# sets this variable before the module is imported.
+DEFAULT_METRICS_BASE_URL = "https://api.example.com"
 
 @dataclass
 class SimulationResult:
@@ -23,7 +29,8 @@ def fetch_token_metrics(token: str) -> dict:
     daily return and the standard deviation of daily returns.
     """
 
-    url = f"https://api.example.com/token/{token}/metrics"
+    base_url = os.getenv("METRICS_BASE_URL", DEFAULT_METRICS_BASE_URL)
+    url = f"{base_url.rstrip('/')}/token/{token}/metrics"
     try:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
