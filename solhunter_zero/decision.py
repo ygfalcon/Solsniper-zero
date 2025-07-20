@@ -15,6 +15,8 @@ def should_buy(
     min_liquidity: float = 0.0,
     max_slippage: float = 1.0,
     min_volume_spike: float = 1.0,
+    min_sentiment: float = 0.0,
+    min_order_strength: float = 0.0,
 ) -> bool:
     """Decide whether to buy a token based on simulation results.
 
@@ -35,6 +37,10 @@ def should_buy(
     if first.slippage > max_slippage:
         return False
     if getattr(first, "volume_spike", 1.0) < min_volume_spike:
+        return False
+    if getattr(first, "sentiment", 0.0) < min_sentiment:
+        return False
+    if getattr(first, "order_book_strength", 0.0) < min_order_strength:
         return False
 
     successes = [r.success_prob for r in sim_results]

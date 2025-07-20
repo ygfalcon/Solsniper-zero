@@ -80,6 +80,25 @@ def test_should_buy_volume_spike():
     assert should_buy(sims, min_volume_spike=3.0, min_sharpe=0.0) is False
 
 
+def test_should_buy_sentiment_and_order_book():
+    sims = [
+        SimulationResult(
+            success_prob=0.8,
+            expected_roi=1.1,
+            volume=200.0,
+            liquidity=200.0,
+            sentiment=0.6,
+            order_book_strength=0.7,
+        )
+    ]
+
+    assert should_buy(sims, min_sharpe=0.0, min_sentiment=0.5, min_order_strength=0.6) is True
+    assert (
+        should_buy(sims, min_sharpe=0.0, min_sentiment=0.7, min_order_strength=0.6)
+        is False
+    )
+
+
 def test_should_sell_negative_roi():
     sims = [
         SimulationResult(success_prob=0.5, expected_roi=-0.1, volume=200.0, liquidity=500.0),
