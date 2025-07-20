@@ -37,6 +37,34 @@ def test_should_buy_volume_threshold():
     assert should_buy(sims, min_volume=40.0, min_sharpe=0.0) is True
 
 
+def test_should_buy_liquidity_threshold():
+    sims = [
+        SimulationResult(
+            success_prob=0.8,
+            expected_roi=1.1,
+            volume=200.0,
+            liquidity=50.0,
+            slippage=0.01,
+        )
+    ]
+    assert should_buy(sims, min_liquidity=100.0, min_sharpe=0.0) is False
+    assert should_buy(sims, min_liquidity=40.0, min_sharpe=0.0) is True
+
+
+def test_should_buy_slippage_threshold():
+    sims = [
+        SimulationResult(
+            success_prob=0.8,
+            expected_roi=1.1,
+            volume=200.0,
+            liquidity=200.0,
+            slippage=0.1,
+        )
+    ]
+    assert should_buy(sims, max_slippage=0.05, min_sharpe=0.0) is False
+    assert should_buy(sims, max_slippage=0.2, min_sharpe=0.0) is True
+
+
 def test_should_sell_negative_roi():
     sims = [
         SimulationResult(success_prob=0.5, expected_roi=-0.1, volume=200.0, liquidity=500.0),
@@ -56,3 +84,29 @@ def test_should_sell_low_success():
 def test_should_sell_positive_outlook():
     sims = [SimulationResult(success_prob=0.8, expected_roi=0.5, volume=200.0, liquidity=500.0)]
     assert should_sell(sims) is False
+
+
+def test_should_sell_high_slippage():
+    sims = [
+        SimulationResult(
+            success_prob=0.8,
+            expected_roi=0.5,
+            volume=200.0,
+            liquidity=500.0,
+            slippage=0.2,
+        )
+    ]
+    assert should_sell(sims, max_slippage=0.1) is True
+
+
+def test_should_sell_low_liquidity():
+    sims = [
+        SimulationResult(
+            success_prob=0.8,
+            expected_roi=0.5,
+            volume=200.0,
+            liquidity=50.0,
+            slippage=0.01,
+        )
+    ]
+    assert should_sell(sims, min_liquidity=100.0) is True

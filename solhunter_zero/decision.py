@@ -12,6 +12,8 @@ def should_buy(
     min_roi: float = 1.0,
     min_sharpe: float = 1.0,
     min_volume: float = 0.0,
+    min_liquidity: float = 0.0,
+    max_slippage: float = 1.0,
 ) -> bool:
     """Decide whether to buy a token based on simulation results.
 
@@ -24,6 +26,10 @@ def should_buy(
         return False
 
     if sim_results[0].volume < min_volume:
+        return False
+    if sim_results[0].liquidity < min_liquidity:
+        return False
+    if sim_results[0].slippage > max_slippage:
         return False
 
     successes = [r.success_prob for r in sim_results]
@@ -44,6 +50,8 @@ def should_sell(
     *,
     max_success: float = 0.4,
     max_roi: float = 0.0,
+    min_liquidity: float = 0.0,
+    max_slippage: float = 1.0,
 ) -> bool:
     """Decide whether to sell a token based on simulation results.
 
@@ -55,6 +63,10 @@ def should_sell(
 
     if not sim_results:
         return False
+    if sim_results[0].liquidity < min_liquidity:
+        return True
+    if sim_results[0].slippage > max_slippage:
+        return True
 
     successes = [r.success_prob for r in sim_results]
     rois = [r.expected_roi for r in sim_results]

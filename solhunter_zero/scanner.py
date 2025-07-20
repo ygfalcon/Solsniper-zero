@@ -4,10 +4,9 @@ import asyncio
 import logging
 import time
 from typing import List
-
 import requests
 
-from . import dex_scanner
+import requests
 
 
 
@@ -22,6 +21,9 @@ from .scanner_common import (
     parse_birdeye_tokens,
     scan_tokens_from_file,
 
+    offline_or_onchain,
+    SOLANA_RPC_URL,
+)
 
 
 from .scanner_onchain import scan_tokens_onchain
