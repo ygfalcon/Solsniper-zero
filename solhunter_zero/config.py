@@ -80,3 +80,57 @@ def set_env_from_config(config: dict) -> None:
         val = config.get(key)
         if val is not None and os.getenv(env) is None:
             os.environ[env] = str(val)
+
+
+# ---------------------------------------------------------------------------
+#  Configuration file management helpers
+# ---------------------------------------------------------------------------
+
+CONFIG_DIR = os.getenv("CONFIG_DIR", "configs")
+ACTIVE_CONFIG_FILE = os.path.join(CONFIG_DIR, "active")
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
+
+def list_configs() -> list[str]:
+    """Return all saved configuration file names."""
+    return [
+        f
+        for f in os.listdir(CONFIG_DIR)
+        if os.path.isfile(os.path.join(CONFIG_DIR, f))
+        and not f.startswith(".")
+    ]
+
+
+def save_config(name: str, data: bytes) -> None:
+    """Persist configuration ``data`` under ``name``."""
+    path = os.path.join(CONFIG_DIR, name)
+    with open(path, "wb") as fh:
+        fh.write(data)
+
+
+def select_config(name: str) -> None:
+    """Mark ``name`` as the active configuration."""
+    path = os.path.join(CONFIG_DIR, name)
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    with open(ACTIVE_CONFIG_FILE, "w", encoding="utf-8") as fh:
+        fh.write(name)
+
+
+def get_active_config_name() -> str | None:
+    try:
+        with open(ACTIVE_CONFIG_FILE, "r", encoding="utf-8") as fh:
+            return fh.read().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def load_selected_config() -> dict:
+    """Load the currently selected configuration file."""
+    name = get_active_config_name()
+    if not name:
+        return {}
+    path = os.path.join(CONFIG_DIR, name)
+    if not os.path.exists(path):
+        return {}
+    return load_config(path)
