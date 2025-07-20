@@ -7,8 +7,7 @@ from flask import Flask, jsonify, request
 from pathlib import Path
 
 from .config import load_config, apply_env_overrides, set_env_from_config
-
-from .config import load_config, apply_env_overrides, set_env_from_config
+from . import config as config_module
 
 from .prices import fetch_token_prices
 
@@ -26,9 +25,17 @@ from .config import (
 )
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+
 cfg = load_config()
 if not cfg and _DEFAULT_PRESET.is_file():
     cfg = load_config(_DEFAULT_PRESET)
+
+if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
+    dest = Path(config_module.CONFIG_DIR) / _DEFAULT_PRESET.name
+    if not dest.exists():
+        dest.write_bytes(_DEFAULT_PRESET.read_bytes())
+    select_config(dest.name)
+
 cfg = apply_env_overrides(cfg)
 set_env_from_config(cfg)
 
@@ -97,6 +104,12 @@ def start() -> dict:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+
+    # auto-select the only available keypair if none is active
+    if wallet.get_active_keypair_name() is None:
+        keys = wallet.list_keypairs()
+        if len(keys) == 1:
+            wallet.select_keypair(keys[0])
 
     missing = _missing_required()
     if missing:
@@ -275,55 +288,7 @@ HTML_PAGE = """
 <body>
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
-
-    <div id='keys'>
-        <h3>Keypair</h3>
-        <select id='keypair_select'></select>
-        <input type='file' id='keypair_file'>
-        <input type='text' id='keypair_name' placeholder='Name'>
-        <button id='upload_keypair'>Upload</button>
-    </div>
-
-    <div id='configs'>
-        <h3>Config</h3>
-        <select id='config_select'></select>
-        <input type='file' id='config_file'>
-        <input type='text' id='config_name' placeholder='Name'>
-        <button id='upload_config'>Upload</button>
-    </div>
-
-    <div id='risk'>
-        <label>Risk tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
-        <label>Max allocation <input id='max_allocation' type='number' step='0.01'></label>
-        <label>Risk multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
-        <button id='save_risk'>Save</button>
-    </div>
-
-    <div id='discovery'>
-        <label>Discovery
-            <select id='discovery_select'>
-                <option value='websocket'>websocket</option>
-                <option value='mempool'>mempool</option>
-                <option value='onchain'>onchain</option>
-                <option value='pools'>pools</option>
-                <option value='file'>file</option>
-            </select>
-        </label>
-        <button id='save_discovery'>Save</button>
-    </div>
-
-    <div id='roi'></div>
-
-    <table id='balances'>
-        <thead><tr><th>Token</th><th>Amount</th><th>ROI</th></tr></thead>
-        <tbody></tbody>
-    </table>
-
-    <h3>Recent Trades</h3>
-    <table id='trades'>
-        <thead><tr><th>Token</th><th>Side</th><th>Amount</th><th>Price</th><th>Time</th></tr></thead>
-        <tbody></tbody>
-    </table>
+    <select id='keypair_select'></select>
 
     <script>
     document.getElementById('start').onclick = function() {
@@ -331,22 +296,6 @@ HTML_PAGE = """
     };
     document.getElementById('stop').onclick = function() {
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
-    };
-
-    function loadRisk() {
-        fetch('/risk').then(r => r.json()).then(data => {
-            document.getElementById('risk_tolerance').value = data.risk_tolerance;
-            document.getElementById('max_allocation').value = data.max_allocation;
-            document.getElementById('risk_multiplier').value = data.risk_multiplier;
-        });
-    }
-    document.getElementById('save_risk').onclick = function() {
-        const data = {
-            risk_tolerance: parseFloat(document.getElementById('risk_tolerance').value),
-            max_allocation: parseFloat(document.getElementById('max_allocation').value),
-            risk_multiplier: parseFloat(document.getElementById('risk_multiplier').value)
-        };
-        fetch('/risk', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(r => r.json()).then(console.log);
     };
 
     function loadKeypairs() {
@@ -360,90 +309,11 @@ HTML_PAGE = """
             sel.value = data.active || '';
         });
     }
-
-    function loadConfigs() {
-        fetch('/configs').then(r => r.json()).then(data => {
-            const sel = document.getElementById('config_select');
-            sel.innerHTML = '';
-            data.configs.forEach(n => {
-                const opt = document.createElement('option');
-                opt.value = n; opt.textContent = n; sel.appendChild(opt);
-            });
-            sel.value = data.active || '';
-        });
-    }
-
-    function loadDiscovery() {
-        fetch('/discovery').then(r => r.json()).then(data => {
-            document.getElementById('discovery_select').value = data.method;
-        });
-    }
-    document.getElementById('save_discovery').onclick = function() {
-        const method = document.getElementById('discovery_select').value;
-        fetch('/discovery', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({method})});
-    };
-
     document.getElementById('keypair_select').onchange = function() {
         fetch('/keypairs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
     };
-    document.getElementById('upload_keypair').onclick = function() {
-        const file = document.getElementById('keypair_file').files[0];
-        const name = document.getElementById('keypair_name').value;
-        const fd = new FormData(); fd.append('file', file); fd.append('name', name);
-        fetch('/keypairs/upload', {method:'POST', body:fd}).then(() => loadKeypairs());
-    };
 
-    document.getElementById('config_select').onchange = function() {
-        fetch('/configs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
-    };
-    document.getElementById('upload_config').onclick = function() {
-        const file = document.getElementById('config_file').files[0];
-        const name = document.getElementById('config_name').value;
-        const fd = new FormData(); fd.append('file', file); fd.append('name', name);
-        fetch('/configs/upload', {method:'POST', body:fd}).then(() => loadConfigs());
-    };
-
-    function loadPositions() {
-        fetch('/positions').then(r=>r.json()).then(data=>{
-            const tbody=document.querySelector('#balances tbody');
-            tbody.innerHTML='';
-            Object.entries(data).forEach(([t,info])=>{
-                const row=document.createElement('tr');
-                row.innerHTML=`<td>${t}</td><td>${info.amount}</td><td>${info.roi.toFixed(4)}</td>`;
-                tbody.appendChild(row);
-            });
-        });
-    }
-
-    function loadTrades() {
-        fetch('/trades').then(r=>r.json()).then(data=>{
-            const body=document.querySelector('#trades tbody');
-            body.innerHTML='';
-            data.forEach(tr=>{
-                const row=document.createElement('tr');
-                row.innerHTML=`<td>${tr.token}</td><td>${tr.direction}</td><td>${tr.amount}</td><td>${tr.price}</td><td>${tr.timestamp}</td>`;
-                body.appendChild(row);
-            });
-        });
-    }
-
-    function loadRoi() {
-        fetch('/roi').then(r=>r.json()).then(data=>{
-            document.getElementById('roi').textContent = 'ROI: ' + data.roi.toFixed(4);
-        });
-    }
-
-    loadRisk();
     loadKeypairs();
-    loadConfigs();
-    loadDiscovery();
-    loadPositions();
-    loadTrades();
-    loadRoi();
-    setInterval(loadPositions, 10000);
-    setInterval(loadTrades, 10000);
-    setInterval(loadRoi, 10000);
-
     </script>
 </body>
 </html>
