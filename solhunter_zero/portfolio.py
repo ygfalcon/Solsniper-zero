@@ -9,6 +9,7 @@ class Position:
     token: str
     amount: float
     entry_price: float
+    high_price: float = 0.0
 
 @dataclass
 class Portfolio:
@@ -29,7 +30,12 @@ class Portfolio:
         except Exception:  # pragma: no cover - invalid file
             return
         self.balances = {
-            token: Position(token, info["amount"], info["entry_price"])
+            token: Position(
+                token,
+                info["amount"],
+                info["entry_price"],
+                info.get("high_price", info["entry_price"]),
+            )
             for token, info in data.items()
         }
 
@@ -37,7 +43,11 @@ class Portfolio:
         if not self.path:
             return
         data = {
-            token: {"amount": pos.amount, "entry_price": pos.entry_price}
+            token: {
+                "amount": pos.amount,
+                "entry_price": pos.entry_price,
+                "high_price": pos.high_price,
+            }
             for token, pos in self.balances.items()
         }
         with open(self.path, "w", encoding="utf-8") as f:
@@ -50,7 +60,7 @@ class Portfolio:
     def update(self, token: str, amount: float, price: float) -> None:
         pos = self.balances.get(token)
         if pos is None:
-            self.balances[token] = Position(token, amount, price)
+            self.balances[token] = Position(token, amount, price, price)
         else:
             total_cost = pos.amount * pos.entry_price + amount * price
             new_amount = pos.amount + amount
@@ -60,6 +70,8 @@ class Portfolio:
                 pos.amount = new_amount
                 if amount > 0:
                     pos.entry_price = total_cost / new_amount
+                if price > pos.high_price:
+                    pos.high_price = price
         self.save()
 
     def remove(self, token: str) -> None:
@@ -109,6 +121,25 @@ class Portfolio:
             return 0.0
         return (self.max_value - value) / self.max_value
 
+    def update_highs(self, prices: Dict[str, float]) -> None:
+        """Update high water marks for held tokens."""
+        for token, pos in self.balances.items():
+            price = prices.get(token)
+            if price is not None and price > pos.high_price:
+                pos.high_price = price
+        self.save()
+
+    def trailing_stop_triggered(self, token: str, price: float, trailing: float) -> bool:
+        """Return ``True`` if ``price`` hits the trailing stop for ``token``."""
+        pos = self.balances.get(token)
+        if pos is None:
+            return False
+        if price > pos.high_price:
+            pos.high_price = price
+            self.save()
+            return False
+        return price <= pos.high_price * (1 - trailing)
+
 
 def calculate_order_size(
     balance: float,
@@ -119,6 +150,8 @@ def calculate_order_size(
     risk_tolerance: float = 0.1,
     max_allocation: float = 0.2,
     max_risk_per_token: float = 0.1,
+    max_drawdown: float = 1.0,
+    volatility_factor: float = 1.0,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -130,7 +163,12 @@ def calculate_order_size(
     if balance <= 0 or expected_roi <= 0:
         return 0.0
 
-    adj_risk = risk_tolerance * (1 - drawdown) / (1 + volatility)
+    if drawdown >= max_drawdown:
+        return 0.0
+
+    adj_risk = risk_tolerance * (1 - drawdown / max_drawdown) / (
+        1 + volatility * volatility_factor
+    )
     fraction = expected_roi * adj_risk
     fraction = min(fraction, max_allocation, max_risk_per_token)
     if fraction <= 0:

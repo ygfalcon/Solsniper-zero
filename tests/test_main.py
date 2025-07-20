@@ -110,7 +110,7 @@ def test_run_iteration_sells(monkeypatch):
         lambda token, count=100: [SimulationResult(0.2, -0.1, volume=200.0, liquidity=400.0)],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims: True)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: True)
     async def fake_prices(tokens):
         return {t: 1.0 for t in tokens}
 
@@ -151,7 +151,7 @@ def test_run_iteration_stop_loss(monkeypatch):
         ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
 
     async def fake_fetch_token_prices_async(tokens):
         return {"tok": 8.0}
@@ -193,7 +193,7 @@ def test_run_iteration_take_profit(monkeypatch):
         ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
 
     async def fake_fetch_token_prices_async(tokens):
         return {"tok": 12.0}
@@ -256,7 +256,7 @@ def test_discovery_methods(monkeypatch, method, target):
 
     monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
     monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
