@@ -16,6 +16,10 @@ from .scanner_common import (
     SOLANA_RPC_URL,
     fetch_trending_tokens,
     fetch_trending_tokens_async,
+    fetch_raydium_listings,
+    fetch_raydium_listings_async,
+    fetch_orca_listings,
+    fetch_orca_listings_async,
     offline_or_onchain,
     parse_birdeye_tokens,
     scan_tokens_from_file,
@@ -40,27 +44,30 @@ def scan_tokens(
 ) -> List[str]:
     """Scan the Solana network for new tokens using ``method``."""
     if method == "websocket":
-        tokens = offline_or_onchain(offline, token_file)
-        if tokens is None:
-            backoff = 1
-            max_backoff = 60
-            while True:
+        if token_file:
+            tokens = scan_tokens_from_file(token_file)
+        elif offline:
+            logger.info("Offline mode enabled, returning static tokens")
+            tokens = OFFLINE_TOKENS
+        else:
+            from .websocket_scanner import stream_new_tokens
+
+            gen = stream_new_tokens(SOLANA_RPC_URL)
+            try:
+                token = asyncio.run(anext(gen))
+            except StopAsyncIteration:
+                tokens = []
+            finally:
                 try:
-                    resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
-                    if resp.status_code == 429:
-                        logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
-                        time.sleep(backoff)
-                        backoff = min(backoff * 2, max_backoff)
-                        continue
-                    resp.raise_for_status()
-                    data = resp.json()
-                    tokens = parse_birdeye_tokens(data)
-                    backoff = 1
-                    break
-                except requests.RequestException as e:
-                    logger.error("Scan failed: %s", e)
-                    tokens = []
-                    break
+                    asyncio.run(gen.aclose())
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(gen.aclose())
+                    loop.close()
+            if "token" in locals() and token:
+                tokens = [token]
+            else:
+                tokens = []
     elif offline:
         logger.info("Offline mode enabled, returning static tokens")
         tokens = OFFLINE_TOKENS
@@ -75,6 +82,8 @@ def scan_tokens(
 
     if not offline and token_file is None:
         extra = fetch_trending_tokens()
+        extra += fetch_raydium_listings()
+        extra += fetch_orca_listings()
         tokens = list(dict.fromkeys(tokens + extra))
     return tokens
 
@@ -88,8 +97,25 @@ async def scan_tokens_async(
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
 
     if method == "websocket":
-        from .async_scanner import scan_tokens_async as _scan
-        tokens = await _scan(offline=offline, token_file=token_file)
+        if token_file:
+            tokens = scan_tokens_from_file(token_file)
+        elif offline:
+            logger.info("Offline mode enabled, returning static tokens")
+            tokens = OFFLINE_TOKENS
+        else:
+            from .websocket_scanner import stream_new_tokens
+
+            gen = stream_new_tokens(SOLANA_RPC_URL)
+            try:
+                token = await anext(gen)
+            except StopAsyncIteration:
+                tokens = []
+            finally:
+                await gen.aclose()
+            if "token" in locals() and token:
+                tokens = [token]
+            else:
+                tokens = []
     elif offline:
         logger.info("Offline mode enabled, returning static tokens")
         tokens = OFFLINE_TOKENS
@@ -106,6 +132,8 @@ async def scan_tokens_async(
 
     if not offline and token_file is None:
         extra = await fetch_trending_tokens_async()
+        extra += await fetch_raydium_listings_async()
+        extra += await fetch_orca_listings_async()
         tokens = list(dict.fromkeys(tokens + extra))
     return tokens
 

@@ -1,6 +1,7 @@
 import logging
 import os
 import asyncio
+import contextlib
 from argparse import ArgumentParser
 
 from .config import load_config, apply_env_overrides, set_env_from_config
@@ -14,11 +15,13 @@ set_env_from_config(_cfg)
 from .scanner import scan_tokens_async
 from .prices import fetch_token_prices_async
 from .onchain_metrics import top_volume_tokens
+from .market_ws import listen_and_trade
 
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .memory import Memory
 from .portfolio import Portfolio, calculate_order_size
+from .risk import RiskManager
 from .exchange import place_order_async
 from .prices import fetch_token_prices_async
 
@@ -92,24 +95,32 @@ async def _run_iteration(
         if should_buy(sims):
             logging.info("Buying %s", token)
             avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-            volatility = sims[0].volatility if sims else 0.0
+            volatility = 0.0
             if price_lookup:
                 balance = portfolio.total_value(price_lookup)
             else:
                 balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
 
-            risk_tolerance = float(os.getenv("RISK_TOLERANCE", "0.1"))
-            max_alloc = float(os.getenv("MAX_ALLOCATION", "0.2"))
-            max_risk = float(os.getenv("MAX_RISK_PER_TOKEN", "0.1"))
+            rm = RiskManager.from_config(
+                {
+                    "risk_tolerance": os.getenv("RISK_TOLERANCE", "0.1"),
+                    "max_allocation": os.getenv("MAX_ALLOCATION", "0.2"),
+                    "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
+                    "max_drawdown": max_drawdown,
+                    "volatility_factor": volatility_factor,
+                    "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
+                }
+            )
+            params = rm.adjusted(drawdown, volatility)
 
             amount = calculate_order_size(
                 balance,
                 avg_roi,
-                volatility,
-                drawdown,
-                risk_tolerance=risk_tolerance,
-                max_allocation=max_alloc,
-                max_risk_per_token=max_risk,
+                0.0,
+                0.0,
+                risk_tolerance=params.risk_tolerance,
+                max_allocation=params.max_allocation,
+                max_risk_per_token=params.max_risk_per_token,
                 max_drawdown=max_drawdown,
                 volatility_factor=volatility_factor,
             )
@@ -194,6 +205,7 @@ def main(
     trailing_stop: float | None = None,
     max_drawdown: float | None = None,
     volatility_factor: float | None = None,
+    market_ws_url: str | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -243,6 +255,10 @@ def main(
         max_drawdown = float(cfg.get("max_drawdown", 1.0))
     if volatility_factor is None:
         volatility_factor = float(cfg.get("volatility_factor", 1.0))
+    if market_ws_url is None:
+        market_ws_url = cfg.get("market_ws_url")
+    if market_ws_url is None:
+        market_ws_url = os.getenv("MARKET_WS_URL")
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
@@ -250,6 +266,19 @@ def main(
     keypair = load_keypair(keypair_path) if keypair_path else None
 
     async def loop() -> None:
+        ws_task = None
+        if market_ws_url:
+            ws_task = asyncio.create_task(
+                listen_and_trade(
+                    market_ws_url,
+                    memory,
+                    portfolio,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+            )
+
         if iterations is None:
             while True:
                 await _run_iteration(
@@ -258,11 +287,8 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
-
-
                     token_file=token_file,
-        discovery_method=discovery_method,
-
+                    discovery_method=discovery_method,
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -279,10 +305,7 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
-
-
                     token_file=token_file,
-
                     discovery_method=discovery_method,
 
                     keypair=keypair,
@@ -294,6 +317,11 @@ def main(
                 )
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
+
+        if ws_task:
+            ws_task.cancel()
+            with contextlib.suppress(Exception):
+                await ws_task
 
     asyncio.run(loop())
 
@@ -392,6 +420,11 @@ if __name__ == "__main__":
         default=None,
         help="Scaling factor for volatility in position sizing",
     )
+    parser.add_argument(
+        "--market-ws-url",
+        default=None,
+        help="Websocket URL for real-time market events",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -414,4 +447,5 @@ if __name__ == "__main__":
         trailing_stop=args.trailing_stop,
         max_drawdown=args.max_drawdown,
         volatility_factor=args.volatility_factor,
+        market_ws_url=args.market_ws_url,
     )

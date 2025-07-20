@@ -9,6 +9,8 @@ from .scanner_common import (
     BIRDEYE_API,
     HEADERS,
     fetch_trending_tokens_async,
+    fetch_raydium_listings_async,
+    fetch_orca_listings_async,
     offline_or_onchain_async,
     parse_birdeye_tokens,
 )
@@ -44,8 +46,10 @@ async def scan_tokens_async(
                 logger.error("Scan failed: %s", exc)
                 tokens = []
                 break
-    extra = []
+    extra: List[str] = []
     if not offline and token_file is None:
         extra = await fetch_trending_tokens_async()
+        extra += await fetch_raydium_listings_async()
+        extra += await fetch_orca_listings_async()
     tokens = list(dict.fromkeys((tokens or []) + extra))
     return tokens
