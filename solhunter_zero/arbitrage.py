@@ -1,7 +1,15 @@
 import asyncio
 import logging
 import os
-from typing import Callable, Awaitable, Sequence, Tuple, Optional
+import json
+from typing import (
+    Callable,
+    Awaitable,
+    Sequence,
+    Tuple,
+    Optional,
+    AsyncGenerator,
+)
 
 import aiohttp
 
@@ -15,6 +23,8 @@ PriceFeed = Callable[[str], Awaitable[float]]
 # Default API endpoints for direct price queries
 ORCA_API_URL = os.getenv("ORCA_API_URL", "https://api.orca.so")
 RAYDIUM_API_URL = os.getenv("RAYDIUM_API_URL", "https://api.raydium.io")
+ORCA_WS_URL = os.getenv("ORCA_WS_URL", "")
+RAYDIUM_WS_URL = os.getenv("RAYDIUM_WS_URL", "")
 
 
 async def fetch_orca_price_async(token: str) -> float:
@@ -49,15 +59,65 @@ async def fetch_raydium_price_async(token: str) -> float:
             return 0.0
 
 
+async def stream_orca_prices(token: str, url: str = ORCA_WS_URL) -> AsyncGenerator[float, None]:
+    """Yield live prices for ``token`` from the Orca websocket feed."""
+
+    if not url:
+        return
+
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(url) as ws:
+            try:
+                await ws.send_str(json.dumps({"token": token}))
+            except Exception:  # pragma: no cover - send failures
+                pass
+            async for msg in ws:
+                if msg.type != aiohttp.WSMsgType.TEXT:
+                    continue
+                try:
+                    data = json.loads(msg.data)
+                except Exception:  # pragma: no cover - invalid message
+                    continue
+                price = data.get("price")
+                if isinstance(price, (int, float)):
+                    yield float(price)
+
+
+async def stream_raydium_prices(token: str, url: str = RAYDIUM_WS_URL) -> AsyncGenerator[float, None]:
+    """Yield live prices for ``token`` from the Raydium websocket feed."""
+
+    if not url:
+        return
+
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(url) as ws:
+            try:
+                await ws.send_str(json.dumps({"token": token}))
+            except Exception:  # pragma: no cover - send failures
+                pass
+            async for msg in ws:
+                if msg.type != aiohttp.WSMsgType.TEXT:
+                    continue
+                try:
+                    data = json.loads(msg.data)
+                except Exception:  # pragma: no cover - invalid message
+                    continue
+                price = data.get("price")
+                if isinstance(price, (int, float)):
+                    yield float(price)
+
+
 async def detect_and_execute_arbitrage(
     token: str,
     feeds: Sequence[PriceFeed] | None = None,
+    streams: Sequence[AsyncGenerator[float, None]] | None = None,
     *,
     threshold: float = 0.0,
     amount: float = 1.0,
     testnet: bool = False,
     dry_run: bool = False,
     keypair=None,
+    max_updates: int | None = None,
 ) -> Optional[Tuple[int, int]]:
     """Check for price discrepancies and place arbitrage orders.
 
@@ -78,6 +138,67 @@ async def detect_and_execute_arbitrage(
         Indices of the feeds used for buy and sell orders when an opportunity is
         executed. ``None`` when no profitable opportunity is found.
     """
+
+    if streams:
+        prices: list[Optional[float]] = [None] * len(streams)
+        result: Optional[Tuple[int, int]] = None
+
+        async def maybe_execute() -> Optional[Tuple[int, int]]:
+            if any(p is None for p in prices):
+                return None
+            min_price = min(p for p in prices if p is not None)
+            max_price = max(p for p in prices if p is not None)
+            buy_index = prices.index(min_price)
+            sell_index = prices.index(max_price)
+            if sell_index == buy_index or min_price <= 0:
+                return None
+            diff = (max_price - min_price) / min_price
+            if diff < threshold:
+                return None
+            logger.info(
+                "Arbitrage detected on %s: buy at %.6f sell at %.6f",
+                token,
+                min_price,
+                max_price,
+            )
+            await place_order_async(
+                token,
+                "buy",
+                amount,
+                min_price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            await place_order_async(
+                token,
+                "sell",
+                amount,
+                max_price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            return buy_index, sell_index
+
+        async def consume(idx: int, gen: AsyncGenerator[float, None]):
+            nonlocal result
+            count = 0
+            async for price in gen:
+                if result is not None:
+                    break
+                prices[idx] = price
+                res = await maybe_execute()
+                if res:
+                    result = res
+                    break
+                count += 1
+                if max_updates is not None and count >= max_updates:
+                    break
+
+        tasks = [asyncio.create_task(consume(i, g)) for i, g in enumerate(streams)]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        return result
 
     if not feeds:
         feeds = [fetch_orca_price_async, fetch_raydium_price_async]

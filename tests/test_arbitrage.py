@@ -74,3 +74,57 @@ def test_default_price_feeds(monkeypatch):
     assert result == (0, 1)
     assert ("buy", 1.5) in orders
     assert ("sell", 1.8) in orders
+
+
+async def _stream_once(value):
+    yield value
+
+
+def test_arbitrage_websocket(monkeypatch):
+    calls = []
+
+    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        calls.append((side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    stream1 = _stream_once(1.0)
+    stream2 = _stream_once(1.3)
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            streams=[stream1, stream2],
+            threshold=0.2,
+            amount=5,
+            max_updates=1,
+        )
+    )
+
+    assert result == (0, 1)
+    assert ("buy", 1.0) in calls
+    assert ("sell", 1.3) in calls
+
+
+def test_arbitrage_websocket_no_op(monkeypatch):
+    calls = {}
+
+    async def fake_place(*a, **k):
+        calls["called"] = True
+        return {}
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            streams=[_stream_once(1.0), _stream_once(1.05)],
+            threshold=0.2,
+            amount=5,
+            max_updates=1,
+        )
+    )
+
+    assert result is None
+    assert "called" not in calls
