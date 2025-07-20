@@ -25,10 +25,12 @@ class SimulationResult:
     expected_roi: float
     volume: float = 0.0
     liquidity: float = 0.0
+
     slippage: float = 0.0
 
     volatility: float = 0.0
-in
+    volume_spike: float = 1.0
+
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -121,6 +123,15 @@ def run_simulations(
     liquidity = metrics.get("liquidity", 0.0)
     slippage = metrics.get("slippage", 0.0)
 
+    if recent_volume is not None and recent_volume > 0:
+        volume_spike = recent_volume / volume if volume > 0 else 1.0
+        volume = recent_volume
+    else:
+        volume_spike = 1.0
+
+    if recent_slippage is not None:
+        slippage = recent_slippage
+
     depth = metrics.get("depth", 0.0)
 
     price_hist = metrics.get("price_history")
@@ -153,7 +164,15 @@ def run_simulations(
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, sigma)
+            SimulationResult(
+                success_prob,
+                roi,
+                volume,
+                liquidity,
+                slippage,
+                sigma,
+                volume_spike,
+            )
         )
 
 

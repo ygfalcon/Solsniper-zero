@@ -39,6 +39,9 @@ async def _run_iteration(
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
+    trailing_stop: float | None = None,
+    max_drawdown: float = 1.0,
+    volatility_factor: float = 1.0,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
@@ -107,6 +110,8 @@ async def _run_iteration(
                 risk_tolerance=risk_tolerance,
                 max_allocation=max_alloc,
                 max_risk_per_token=max_risk,
+                max_drawdown=max_drawdown,
+                volatility_factor=volatility_factor,
             )
             await place_order_async(
                 token,
@@ -124,21 +129,30 @@ async def _run_iteration(
                 portfolio.update(token, amount, 0)
 
     price_lookup_sell = {}
-    if stop_loss is not None or take_profit is not None:
+    if stop_loss is not None or take_profit is not None or trailing_stop is not None:
         price_lookup_sell = await fetch_token_prices_async(portfolio.balances.keys())
+        portfolio.update_highs(price_lookup_sell)
 
     for token, pos in list(portfolio.balances.items()):
         sims = run_simulations(token, count=100)
 
         roi_trigger = False
         if token in price_lookup_sell:
-            roi = portfolio.position_roi(token, price_lookup_sell[token])
+            price = price_lookup_sell[token]
+            roi = portfolio.position_roi(token, price)
             if stop_loss is not None and roi <= -stop_loss:
                 roi_trigger = True
             if take_profit is not None and roi >= take_profit:
                 roi_trigger = True
+            if trailing_stop is not None and portfolio.trailing_stop_triggered(token, price, trailing_stop):
+                roi_trigger = True
 
-        if roi_trigger or should_sell(sims):
+        if roi_trigger or should_sell(
+            sims,
+            trailing_stop=trailing_stop,
+            current_price=price_lookup_sell.get(token),
+            high_price=pos.high_price,
+        ):
             logging.info("Selling %s", token)
             await place_order_async(
                 token,
@@ -177,6 +191,9 @@ def main(
     config_path: str | None = None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
+    trailing_stop: float | None = None,
+    max_drawdown: float | None = None,
+    volatility_factor: float | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -220,6 +237,12 @@ def main(
         stop_loss = cfg.get("stop_loss")
     if take_profit is None:
         take_profit = cfg.get("take_profit")
+    if trailing_stop is None:
+        trailing_stop = cfg.get("trailing_stop")
+    if max_drawdown is None:
+        max_drawdown = float(cfg.get("max_drawdown", 1.0))
+    if volatility_factor is None:
+        volatility_factor = float(cfg.get("volatility_factor", 1.0))
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
@@ -243,6 +266,9 @@ def main(
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
+                    trailing_stop=trailing_stop,
+                    max_drawdown=max_drawdown,
+                    volatility_factor=volatility_factor,
                 )
                 await asyncio.sleep(loop_delay)
         else:
@@ -262,6 +288,9 @@ def main(
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
+                    trailing_stop=trailing_stop,
+                    max_drawdown=max_drawdown,
+                    volatility_factor=volatility_factor,
                 )
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
@@ -345,6 +374,24 @@ if __name__ == "__main__":
         default=None,
         help="Take profit threshold as a fraction",
     )
+    parser.add_argument(
+        "--trailing-stop",
+        type=float,
+        default=None,
+        help="Trailing stop percentage",
+    )
+    parser.add_argument(
+        "--max-drawdown",
+        type=float,
+        default=None,
+        help="Maximum allowed portfolio drawdown",
+    )
+    parser.add_argument(
+        "--volatility-factor",
+        type=float,
+        default=None,
+        help="Scaling factor for volatility in position sizing",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -364,4 +411,7 @@ if __name__ == "__main__":
         config_path=args.config,
         stop_loss=args.stop_loss,
         take_profit=args.take_profit,
+        trailing_stop=args.trailing_stop,
+        max_drawdown=args.max_drawdown,
+        volatility_factor=args.volatility_factor,
     )

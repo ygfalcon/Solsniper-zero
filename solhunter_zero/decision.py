@@ -57,6 +57,9 @@ def should_sell(
     max_roi: float = 0.0,
     min_liquidity: float = 0.0,
     max_slippage: float = 1.0,
+    trailing_stop: float | None = None,
+    current_price: float | None = None,
+    high_price: float | None = None,
 ) -> bool:
     """Decide whether to sell a token based on simulation results.
 
@@ -79,4 +82,13 @@ def should_sell(
     avg_success = sum(successes) / len(successes)
     avg_roi = sum(rois) / len(rois)
 
-    return avg_success <= max_success or avg_roi <= max_roi
+    trailing_hit = False
+    if (
+        trailing_stop is not None
+        and current_price is not None
+        and high_price is not None
+        and high_price > 0
+    ):
+        trailing_hit = current_price <= high_price * (1 - trailing_stop)
+
+    return trailing_hit or avg_success <= max_success or avg_roi <= max_roi
