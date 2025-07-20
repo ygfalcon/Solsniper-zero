@@ -155,6 +155,8 @@ def run_simulations(
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
 
     results: List[SimulationResult] = []
 
@@ -254,9 +256,15 @@ def run_simulations(
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, volume_spike)
-
+            SimulationResult(
+                success_prob,
+                roi,
+                volume,
+                liquidity,
+                slippage,
+                sigma,
+                volume_spike,
+            )
         )
 
 
