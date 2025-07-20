@@ -7,18 +7,17 @@ from typing import List
 
 import requests
 
+from . import scanner_common
+from .scanner_onchain import scan_tokens_onchain
 from .scanner_common import (
     BIRDEYE_API,
     HEADERS,
     OFFLINE_TOKENS,
-    offline_or_onchain,
     parse_birdeye_tokens,
     scan_tokens_from_file,
-    scan_tokens_from_pools as common_scan_pools,
-    SOLANA_RPC_URL,
-)
-from .scanner_onchain import scan_tokens_onchain
-from . import dex_scanner
+
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,29 @@ def scan_tokens_from_pools() -> List[str]:
     """Public wrapper for pool discovery used by tests."""
     return dex_scanner.scan_new_pools(SOLANA_RPC_URL)
 
+
+
+def scan_tokens(
+    *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
+) -> List[str]:
+    """Scan the Solana network for new tokens ending with ``bonk``."""
+
+    if token_file:
+        return scan_tokens_from_file(token_file)
+    if offline:
+        logger.info("Offline mode enabled, returning static tokens")
+        return OFFLINE_TOKENS
+
+    if method == "onchain":
+        return scanner_common.scan_tokens_onchain(scanner_common.SOLANA_RPC_URL)
+    if method == "pools":
+        return scan_tokens_from_pools()
+    if method == "file":
+        return scan_tokens_from_file()
+
+    if not scanner_common.BIRDEYE_API_KEY:
+        logger.info("No BirdEye API key set, scanning on-chain")
+        return scanner_common.scan_tokens_onchain(scanner_common.SOLANA_RPC_URL)
 
 
 
@@ -82,24 +104,29 @@ async def scan_tokens_async(
 
     *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
 
+
+async def scan_tokens_async(
+    *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
 ) -> List[str]:
 
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
-    if method == "websocket":
-        from .async_scanner import scan_tokens_async as _scan
-        return await _scan(offline=offline, token_file=token_file)
+    if token_file:
+        return await asyncio.to_thread(scan_tokens_from_file, token_file)
 
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
 
     if method == "onchain":
-        return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
+        return await asyncio.to_thread(
+            scan_tokens_onchain, scanner_common.SOLANA_RPC_URL
+        )
     if method == "pools":
         return await asyncio.to_thread(scan_tokens_from_pools)
     if method == "file":
         return await asyncio.to_thread(scan_tokens_from_file)
 
 
+    from .async_scanner import scan_tokens_async as _scan
+    return await _scan(offline=offline, token_file=token_file, method=method)
 
-    raise ValueError(f"unknown discovery method: {method}")

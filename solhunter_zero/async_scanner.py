@@ -16,10 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 async def scan_tokens_async(
-    *,
-    offline: bool = False,
-    token_file: str | None = None,
-    method: str = "websocket",
+
+    *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
+
 ) -> List[str]:
     """Async variant of :func:`scanner.scan_tokens`."""
     tokens = await offline_or_onchain_async(offline, token_file, method=method)
