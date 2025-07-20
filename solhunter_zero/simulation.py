@@ -28,6 +28,8 @@ class SimulationResult:
     liquidity: float = 0.0
     slippage: float = 0.0
     volatility: float = 0.0
+
+
     volume_spike: float = 1.0
 
 
@@ -176,6 +178,15 @@ def run_simulations(
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
 
+
+    if recent_volume is None:
+        volume_spike = 1.0
+    else:
+        volume_spike = recent_volume / volume if volume else 1.0
+        volume = recent_volume
+
+    if recent_slippage is not None:
+        slippage = recent_slippage
 
     results: List[SimulationResult] = []
     for _ in range(count):
