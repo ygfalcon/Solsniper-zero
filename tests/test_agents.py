@@ -140,3 +140,25 @@ def test_memory_agent(monkeypatch):
     trades = mem_agent.memory.list_trades()
     assert trades and trades[0].token == 'tok'
 
+
+def test_agent_manager_from_config(monkeypatch):
+    created = []
+
+    def fake_load(name, weight=None):
+        created.append((name, weight))
+        async def pt(token, portfolio):
+            return []
+        return types.SimpleNamespace(propose_trade=pt)
+
+    monkeypatch.setattr('solhunter_zero.agent_manager.load_agent', fake_load)
+
+    cfg = {
+        'agents': ['a1', 'a2'],
+        'agent_weights': {'a2': 2.0},
+    }
+    mgr = AgentManager.from_config(cfg)
+
+    assert isinstance(mgr.executor, ExecutionAgent)
+    assert len(mgr.agents) == 2
+    assert created == [('a1', None), ('a2', 2.0)]
+
