@@ -192,7 +192,10 @@ def upload_config() -> dict:
     name = request.form.get("name") or (file.filename if file else None)
     if not file or not name:
         return jsonify({"error": "missing file or name"}), 400
-    save_config(name, file.read())
+    try:
+        save_config(name, file.read())
+    except Exception as exc:  # mirror keypair upload behavior
+        return jsonify({"error": str(exc)}), 400
     return jsonify({"status": "ok"})
 
 

@@ -51,7 +51,12 @@ def list_keypairs() -> list[str]:
 
 
 def save_keypair(name: str, data: list[int]) -> None:
-    """Persist a keypair under ``name``."""
+    """Persist a keypair under ``name``.
+
+    The name must not contain path traversal components.
+    """
+    if os.path.sep in name or (os.path.altsep and os.path.altsep in name) or ".." in name:
+        raise ValueError("invalid keypair name")
     path = os.path.join(KEYPAIR_DIR, name + ".json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f)

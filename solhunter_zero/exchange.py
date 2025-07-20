@@ -11,6 +11,8 @@ from solders.transaction import VersionedTransaction
 from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
 
+from .gas import get_current_fee_async
+
 
 class OrderPlacementError(Exception):
     """Raised when an order cannot be placed."""
@@ -103,10 +105,13 @@ async def place_order_async(
     base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
     url = f"{base_url}{SWAP_PATH}"
 
+    fee = await get_current_fee_async(testnet=testnet)
+    trade_amount = max(0.0, amount - fee)
+
     payload = {
         "token": token,
         "side": side,
-        "amount": amount,
+        "amount": trade_amount,
         "price": price,
         "cluster": "devnet" if testnet else "mainnet-beta",
     }

@@ -1,7 +1,9 @@
 import time
 import os
+import io
+import json
 from solders.keypair import Keypair
-from solhunter_zero import ui
+from solhunter_zero import ui, config
 from solhunter_zero.portfolio import Position
 import threading
 
@@ -168,4 +170,33 @@ def test_start_requires_env(monkeypatch):
     msg = resp.get_json()["message"]
     assert "DEX_BASE_URL" in msg
     assert "BIRDEYE_API_KEY or SOLANA_RPC_URL" in msg
+
+
+def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
+    monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path / "keys"))
+    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "keys" / "active"))
+    monkeypatch.setattr(config, "CONFIG_DIR", str(tmp_path / "cfgs"))
+    monkeypatch.setattr(config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active"))
+    os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
+    os.makedirs(config.CONFIG_DIR, exist_ok=True)
+
+    client = ui.app.test_client()
+
+    kp = Keypair()
+    data = json.dumps(list(kp.to_bytes()))
+    resp = client.post(
+        "/keypairs/upload",
+        data={"name": "../evil", "file": (io.BytesIO(data.encode()), "kp.json")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 400
+    assert not list((tmp_path / "keys").glob("*.json"))
+
+    resp = client.post(
+        "/configs/upload",
+        data={"name": "../cfg", "file": (io.BytesIO(b"x"), "c.toml")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 400
+    assert not list((tmp_path / "cfgs").iterdir())
 

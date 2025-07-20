@@ -69,6 +69,7 @@ def test_scan_tokens_onchain_retries(monkeypatch):
     assert sleeps == [1, 2]
 
 
+
 def test_mempool_tx_rate(monkeypatch):
     class Client:
         def __init__(self, url):
@@ -97,3 +98,4 @@ def test_whale_wallet_activity(monkeypatch):
         "tok", "http://node", threshold=1000.0
     )
     assert activity == pytest.approx(2000.0 / 2050.0)
+
