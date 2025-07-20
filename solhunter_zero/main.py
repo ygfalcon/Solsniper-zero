@@ -35,6 +35,8 @@ async def _run_iteration(
 
     token_file: str | None = None,
 
+    discovery_method: str = "websocket",
+
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
@@ -42,7 +44,12 @@ async def _run_iteration(
     """Execute a single trading iteration asynchronously."""
 
     
-    tokens = await scan_tokens_async(offline=offline, token_file=token_file)
+    try:
+        tokens = await scan_tokens_async(
+            offline=offline, token_file=token_file, method=discovery_method
+        )
+    except TypeError:
+        tokens = await scan_tokens_async(offline=offline, token_file=token_file)
 
 
     rpc_url = os.getenv("SOLANA_RPC_URL")
@@ -54,8 +61,111 @@ async def _run_iteration(
             logging.warning("Volume ranking failed: %s", exc)
 
 
-    for token in tokens:
-        sims = run_simulations(token, count=100)
+    # Run Monte Carlo simulations for discovered tokens and current holdings.
+    tokens_to_sim = set(tokens) | set(portfolio.balances.keys())
+    sim_tasks = {
+        token: asyncio.to_thread(run_simulations, token, count=100)
+        for token in tokens_to_sim
+    }
+    sim_results = {tok: await task for tok, task in sim_tasks.items()}
+
+    # Fetch current prices for discovered tokens and any held positions.
+    price_tokens = tokens_to_sim
+    prices = await fetch_token_prices_async(price_tokens)
+
+    for token, sims in sim_results.items():
+        price = prices.get(token)
+        if price is None:
+            continue
+
+        # Decision to buy new token
+        if token in tokens and should_buy(sims):
+            amount = 1.0
+            await place_order_async(
+                token,
+                "buy",
+                amount,
+                price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            memory.log_trade(
+                token=token,
+                direction="buy",
+                amount=amount,
+                price=price,
+                reason="buy",
+            )
+            portfolio.add(token, amount, price)
+
+        # Decision to sell based on simulations
+        elif should_sell(sims) and token in portfolio.balances:
+            amount = portfolio.balances[token].amount
+            await place_order_async(
+                token,
+                "sell",
+                amount,
+                price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            memory.log_trade(
+                token=token,
+                direction="sell",
+                amount=amount,
+                price=price,
+                reason="sell",
+            )
+            portfolio.update(token, -amount, price)
+
+    # Stop-loss and take-profit checks for held positions.
+    for token, pos in list(portfolio.balances.items()):
+        price = prices.get(token)
+        if price is None:
+            continue
+        roi = portfolio.position_roi(token, price)
+
+        if stop_loss is not None and roi <= -stop_loss:
+            amount = pos.amount
+            await place_order_async(
+                token,
+                "sell",
+                amount,
+                price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            memory.log_trade(
+                token=token,
+                direction="sell",
+                amount=amount,
+                price=price,
+                reason="stop-loss",
+            )
+            portfolio.update(token, -amount, price)
+
+        elif take_profit is not None and roi >= take_profit:
+            amount = pos.amount
+            await place_order_async(
+                token,
+                "sell",
+                amount,
+                price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            memory.log_trade(
+                token=token,
+                direction="sell",
+                amount=amount,
+                price=price,
+                reason="take-profit",
+            )
+            portfolio.update(token, -amount, price)
 
 
 
@@ -67,6 +177,8 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+
+    discovery_method: str | None = None,
 
     token_file: str | None = None,
 
@@ -135,6 +247,7 @@ def main(
                     offline=offline,
 
                     token_file=token_file,
+                    discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -151,6 +264,7 @@ def main(
                     offline=offline,
 
                     token_file=token_file,
+                    discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -200,6 +314,11 @@ if __name__ == "__main__":
         help="Use a static token list and skip network requests",
     )
     parser.add_argument(
+        "--discovery-method",
+        default=None,
+        help="Token discovery method (websocket, onchain, pools, file)",
+    )
+    parser.add_argument(
 
         "--token-list",
         default=None,
@@ -244,6 +363,7 @@ if __name__ == "__main__":
         offline=args.offline,
 
         token_file=args.token_list,
+        discovery_method=args.discovery_method,
 
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
