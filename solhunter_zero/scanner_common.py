@@ -3,12 +3,20 @@ import logging
 import asyncio
 from typing import Dict, List, Optional
 
+import requests
+import aiohttp
+
 from pathlib import Path
 
 
 from .scanner_onchain import scan_tokens_onchain
 
 logger = logging.getLogger(__name__)
+
+# Endpoint providing trending tokens across multiple DEXes
+JUPITER_TRENDS_API = os.getenv(
+    "JUPITER_TRENDS_API", "https://stats.jup.ag/trending"
+)
 
 BIRDEYE_API = "https://public-api.birdeye.so/defi/tokenlist"
 BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
@@ -44,6 +52,52 @@ def parse_birdeye_tokens(data: dict) -> List[str]:
     ]
     logger.info("Found %d candidate tokens", len(tokens))
     return tokens
+
+
+def parse_trending_tokens(data: dict) -> List[str]:
+    """Extract token addresses from the Jupiter trends API response."""
+    token_list = []
+    if isinstance(data, list):
+        token_list = data
+    else:
+        for key in ("trending", "data", "tokens"):
+            if isinstance(data.get(key), list):
+                token_list = data[key]
+                break
+
+    tokens: List[str] = []
+    for entry in token_list:
+        addr = entry.get("address") or entry.get("id") or entry.get("mint")
+        if addr:
+            tokens.append(addr)
+    logger.info("Found %d trending tokens", len(tokens))
+    return tokens
+
+
+def fetch_trending_tokens() -> List[str]:
+    """Fetch trending token addresses from Jupiter."""
+    try:
+        resp = requests.get(JUPITER_TRENDS_API, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch trending tokens: %s", exc)
+        return []
+    return parse_trending_tokens(data)
+
+
+async def fetch_trending_tokens_async() -> List[str]:
+    """Asynchronously fetch trending token addresses from Jupiter."""
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch trending tokens: %s", exc)
+            return []
+
+    return parse_trending_tokens(data)
 
 
 def offline_or_onchain(
