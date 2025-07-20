@@ -7,7 +7,12 @@ import aiohttp
 from typing import List
 
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+
+try:  # pragma: no cover - optional dependency
+    from xgboost import XGBRegressor  # type: ignore
+except Exception:  # pragma: no cover - when xgboost is missing
+    XGBRegressor = None
 
 import numpy as np
 import requests
@@ -34,6 +39,10 @@ class SimulationResult:
 
     sentiment: float = 0.0
     order_book_strength: float = 0.0
+
+    token_age: float = 0.0
+    initial_liquidity: float = 0.0
+    tx_trend: float = 0.0
 
 
 
@@ -62,6 +71,9 @@ def fetch_token_metrics(token: str) -> dict:
             "liquidity_history": data.get("liquidity_history", []),
             "depth_history": data.get("depth_history", []),
             "slippage_history": data.get("slippage_history", []),
+            "token_age": float(data.get("token_age", 0.0)),
+            "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
+            "tx_count_history": data.get("tx_count_history", []),
         }
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
@@ -76,6 +88,9 @@ def fetch_token_metrics(token: str) -> dict:
             "liquidity_history": [],
             "depth_history": [],
             "slippage_history": [],
+            "token_age": 0.0,
+            "initial_liquidity": 0.0,
+            "tx_count_history": [],
         }
 
     dex_urls = [u.strip() for u in os.getenv("DEX_METRIC_URLS", "").split(",") if u.strip()]
@@ -134,6 +149,9 @@ async def async_fetch_token_metrics(token: str) -> dict:
                 "liquidity": 0.0,
                 "slippage": 0.0,
                 "slippage_history": [],
+                "token_age": 0.0,
+                "initial_liquidity": 0.0,
+                "tx_count_history": [],
             }
 
     return {
@@ -143,6 +161,9 @@ async def async_fetch_token_metrics(token: str) -> dict:
         "liquidity": float(data.get("liquidity", 0.0)),
         "slippage": float(data.get("slippage", 0.0)),
         "slippage_history": data.get("slippage_history", []),
+        "token_age": float(data.get("token_age", 0.0)),
+        "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
+        "tx_count_history": data.get("tx_count_history", []),
     }
 
 
@@ -193,6 +214,17 @@ def run_simulations(
     if recent_slippage is not None:
         slippage = float(recent_slippage)
 
+    token_age = float(metrics.get("token_age", 0.0))
+    tx_hist = metrics.get("tx_count_history") or []
+    tx_trend = float(tx_hist[-1] - tx_hist[-2]) if len(tx_hist) >= 2 else 0.0
+    tx_trend_hist = list(np.diff(tx_hist)) if len(tx_hist) >= 2 else []
+
+    initial_liquidity = metrics.get("initial_liquidity")
+    if initial_liquidity is None:
+        liq_hist_default = metrics.get("liquidity_history") or []
+        initial_liquidity = float(liq_hist_default[0]) if liq_hist_default else float(liquidity)
+    else:
+        initial_liquidity = float(initial_liquidity)
 
     depth_features = metrics.get("depth_per_dex", [])[:2]
     slip_features = metrics.get("slippage_per_dex", [])[:2]
@@ -223,6 +255,54 @@ def run_simulations(
     results: List[SimulationResult] = []
 
     if (
+        price_hist
+        and liq_hist
+        and depth_hist
+        and slip_hist
+        and tx_hist
+        and len(price_hist) >= 2
+        and len(liq_hist) >= 2
+        and len(depth_hist) >= 2
+        and len(slip_hist) >= 2
+        and len(tx_hist) >= 2
+    ):
+        try:
+            returns = np.diff(price_hist) / price_hist[:-1]
+            n = min(
+                len(returns),
+                len(liq_hist) - 1,
+                len(depth_hist) - 1,
+                len(slip_hist) - 1,
+                len(tx_hist) - 1,
+            )
+            cols = [liq_hist[:n], depth_hist[:n], slip_hist[:n], tx_trend_hist[:n]]
+            for val in depth_features:
+                cols.append(np.full(n, val))
+            for val in slip_features:
+                cols.append(np.full(n, val))
+            cols.append(np.full(n, token_age))
+            cols.append(np.full(n, initial_liquidity))
+            X = np.column_stack(cols)
+            if XGBRegressor is not None:
+                model = XGBRegressor(
+                    n_estimators=50,
+                    learning_rate=0.1,
+                    max_depth=3,
+                    objective="reg:squarederror",
+                )
+            else:
+                model = RandomForestRegressor(n_estimators=50, random_state=42)
+            model = model.fit(X, returns[:n])
+            feat = (
+                [liquidity, depth, slippage, tx_trend]
+                + depth_features
+                + slip_features
+                + [token_age, initial_liquidity]
+            )
+            predicted_mean = float(model.predict([feat])[0])
+        except Exception as exc:  # pragma: no cover - numeric issues
+            logger.warning("ROI model training failed: %s", exc)
+    elif (
         price_hist
         and liq_hist
         and depth_hist
@@ -292,6 +372,9 @@ def run_simulations(
                 volume_spike=volume_spike,
                 sentiment=sentiment_val,
                 order_book_strength=order_strength,
+                token_age=token_age,
+                initial_liquidity=initial_liquidity,
+                tx_trend=tx_trend,
 
             )
         )
