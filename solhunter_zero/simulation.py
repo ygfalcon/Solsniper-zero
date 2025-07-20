@@ -22,6 +22,7 @@ class SimulationResult:
     volume: float = 0.0
     liquidity: float = 0.0
     slippage: float = 0.0
+    volatility: float = 0.0
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -81,7 +82,7 @@ def run_simulations(
         roi = float(np.prod(1 + daily_returns) - 1)
         success_prob = float(np.mean(daily_returns > 0))
         results.append(
-            SimulationResult(success_prob, roi, volume, liquidity, slippage)
+            SimulationResult(success_prob, roi, volume, liquidity, slippage, sigma)
         )
 
     return results

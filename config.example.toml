@@ -6,3 +6,6 @@ metrics_base_url = "https://api.example.com"
 discovery_method = "websocket"
 stop_loss = 0.1
 take_profit = 0.2
+risk_tolerance = 0.1
+max_allocation = 0.2
+max_risk_per_token = 0.05

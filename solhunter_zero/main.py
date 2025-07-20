@@ -76,14 +76,38 @@ async def _run_iteration(
             logging.warning("Volume ranking failed: %s", exc)
 
 
+    price_lookup = {}
+    if portfolio.balances:
+        if not offline:
+            price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+        portfolio.update_drawdown(price_lookup)
+    drawdown = portfolio.current_drawdown(price_lookup)
+
     for token in tokens:
         sims = run_simulations(token, count=100)
 
         if should_buy(sims):
             logging.info("Buying %s", token)
             avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-            balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
-            amount = calculate_order_size(balance, avg_roi)
+            volatility = sims[0].volatility if sims else 0.0
+            if price_lookup:
+                balance = portfolio.total_value(price_lookup)
+            else:
+                balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
+
+            risk_tolerance = float(os.getenv("RISK_TOLERANCE", "0.1"))
+            max_alloc = float(os.getenv("MAX_ALLOCATION", "0.2"))
+            max_risk = float(os.getenv("MAX_RISK_PER_TOKEN", "0.1"))
+
+            amount = calculate_order_size(
+                balance,
+                avg_roi,
+                volatility,
+                drawdown,
+                risk_tolerance=risk_tolerance,
+                max_allocation=max_alloc,
+                max_risk_per_token=max_risk,
+            )
             await place_order_async(
                 token,
                 side="buy",
@@ -99,16 +123,16 @@ async def _run_iteration(
                 memory.log_trade(token=token, direction="buy", amount=amount, price=0)
                 portfolio.update(token, amount, 0)
 
-    price_lookup = {}
+    price_lookup_sell = {}
     if stop_loss is not None or take_profit is not None:
-        price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+        price_lookup_sell = await fetch_token_prices_async(portfolio.balances.keys())
 
     for token, pos in list(portfolio.balances.items()):
         sims = run_simulations(token, count=100)
 
         roi_trigger = False
-        if token in price_lookup:
-            roi = portfolio.position_roi(token, price_lookup[token])
+        if token in price_lookup_sell:
+            roi = portfolio.position_roi(token, price_lookup_sell[token])
             if stop_loss is not None and roi <= -stop_loss:
                 roi_trigger = True
             if take_profit is not None and roi >= take_profit:

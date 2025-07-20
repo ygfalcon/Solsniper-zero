@@ -18,6 +18,9 @@ ENV_VARS = {
     "dex_testnet_url": "DEX_TESTNET_URL",
     "metrics_base_url": "METRICS_BASE_URL",
     "discovery_method": "DISCOVERY_METHOD",
+    "risk_tolerance": "RISK_TOLERANCE",
+    "max_allocation": "MAX_ALLOCATION",
+    "max_risk_per_token": "MAX_RISK_PER_TOKEN",
 }
 
 
