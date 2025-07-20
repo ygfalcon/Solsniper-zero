@@ -177,3 +177,19 @@ is served on `http://localhost:5000` by default.
 When launched without a user configuration file or `SOLHUNTER_CONFIG`
 environment variable, the UI automatically loads the `config.highrisk.toml`
 preset.
+
+## Additional Metrics
+
+Recent updates introduce new real-time metrics used by the simulator and risk
+model:
+
+- **Order-book depth change** — short term change in available liquidity on the
+  DEX order book.
+- **Mempool transaction rate** — approximate number of transactions per second
+  seen in the mempool for each token.
+- **Whale wallet activity** — share of liquidity held by very large accounts.
+
+These metrics are gathered automatically by the on-chain scanners and fed into
+`run_simulations`.  Sudden spikes or drops adjust the `RiskManager` parameters so
+the bot reduces exposure during potential dumps and scales in when activity
+surges.

@@ -26,10 +26,23 @@ class RiskManager:
             risk_multiplier=float(cfg.get("risk_multiplier", 1.0)),
         )
 
-    def adjusted(self, drawdown: float = 0.0, volatility: float = 0.0) -> "RiskManager":
+    def adjusted(
+        self,
+        drawdown: float = 0.0,
+        volatility: float = 0.0,
+        *,
+        volume_spike: float = 1.0,
+        depth_change: float = 0.0,
+        whale_activity: float = 0.0,
+    ) -> "RiskManager":
         """Return a new ``RiskManager`` with parameters adjusted for conditions."""
+
         factor = max(0.0, 1 - drawdown / self.max_drawdown)
         scale = factor / (1 + volatility * self.volatility_factor)
+        if volume_spike > 1:
+            scale *= min(volume_spike, 2.0)
+        scale /= 1 + abs(depth_change)
+        scale /= 1 + whale_activity
         scale *= self.risk_multiplier
         return RiskManager(
             risk_tolerance=self.risk_tolerance * scale,

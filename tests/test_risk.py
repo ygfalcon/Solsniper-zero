@@ -59,3 +59,12 @@ def test_risk_multiplier_increases_size():
     )
     assert size > 0.0
     assert params.risk_tolerance > 0.1
+
+
+def test_risk_manager_new_metrics():
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.2, max_risk_per_token=0.2)
+    base = rm.adjusted(0.0, 0.0)
+    high = rm.adjusted(0.0, 0.0, volume_spike=2.0)
+    low = rm.adjusted(0.0, 0.0, depth_change=-1.0, whale_activity=1.0)
+    assert high.risk_tolerance > base.risk_tolerance
+    assert low.risk_tolerance < base.risk_tolerance

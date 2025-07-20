@@ -69,29 +69,33 @@ def test_scan_tokens_onchain_retries(monkeypatch):
     assert sleeps == [1, 2]
 
 
-def test_scan_tokens_onchain_with_metrics(monkeypatch):
-    class FakeClient:
+
+def test_mempool_tx_rate(monkeypatch):
+    class Client:
         def __init__(self, url):
             self.url = url
 
-        def get_program_accounts(self, program_id, encoding="jsonParsed"):
-            return {
-                "result": [
-                    {
-                        "account": {
-                            "data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}
-                        }
-                    }
-                ]
-            }
+        def get_signatures_for_address(self, addr, limit=20):
+            return {"result": [{"blockTime": 1}, {"blockTime": 3}, {"blockTime": 4}]}
 
-    monkeypatch.setattr(scanner_onchain, "Client", lambda url: FakeClient(url))
+    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
+    rate = scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
+    assert rate == pytest.approx(3 / 3)
 
-    import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
-    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 2.0)
+def test_whale_wallet_activity(monkeypatch):
+    class Client:
+        def __init__(self, url):
+            self.url = url
 
-    res = scanner_onchain.scan_tokens_onchain("http://node", return_metrics=True)
+        def get_token_largest_accounts(self, addr):
+            return {"result": {"value": [{"uiAmount": 2000.0}, {"uiAmount": 50.0}]}}
 
-    assert res == [{"address": "m1", "volume": 1.0, "liquidity": 2.0}]
+    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
+    activity = scanner_onchain.fetch_whale_wallet_activity(
+        "tok", "http://node", threshold=1000.0
+    )
+    assert activity == pytest.approx(2000.0 / 2050.0)
+
