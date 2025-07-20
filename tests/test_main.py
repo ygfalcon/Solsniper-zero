@@ -16,6 +16,10 @@ def test_main_invokes_place_order(monkeypatch):
         lambda token, count=100: [SimulationResult(success_prob=1.0, expected_roi=2.0)],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
 
     called = {}
 
@@ -63,6 +67,10 @@ def test_main_offline(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
@@ -89,6 +97,10 @@ def test_run_iteration_sells(monkeypatch):
     monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.2, -0.1)])
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: True)
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
 
     called = {}
 
