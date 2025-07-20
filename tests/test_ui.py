@@ -148,10 +148,12 @@ def test_start_requires_env(monkeypatch):
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
+    monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
     monkeypatch.delenv("DEX_BASE_URL", raising=False)
     client = ui.app.test_client()
     resp = client.post("/start")
     assert resp.status_code == 400
     msg = resp.get_json()["message"]
-    assert "BIRDEYE_API_KEY" in msg and "DEX_BASE_URL" in msg
+    assert "DEX_BASE_URL" in msg
+    assert "BIRDEYE_API_KEY or SOLANA_RPC_URL" in msg
 
