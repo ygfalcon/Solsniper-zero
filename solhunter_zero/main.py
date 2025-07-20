@@ -32,13 +32,16 @@ async def _run_iteration(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+
     token_file: str | None = None,
     discovery_method: str = "websocket",
+
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
+
 
     try:
         tokens = await scan_tokens_async(
@@ -47,6 +50,7 @@ async def _run_iteration(
     except TypeError:
         # Support tests that monkeypatch ``scan_tokens_async`` without the
         # ``method`` parameter.
+
         tokens = await scan_tokens_async(offline=offline, token_file=token_file)
 
     # Always consider existing holdings when making sell decisions
@@ -59,6 +63,7 @@ async def _run_iteration(
             tokens = [t for t in tokens if t in top or t in portfolio.balances]
         except Exception as exc:  # pragma: no cover - network errors
             logging.warning("Volume ranking failed: %s", exc)
+
 
     for token in tokens:
         sims = run_simulations(token, count=100)
@@ -91,10 +96,12 @@ async def _run_iteration(
                 "sell",
                 pos.amount,
                 price,
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
+
             memory.log_trade(token, "sell", pos.amount, price)
             portfolio.update(token, -pos.amount, price)
         elif take_profit is not None and roi >= take_profit:
@@ -103,10 +110,12 @@ async def _run_iteration(
                 "sell",
                 pos.amount,
                 price,
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
+
             memory.log_trade(token, "sell", pos.amount, price)
             portfolio.update(token, -pos.amount, price)
 
@@ -120,7 +129,9 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+
     discovery_method: str = "websocket",
+
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
     config_path: str | None = None,
@@ -143,8 +154,10 @@ def main(
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+
     discovery_method:
         Token discovery method: onchain, websocket, pools or file.
+
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
 
@@ -182,7 +195,9 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
+
                     discovery_method=discovery_method,
+
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -196,7 +211,9 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
+
                     discovery_method=discovery_method,
+
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -246,7 +263,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--discovery-method",
+
         choices=["onchain", "websocket", "pools", "file"],
+
         default=None,
         help="Token discovery method",
     )
@@ -285,7 +304,9 @@ if __name__ == "__main__":
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
+
         discovery_method=args.discovery_method,
+
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
         config_path=args.config,

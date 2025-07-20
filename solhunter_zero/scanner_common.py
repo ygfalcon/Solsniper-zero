@@ -46,7 +46,12 @@ def parse_birdeye_tokens(data: dict) -> List[str]:
     return tokens
 
 
-def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional[List[str]]:
+def offline_or_onchain(
+    offline: bool,
+    token_file: str | None = None,
+    *,
+    method: str | None = None,
+) -> Optional[List[str]]:
     if token_file:
         return load_tokens_from_file(token_file)
     if offline:
@@ -55,6 +60,10 @@ def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")
+        if method == "pools":
+            return scan_tokens_from_pools()
+        if method == "file":
+            return scan_tokens_from_file()
         return scan_tokens_onchain(SOLANA_RPC_URL)
 
     return None
@@ -62,6 +71,7 @@ def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional
 
 
 async def offline_or_onchain_async(
+
     offline: bool,
     token_file: str | None = None,
     *,
@@ -73,6 +83,7 @@ async def offline_or_onchain_async(
     additionally supports the ``method`` argument used by higher level scanning
     helpers.
     """
+
 
     if token_file:
         return load_tokens_from_file(token_file)
@@ -103,13 +114,19 @@ async def offline_or_onchain_async(
 
             return [token]
 
+        if method == "pools":
+            return await asyncio.to_thread(scan_tokens_from_pools)
+        if method == "file":
+            return await asyncio.to_thread(scan_tokens_from_file)
         return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
 
     return None
 
 
 def scan_tokens_from_pools() -> List[str]:
+
     """Discover tokens via recently created liquidity pools."""
+
     logger.info("Scanning pools for tokens")
     from . import dex_scanner
 
