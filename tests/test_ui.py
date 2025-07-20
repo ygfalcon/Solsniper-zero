@@ -142,6 +142,18 @@ def test_get_and_set_risk_params(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") == "1.5"
 
 
+def test_get_and_set_discovery_method(monkeypatch):
+    monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
+    client = ui.app.test_client()
+
+    resp = client.get("/discovery")
+    assert resp.get_json()["method"] == "websocket"
+
+    resp = client.post("/discovery", json={"method": "mempool"})
+    assert resp.get_json()["status"] == "ok"
+    assert os.getenv("DISCOVERY_METHOD") == "mempool"
+
+
 def test_start_requires_env(monkeypatch):
     monkeypatch.setattr(ui, "trading_loop", lambda: None)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})

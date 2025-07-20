@@ -264,6 +264,18 @@ async def offline_or_onchain_async(
         return await asyncio.to_thread(scan_tokens_from_pools)
     if method == "file":
         return await asyncio.to_thread(scan_tokens_from_file)
+    if method == "mempool":
+        from .mempool_scanner import stream_mempool_tokens
+
+        gen = stream_mempool_tokens(SOLANA_RPC_URL)
+        try:
+            token = await anext(gen)
+        except StopAsyncIteration:
+            return []
+        finally:
+            await gen.aclose()
+
+        return [token]
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")

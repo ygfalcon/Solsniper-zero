@@ -251,7 +251,7 @@ def main(
         Return a predefined token list instead of querying the network.
 
     discovery_method:
-        Token discovery method: onchain, websocket, pools or file.
+        Token discovery method: onchain, websocket, mempool, pools or file.
 
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
@@ -413,7 +413,7 @@ if __name__ == "__main__":
         "--discovery-method",
 
         default=None,
-        choices=["websocket", "onchain", "pools", "file"],
+        choices=["websocket", "onchain", "mempool", "pools", "file"],
         help="Token discovery method",
     )
     parser.add_argument(
