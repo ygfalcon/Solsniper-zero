@@ -16,6 +16,9 @@ set_env_from_config(_cfg)
 from .scanner import scan_tokens_async
 from .onchain_metrics import top_volume_tokens
 from .market_ws import listen_and_trade
+from .simulation import run_simulations
+from .decision import should_buy, should_sell
+from .prices import fetch_token_prices_async
 
 from .memory import Memory
 from .portfolio import Portfolio
@@ -148,6 +151,7 @@ def main(
     market_ws_url: str | None = None,
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
+    arbitrage_tokens: list[str] | None = None,
     strategies: list[str] | None = None,
 
 ) -> None:
@@ -173,6 +177,9 @@ def main(
 
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
+
+    arbitrage_tokens:
+        Optional list of token addresses to monitor for arbitrage opportunities.
 
     strategies:
         Optional list of strategy module names to load.
