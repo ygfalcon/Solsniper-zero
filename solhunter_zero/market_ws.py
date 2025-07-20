@@ -80,8 +80,10 @@ async def listen_and_trade(
             volatility = getattr(sims[0], "volatility", 0.0) if sims else 0.0
             if price_lookup:
                 balance = portfolio.total_value(price_lookup)
+                alloc = portfolio.percent_allocated(token, price_lookup)
             else:
                 balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
+                alloc = portfolio.percent_allocated(token)
             risk_tolerance = float(os.getenv("RISK_TOLERANCE", "0.1"))
             max_alloc = float(os.getenv("MAX_ALLOCATION", "0.2"))
             max_risk = float(os.getenv("MAX_RISK_PER_TOKEN", "0.1"))
@@ -94,6 +96,7 @@ async def listen_and_trade(
                 risk_tolerance=risk_tolerance,
                 max_allocation=max_alloc,
                 max_risk_per_token=max_risk,
+                current_allocation=alloc,
             )
             await place_order_async(
                 token,

@@ -119,8 +119,10 @@ async def _run_iteration(
             volatility = 0.0
             if price_lookup:
                 balance = portfolio.total_value(price_lookup)
+                alloc = portfolio.percent_allocated(token, price_lookup)
             else:
                 balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
+                alloc = portfolio.percent_allocated(token)
 
             rm = RiskManager.from_config(
                 {
@@ -151,6 +153,7 @@ async def _run_iteration(
                 max_risk_per_token=params.max_risk_per_token,
                 max_drawdown=max_drawdown,
                 volatility_factor=volatility_factor,
+                current_allocation=alloc,
             )
             await place_order_async(
                 token,

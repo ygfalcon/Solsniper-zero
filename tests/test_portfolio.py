@@ -116,3 +116,26 @@ def test_calculate_order_size_with_gas():
     )
     assert size == pytest.approx(9.0)
 
+
+def test_percent_allocated():
+    p = Portfolio(path=None)
+    p.add("tok", 2, 1.0)
+    p.add("oth", 3, 2.0)
+    alloc = p.percent_allocated("tok")
+    assert alloc == pytest.approx(2 / (2 + 6))
+    alloc_prices = p.percent_allocated("tok", {"tok": 2.0, "oth": 2.0})
+    assert alloc_prices == pytest.approx(4 / (4 + 6))
+
+
+def test_order_size_respects_allocation():
+    size = calculate_order_size(
+        100.0,
+        1.0,
+        risk_tolerance=0.5,
+        max_allocation=0.2,
+        max_risk_per_token=0.5,
+        current_allocation=0.15,
+    )
+    # Only 5% allocation left
+    assert size == pytest.approx(5.0)
+

@@ -140,6 +140,18 @@ class Portfolio:
             return False
         return price <= pos.high_price * (1 - trailing)
 
+    def percent_allocated(self, token: str, prices: Dict[str, float] | None = None) -> float:
+        """Return the fraction of portfolio value allocated to ``token``."""
+        prices = prices or {}
+        total = self.total_value(prices)
+        if total <= 0:
+            return 0.0
+        pos = self.balances.get(token)
+        if pos is None:
+            return 0.0
+        price = prices.get(token, pos.entry_price)
+        return (pos.amount * price) / total
+
 
 def calculate_order_size(
     balance: float,
@@ -153,12 +165,15 @@ def calculate_order_size(
     max_drawdown: float = 1.0,
     volatility_factor: float = 1.0,
     gas_cost: float | None = None,
+    current_allocation: float = 0.0,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
     The position size grows with the expected return but is limited by the
-    ``risk_tolerance`` and ``max_allocation`` fractions of the balance.
-    Negative or zero expected returns yield a size of ``0.0``.
+    ``risk_tolerance`` fraction of the balance.  ``current_allocation``
+    represents the portion of the portfolio already allocated to the token and
+    ensures the total allocation never exceeds ``max_allocation``.  Negative or
+    zero expected returns yield a size of ``0.0``.
     """
 
     if balance <= 0 or expected_roi <= 0:
@@ -171,7 +186,9 @@ def calculate_order_size(
         1 + volatility * volatility_factor
     )
     fraction = expected_roi * adj_risk
-    fraction = min(fraction, max_allocation, max_risk_per_token)
+    remaining = max_allocation - current_allocation
+    max_fraction = min(max_risk_per_token, remaining)
+    fraction = min(fraction, max_fraction)
     if fraction <= 0:
         return 0.0
     size = balance * fraction
