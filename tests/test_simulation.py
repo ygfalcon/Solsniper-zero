@@ -12,6 +12,7 @@ def test_run_simulations_uses_metrics(monkeypatch):
             "volatility": 0.0,
             "volume": 123.0,
             "liquidity": 456.0,
+            "slippage": 0.01,
         }
 
     captured = {}
@@ -32,6 +33,7 @@ def test_run_simulations_uses_metrics(monkeypatch):
     assert results[0].expected_roi == expected_roi
     assert results[0].volume == pytest.approx(123.0)
     assert results[0].liquidity == pytest.approx(456.0)
+    assert results[0].slippage == pytest.approx(0.01)
 
 
 def test_fetch_token_metrics_base_url(monkeypatch):
@@ -45,6 +47,7 @@ def test_fetch_token_metrics_base_url(monkeypatch):
                 "volatility": 0.03,
                 "volume_24h": 321.0,
                 "liquidity": 654.0,
+                "slippage": 0.02,
             }
 
     captured = {}
@@ -62,6 +65,7 @@ def test_fetch_token_metrics_base_url(monkeypatch):
     assert metrics["volatility"] == pytest.approx(0.03)
     assert metrics["volume"] == pytest.approx(321.0)
     assert metrics["liquidity"] == pytest.approx(654.0)
+    assert metrics["slippage"] == pytest.approx(0.02)
 
 
 def test_run_simulations_volume_filter(monkeypatch):
@@ -71,6 +75,7 @@ def test_run_simulations_volume_filter(monkeypatch):
             "volatility": 0.02,
             "volume": 50.0,
             "liquidity": 100.0,
+            "slippage": 0.05,
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)

@@ -21,6 +21,7 @@ class SimulationResult:
     expected_roi: float
     volume: float = 0.0
     liquidity: float = 0.0
+    slippage: float = 0.0
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -42,10 +43,17 @@ def fetch_token_metrics(token: str) -> dict:
             "volatility": float(data.get("volatility", 0.02)),
             "volume": float(data.get("volume_24h", 0.0)),
             "liquidity": float(data.get("liquidity", 0.0)),
+            "slippage": float(data.get("slippage", 0.0)),
         }
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
-        return {"mean": 0.0, "volatility": 0.02, "volume": 0.0, "liquidity": 0.0}
+        return {
+            "mean": 0.0,
+            "volatility": 0.02,
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "slippage": 0.0,
+        }
 
 
 def run_simulations(
@@ -65,12 +73,15 @@ def run_simulations(
     sigma = metrics["volatility"]
     volume = metrics.get("volume", 0.0)
     liquidity = metrics.get("liquidity", 0.0)
+    slippage = metrics.get("slippage", 0.0)
 
     results: List[SimulationResult] = []
     for _ in range(count):
         daily_returns = np.random.normal(mu, sigma, days)
         roi = float(np.prod(1 + daily_returns) - 1)
         success_prob = float(np.mean(daily_returns > 0))
-        results.append(SimulationResult(success_prob, roi, volume, liquidity))
+        results.append(
+            SimulationResult(success_prob, roi, volume, liquidity, slippage)
+        )
 
     return results
