@@ -22,37 +22,81 @@ class StrategyManager:
         if not strategies:
             strategies = self.DEFAULT_STRATEGIES
 
-        self._modules = []
+        self._modules: list[tuple[Any, str]] = []
         for name in strategies:
             try:
                 mod = importlib.import_module(name)
             except Exception:  # pragma: no cover - optional strategies
                 continue
             if hasattr(mod, "evaluate"):
-                self._modules.append(mod)
+                self._modules.append((mod, name))
 
-    async def evaluate(self, token: str, portfolio: Any) -> List[Dict[str, Any]]:
-        """Run all strategies on ``token`` and return combined actions."""
-        tasks = []
-        results: List[Any] = []
-        for mod in self._modules:
+    async def evaluate(
+        self,
+        token: str,
+        portfolio: Any,
+        *,
+        weights: Dict[str, float] | None = None,
+        timeouts: Dict[str, float] | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Run all strategies on ``token`` and return combined weighted actions.
+
+        Parameters
+        ----------
+        weights:
+            Optional mapping of module name to weight applied to its returned
+            amounts. Defaults to ``1.0`` for all modules.
+        timeouts:
+            Optional mapping of module name to maximum time in seconds the
+            strategy is allowed to run. Results from strategies exceeding the
+            timeout are discarded.
+        """
+
+        async def run_module(mod: Any, name: str) -> tuple[float, Any] | None:
             func = getattr(mod, "evaluate", None)
             if func is None:
-                continue
+                return None
+            weight = 1.0
+            if weights and name in weights:
+                weight = float(weights[name])
+            timeout = None
+            if timeouts and name in timeouts:
+                timeout = float(timeouts[name])
+
             if asyncio.iscoroutinefunction(func):
-                tasks.append(func(token, portfolio))
+                coro = func(token, portfolio)
             else:
-                results.append(func(token, portfolio))
-        if tasks:
-            results.extend(await asyncio.gather(*tasks))
+                coro = asyncio.to_thread(func, token, portfolio)
+
+            try:
+                if timeout is not None:
+                    res = await asyncio.wait_for(coro, timeout)
+                else:
+                    res = await coro
+            except asyncio.TimeoutError:
+                return None
+
+            return weight, res
+
+        tasks = [asyncio.create_task(run_module(mod, name)) for mod, name in self._modules]
+        raw_results = await asyncio.gather(*tasks)
+
         actions: List[Dict[str, Any]] = []
-        for res in results:
+        for item in raw_results:
+            if not item:
+                continue
+            weight, res = item
             if not res:
                 continue
             if isinstance(res, list):
-                actions.extend(res)
+                for r in res:
+                    r = dict(r)
+                    r["amount"] = float(r.get("amount", 0)) * weight
+                    actions.append(r)
             else:
-                actions.append(res)
+                r = dict(res)
+                r["amount"] = float(r.get("amount", 0)) * weight
+                actions.append(r)
 
         return self._merge_actions(actions)
 

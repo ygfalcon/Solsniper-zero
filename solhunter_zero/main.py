@@ -178,6 +178,9 @@ def main(
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
 
+    arbitrage_tokens:
+        Optional list of token addresses to monitor for arbitrage opportunities.
+
     strategies:
         Optional list of strategy module names to load.
 

@@ -166,6 +166,7 @@ def calculate_order_size(
     volatility_factor: float = 1.0,
     gas_cost: float | None = None,
     current_allocation: float = 0.0,
+    min_portfolio_value: float = 0.0,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -174,6 +175,10 @@ def calculate_order_size(
     represents the portion of the portfolio already allocated to the token and
     ensures the total allocation never exceeds ``max_allocation``.  Negative or
     zero expected returns yield a size of ``0.0``.
+
+    ``min_portfolio_value`` sets a lower bound on the balance used for sizing,
+    preventing portfolios that dip below this value from generating trades that
+    cannot cover network fees.
     """
 
     if balance <= 0 or expected_roi <= 0:
@@ -191,11 +196,14 @@ def calculate_order_size(
     fraction = min(fraction, max_fraction)
     if fraction <= 0:
         return 0.0
-    size = balance * fraction
+    effective_balance = max(balance, min_portfolio_value)
+    size = min(effective_balance * fraction, balance)
     if gas_cost is None:
         try:
             from .gas import get_current_fee
             gas_cost = get_current_fee()
         except Exception:
             gas_cost = 0.0
-    return max(0.0, size - gas_cost)
+    if size <= gas_cost:
+        return 0.0
+    return size - gas_cost

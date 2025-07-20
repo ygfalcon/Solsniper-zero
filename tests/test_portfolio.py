@@ -139,3 +139,27 @@ def test_order_size_respects_allocation():
     # Only 5% allocation left
     assert size == pytest.approx(5.0)
 
+
+def test_small_portfolio_min_value():
+    size = calculate_order_size(
+        9.0,
+        1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.2,
+        gas_cost=0.1,
+        min_portfolio_value=10.0,
+    )
+    assert size == pytest.approx(0.9)
+
+
+def test_trade_blocked_when_below_fee():
+    size = calculate_order_size(
+        9.0,
+        0.5,
+        risk_tolerance=0.1,
+        max_allocation=0.2,
+        gas_cost=1.0,
+        min_portfolio_value=10.0,
+    )
+    assert size == 0.0
+
