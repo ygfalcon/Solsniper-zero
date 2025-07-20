@@ -42,7 +42,9 @@ arbitrage_amount: 1.0
    An example configuration file named `config.example.toml` is included in
    the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
    values as needed. A high risk preset called `config.highrisk.toml` is also
-   provided.
+   provided. The example configuration loads the built‑in
+   `solhunter_zero.sniper` and `solhunter_zero.arbitrage` strategies so the bot
+   can trade without custom modules.
 
    Environment variables with the same names override values from the file.
    You can specify an alternative file with the `--config` command line option

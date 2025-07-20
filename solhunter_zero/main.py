@@ -500,6 +500,7 @@ if __name__ == "__main__":
         market_ws_url=args.market_ws_url,
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
+        arbitrage_tokens=None,
         strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
 
     )
