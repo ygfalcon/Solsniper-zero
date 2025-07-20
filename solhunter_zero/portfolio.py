@@ -152,6 +152,7 @@ def calculate_order_size(
     max_risk_per_token: float = 0.1,
     max_drawdown: float = 1.0,
     volatility_factor: float = 1.0,
+    gas_cost: float | None = None,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -173,4 +174,11 @@ def calculate_order_size(
     fraction = min(fraction, max_allocation, max_risk_per_token)
     if fraction <= 0:
         return 0.0
-    return balance * fraction
+    size = balance * fraction
+    if gas_cost is None:
+        try:
+            from .gas import get_current_fee
+            gas_cost = get_current_fee()
+        except Exception:
+            gas_cost = 0.0
+    return max(0.0, size - gas_cost)

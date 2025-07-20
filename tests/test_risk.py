@@ -4,6 +4,11 @@ from solhunter_zero.risk import RiskManager
 from solhunter_zero.portfolio import calculate_order_size
 
 
+@pytest.fixture(autouse=True)
+def _no_fee(monkeypatch):
+    monkeypatch.setattr("solhunter_zero.gas.get_current_fee", lambda testnet=False: 0.0)
+
+
 def test_risk_manager_adjustments_reduce_size():
     rm = RiskManager(
         risk_tolerance=0.1,

@@ -2,6 +2,11 @@ import pytest
 from solhunter_zero.portfolio import Portfolio, calculate_order_size
 
 
+@pytest.fixture(autouse=True)
+def _no_fee(monkeypatch):
+    monkeypatch.setattr("solhunter_zero.gas.get_current_fee", lambda testnet=False: 0.0)
+
+
 def test_portfolio_update_and_pnl(tmp_path):
     path = tmp_path / "p.json"
     p = Portfolio(path=str(path))
@@ -99,4 +104,15 @@ def test_portfolio_drawdown():
     assert p.current_drawdown({"tok": 2.0}) == pytest.approx(0.0)
     p.update_drawdown({"tok": 1.0})
     assert p.current_drawdown({"tok": 1.0}) == pytest.approx(0.5)
+
+
+def test_calculate_order_size_with_gas():
+    size = calculate_order_size(
+        100.0,
+        1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.2,
+        gas_cost=1.0,
+    )
+    assert size == pytest.approx(9.0)
 

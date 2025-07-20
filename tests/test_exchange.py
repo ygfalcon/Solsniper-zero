@@ -13,6 +13,10 @@ from solders.transaction import VersionedTransaction
 from solhunter_zero.exchange import place_order, place_order_async
 
 
+async def _no_fee_async(*a, **k):
+    return 0.0
+
+
 class FakeResponse:
     def __init__(self, data, status_code=200):
         self._data = data
@@ -127,6 +131,64 @@ def test_place_order_async(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
+    monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", _no_fee_async)
     result = asyncio.run(place_order_async("tok", "buy", 1.0, 0.0, keypair=kp, testnet=True))
     assert result["signature"] == "sig"
     assert sent["len"] > 0
+
+
+def test_place_order_async_deducts_gas(monkeypatch):
+    kp = Keypair()
+    sent = {}
+
+    class FakeResp:
+        def __init__(self, url, data):
+            sent["url"] = url
+            sent["payload"] = data
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            return {"swapTransaction": _dummy_tx(kp)}
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        def post(self, url, json, timeout=10):
+            return FakeResp(url, json)
+
+    class FakeClient:
+        def __init__(self, url):
+            pass
+
+        async def send_raw_transaction(self, data, opts=None):
+            class Resp:
+                value = "sig"
+
+            return Resp()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
+    async def fake_fee(*a, **k):
+        return 1.0
+    monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", fake_fee)
+
+    asyncio.run(place_order_async("tok", "buy", 2.0, 0.0, keypair=kp))
+    assert sent["payload"]["amount"] == pytest.approx(1.0)
