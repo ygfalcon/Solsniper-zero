@@ -157,3 +157,36 @@ def test_scan_tokens_async_from_file(monkeypatch, tmp_path):
 
     tokens = asyncio.run(async_scan(token_file=str(path)))
     assert tokens == ["a", "b"]
+
+
+def test_scan_tokens_mempool(monkeypatch):
+    async def fake_stream(url, *, suffix="bonk", include_pools=True):
+        yield "memtok"
+
+    monkeypatch.setattr(
+        "solhunter_zero.mempool_scanner.stream_mempool_tokens", fake_stream
+    )
+    monkeypatch.setattr(scanner, "fetch_trending_tokens", lambda: [])
+    monkeypatch.setattr(scanner, "fetch_raydium_listings", lambda: [])
+    monkeypatch.setattr(scanner, "fetch_orca_listings", lambda: [])
+
+    tokens = scanner.scan_tokens(method="mempool")
+    assert tokens == ["memtok"]
+
+
+def test_scan_tokens_async_mempool(monkeypatch):
+    async def fake_stream(url, *, suffix=None, keywords=None, include_pools=True):
+        yield "memtok"
+
+    monkeypatch.setattr(
+        "solhunter_zero.mempool_scanner.stream_mempool_tokens", fake_stream
+    )
+    async def fr():
+        return []
+
+    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", fr)
+    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", fr)
+    monkeypatch.setattr(scanner, "fetch_orca_listings_async", fr)
+
+    result = asyncio.run(async_scan(method="mempool"))
+    assert result == ["memtok"]

@@ -80,6 +80,32 @@ def scan_tokens(
         tokens = OFFLINE_TOKENS
     elif method == "onchain":
         tokens = scan_tokens_onchain(scanner_common.SOLANA_RPC_URL)
+    elif method == "mempool":
+        if offline:
+            logger.info("Offline mode enabled, returning static tokens")
+            tokens = OFFLINE_TOKENS
+        elif token_file:
+            tokens = scan_tokens_from_file(token_file)
+        else:
+            async def _run() -> List[str]:
+                from .mempool_scanner import stream_mempool_tokens
+
+                gen = stream_mempool_tokens(SOLANA_RPC_URL)
+                result: List[str] = []
+                try:
+                    result.append(await anext(gen))  # type: ignore[misc]
+                    try:
+                        result.append(await anext(gen))  # type: ignore[misc]
+                    except StopAsyncIteration:
+                        pass
+                except StopAsyncIteration:
+                    result = []
+                finally:
+                    await gen.aclose()
+
+                return result
+
+            tokens = asyncio.run(_run())
     elif method == "pools":
         tokens = scan_tokens_from_pools()
     elif method == "file":
@@ -143,6 +169,27 @@ async def scan_tokens_async(
         tokens = await asyncio.to_thread(
             scan_tokens_onchain, scanner_common.SOLANA_RPC_URL
         )
+    elif method == "mempool":
+        if offline:
+            logger.info("Offline mode enabled, returning static tokens")
+            tokens = OFFLINE_TOKENS
+        elif token_file:
+            tokens = await asyncio.to_thread(scan_tokens_from_file, token_file)
+        else:
+            from .mempool_scanner import stream_mempool_tokens
+
+            gen = stream_mempool_tokens(SOLANA_RPC_URL)
+            tokens = []
+            try:
+                tokens.append(await anext(gen))
+                try:
+                    tokens.append(await anext(gen))
+                except StopAsyncIteration:
+                    pass
+            except StopAsyncIteration:
+                tokens = []
+            finally:
+                await gen.aclose()
     elif method == "pools":
         tokens = await asyncio.to_thread(scan_tokens_from_pools)
     elif method == "file":

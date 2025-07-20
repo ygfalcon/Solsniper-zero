@@ -140,6 +140,16 @@ def risk_params() -> dict:
     )
 
 
+@app.route("/discovery", methods=["GET", "POST"])
+def discovery_method() -> dict:
+    if request.method == "POST":
+        method = (request.get_json() or {}).get("method")
+        if method:
+            os.environ["DISCOVERY_METHOD"] = method
+        return jsonify({"status": "ok"})
+    return jsonify({"method": os.getenv("DISCOVERY_METHOD", "websocket")})
+
+
 @app.route("/keypairs", methods=["GET"])
 def keypairs() -> dict:
     return jsonify(
@@ -286,6 +296,19 @@ HTML_PAGE = """
         <button id='save_risk'>Save</button>
     </div>
 
+    <div id='discovery'>
+        <label>Discovery
+            <select id='discovery_select'>
+                <option value='websocket'>websocket</option>
+                <option value='mempool'>mempool</option>
+                <option value='onchain'>onchain</option>
+                <option value='pools'>pools</option>
+                <option value='file'>file</option>
+            </select>
+        </label>
+        <button id='save_discovery'>Save</button>
+    </div>
+
     <div id='roi'></div>
 
     <table id='balances'>
@@ -347,6 +370,16 @@ HTML_PAGE = """
         });
     }
 
+    function loadDiscovery() {
+        fetch('/discovery').then(r => r.json()).then(data => {
+            document.getElementById('discovery_select').value = data.method;
+        });
+    }
+    document.getElementById('save_discovery').onclick = function() {
+        const method = document.getElementById('discovery_select').value;
+        fetch('/discovery', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({method})});
+    };
+
     document.getElementById('keypair_select').onchange = function() {
         fetch('/keypairs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
     };
@@ -400,6 +433,7 @@ HTML_PAGE = """
     loadRisk();
     loadKeypairs();
     loadConfigs();
+    loadDiscovery();
     loadPositions();
     loadTrades();
     loadRoi();
