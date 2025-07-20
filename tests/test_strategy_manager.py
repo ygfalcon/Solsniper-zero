@@ -1,30 +1,51 @@
-import numpy as np
-from solhunter_zero import backtester
+import sys
+import types
+import asyncio
 from solhunter_zero.strategy_manager import StrategyManager
 
 
-def test_backtester_ranking():
-    def good(prices):
-        return [0.1 for _ in prices[1:]]
-
-    def bad(prices):
-        return [-0.1 for _ in prices[1:]]
-
-    prices = [1, 2, 3]
-    results = backtester.backtest_strategies(
-        prices, [("good", good), ("bad", bad)]
-    )
-    assert results[0].name == "good"
+class DummyPortfolio:
+    pass
 
 
-def test_strategy_manager_selects_best():
-    def strat_a(prices):
-        return [0.05 for _ in prices[1:]]
+def test_strategy_manager_invokes_modules(monkeypatch):
+    calls = []
 
-    def strat_b(prices):
-        return [-0.02 for _ in prices[1:]]
+    async def eval1(token, portfolio):
+        calls.append("s1")
+        return [{"token": token, "side": "buy", "amount": 1, "price": 0}]
 
-    manager = StrategyManager([("a", strat_a), ("b", strat_b)])
-    manager.select([1, 2, 3, 4])
-    assert manager.current_strategy is strat_a
+    def eval2(token, portfolio):
+        calls.append("s2")
+        return [{"token": token, "side": "sell", "amount": 1, "price": 0}]
+
+    mod1 = types.SimpleNamespace(evaluate=eval1)
+    mod2 = types.SimpleNamespace(evaluate=eval2)
+    monkeypatch.setitem(sys.modules, "mod1", mod1)
+    monkeypatch.setitem(sys.modules, "mod2", mod2)
+
+    mgr = StrategyManager(["mod1", "mod2"])
+    actions = asyncio.run(mgr.evaluate("tok", DummyPortfolio()))
+
+    assert "s1" in calls and "s2" in calls
+    assert {"token": "tok", "side": "buy", "amount": 1, "price": 0} in actions
+    assert {"token": "tok", "side": "sell", "amount": 1, "price": 0} in actions
+
+
+def test_strategy_manager_merges_actions(monkeypatch):
+    async def eval1(token, portfolio):
+        return [{"token": token, "side": "buy", "amount": 1, "price": 1.0}]
+
+    async def eval2(token, portfolio):
+        return [{"token": token, "side": "buy", "amount": 1, "price": 3.0}]
+
+    mod1 = types.SimpleNamespace(evaluate=eval1)
+    mod2 = types.SimpleNamespace(evaluate=eval2)
+    monkeypatch.setitem(sys.modules, "mod1", mod1)
+    monkeypatch.setitem(sys.modules, "mod2", mod2)
+
+    mgr = StrategyManager(["mod1", "mod2"])
+    actions = asyncio.run(mgr.evaluate("tok", DummyPortfolio()))
+
+    assert actions == [{"token": "tok", "side": "buy", "amount": 2.0, "price": 2.0}]
 
