@@ -200,3 +200,25 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
     assert resp.status_code == 400
     assert not list((tmp_path / "cfgs").iterdir())
 
+
+def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
+    monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path))
+    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active"))
+    os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
+
+    kp = Keypair()
+    (tmp_path / "only.json").write_text(json.dumps(list(kp.to_bytes())))
+
+    monkeypatch.setattr(ui, "trading_loop", lambda: None)
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
+    monkeypatch.setenv("DEX_BASE_URL", "x")
+
+    client = ui.app.test_client()
+    resp = client.post("/start")
+    assert resp.get_json()["status"] == "started"
+    ui.trading_thread.join(timeout=1)
+    assert (tmp_path / "active").read_text() == "only"
+
