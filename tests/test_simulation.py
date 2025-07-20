@@ -206,6 +206,50 @@ def test_run_simulations_with_history(monkeypatch):
     assert results[0].expected_roi == expected_roi
 
 
+def test_run_simulations_with_tx_trend(monkeypatch):
+    metrics = {
+        "mean": 0.01,
+        "volatility": 0.02,
+        "volume": 50.0,
+        "liquidity": 100.0,
+        "slippage": 0.05,
+        "depth": 1.0,
+        "price_history": [1.0, 1.1, 1.05],
+        "liquidity_history": [40, 45, 50],
+        "depth_history": [0.7, 0.8, 1.0],
+        "slippage_history": [0.04, 0.045, 0.05],
+        "tx_count_history": [10, 15, 20, 30],
+        "depth_per_dex": [0.5, 0.6],
+        "slippage_per_dex": [0.02, 0.03],
+        "token_age": 5.0,
+        "initial_liquidity": 40.0,
+    }
+
+    captured = {}
+
+    class FakeRF:
+        def fit(self, X, y):
+            captured["X"] = X
+            captured["y"] = y
+            return self
+
+        def predict(self, X):
+            captured["predict_X"] = X
+            return np.array([0.09])
+
+    monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    monkeypatch.setattr(simulation, "RandomForestRegressor", lambda **kw: FakeRF())
+    monkeypatch.setattr(simulation, "XGBRegressor", None)
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+
+    results = simulation.run_simulations("tok", count=1, days=2)
+
+    assert len(captured["predict_X"][0]) == 10
+    expected_roi = pytest.approx((1 + 0.09) ** 2 - 1)
+    assert results[0].expected_roi == expected_roi
+
+
 def test_run_simulations_optional_inputs(monkeypatch):
     def fake_metrics(token):
         return {
