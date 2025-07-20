@@ -13,6 +13,7 @@ set_env_from_config(_cfg)
 
 from .scanner import scan_tokens_async
 from .prices import fetch_token_prices_async
+from .onchain_metrics import top_volume_tokens
 
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -36,6 +37,14 @@ async def _run_iteration(
 ) -> None:
     """Execute a single trading iteration asynchronously."""
     tokens = await scan_tokens_async(offline=offline)
+
+    rpc_url = os.getenv("SOLANA_RPC_URL")
+    if rpc_url and not offline:
+        try:
+            top = top_volume_tokens(rpc_url, limit=len(tokens))
+            tokens = [t for t in tokens if t in top]
+        except Exception as exc:  # pragma: no cover - network errors
+            logging.warning("Volume ranking failed: %s", exc)
 
     for token in tokens:
         sims = run_simulations(token, count=100)
