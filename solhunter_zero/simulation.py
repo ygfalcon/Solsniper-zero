@@ -5,6 +5,8 @@ import os
 from dataclasses import dataclass
 from typing import List
 
+from sklearn.linear_model import LinearRegression
+
 import numpy as np
 import requests
 
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 # ``METRICS_BASE_URL`` environment variable or via a configuration file that
 # sets this variable before the module is imported.
 DEFAULT_METRICS_BASE_URL = "https://api.example.com"
+
 
 @dataclass
 class SimulationResult:
@@ -44,6 +47,10 @@ def fetch_token_metrics(token: str) -> dict:
             "volume": float(data.get("volume_24h", 0.0)),
             "liquidity": float(data.get("liquidity", 0.0)),
             "slippage": float(data.get("slippage", 0.0)),
+            "depth": float(data.get("depth", 0.0)),
+            "price_history": data.get("price_history", []),
+            "liquidity_history": data.get("liquidity_history", []),
+            "depth_history": data.get("depth_history", []),
         }
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
@@ -53,6 +60,10 @@ def fetch_token_metrics(token: str) -> dict:
             "volume": 0.0,
             "liquidity": 0.0,
             "slippage": 0.0,
+            "depth": 0.0,
+            "price_history": [],
+            "liquidity_history": [],
+            "depth_history": [],
         }
 
 
@@ -63,25 +74,46 @@ def run_simulations(
     *,
     min_volume: float = 0.0,
 ) -> List[SimulationResult]:
-    """Run Monte Carlo simulations for a given token."""
+    """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
-    mu = metrics["mean"]
-    sigma = metrics["volatility"]
+    mu = metrics.get("mean", 0.0)
+    sigma = metrics.get("volatility", 0.02)
     volume = metrics.get("volume", 0.0)
     liquidity = metrics.get("liquidity", 0.0)
     slippage = metrics.get("slippage", 0.0)
+    depth = metrics.get("depth", 0.0)
+
+    price_hist = metrics.get("price_history")
+    liq_hist = metrics.get("liquidity_history")
+    depth_hist = metrics.get("depth_history")
+
+    predicted_mean = mu
+    if (
+        price_hist
+        and liq_hist
+        and depth_hist
+        and len(price_hist) >= 2
+        and len(liq_hist) >= 2
+        and len(depth_hist) >= 2
+    ):
+        try:
+            returns = np.diff(price_hist) / price_hist[:-1]
+            n = min(len(returns), len(liq_hist) - 1, len(depth_hist) - 1)
+            X = np.column_stack([liq_hist[:n], depth_hist[:n], np.full(n, sigma)])
+            model = LinearRegression().fit(X, returns[:n])
+            predicted_mean = float(model.predict([[liquidity, depth, sigma]])[0])
+        except Exception as exc:  # pragma: no cover - numeric issues
+            logger.warning("ROI model training failed: %s", exc)
 
     results: List[SimulationResult] = []
     for _ in range(count):
-        daily_returns = np.random.normal(mu, sigma, days)
+        daily_returns = np.random.normal(predicted_mean, sigma, days)
         roi = float(np.prod(1 + daily_returns) - 1)
         success_prob = float(np.mean(daily_returns > 0))
-        results.append(
-            SimulationResult(success_prob, roi, volume, liquidity, slippage)
-        )
+        results.append(SimulationResult(success_prob, roi, volume, liquidity, slippage))
 
     return results
