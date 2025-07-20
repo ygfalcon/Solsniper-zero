@@ -24,6 +24,8 @@ def test_main_invokes_place_order(monkeypatch):
         return {t: 1.0 for t in tokens}
 
     monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr("solhunter_zero.gas.get_current_fee", lambda testnet=False: 0.0)
+    monkeypatch.setattr("solhunter_zero.gas.get_current_fee", lambda testnet=False: 0.0)
 
     called = {}
 
@@ -307,4 +309,93 @@ def test_run_iteration_arbitrage(monkeypatch):
     )
 
     assert called["args"] == ("tok", 0.1, 2.0, True)
+
+
+def test_trade_size_scales_with_portfolio_value(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    pf.add("hold", 1, 1.0)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
+        return ["tok"]
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [SimulationResult(1.0, 1.0, volume=0, liquidity=0)],
+    )
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
+
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    called = []
+
+    async def fake_place_order_async(token, side, amount, price, **_):
+        called.append(amount)
+        return {"order_id": "1"}
+
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+
+    monkeypatch.setattr(pf, "total_value", lambda prices=None: 10.0)
+    monkeypatch.setattr(pf, "percent_allocated", lambda t, prices=None: 0.0)
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
+    size1 = called[-1]
+
+    monkeypatch.setattr(pf, "total_value", lambda prices=None: 20.0)
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
+    size2 = called[-1]
+
+    assert size2 > size1
+
+
+def test_trade_size_scales_with_risk(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    pf.add("hold", 1, 1.0)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
+        return ["tok"]
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [SimulationResult(1.0, 1.0, volume=0, liquidity=0)],
+    )
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
+
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    called = []
+
+    async def fake_place_order_async(token, side, amount, price, **_):
+        called.append(amount)
+        return {"order_id": "1"}
+
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+
+    monkeypatch.setattr(pf, "total_value", lambda prices=None: 10.0)
+    monkeypatch.setattr(pf, "percent_allocated", lambda t, prices=None: 0.0)
+    monkeypatch.setenv("RISK_MULTIPLIER", "1.0")
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
+    size1 = called[-1]
+
+    monkeypatch.setenv("RISK_MULTIPLIER", "2.0")
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
+    size2 = called[-1]
+
+    assert size2 > size1
 
