@@ -33,3 +33,29 @@ def should_buy(
     return (
         avg_success >= min_success and avg_roi >= min_roi and sharpe >= min_sharpe
     )
+
+
+def should_sell(
+    sim_results: List[SimulationResult],
+    *,
+    max_success: float = 0.4,
+    max_roi: float = 0.0,
+) -> bool:
+    """Decide whether to sell a token based on simulation results.
+
+    The function looks at the average expected ROI and the average success
+    probability.  If either indicates poor future performance we recommend
+    selling.  By default a negative expected return or a success probability
+    below ``max_success`` triggers a sell.
+    """
+
+    if not sim_results:
+        return False
+
+    successes = [r.success_prob for r in sim_results]
+    rois = [r.expected_roi for r in sim_results]
+
+    avg_success = sum(successes) / len(successes)
+    avg_roi = sum(rois) / len(rois)
+
+    return avg_success <= max_success or avg_roi <= max_roi
