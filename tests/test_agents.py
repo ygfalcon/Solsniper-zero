@@ -9,6 +9,7 @@ from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents import BUILT_IN_AGENTS, load_agent
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
 
@@ -139,4 +140,26 @@ def test_memory_agent(monkeypatch):
     asyncio.run(mem_agent.log({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 2.0}))
     trades = mem_agent.memory.list_trades()
     assert trades and trades[0].token == 'tok'
+
+
+def test_builtin_agents_mapping():
+    # ensure mapping is populated
+    load_agent('simulation')
+    expected = {
+        'simulation',
+        'conviction',
+        'arbitrage',
+        'exit',
+        'execution',
+        'memory',
+        'discovery',
+    }
+    assert expected <= set(BUILT_IN_AGENTS)
+
+
+def test_load_agent():
+    agent = load_agent('simulation', count=1)
+    assert isinstance(agent, SimulationAgent)
+    with pytest.raises(KeyError):
+        load_agent('missing')
 
