@@ -23,4 +23,9 @@ if ! check_deps; then
     pip install -r requirements.txt
 fi
 
-python -m solhunter_zero.main "$@"
+if [ "$1" = "--auto" ]; then
+    shift
+    python -m solhunter_zero.main --auto "$@"
+else
+    python -m solhunter_zero.main "$@"
+fi

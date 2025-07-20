@@ -93,6 +93,14 @@ arbitrage_amount: 1.0
    ```
 8. **Run the bot**
    ```bash
+   ./run.sh --auto
+   ```
+   This automatically loads the selected configuration (or the `config.highrisk.toml`
+   preset when none is selected), selects the only available keypair if there is
+   just one, and begins trading with the default strategies.
+
+   You can still run the bot manually with:
+   ```bash
    ./run.sh
    # or
    python -m solhunter_zero.main
@@ -127,6 +135,11 @@ Run the bot with:
 python -m solhunter_zero.main
 ```
 Or simply use the helper script which installs any missing dependencies:
+```bash
+./run.sh --auto
+```
+The `--auto` flag performs the automatic configuration and keypair selection
+described above. To run manually without automation use:
 ```bash
 ./run.sh
 ```
