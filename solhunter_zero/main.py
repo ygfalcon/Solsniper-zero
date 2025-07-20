@@ -92,7 +92,7 @@ async def _run_iteration(
         if should_buy(sims):
             logging.info("Buying %s", token)
             avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-            volatility = sims[0].volatility if sims else 0.0
+            volatility = 0.0
             if price_lookup:
                 balance = portfolio.total_value(price_lookup)
             else:
