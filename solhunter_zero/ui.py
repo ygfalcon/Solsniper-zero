@@ -290,6 +290,12 @@ HTML_PAGE = """
     <button id='stop'>Stop</button>
     <select id='keypair_select'></select>
 
+    <h3>ROI: <span id='roi_value'>0</span></h3>
+    <h3>Positions</h3>
+    <pre id='positions'></pre>
+    <h3>Recent Trades</h3>
+    <pre id='trades'></pre>
+
     <script>
     document.getElementById('start').onclick = function() {
         fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
@@ -313,7 +319,21 @@ HTML_PAGE = """
         fetch('/keypairs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
     };
 
+    function refreshData() {
+        fetch('/positions').then(r => r.json()).then(data => {
+            document.getElementById('positions').textContent = JSON.stringify(data, null, 2);
+        });
+        fetch('/trades').then(r => r.json()).then(data => {
+            document.getElementById('trades').textContent = JSON.stringify(data.slice(-10), null, 2);
+        });
+        fetch('/roi').then(r => r.json()).then(data => {
+            document.getElementById('roi_value').textContent = data.roi.toFixed(4);
+        });
+    }
+
     loadKeypairs();
+    refreshData();
+    setInterval(refreshData, 5000);
     </script>
 </body>
 </html>
