@@ -6,7 +6,7 @@ import asyncio
 
 def test_main_invokes_place_order(monkeypatch):
     # prepare mocks
-    async def fake_scan_tokens_async(offline=False):
+    async def fake_scan_tokens_async(*, offline=False, method="websocket"):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
@@ -18,6 +18,10 @@ def test_main_invokes_place_order(monkeypatch):
         ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
 
     called = {}
 
@@ -50,7 +54,7 @@ def test_main_invokes_place_order(monkeypatch):
 def test_main_offline(monkeypatch):
     recorded = {}
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, method="websocket"):
         recorded["offline"] = offline
         return ["tok"]
 
@@ -67,6 +71,10 @@ def test_main_offline(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
@@ -86,7 +94,7 @@ def test_run_iteration_sells(monkeypatch):
     pf.add("tok", 2, 1.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, method="websocket"):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
@@ -97,6 +105,10 @@ def test_run_iteration_sells(monkeypatch):
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: True)
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
 
     called = {}
 
@@ -119,11 +131,17 @@ def test_run_iteration_stop_loss(monkeypatch):
     pf.add("tok", 1, 10.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, method="websocket"):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.9, 0.2)])
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [
+            SimulationResult(0.9, 0.2, volume=200.0, liquidity=400.0)
+        ],
+    )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
 
@@ -153,11 +171,17 @@ def test_run_iteration_take_profit(monkeypatch):
     pf.add("tok", 1, 10.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, method="websocket"):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.9, 0.2)])
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [
+            SimulationResult(0.9, 0.2, volume=200.0, liquidity=400.0)
+        ],
+    )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
 
@@ -180,4 +204,48 @@ def test_run_iteration_take_profit(monkeypatch):
 
     assert called["args"][0] == "tok"
     assert called["args"][1] == "sell"
+
+
+@pytest.mark.parametrize(
+    "method, target",
+    [
+        ("onchain", "solhunter_zero.scanner.scan_tokens_onchain"),
+        ("websocket", "solhunter_zero.async_scanner.scan_tokens_async"),
+        ("pools", "solhunter_zero.scanner.scan_tokens_from_pools"),
+        ("file", "solhunter_zero.scanner.scan_tokens_from_file"),
+    ],
+)
+def test_discovery_methods(monkeypatch, method, target):
+    called = {}
+
+    async def fake_async(*_a, **_k):
+        called["called"] = True
+        return []
+
+    def fake_sync(*_a, **_k):
+        called["called"] = True
+        return []
+
+    if "async" in target:
+        monkeypatch.setattr(target, fake_async)
+    else:
+        monkeypatch.setattr(target, fake_sync)
+
+    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
+    monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
+
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=0,
+        dry_run=True,
+        iterations=1,
+        discovery_method=method,
+    )
+
+    assert called.get("called") is True
 

@@ -17,6 +17,7 @@ ENV_VARS = {
     "dex_base_url": "DEX_BASE_URL",
     "dex_testnet_url": "DEX_TESTNET_URL",
     "metrics_base_url": "METRICS_BASE_URL",
+    "discovery_method": "DISCOVERY_METHOD",
 }
 
 
