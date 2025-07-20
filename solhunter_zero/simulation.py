@@ -28,7 +28,6 @@ class SimulationResult:
     slippage: float = 0.0
 
     volatility: float = 0.0
-in
 
 
 def fetch_token_metrics(token: str) -> dict:
