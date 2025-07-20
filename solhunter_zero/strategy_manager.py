@@ -1,6 +1,7 @@
 import importlib
 import asyncio
 import os
+import contextlib
 from typing import Iterable, Any, List, Dict
 
 
@@ -14,6 +15,8 @@ class StrategyManager:
         strategies: Iterable[str] | None = None,
         *,
         env_var: str = "STRATEGIES",
+        weights: Dict[str, float] | None = None,
+        weights_env_var: str = "STRATEGY_WEIGHTS",
     ) -> None:
         if strategies is None:
             env = os.getenv(env_var)
@@ -21,6 +24,17 @@ class StrategyManager:
                 strategies = [s.strip() for s in env.split(",") if s.strip()]
         if not strategies:
             strategies = self.DEFAULT_STRATEGIES
+
+        if weights is None:
+            env_w = os.getenv(weights_env_var)
+            if env_w:
+                weights = {}
+                for item in env_w.split(","):
+                    if "=" in item:
+                        name, value = item.split("=", 1)
+                        with contextlib.suppress(ValueError):
+                            weights[name.strip()] = float(value)
+        self._weights: Dict[str, float] = weights or {}
 
         self._modules: list[tuple[Any, str]] = []
         for name in strategies:
@@ -52,13 +66,15 @@ class StrategyManager:
             timeout are discarded.
         """
 
+        weights_map = dict(self._weights)
+        if weights:
+            weights_map.update(weights)
+
         async def run_module(mod: Any, name: str) -> tuple[float, Any] | None:
             func = getattr(mod, "evaluate", None)
             if func is None:
                 return None
-            weight = 1.0
-            if weights and name in weights:
-                weight = float(weights[name])
+            weight = float(weights_map.get(name, 1.0))
             timeout = None
             if timeouts and name in timeouts:
                 timeout = float(timeouts[name])

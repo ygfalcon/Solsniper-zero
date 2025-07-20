@@ -25,3 +25,7 @@ volume_threshold = 0
 # Load built-in strategies so the bot can trade without additional modules
 strategies = ["solhunter_zero.sniper", "solhunter_zero.arbitrage"]
 
+[strategy_weights]
+"solhunter_zero.sniper" = 1.0
+"solhunter_zero.arbitrage" = 1.0
+

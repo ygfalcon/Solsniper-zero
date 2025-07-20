@@ -46,6 +46,15 @@ arbitrage_amount: 1.0
    `solhunter_zero.sniper` and `solhunter_zero.arbitrage` strategies so the bot
    can trade without custom modules.
 
+   To control how much each strategy influences trades, add a `strategy_weights`
+   table mapping module names to weights:
+
+   ```toml
+   [strategy_weights]
+   "solhunter_zero.sniper" = 1.0
+   "solhunter_zero.arbitrage" = 2.0
+   ```
+
    Environment variables with the same names override values from the file.
    You can specify an alternative file with the `--config` command line option
    or by setting the `SOLHUNTER_CONFIG` environment variable.
