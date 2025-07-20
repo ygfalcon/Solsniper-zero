@@ -61,7 +61,14 @@ def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional
 
 
 
-async def offline_or_onchain_async(offline: bool, token_file: str | None = None) -> Optional[List[str]]:
+async def offline_or_onchain_async(
+    offline: bool,
+    token_file: str | None = None,
+    *,
+    method: str = "rest",
+) -> Optional[List[str]]:
+    """Return tokens from file or on-chain when BirdEye is unavailable."""
+
     if token_file:
         return load_tokens_from_file(token_file)
 
@@ -90,9 +97,11 @@ async def offline_or_onchain_async(offline: bool, token_file: str | None = None)
 
 
 def scan_tokens_from_pools() -> List[str]:
-    """Placeholder discovery via liquidity pools."""
+    """Discover tokens from recently created liquidity pools."""
     logger.info("Scanning pools for tokens")
-    return ["poolbonk1", "poolbonk2"]
+    from . import dex_scanner
+
+    return dex_scanner.scan_new_pools(SOLANA_RPC_URL)
 
 
 def scan_tokens_from_file(path: str = "tokens.txt") -> List[str]:

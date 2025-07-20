@@ -34,6 +34,7 @@ async def _run_iteration(
     offline: bool = False,
 
     token_file: str | None = None,
+    discovery_method: str = "websocket",
 
     keypair=None,
     stop_loss: float | None = None,
@@ -42,20 +43,69 @@ async def _run_iteration(
     """Execute a single trading iteration asynchronously."""
 
     
-    tokens = await scan_tokens_async(offline=offline, token_file=token_file)
+    scan_kwargs = {"offline": offline, "token_file": token_file}
+    if discovery_method != "websocket":
+        scan_kwargs["method"] = discovery_method
+
+    tokens = await scan_tokens_async(**scan_kwargs)
 
 
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url and not offline:
         try:
-            top = top_volume_tokens(rpc_url, limit=len(tokens))
-            tokens = [t for t in tokens if t in top]
+            ranked = top_volume_tokens(rpc_url, limit=len(tokens))
+            ranked_set = set(ranked)
+            tokens = [t for t in ranked if t in tokens] + [t for t in tokens if t not in ranked_set]
         except Exception as exc:  # pragma: no cover - network errors
             logging.warning("Volume ranking failed: %s", exc)
 
 
     for token in tokens:
         sims = run_simulations(token, count=100)
+        if should_buy(sims):
+            logging.info("Buying %s", token)
+            await place_order_async(
+                token,
+                side="buy",
+                amount=1,
+                price=0,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            if not dry_run:
+                memory.log_trade(token=token, direction="buy", amount=1, price=0)
+                portfolio.update(token, 1, 0)
+
+    price_lookup = {}
+    if stop_loss is not None or take_profit is not None:
+        price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+
+    for token, pos in list(portfolio.balances.items()):
+        sims = run_simulations(token, count=100)
+
+        roi_trigger = False
+        if token in price_lookup:
+            roi = portfolio.position_roi(token, price_lookup[token])
+            if stop_loss is not None and roi <= -stop_loss:
+                roi_trigger = True
+            if take_profit is not None and roi >= take_profit:
+                roi_trigger = True
+
+        if roi_trigger or should_sell(sims):
+            logging.info("Selling %s", token)
+            await place_order_async(
+                token,
+                side="sell",
+                amount=pos.amount,
+                price=0,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            if not dry_run:
+                memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
+                portfolio.update(token, -pos.amount, 0)
 
 
 
@@ -69,6 +119,7 @@ def main(
     offline: bool = False,
 
     token_file: str | None = None,
+    discovery_method: str | None = None,
 
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
@@ -135,6 +186,7 @@ def main(
                     offline=offline,
 
                     token_file=token_file,
+                    discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -151,6 +203,7 @@ def main(
                     offline=offline,
 
                     token_file=token_file,
+                    discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -200,6 +253,12 @@ if __name__ == "__main__":
         help="Use a static token list and skip network requests",
     )
     parser.add_argument(
+        "--discovery-method",
+        default=None,
+        choices=["websocket", "onchain", "pools", "file"],
+        help="Token discovery method",
+    )
+    parser.add_argument(
 
         "--token-list",
         default=None,
@@ -244,6 +303,7 @@ if __name__ == "__main__":
         offline=args.offline,
 
         token_file=args.token_list,
+        discovery_method=args.discovery_method,
 
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
