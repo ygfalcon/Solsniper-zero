@@ -1,6 +1,7 @@
 
 import asyncio
 import requests
+import aiohttp
 from solhunter_zero import prices
 
 
@@ -61,4 +62,26 @@ def test_fetch_token_prices_async(monkeypatch):
     result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
     assert result == {"tok": 1.5}
     assert "tok" in captured["url"]
+
+
+def test_fetch_token_prices_async_error(monkeypatch):
+    """Return empty dict when aiohttp fails."""
+    warnings = {}
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            raise aiohttp.ClientError("boom")
+
+    def fake_warning(msg, exc):
+        warnings['msg'] = msg
+
+    monkeypatch.setattr(prices.logger, "warning", fake_warning)
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
+    assert result == {}
+    assert 'msg' in warnings
 

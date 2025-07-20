@@ -3,6 +3,7 @@ import logging
 
 import requests
 import aiohttp
+import logging
 
 from typing import Iterable, Dict
 
@@ -44,9 +45,13 @@ async def fetch_token_prices_async(tokens: Iterable[str]) -> Dict[str, float]:
     ids = ",".join(token_list)
     url = f"{PRICE_API_BASE_URL}{PRICE_API_PATH}?ids={ids}"
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, timeout=10) as resp:
-            resp.raise_for_status()
-            data = (await resp.json()).get("data", {})
+        try:
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = (await resp.json()).get("data", {})
+        except aiohttp.ClientError as exc:
+            logger.warning("Failed to fetch token prices: %s", exc)
+            return {}
 
     prices: Dict[str, float] = {}
     for token, info in data.items():
