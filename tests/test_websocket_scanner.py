@@ -57,6 +57,7 @@ def test_stream_new_tokens(monkeypatch):
     assert token == "tok1"
 
 
+
 def test_stream_new_tokens_keyword(monkeypatch):
     msgs = [
         {"result": {"value": {"logs": ["InitializeMint", "name: verycool", "mint: tok3"]}}},
@@ -69,13 +70,17 @@ def test_stream_new_tokens_keyword(monkeypatch):
     monkeypatch.setattr(ws_scanner, "connect", fake_connect)
 
     async def run():
+
         gen = ws_scanner.stream_new_tokens("ws://node", keywords=["cool"])
+
         token = await asyncio.wait_for(anext(gen), timeout=0.1)
         await gen.aclose()
         return token
 
     token = asyncio.run(run())
+
     assert token == "tok3"
+
 
 
 def test_offline_or_onchain_async_websocket(monkeypatch):

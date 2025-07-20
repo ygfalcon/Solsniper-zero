@@ -220,7 +220,7 @@ def test_run_iteration_take_profit(monkeypatch):
     "method, target",
     [
         ("onchain", "solhunter_zero.scanner.scan_tokens_onchain"),
-        ("websocket", "solhunter_zero.async_scanner.scan_tokens_async"),
+        ("websocket", "solhunter_zero.websocket_scanner.stream_new_tokens"),
         ("pools", "solhunter_zero.scanner.scan_tokens_from_pools"),
         ("file", "solhunter_zero.scanner.scan_tokens_from_file"),
     ],
@@ -232,11 +232,18 @@ def test_discovery_methods(monkeypatch, method, target):
         called["called"] = True
         return []
 
+    async def fake_gen(*_a, **_k):
+        called["called"] = True
+        if False:
+            yield None
+
     def fake_sync(*_a, **_k):
         called["called"] = True
         return []
 
-    if "async" in target:
+    if target.endswith("stream_new_tokens"):
+        monkeypatch.setattr(target, fake_gen)
+    elif "async" in target:
         monkeypatch.setattr(target, fake_async)
     else:
         monkeypatch.setattr(target, fake_sync)

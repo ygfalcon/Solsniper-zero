@@ -14,6 +14,7 @@ from solana.rpc.websocket_api import (
 )
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
+
 from .scanner_common import (
     TOKEN_SUFFIX,
     TOKEN_KEYWORDS,
@@ -22,10 +23,12 @@ from .scanner_common import (
 )
 
 
+
 logger = logging.getLogger(__name__)
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
+
 
 
 from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
@@ -38,6 +41,7 @@ async def stream_new_tokens(
     keywords: Iterable[str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Yield new token mint addresses passing configured filters.
+
 
     Parameters
     ----------
@@ -60,6 +64,10 @@ async def stream_new_tokens(
         await ws.logs_subscribe(
             RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key)
         )
+        if include_pools:
+            await ws.logs_subscribe(
+                RpcTransactionLogsFilterMentions(PublicKey(str(DEX_PROGRAM_ID))._key)
+            )
 
         while True:
             try:
@@ -78,20 +86,35 @@ async def stream_new_tokens(
                     except Exception:
                         continue
 
-                if not any("InitializeMint" in l for l in logs):
-                    continue
+                tokens = set()
 
-                name = None
-                mint = None
-                for log_line in logs:
-                    if name is None:
-                        m = NAME_RE.search(log_line)
+                if any("InitializeMint" in l for l in logs):
+                    name = None
+                    mint = None
+                    for log_line in logs:
+                        if name is None:
+                            m = NAME_RE.search(log_line)
+                            if m:
+                                name = m.group(1)
+                        if mint is None:
+                            m = MINT_RE.search(log_line)
+                            if m:
+                                mint = m.group(1)
+
+                    if name and mint and name.lower().endswith(suffix):
+                        tokens.add(mint)
+
+                if include_pools:
+                    for log_line in logs:
+                        m = POOL_TOKEN_RE.search(log_line)
                         if m:
-                            name = m.group(1)
-                    if mint is None:
-                        m = MINT_RE.search(log_line)
-                        if m:
-                            mint = m.group(1)
+                            tok = m.group(1)
+                            if tok.lower().endswith(suffix):
+                                tokens.add(tok)
+
+                for token in tokens:
+                    yield token
+
 
                 if name and mint and token_matches(mint, name, suffix=suffix, keywords=keywords):
                     yield mint
@@ -128,3 +151,4 @@ async def stream_jupiter_tokens(
                 vol = data.get("volume") or data.get("volume_24h")
                 if addr and token_matches(addr, name, vol, suffix=suffix, keywords=keywords):
                     yield addr
+

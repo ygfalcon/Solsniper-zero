@@ -19,6 +19,7 @@ from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .memory import Memory
 from .portfolio import Portfolio, calculate_order_size
+from .risk import RiskManager
 from .exchange import place_order_async
 from .prices import fetch_token_prices_async
 
@@ -92,24 +93,32 @@ async def _run_iteration(
         if should_buy(sims):
             logging.info("Buying %s", token)
             avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-            volatility = sims[0].volatility if sims else 0.0
+            volatility = 0.0
             if price_lookup:
                 balance = portfolio.total_value(price_lookup)
             else:
                 balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
 
-            risk_tolerance = float(os.getenv("RISK_TOLERANCE", "0.1"))
-            max_alloc = float(os.getenv("MAX_ALLOCATION", "0.2"))
-            max_risk = float(os.getenv("MAX_RISK_PER_TOKEN", "0.1"))
+            rm = RiskManager.from_config(
+                {
+                    "risk_tolerance": os.getenv("RISK_TOLERANCE", "0.1"),
+                    "max_allocation": os.getenv("MAX_ALLOCATION", "0.2"),
+                    "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
+                    "max_drawdown": max_drawdown,
+                    "volatility_factor": volatility_factor,
+                    "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
+                }
+            )
+            params = rm.adjusted(drawdown, volatility)
 
             amount = calculate_order_size(
                 balance,
                 avg_roi,
-                volatility,
-                drawdown,
-                risk_tolerance=risk_tolerance,
-                max_allocation=max_alloc,
-                max_risk_per_token=max_risk,
+                0.0,
+                0.0,
+                risk_tolerance=params.risk_tolerance,
+                max_allocation=params.max_allocation,
+                max_risk_per_token=params.max_risk_per_token,
                 max_drawdown=max_drawdown,
                 volatility_factor=volatility_factor,
             )

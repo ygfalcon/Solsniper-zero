@@ -11,6 +11,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 
 import numpy as np
 import requests
+from . import onchain_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,6 @@ class SimulationResult:
     liquidity: float = 0.0
 
     slippage: float = 0.0
-    volatility: float = 0.0
-
-
     volume_spike: float = 1.0
 
 
@@ -120,6 +118,12 @@ def run_simulations(
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+
+    dex_metrics = onchain_metrics.fetch_dex_metrics(token)
+    for key in ("volume", "liquidity", "depth"):
+        val = dex_metrics.get(key)
+        if isinstance(val, (int, float)):
+            metrics[key] = float(val)
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
@@ -132,14 +136,16 @@ def run_simulations(
     if recent_slippage is not None:
         slippage = float(recent_slippage)
 
+
     if recent_volume is not None and base_volume > 0:
         volume_spike = float(recent_volume) / base_volume
         volume = float(recent_volume)
+
     else:
         volume_spike = 1.0
 
     if recent_slippage is not None:
-        slippage = recent_slippage
+        slippage = float(recent_slippage)
 
     depth = metrics.get("depth", 0.0)
 
@@ -187,28 +193,23 @@ def run_simulations(
             logger.warning("ROI model training failed: %s", exc)
 
 
+
     if recent_volume is not None and base_volume > 0:
         volume = float(recent_volume)
+
 
     if recent_slippage is not None:
         slippage = recent_slippage
 
-    results: List[SimulationResult] = []
     for _ in range(count):
         daily_returns = np.random.normal(predicted_mean, sigma, days)
         roi = float(np.prod(1 + daily_returns) - 1)
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-            SimulationResult(
-                success_prob,
-                roi,
-                volume,
-                liquidity,
-                slippage,
-                sigma,
-                volume_spike,
-            )
+
+            SimulationResult(success_prob, roi, volume, liquidity, slippage, vol_spike)
+
         )
 
 
