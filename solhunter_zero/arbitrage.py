@@ -1,6 +1,9 @@
 import asyncio
 import logging
+import os
 from typing import Callable, Awaitable, Sequence, Tuple, Optional
+
+import aiohttp
 
 from .exchange import place_order_async
 
@@ -9,9 +12,46 @@ logger = logging.getLogger(__name__)
 PriceFeed = Callable[[str], Awaitable[float]]
 
 
+# Default API endpoints for direct price queries
+ORCA_API_URL = os.getenv("ORCA_API_URL", "https://api.orca.so")
+RAYDIUM_API_URL = os.getenv("RAYDIUM_API_URL", "https://api.raydium.io")
+
+
+async def fetch_orca_price_async(token: str) -> float:
+    """Return the current price for ``token`` from the Orca API."""
+
+    url = f"{ORCA_API_URL}/price?token={token}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                price = data.get("price")
+                return float(price) if isinstance(price, (int, float)) else 0.0
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch price from Orca: %s", exc)
+            return 0.0
+
+
+async def fetch_raydium_price_async(token: str) -> float:
+    """Return the current price for ``token`` from the Raydium API."""
+
+    url = f"{RAYDIUM_API_URL}/price?token={token}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                price = data.get("price")
+                return float(price) if isinstance(price, (int, float)) else 0.0
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch price from Raydium: %s", exc)
+            return 0.0
+
+
 async def detect_and_execute_arbitrage(
     token: str,
-    feeds: Sequence[PriceFeed],
+    feeds: Sequence[PriceFeed] | None = None,
     *,
     threshold: float = 0.0,
     amount: float = 1.0,
@@ -40,7 +80,7 @@ async def detect_and_execute_arbitrage(
     """
 
     if not feeds:
-        return None
+        feeds = [fetch_orca_price_async, fetch_raydium_price_async]
 
     prices = await asyncio.gather(*(feed(token) for feed in feeds))
     if not prices:
