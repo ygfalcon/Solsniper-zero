@@ -1,8 +1,10 @@
 from __future__ import annotations
+import asyncio
 import requests
 import logging
 import time
 from typing import List
+import asyncio
 
 from .scanner_common import (
     BIRDEYE_API,
@@ -10,9 +12,14 @@ from .scanner_common import (
     OFFLINE_TOKENS,
     offline_or_onchain,
     parse_birdeye_tokens,
+    scan_tokens_from_pools,
+    scan_tokens_from_file,
+    SOLANA_RPC_URL,
 )
+from .scanner_onchain import scan_tokens_onchain
 
 logger = logging.getLogger(__name__)
+
 
 
 def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List[str]:
@@ -20,6 +27,7 @@ def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List
     tokens = offline_or_onchain(offline, token_file)
     if tokens is not None:
         return tokens
+
 
     backoff = 1
     max_backoff = 60
@@ -41,9 +49,25 @@ def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List
             return []
 
 
+
 async def scan_tokens_async(*, offline: bool = False, token_file: str | None = None) -> List[str]:
+
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
-    from .async_scanner import scan_tokens_async as _scan
+    if method == "websocket":
+        from .async_scanner import scan_tokens_async as _scan
+        return await _scan(offline=offline)
+
+    if offline:
+        logger.info("Offline mode enabled, returning static tokens")
+        return OFFLINE_TOKENS
+
+    if method == "onchain":
+        return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
+    if method == "pools":
+        return await asyncio.to_thread(scan_tokens_from_pools)
+    if method == "file":
+        return await asyncio.to_thread(scan_tokens_from_file)
+
+
 
     return await _scan(offline=offline, token_file=token_file)
-
