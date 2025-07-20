@@ -24,6 +24,7 @@ ENV_VARS = {
     "trailing_stop": "TRAILING_STOP",
     "max_drawdown": "MAX_DRAWDOWN",
     "volatility_factor": "VOLATILITY_FACTOR",
+    "risk_multiplier": "RISK_MULTIPLIER",
 }
 
 

@@ -1,4 +1,5 @@
 import pytest
+import requests
 
 from solhunter_zero import onchain_metrics
 
@@ -54,3 +55,42 @@ def test_top_volume_tokens_error(monkeypatch):
 
     result = onchain_metrics.top_volume_tokens("rpc", limit=1)
     assert result == ["a"]
+
+
+def test_fetch_dex_metrics(monkeypatch):
+    urls = []
+
+    class FakeResp:
+        def __init__(self, url):
+            urls.append(url)
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            if "liquidity" in urls[-1]:
+                return {"liquidity": 10.0}
+            if "depth" in urls[-1]:
+                return {"depth": 0.5}
+            return {"volume": 20.0}
+
+    def fake_get(url, timeout=5):
+        return FakeResp(url)
+
+    monkeypatch.setattr(onchain_metrics.requests, "get", fake_get)
+
+    metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+
+    assert metrics == {"liquidity": 10.0, "depth": 0.5, "volume": 20.0}
+    assert urls[0] == "http://dex/v1/liquidity?token=tok"
+
+
+def test_fetch_dex_metrics_error(monkeypatch):
+    def fake_get(url, timeout=5):
+        raise requests.RequestException("boom")
+
+    monkeypatch.setattr(onchain_metrics.requests, "get", fake_get)
+
+    metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+
+    assert metrics == {"liquidity": 0.0, "depth": 0.0, "volume": 0.0}
