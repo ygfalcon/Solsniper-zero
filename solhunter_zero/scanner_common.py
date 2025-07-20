@@ -61,13 +61,32 @@ def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional
 
 
 
-async def offline_or_onchain_async(offline: bool, token_file: str | None = None) -> Optional[List[str]]:
+async def offline_or_onchain_async(
+    offline: bool,
+    token_file: str | None = None,
+    *,
+    method: str = "websocket",
+) -> Optional[List[str]]:
+    """Return tokens immediately if no network scan is needed.
+
+    This helper mirrors :func:`offline_or_onchain` but works asynchronously and
+    additionally supports the ``method`` argument used by higher level scanning
+    helpers.
+    """
+
     if token_file:
         return load_tokens_from_file(token_file)
 
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
+
+    if method == "onchain":
+        return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
+    if method == "pools":
+        return await asyncio.to_thread(scan_tokens_from_pools)
+    if method == "file":
+        return await asyncio.to_thread(scan_tokens_from_file)
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")
@@ -90,9 +109,11 @@ async def offline_or_onchain_async(offline: bool, token_file: str | None = None)
 
 
 def scan_tokens_from_pools() -> List[str]:
-    """Placeholder discovery via liquidity pools."""
+    """Discover tokens via recently created liquidity pools."""
     logger.info("Scanning pools for tokens")
-    return ["poolbonk1", "poolbonk2"]
+    from . import dex_scanner
+
+    return dex_scanner.scan_new_pools(SOLANA_RPC_URL)
 
 
 def scan_tokens_from_file(path: str = "tokens.txt") -> List[str]:
@@ -100,7 +121,4 @@ def scan_tokens_from_file(path: str = "tokens.txt") -> List[str]:
     if not os.path.isfile(path):
         logger.warning("Token file %s not found", path)
         return []
-    with open(path, "r", encoding="utf-8") as fh:
-        tokens = [line.strip() for line in fh if line.strip()]
-    logger.info("Loaded %d tokens from %s", len(tokens), path)
-    return tokens
+    return load_tokens_from_file(path)
