@@ -2,7 +2,11 @@ import threading
 import time
 import os
 import asyncio
+import json
 from flask import Flask, jsonify, request
+from pathlib import Path
+
+from .config import load_config, apply_env_overrides, set_env_from_config
 
 from .config import load_config, apply_env_overrides, set_env_from_config
 
@@ -12,6 +16,21 @@ from . import wallet
 from . import main as main_module
 from .memory import Memory
 from .portfolio import Portfolio
+from .config import (
+    list_configs,
+    save_config,
+    select_config,
+    get_active_config_name,
+    set_env_from_config,
+    load_selected_config,
+)
+
+_DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+cfg = load_config()
+if not cfg and _DEFAULT_PRESET.is_file():
+    cfg = load_config(_DEFAULT_PRESET)
+cfg = apply_env_overrides(cfg)
+set_env_from_config(cfg)
 
 app = Flask(__name__)
 
@@ -40,6 +59,7 @@ def trading_loop() -> None:
     portfolio = Portfolio()
 
     current_portfolio = portfolio
+    set_env_from_config(load_selected_config())
     keypair_path = os.getenv("KEYPAIR_PATH")
     env_keypair = wallet.load_keypair(keypair_path) if keypair_path else None
     current_keypair = env_keypair
@@ -69,6 +89,7 @@ def start() -> dict:
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
 
+
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
 
@@ -76,6 +97,7 @@ def start() -> dict:
     if missing:
         msg = "Missing required configuration: " + ", ".join(missing)
         return jsonify({"status": "error", "message": msg}), 400
+
 
     stop_event.clear()
     trading_thread = threading.Thread(target=trading_loop, daemon=True)
@@ -113,6 +135,104 @@ def risk_params() -> dict:
     )
 
 
+@app.route("/keypairs", methods=["GET"])
+def keypairs() -> dict:
+    return jsonify(
+        {
+            "keypairs": wallet.list_keypairs(),
+            "active": wallet.get_active_keypair_name(),
+        }
+    )
+
+
+@app.route("/keypairs/upload", methods=["POST"])
+def upload_keypair() -> dict:
+    file = request.files.get("file")
+    name = request.form.get("name") or (file.filename if file else None)
+    if not file or not name:
+        return jsonify({"error": "missing file or name"}), 400
+    data = file.read()
+    try:
+        wallet.save_keypair(name, list(json.loads(data)))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"status": "ok"})
+
+
+@app.route("/keypairs/select", methods=["POST"])
+def select_keypair_route() -> dict:
+    name = request.get_json().get("name")
+    wallet.select_keypair(name)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/configs", methods=["GET"])
+def configs() -> dict:
+    return jsonify({"configs": list_configs(), "active": get_active_config_name()})
+
+
+@app.route("/configs/upload", methods=["POST"])
+def upload_config() -> dict:
+    file = request.files.get("file")
+    name = request.form.get("name") or (file.filename if file else None)
+    if not file or not name:
+        return jsonify({"error": "missing file or name"}), 400
+    save_config(name, file.read())
+    return jsonify({"status": "ok"})
+
+
+@app.route("/configs/select", methods=["POST"])
+def select_config_route() -> dict:
+    name = request.get_json().get("name")
+    select_config(name)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/positions")
+def positions() -> dict:
+    pf = current_portfolio or Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    result = {}
+    for token, pos in pf.balances.items():
+        price = prices.get(token, pos.entry_price)
+        roi = pf.position_roi(token, price)
+        result[token] = {
+            "amount": pos.amount,
+            "entry_price": pos.entry_price,
+            "current_price": price,
+            "roi": roi,
+        }
+    return jsonify(result)
+
+
+@app.route("/trades")
+def trades() -> dict:
+    mem = Memory("sqlite:///memory.db")
+    recents = [
+        {
+            "token": t.token,
+            "direction": t.direction,
+            "amount": t.amount,
+            "price": t.price,
+            "timestamp": t.timestamp.isoformat(),
+        }
+        for t in mem.list_trades()[-50:]
+    ]
+    return jsonify(recents)
+
+
+@app.route("/roi")
+def roi() -> dict:
+    pf = current_portfolio or Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    entry = sum(p.amount * p.entry_price for p in pf.balances.values())
+    value = sum(p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items())
+    roi = (value - entry) / entry if entry else 0.0
+    return jsonify({"roi": roi})
+
+
 
 @app.route("/balances")
 def balances() -> dict:
@@ -138,6 +258,22 @@ HTML_PAGE = """
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
 
+    <div id='keys'>
+        <h3>Keypair</h3>
+        <select id='keypair_select'></select>
+        <input type='file' id='keypair_file'>
+        <input type='text' id='keypair_name' placeholder='Name'>
+        <button id='upload_keypair'>Upload</button>
+    </div>
+
+    <div id='configs'>
+        <h3>Config</h3>
+        <select id='config_select'></select>
+        <input type='file' id='config_file'>
+        <input type='text' id='config_name' placeholder='Name'>
+        <button id='upload_config'>Upload</button>
+    </div>
+
     <div id='risk'>
         <label>Risk tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
         <label>Max allocation <input id='max_allocation' type='number' step='0.01'></label>
@@ -145,25 +281,20 @@ HTML_PAGE = """
         <button id='save_risk'>Save</button>
     </div>
 
+    <div id='roi'></div>
+
     <table id='balances'>
+        <thead><tr><th>Token</th><th>Amount</th><th>ROI</th></tr></thead>
+        <tbody></tbody>
+    </table>
 
-        <thead><tr><th>Token</th><th>Amount</th><th>USD Value</th></tr></thead>
-
+    <h3>Recent Trades</h3>
+    <table id='trades'>
+        <thead><tr><th>Token</th><th>Side</th><th>Amount</th><th>Price</th><th>Time</th></tr></thead>
         <tbody></tbody>
     </table>
 
     <script>
-    function refresh() {
-        fetch('/balances').then(r => r.json()).then(data => {
-            const body = document.querySelector('#balances tbody');
-            body.innerHTML = '';
-            Object.entries(data).forEach(([token, info]) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${token}</td><td>${info.amount}</td><td>${info.usd}</td>`;
-                body.appendChild(row);
-            });
-        });
-    }
     document.getElementById('start').onclick = function() {
         fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
@@ -187,8 +318,89 @@ HTML_PAGE = """
         fetch('/risk', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(r => r.json()).then(console.log);
     };
 
-    refresh();
+    function loadKeypairs() {
+        fetch('/keypairs').then(r => r.json()).then(data => {
+            const sel = document.getElementById('keypair_select');
+            sel.innerHTML = '';
+            data.keypairs.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n; opt.textContent = n; sel.appendChild(opt);
+            });
+            sel.value = data.active || '';
+        });
+    }
+
+    function loadConfigs() {
+        fetch('/configs').then(r => r.json()).then(data => {
+            const sel = document.getElementById('config_select');
+            sel.innerHTML = '';
+            data.configs.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n; opt.textContent = n; sel.appendChild(opt);
+            });
+            sel.value = data.active || '';
+        });
+    }
+
+    document.getElementById('keypair_select').onchange = function() {
+        fetch('/keypairs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
+    };
+    document.getElementById('upload_keypair').onclick = function() {
+        const file = document.getElementById('keypair_file').files[0];
+        const name = document.getElementById('keypair_name').value;
+        const fd = new FormData(); fd.append('file', file); fd.append('name', name);
+        fetch('/keypairs/upload', {method:'POST', body:fd}).then(() => loadKeypairs());
+    };
+
+    document.getElementById('config_select').onchange = function() {
+        fetch('/configs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
+    };
+    document.getElementById('upload_config').onclick = function() {
+        const file = document.getElementById('config_file').files[0];
+        const name = document.getElementById('config_name').value;
+        const fd = new FormData(); fd.append('file', file); fd.append('name', name);
+        fetch('/configs/upload', {method:'POST', body:fd}).then(() => loadConfigs());
+    };
+
+    function loadPositions() {
+        fetch('/positions').then(r=>r.json()).then(data=>{
+            const tbody=document.querySelector('#balances tbody');
+            tbody.innerHTML='';
+            Object.entries(data).forEach(([t,info])=>{
+                const row=document.createElement('tr');
+                row.innerHTML=`<td>${t}</td><td>${info.amount}</td><td>${info.roi.toFixed(4)}</td>`;
+                tbody.appendChild(row);
+            });
+        });
+    }
+
+    function loadTrades() {
+        fetch('/trades').then(r=>r.json()).then(data=>{
+            const body=document.querySelector('#trades tbody');
+            body.innerHTML='';
+            data.forEach(tr=>{
+                const row=document.createElement('tr');
+                row.innerHTML=`<td>${tr.token}</td><td>${tr.direction}</td><td>${tr.amount}</td><td>${tr.price}</td><td>${tr.timestamp}</td>`;
+                body.appendChild(row);
+            });
+        });
+    }
+
+    function loadRoi() {
+        fetch('/roi').then(r=>r.json()).then(data=>{
+            document.getElementById('roi').textContent = 'ROI: ' + data.roi.toFixed(4);
+        });
+    }
+
     loadRisk();
+    loadKeypairs();
+    loadConfigs();
+    loadPositions();
+    loadTrades();
+    loadRoi();
+    setInterval(loadPositions, 10000);
+    setInterval(loadTrades, 10000);
+    setInterval(loadRoi, 10000);
 
     </script>
 </body>

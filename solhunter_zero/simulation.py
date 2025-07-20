@@ -155,6 +155,8 @@ def run_simulations(
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
 
     results: List[SimulationResult] = []
 
@@ -163,6 +165,9 @@ def run_simulations(
         val = dex_metrics.get(key)
         if isinstance(val, (int, float)):
             metrics[key] = float(val)
+
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
@@ -180,12 +185,17 @@ def run_simulations(
     if recent_slippage is not None:
         slippage = float(recent_slippage)
 
+
     depth_features = metrics.get("depth_per_dex", [])[:2]
     slip_features = metrics.get("slippage_per_dex", [])[:2]
 
 
 
+
     depth = metrics.get("depth", 0.0)
+
+    depth_features = metrics.get("depth_per_dex", [])[:2]
+    slip_features = metrics.get("slippage_per_dex", [])[:2]
 
     results: List[SimulationResult] = []
 
