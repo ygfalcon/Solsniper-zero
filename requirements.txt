@@ -8,4 +8,5 @@ solana
 flask
 
 aiohttp
+pyyaml
 
