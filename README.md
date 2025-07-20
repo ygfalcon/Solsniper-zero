@@ -208,3 +208,11 @@ These metrics are gathered automatically by the on-chain scanners and fed into
 `run_simulations`.  Sudden spikes or drops adjust the `RiskManager` parameters so
 the bot reduces exposure during potential dumps and scales in when activity
 surges.
+
+## Minimum Portfolio Value
+
+`RiskManager` scales down risk when the value of the entire portfolio falls
+below `min_portfolio_value` (default `$20`). The same threshold is passed to
+`calculate_order_size` so order sizing never assumes less than this value. This
+avoids placing trades that would not cover network fees once the balance is
+very small.

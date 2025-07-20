@@ -28,6 +28,8 @@ ENV_VARS = {
     "arbitrage_threshold": "ARBITRAGE_THRESHOLD",
     "arbitrage_amount": "ARBITRAGE_AMOUNT",
 
+    "min_portfolio_value": "MIN_PORTFOLIO_VALUE",
+
     "strategies": "STRATEGIES",
 
     "token_suffix": "TOKEN_SUFFIX",
