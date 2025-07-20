@@ -73,3 +73,15 @@ class Portfolio:
             if token in prices:
                 pnl += (prices[token] - pos.entry_price) * pos.amount
         return pnl
+
+    def position_roi(self, token: str, price: float) -> float:
+        """Return the return-on-investment for ``token`` at ``price``.
+
+        The ROI is expressed as a fraction of the entry price.  If the token
+        is not held in the portfolio or the entry price is zero, ``0.0`` is
+        returned.
+        """
+        pos = self.balances.get(token)
+        if pos is None or pos.entry_price == 0:
+            return 0.0
+        return (price - pos.entry_price) / pos.entry_price

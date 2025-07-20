@@ -25,3 +25,10 @@ def test_portfolio_persistence(tmp_path):
     assert p2.balances["tok"].amount == 1
     assert p2.balances["tok"].entry_price == pytest.approx(1.5)
 
+
+def test_position_roi():
+    p = Portfolio(path=None)
+    p.add("tok", 2, 1.0)
+    roi = p.position_roi("tok", 1.5)
+    assert roi == pytest.approx(0.5)
+

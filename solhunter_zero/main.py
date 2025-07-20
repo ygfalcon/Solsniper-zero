@@ -12,6 +12,7 @@ set_env_from_config(_cfg)
 
 
 from .scanner import scan_tokens_async
+from .prices import fetch_token_prices_async
 
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -30,6 +31,8 @@ async def _run_iteration(
     dry_run: bool = False,
     offline: bool = False,
     keypair=None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
     tokens = await scan_tokens_async(offline=offline)
@@ -51,9 +54,22 @@ async def _run_iteration(
                 memory.log_trade(token=token, direction="buy", amount=1, price=0)
                 portfolio.update(token, 1, 0)
 
+    price_lookup = {}
+    if stop_loss is not None or take_profit is not None:
+        price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+
     for token, pos in list(portfolio.balances.items()):
         sims = run_simulations(token, count=100)
-        if should_sell(sims):
+
+        roi_trigger = False
+        if token in price_lookup:
+            roi = portfolio.position_roi(token, price_lookup[token])
+            if stop_loss is not None and roi <= -stop_loss:
+                roi_trigger = True
+            if take_profit is not None and roi >= take_profit:
+                roi_trigger = True
+
+        if roi_trigger or should_sell(sims):
             logging.info("Selling %s", token)
             await place_order_async(
                 token,
@@ -80,6 +96,8 @@ def main(
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
     config_path: str | None = None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -110,6 +128,11 @@ def main(
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
 
+    if stop_loss is None:
+        stop_loss = cfg.get("stop_loss")
+    if take_profit is None:
+        take_profit = cfg.get("take_profit")
+
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
 
@@ -125,6 +148,8 @@ def main(
                     dry_run=dry_run,
                     offline=offline,
                     keypair=keypair,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
                 )
                 await asyncio.sleep(loop_delay)
         else:
@@ -136,6 +161,8 @@ def main(
                     dry_run=dry_run,
                     offline=offline,
                     keypair=keypair,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
                 )
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
@@ -195,6 +222,18 @@ if __name__ == "__main__":
         default=None,
         help="Path to a configuration file",
     )
+    parser.add_argument(
+        "--stop-loss",
+        type=float,
+        default=None,
+        help="Stop loss threshold as a fraction (e.g. 0.1 for 10%)",
+    )
+    parser.add_argument(
+        "--take-profit",
+        type=float,
+        default=None,
+        help="Take profit threshold as a fraction",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -206,4 +245,6 @@ if __name__ == "__main__":
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
         config_path=args.config,
+        stop_loss=args.stop_loss,
+        take_profit=args.take_profit,
     )

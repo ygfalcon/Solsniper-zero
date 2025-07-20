@@ -3,3 +3,5 @@ solana_rpc_url = "https://api.mainnet-beta.solana.com"
 dex_base_url = "https://dex.example/api"
 dex_testnet_url = "https://dex.testnet/api"
 metrics_base_url = "https://api.example.com"
+stop_loss = 0.1
+take_profit = 0.2
