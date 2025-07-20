@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 
-def _scan_tokens_websocket() -> List[str]:
+def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List[str]:
+    """Scan the Solana network for new tokens ending with 'bonk'."""
+    tokens = offline_or_onchain(offline, token_file)
+    if tokens is not None:
+        return tokens
+
 
     backoff = 1
     max_backoff = 60
@@ -45,28 +50,8 @@ def _scan_tokens_websocket() -> List[str]:
 
 
 
-def scan_tokens(*, offline: bool = False, method: str = "websocket") -> List[str]:
-    """Scan the Solana network for new tokens using ``method``."""
-    if method == "websocket":
-        tokens = offline_or_onchain(offline)
-        if tokens is not None:
-            return tokens
-        return _scan_tokens_websocket()
+async def scan_tokens_async(*, offline: bool = False, token_file: str | None = None) -> List[str]:
 
-    if offline:
-        logger.info("Offline mode enabled, returning static tokens")
-        return OFFLINE_TOKENS
-
-    if method == "onchain":
-        return scan_tokens_onchain(SOLANA_RPC_URL)
-    if method == "pools":
-        return scan_tokens_from_pools()
-    if method == "file":
-        return scan_tokens_from_file()
-    raise ValueError(f"unknown discovery method: {method}")
-
-
-async def scan_tokens_async(*, offline: bool = False, method: str = "websocket") -> List[str]:
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
     if method == "websocket":
         from .async_scanner import scan_tokens_async as _scan
@@ -84,5 +69,5 @@ async def scan_tokens_async(*, offline: bool = False, method: str = "websocket")
         return await asyncio.to_thread(scan_tokens_from_file)
 
 
-    raise ValueError(f"unknown discovery method: {method}")
 
+    return await _scan(offline=offline, token_file=token_file)

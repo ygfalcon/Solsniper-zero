@@ -81,9 +81,10 @@ metrics_base_url: https://api.example.com
    python -m solhunter_zero.main
 
    ```
-   Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
-   `--dry-run` to skip order submission entirely, or `--offline` to avoid
-   network requests and use a static token list
+Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
+`--dry-run` to skip order submission entirely, `--offline` to avoid
+network requests and use a static token list, or `--token-list <file>`
+to load token addresses from a file.
 
 
 ## Requirements
@@ -142,9 +143,9 @@ To scan the Solana blockchain directly, provide a Solana RPC URL instead:
 export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
 
-For testing or development without any network access, pass the `--offline`
-flag to the bot. In this mode the scanner returns a small fixed list of tokens
-without making HTTP requests.
+For testing or development without network access, pass the `--offline`
+flag or provide `--token-list FILE`. The file should contain one token
+address per line. In both cases no network requests are made.
 
 ## Web UI
 
