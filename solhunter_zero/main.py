@@ -37,11 +37,14 @@ async def _run_iteration(
 
     token_file: str | None = None,
 
+    discovery_method: str = "websocket",
+
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
+
 
     try:
         tokens = await scan_tokens_async(
@@ -51,6 +54,7 @@ async def _run_iteration(
         )
     except TypeError:
         # Backwards compatibility with older scan_tokens_async signature
+
         tokens = await scan_tokens_async(offline=offline, token_file=token_file)
 
 
@@ -61,6 +65,7 @@ async def _run_iteration(
             tokens = [t for t in tokens if t in top]
         except Exception as exc:  # pragma: no cover - network errors
             logging.warning("Volume ranking failed: %s", exc)
+
 
 
     for token in tokens:
@@ -74,10 +79,12 @@ async def _run_iteration(
                 side="buy",
                 amount=1,
                 price=price,
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
+
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=1, price=price)
                 portfolio.update(token, 1, price)
@@ -105,15 +112,20 @@ async def _run_iteration(
                 side="sell",
                 amount=pos.amount,
                 price=price,
+
+            memory.log_trade(
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
+
             if not dry_run:
                 memory.log_trade(
                     token=token, direction="sell", amount=pos.amount, price=price
                 )
                 portfolio.update(token, -pos.amount, price)
+
 
 
 
@@ -268,8 +280,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--discovery-method",
         default=None,
+
         choices=["onchain", "websocket", "pools", "file"],
         help="Token discovery method",
+
     )
     parser.add_argument(
 

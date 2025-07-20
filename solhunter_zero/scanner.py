@@ -29,6 +29,8 @@ def scan_tokens_from_pools() -> List[str]:
 
 
 
+
+
 def _scan_tokens_websocket() -> List[str]:
     """Scan BirdEye for BONK-related tokens via REST."""
     backoff = 1
@@ -77,7 +79,9 @@ def scan_tokens(
 
 
 async def scan_tokens_async(
+
     *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
+
 ) -> List[str]:
 
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
