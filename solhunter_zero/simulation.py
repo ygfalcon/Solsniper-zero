@@ -44,6 +44,10 @@ class SimulationResult:
     initial_liquidity: float = 0.0
     tx_trend: float = 0.0
 
+    depth_change: float = 0.0
+    tx_rate: float = 0.0
+    whale_activity: float = 0.0
+
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -195,6 +199,10 @@ def run_simulations(
         if isinstance(val, (int, float)):
             metrics[key] = float(val)
 
+    depth_change = 0.0
+    tx_rate = 0.0
+    whale_activity = 0.0
+
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url:
         try:
@@ -205,9 +213,14 @@ def run_simulations(
             metrics["slippage"] = onchain_metrics.fetch_slippage_onchain(
                 token, rpc_url
             )
+            insights = onchain_metrics.collect_onchain_insights(token, rpc_url)
+            depth_change = insights.get("depth_change", 0.0)
+            tx_rate = insights.get("tx_rate", 0.0)
+            whale_activity = insights.get("whale_activity", 0.0)
         except Exception as exc:  # pragma: no cover - unexpected errors
             logger.warning("On-chain metric fetch failed: %s", exc)
 
+    
     depth_features = metrics.get("depth_per_dex", [])
     slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
@@ -388,6 +401,9 @@ def run_simulations(
                 token_age=token_age,
                 initial_liquidity=initial_liquidity,
                 tx_trend=tx_trend,
+                depth_change=depth_change,
+                tx_rate=tx_rate,
+                whale_activity=whale_activity,
 
             )
         )

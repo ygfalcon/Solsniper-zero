@@ -1,5 +1,6 @@
 import pytest
 import requests
+from solhunter_zero import scanner_onchain
 
 from solhunter_zero import onchain_metrics
 
@@ -147,3 +148,26 @@ def test_onchain_metric_functions_error(monkeypatch):
     assert liq == 0.0
     assert slip == 0.0
     assert vol == 0.0
+
+
+def test_order_book_depth_change(monkeypatch):
+    vals = [1.0, 2.0]
+
+    def fake_fetch(token, base_url=None):
+        return {"depth": vals.pop(0)}
+
+    monkeypatch.setattr(onchain_metrics, "fetch_dex_metrics", fake_fetch)
+
+    first = onchain_metrics.order_book_depth_change("tok", base_url="http://dex")
+    second = onchain_metrics.order_book_depth_change("tok", base_url="http://dex")
+    assert first == 0.0
+    assert second == pytest.approx(1.0)
+
+
+def test_collect_onchain_insights(monkeypatch):
+    monkeypatch.setattr(onchain_metrics, "order_book_depth_change", lambda t, base_url=None: 0.5)
+    monkeypatch.setattr(onchain_metrics, "fetch_mempool_tx_rate", lambda t, u: 2.0)
+    monkeypatch.setattr(onchain_metrics, "fetch_whale_wallet_activity", lambda t, u: 0.1)
+
+    data = onchain_metrics.collect_onchain_insights("tok", "http://node")
+    assert data == {"depth_change": 0.5, "tx_rate": 2.0, "whale_activity": 0.1}

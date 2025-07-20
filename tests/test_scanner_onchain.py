@@ -67,3 +67,33 @@ def test_scan_tokens_onchain_retries(monkeypatch):
     assert tokens == ["m1"]
     assert captured["client"].calls == 3
     assert sleeps == [1, 2]
+
+
+def test_mempool_tx_rate(monkeypatch):
+    class Client:
+        def __init__(self, url):
+            self.url = url
+
+        def get_signatures_for_address(self, addr, limit=20):
+            return {"result": [{"blockTime": 1}, {"blockTime": 3}, {"blockTime": 4}]}
+
+    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
+    rate = scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
+    assert rate == pytest.approx(3 / 3)
+
+
+def test_whale_wallet_activity(monkeypatch):
+    class Client:
+        def __init__(self, url):
+            self.url = url
+
+        def get_token_largest_accounts(self, addr):
+            return {"result": {"value": [{"uiAmount": 2000.0}, {"uiAmount": 50.0}]}}
+
+    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
+    activity = scanner_onchain.fetch_whale_wallet_activity(
+        "tok", "http://node", threshold=1000.0
+    )
+    assert activity == pytest.approx(2000.0 / 2050.0)

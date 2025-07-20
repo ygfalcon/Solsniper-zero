@@ -4,6 +4,7 @@ import logging
 import time
 from typing import List
 
+
 try:
     from solana.publickey import PublicKey  # type: ignore
 except Exception:  # pragma: no cover - fallback when solana lacks PublicKey
@@ -72,3 +73,53 @@ def scan_tokens_onchain(rpc_url: str) -> List[str]:
             tokens.append(mint)
     logger.info("Found %d candidate on-chain tokens", len(tokens))
     return tokens
+
+
+def fetch_mempool_tx_rate(token: str, rpc_url: str, limit: int = 20) -> float:
+    """Return approximate mempool transaction rate for ``token``."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_signatures_for_address(PublicKey(token), limit=limit)
+        entries = resp.get("result", [])
+        times = [e.get("blockTime") for e in entries if e.get("blockTime")]
+        if len(times) >= 2:
+            duration = max(times) - min(times)
+            if duration > 0:
+                return float(len(times)) / float(duration)
+        return float(len(times))
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch mempool rate for %s: %s", token, exc)
+        return 0.0
+
+
+def fetch_whale_wallet_activity(
+    token: str, rpc_url: str, threshold: float = 1_000_000.0
+) -> float:
+    """Return fraction of liquidity held by large accounts."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_token_largest_accounts(PublicKey(token))
+        accounts = resp.get("result", {}).get("value", [])
+        total = 0.0
+        whales = 0.0
+        for acc in accounts:
+            val = acc.get("uiAmount", acc.get("amount", 0))
+            try:
+                bal = float(val)
+            except Exception:
+                bal = 0.0
+            total += bal
+            if bal >= threshold:
+                whales += bal
+        return whales / total if total else 0.0
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch whale activity for %s: %s", token, exc)
+        return 0.0

@@ -273,3 +273,29 @@ def test_run_simulations_optional_inputs(monkeypatch):
 
     assert res.sentiment == pytest.approx(0.8)
     assert res.order_book_strength == pytest.approx(0.9)
+
+
+def test_run_simulations_additional_metrics(monkeypatch):
+    def fake_metrics(token):
+        return {
+            "mean": 0.0,
+            "volatility": 0.02,
+            "volume": 10.0,
+            "liquidity": 20.0,
+            "slippage": 0.01,
+        }
+
+    monkeypatch.setenv("SOLANA_RPC_URL", "http://node")
+    monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    monkeypatch.setattr(
+        simulation.onchain_metrics,
+        "collect_onchain_insights",
+        lambda t, u: {"depth_change": 1.0, "tx_rate": 2.0, "whale_activity": 0.5},
+    )
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+
+    res = simulation.run_simulations("tok", count=1)[0]
+    assert res.depth_change == pytest.approx(1.0)
+    assert res.tx_rate == pytest.approx(2.0)
+    assert res.whale_activity == pytest.approx(0.5)

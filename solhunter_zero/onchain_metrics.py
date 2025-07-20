@@ -23,7 +23,11 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
 
 from solana.rpc.api import Client
 
-from .scanner_onchain import scan_tokens_onchain
+from .scanner_onchain import (
+    scan_tokens_onchain,
+    fetch_mempool_tx_rate,
+    fetch_whale_wallet_activity,
+)
 from .exchange import DEX_BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -32,6 +36,8 @@ logger = logging.getLogger(__name__)
 LIQ_PATH = "/v1/liquidity"
 DEPTH_PATH = "/v1/depth"
 VOLUME_PATH = "/v1/volume"
+
+_DEPTH_CACHE: Dict[str, float] = {}
 
 
 def _tx_volume(entries: List[dict]) -> float:
@@ -184,4 +190,28 @@ def fetch_slippage_onchain(token: str, rpc_url: str) -> float:
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch slippage for %s: %s", token, exc)
         return 0.0
+
+
+def order_book_depth_change(token: str, base_url: str | None = None) -> float:
+    """Return the recent change in order-book depth for ``token``."""
+
+    metrics = fetch_dex_metrics(token, base_url)
+    depth = metrics.get("depth", 0.0)
+    prev = _DEPTH_CACHE.get(token)
+    _DEPTH_CACHE[token] = depth
+    if prev is None:
+        return 0.0
+    return depth - prev
+
+
+def collect_onchain_insights(
+    token: str, rpc_url: str, base_url: str | None = None
+) -> Dict[str, float]:
+    """Return a dictionary with depth change, tx rate and whale activity."""
+
+    return {
+        "depth_change": order_book_depth_change(token, base_url),
+        "tx_rate": fetch_mempool_tx_rate(token, rpc_url),
+        "whale_activity": fetch_whale_wallet_activity(token, rpc_url),
+    }
 

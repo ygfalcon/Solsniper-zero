@@ -132,7 +132,14 @@ async def _run_iteration(
                     "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
                 }
             )
-            params = rm.adjusted(drawdown, volatility)
+            first_sim = sims[0] if sims else None
+            params = rm.adjusted(
+                drawdown,
+                volatility,
+                volume_spike=getattr(first_sim, "volume_spike", 1.0),
+                depth_change=getattr(first_sim, "depth_change", 0.0),
+                whale_activity=getattr(first_sim, "whale_activity", 0.0),
+            )
 
             amount = calculate_order_size(
                 balance,
