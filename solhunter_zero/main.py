@@ -24,6 +24,7 @@ from .portfolio import Portfolio, calculate_order_size
 from .risk import RiskManager
 from .exchange import place_order_async
 from .prices import fetch_token_prices_async
+from . import arbitrage
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,8 +46,15 @@ async def _run_iteration(
     trailing_stop: float | None = None,
     max_drawdown: float = 1.0,
     volatility_factor: float = 1.0,
+    arbitrage_threshold: float | None = None,
+    arbitrage_amount: float | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
+
+    if arbitrage_threshold is None:
+        arbitrage_threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
+    if arbitrage_amount is None:
+        arbitrage_amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
 
 
     
@@ -91,6 +99,19 @@ async def _run_iteration(
 
     for token in tokens:
         sims = run_simulations(token, count=100)
+
+        if arbitrage_amount > 0 and arbitrage_threshold > 0:
+            try:
+                await arbitrage.detect_and_execute_arbitrage(
+                    token,
+                    threshold=arbitrage_threshold,
+                    amount=arbitrage_amount,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+            except Exception as exc:  # pragma: no cover - network errors
+                logging.warning("Arbitrage check failed: %s", exc)
 
         if should_buy(sims):
             logging.info("Buying %s", token)
@@ -209,6 +230,8 @@ def main(
     max_allocation: float | None = None,
     risk_multiplier: float | None = None,
     market_ws_url: str | None = None,
+    arbitrage_threshold: float | None = None,
+    arbitrage_amount: float | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -265,6 +288,10 @@ def main(
         max_drawdown = float(cfg.get("max_drawdown", 1.0))
     if volatility_factor is None:
         volatility_factor = float(cfg.get("volatility_factor", 1.0))
+    if arbitrage_threshold is None:
+        arbitrage_threshold = float(cfg.get("arbitrage_threshold", 0.0))
+    if arbitrage_amount is None:
+        arbitrage_amount = float(cfg.get("arbitrage_amount", 0.0))
     if market_ws_url is None:
         market_ws_url = cfg.get("market_ws_url")
     if market_ws_url is None:
@@ -305,6 +332,8 @@ def main(
                     trailing_stop=trailing_stop,
                     max_drawdown=max_drawdown,
                     volatility_factor=volatility_factor,
+                    arbitrage_threshold=arbitrage_threshold,
+                    arbitrage_amount=arbitrage_amount,
                 )
                 await asyncio.sleep(loop_delay)
         else:
@@ -324,6 +353,8 @@ def main(
                     trailing_stop=trailing_stop,
                     max_drawdown=max_drawdown,
                     volatility_factor=volatility_factor,
+                    arbitrage_threshold=arbitrage_threshold,
+                    arbitrage_amount=arbitrage_amount,
                 )
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
@@ -453,6 +484,18 @@ if __name__ == "__main__":
         default=None,
         help="Websocket URL for real-time market events",
     )
+    parser.add_argument(
+        "--arbitrage-threshold",
+        type=float,
+        default=None,
+        help="Minimum price diff fraction for arbitrage",
+    )
+    parser.add_argument(
+        "--arbitrage-amount",
+        type=float,
+        default=None,
+        help="Trade size when executing arbitrage",
+    )
     args = parser.parse_args()
     main(
         memory_path=args.memory_path,
@@ -479,4 +522,6 @@ if __name__ == "__main__":
         max_allocation=args.max_allocation,
         risk_multiplier=args.risk_multiplier,
         market_ws_url=args.market_ws_url,
+        arbitrage_threshold=args.arbitrage_threshold,
+        arbitrage_amount=args.arbitrage_amount,
     )

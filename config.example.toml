@@ -13,6 +13,8 @@ max_risk_per_token = 0.05
 trailing_stop = 0.1
 max_drawdown = 0.5
 volatility_factor = 1.0
+arbitrage_threshold = 0.0
+arbitrage_amount = 0.0
 
 token_suffix = "bonk"
 token_keywords = ""

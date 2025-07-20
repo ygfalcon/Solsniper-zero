@@ -14,6 +14,7 @@ from solana.rpc.websocket_api import (
 )
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
+from .dex_scanner import DEX_PROGRAM_ID
 
 from .scanner_common import (
     TOKEN_SUFFIX,
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
+POOL_TOKEN_RE = re.compile(r"pool_token:\s*(\S+)", re.IGNORECASE)
 
 
 
@@ -39,6 +41,7 @@ async def stream_new_tokens(
     *,
     suffix: str | None = None,
     keywords: Iterable[str] | None = None,
+    include_pools: bool = True,
 ) -> AsyncGenerator[str, None]:
     """Yield new token mint addresses passing configured filters.
 
@@ -54,6 +57,8 @@ async def stream_new_tokens(
     if not rpc_url:
         if False:
             yield None
+
+
         return
 
     if suffix is None:
@@ -101,6 +106,8 @@ async def stream_new_tokens(
 
                     if name and mint and name.lower().endswith(suffix):
                         tokens.add(mint)
+
+
 
 
 

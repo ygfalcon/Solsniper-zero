@@ -25,6 +25,8 @@ ENV_VARS = {
     "trailing_stop": "TRAILING_STOP",
     "max_drawdown": "MAX_DRAWDOWN",
     "volatility_factor": "VOLATILITY_FACTOR",
+    "arbitrage_threshold": "ARBITRAGE_THRESHOLD",
+    "arbitrage_amount": "ARBITRAGE_AMOUNT",
 
     "token_suffix": "TOKEN_SUFFIX",
     "token_keywords": "TOKEN_KEYWORDS",
