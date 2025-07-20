@@ -74,6 +74,44 @@ def test_fetch_token_metrics_base_url(monkeypatch):
     assert metrics["slippage"] == pytest.approx(0.02)
 
 
+def test_fetch_token_metrics_multiple_dex(monkeypatch):
+    urls = []
+
+    class FakeResp:
+        def __init__(self, url):
+            self.url = url
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            if "metrics" in self.url:
+                return {"mean_return": 0.0, "volatility": 0.02}
+            if "dex1" in self.url and "depth" in self.url:
+                return {"depth": 1.0}
+            if "dex1" in self.url and "slippage" in self.url:
+                return {"slippage": 0.01}
+            if "dex2" in self.url and "depth" in self.url:
+                return {"depth": 2.0}
+            return {"slippage": 0.02}
+
+    def fake_get(url, timeout=5):
+        urls.append(url)
+        return FakeResp(url)
+
+    monkeypatch.setenv("DEX_METRIC_URLS", "http://dex1,http://dex2")
+    monkeypatch.setattr(simulation.requests, "get", fake_get)
+
+    metrics = simulation.fetch_token_metrics("tok")
+
+    assert "http://dex1/v1/depth?token=tok" in urls
+    assert "http://dex2/v1/slippage?token=tok" in urls
+    assert metrics["depth"] == pytest.approx(1.5)
+    assert metrics["slippage"] == pytest.approx(0.015)
+    assert metrics["depth_per_dex"] == [1.0, 2.0]
+    assert metrics["slippage_per_dex"] == [0.01, 0.02]
+
+
 def test_run_simulations_volume_filter(monkeypatch):
     def fake_metrics(token):
         return {
@@ -121,6 +159,8 @@ def test_run_simulations_with_history(monkeypatch):
         "liquidity_history": [90, 95, 100],
         "depth_history": [0.8, 0.9, 1.0],
         "slippage_history": [0.04, 0.045, 0.05],
+        "depth_per_dex": [0.5, 0.6],
+        "slippage_per_dex": [0.02, 0.03],
     }
 
     captured = {}
@@ -144,6 +184,6 @@ def test_run_simulations_with_history(monkeypatch):
 
     results = simulation.run_simulations("tok", count=1, days=2)
 
-    assert len(captured["predict_X"][0]) == 3
+    assert len(captured["predict_X"][0]) == 7
     expected_roi = pytest.approx((1 + 0.07) ** 2 - 1)
     assert results[0].expected_roi == expected_roi
