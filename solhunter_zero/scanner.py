@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import requests
 import logging
 import time
@@ -15,8 +16,19 @@ from .scanner_common import (
 logger = logging.getLogger(__name__)
 
 
-def scan_tokens(*, offline: bool = False) -> List[str]:
-    """Scan the Solana network for new tokens ending with 'bonk'."""
+def scan_tokens(*, offline: bool = False, method: str = "birdeye") -> List[str]:
+    """Scan the Solana network for new tokens ending with 'bonk'.
+
+    When ``method`` is ``"pools"`` the DEX pool scanner is used instead of
+    BirdEye.
+    """
+    if method == "pools":
+        from . import dex_scanner
+        from . import scanner_common
+        return dex_scanner.scan_new_pools(scanner_common.SOLANA_RPC_URL)
+
+    if method not in {"birdeye", "tokens"}:
+        raise ValueError(f"unknown method: {method}")
     tokens = offline_or_onchain(offline)
     if tokens is not None:
         return tokens
@@ -41,8 +53,12 @@ def scan_tokens(*, offline: bool = False) -> List[str]:
             return []
 
 
-async def scan_tokens_async(*, offline: bool = False) -> List[str]:
+async def scan_tokens_async(*, offline: bool = False, method: str = "birdeye") -> List[str]:
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
+    if method == "pools":
+        from . import dex_scanner, scanner_common
+        return await asyncio.to_thread(dex_scanner.scan_new_pools, scanner_common.SOLANA_RPC_URL)
+
     from .async_scanner import scan_tokens_async as _scan
 
     return await _scan(offline=offline)
