@@ -14,6 +14,7 @@ class Position:
 class Portfolio:
     path: Optional[str] = "portfolio.json"
     balances: Dict[str, Position] = field(default_factory=dict)
+    max_value: float = 0.0
 
     def __post_init__(self) -> None:
         self.load()
@@ -86,13 +87,38 @@ class Portfolio:
             return 0.0
         return (price - pos.entry_price) / pos.entry_price
 
+    def total_value(self, prices: Dict[str, float]) -> float:
+        """Return portfolio value using ``prices`` or entry prices."""
+        value = 0.0
+        for token, pos in self.balances.items():
+            price = prices.get(token, pos.entry_price)
+            value += pos.amount * price
+        return value
+
+    def update_drawdown(self, prices: Dict[str, float]) -> None:
+        """Update maximum portfolio value for drawdown calculations."""
+        value = self.total_value(prices)
+        if value > self.max_value:
+            self.max_value = value
+
+    def current_drawdown(self, prices: Dict[str, float]) -> float:
+        """Return current drawdown fraction based on ``prices``."""
+        value = self.total_value(prices)
+        if self.max_value == 0:
+            self.max_value = value
+            return 0.0
+        return (self.max_value - value) / self.max_value
+
 
 def calculate_order_size(
     balance: float,
     expected_roi: float,
+    volatility: float = 0.0,
+    drawdown: float = 0.0,
     *,
     risk_tolerance: float = 0.1,
     max_allocation: float = 0.2,
+    max_risk_per_token: float = 0.1,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -104,7 +130,9 @@ def calculate_order_size(
     if balance <= 0 or expected_roi <= 0:
         return 0.0
 
-    fraction = expected_roi * risk_tolerance
-    if fraction > max_allocation:
-        fraction = max_allocation
+    adj_risk = risk_tolerance * (1 - drawdown) / (1 + volatility)
+    fraction = expected_roi * adj_risk
+    fraction = min(fraction, max_allocation, max_risk_per_token)
+    if fraction <= 0:
+        return 0.0
     return balance * fraction

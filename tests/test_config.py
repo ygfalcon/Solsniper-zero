@@ -28,17 +28,21 @@ def test_env_var_overrides_default_search(tmp_path, monkeypatch):
 
 
 def test_apply_env_overrides(monkeypatch):
-    cfg = {"birdeye_api_key": "a", "solana_rpc_url": "b"}
+    cfg = {"birdeye_api_key": "a", "solana_rpc_url": "b", "risk_tolerance": 0.1}
     monkeypatch.setenv("BIRDEYE_API_KEY", "NEW")
+    monkeypatch.setenv("RISK_TOLERANCE", "0.2")
     result = apply_env_overrides(cfg)
     assert result["birdeye_api_key"] == "NEW"
     assert result["solana_rpc_url"] == "b"
+    assert result["risk_tolerance"] == "0.2"
 
 
 def test_set_env_from_config(monkeypatch):
-    cfg = {"birdeye_api_key": "A", "solana_rpc_url": "RPC"}
+    cfg = {"birdeye_api_key": "A", "solana_rpc_url": "RPC", "risk_tolerance": 0.3}
     monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
+    monkeypatch.delenv("RISK_TOLERANCE", raising=False)
     monkeypatch.setenv("SOLANA_RPC_URL", "EXIST")
     set_env_from_config(cfg)
     assert os.getenv("BIRDEYE_API_KEY") == "A"
     assert os.getenv("SOLANA_RPC_URL") == "EXIST"
+    assert os.getenv("RISK_TOLERANCE") == "0.3"

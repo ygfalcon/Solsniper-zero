@@ -40,9 +40,63 @@ def test_calculate_order_size_basic():
 
 def test_calculate_order_size_caps():
     size = calculate_order_size(100.0, 5.0, risk_tolerance=0.1, max_allocation=0.2)
-    assert size == pytest.approx(20.0)
+    assert size == pytest.approx(10.0)
 
 
 def test_calculate_order_size_negative_roi():
     assert calculate_order_size(100.0, -0.5) == 0.0
+
+
+def test_calculate_order_size_risk_controls():
+    base = calculate_order_size(
+        100.0,
+        1.0,
+        volatility=0.0,
+        drawdown=0.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    high_vol = calculate_order_size(
+        100.0,
+        1.0,
+        volatility=1.0,
+        drawdown=0.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    high_dd = calculate_order_size(
+        100.0,
+        1.0,
+        volatility=0.0,
+        drawdown=0.5,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    capped = calculate_order_size(
+        100.0,
+        10.0,
+        volatility=0.0,
+        drawdown=0.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.1,
+    )
+
+    assert high_vol < base
+    assert high_dd < base
+    assert capped == pytest.approx(10.0)
+
+
+def test_portfolio_drawdown():
+    p = Portfolio(path=None)
+    p.add("tok", 1, 1.0)
+    p.update_drawdown({"tok": 1.0})
+    assert p.current_drawdown({"tok": 1.0}) == pytest.approx(0.0)
+    p.update_drawdown({"tok": 2.0})
+    assert p.current_drawdown({"tok": 2.0}) == pytest.approx(0.0)
+    p.update_drawdown({"tok": 1.0})
+    assert p.current_drawdown({"tok": 1.0}) == pytest.approx(0.5)
 

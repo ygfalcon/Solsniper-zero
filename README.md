@@ -27,6 +27,9 @@ solana_rpc_url: https://api.mainnet-beta.solana.com
 dex_base_url: https://dex.example/api
 dex_testnet_url: https://dex.testnet/api
 metrics_base_url: https://api.example.com
+risk_tolerance: 0.1
+max_allocation: 0.2
+max_risk_per_token: 0.05
 ```
 
    An example configuration file named `config.example.toml` is included in
