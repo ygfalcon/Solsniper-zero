@@ -272,3 +272,38 @@ def test_discovery_methods(monkeypatch, method, target):
 
     assert called.get("called") is True
 
+
+def test_run_iteration_arbitrage(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
+        return ["tok"]
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    called = {}
+
+    async def fake_arbitrage(token, threshold, amount, testnet=False, dry_run=False, keypair=None):
+        called["args"] = (token, threshold, amount, dry_run)
+        return None
+
+    monkeypatch.setattr(main_module.arbitrage, "detect_and_execute_arbitrage", fake_arbitrage)
+
+    asyncio.run(
+        main_module._run_iteration(
+            mem,
+            pf,
+            dry_run=True,
+            arbitrage_threshold=0.1,
+            arbitrage_amount=2.0,
+        )
+    )
+
+    assert called["args"] == ("tok", 0.1, 2.0, True)
+

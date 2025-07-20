@@ -77,7 +77,7 @@ async def listen_and_trade(
             portfolio.update_drawdown(price_lookup)
             drawdown = portfolio.current_drawdown(price_lookup)
             avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-            volatility = sims[0].volatility if sims else 0.0
+            volatility = getattr(sims[0], "volatility", 0.0) if sims else 0.0
             if price_lookup:
                 balance = portfolio.total_value(price_lookup)
             else:

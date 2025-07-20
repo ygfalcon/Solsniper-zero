@@ -143,10 +143,9 @@ def run_simulations(
 
 
 
-    if recent_slippage is not None:
-        slippage = float(recent_slippage)
-
     depth = metrics.get("depth", 0.0)
+
+    results: List[SimulationResult] = []
 
     price_hist = metrics.get("price_history")
     liq_hist = metrics.get("liquidity_history")
@@ -202,7 +201,7 @@ def run_simulations(
 
         results.append(
 
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, vol_spike)
+            SimulationResult(success_prob, roi, volume, liquidity, slippage, volume_spike)
 
         )
 

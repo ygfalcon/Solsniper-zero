@@ -34,6 +34,8 @@ trailing_stop: 0.1
 max_drawdown: 0.5
 volatility_factor: 1.0
 risk_multiplier: 1.0
+arbitrage_threshold: 0.05
+arbitrage_amount: 1.0
 ```
 
    An example configuration file named `config.example.toml` is included in
