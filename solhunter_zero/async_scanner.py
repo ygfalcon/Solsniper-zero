@@ -16,6 +16,7 @@ from .scanner_common import (
 )
 from . import scanner_common
 from . import dex_ws
+from . import scanner_onchain
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +66,50 @@ async def scan_tokens_async(
 
 ) -> List[str]:
     """Async variant of :func:`scanner.scan_tokens` with concurrent scanning."""
-    base_task = asyncio.create_task(
-        offline_or_onchain_async(offline, token_file, method=method)
-    )
+    use_metrics = not scanner_common.BIRDEYE_API_KEY
+    if (
+        use_metrics
+        and not offline
+        and token_file is None
+        and method == "onchain"
+    ):
+        base_task = asyncio.create_task(
+            asyncio.to_thread(
+                scanner_onchain.scan_tokens_onchain,
+                scanner_common.SOLANA_RPC_URL,
+                return_metrics=True,
+            )
+        )
+    elif (
+        use_metrics
+        and not offline
+        and token_file is None
+        and method == "mempool"
+    ):
+        from .mempool_scanner import stream_mempool_tokens
+
+        async def _mempool():
+            gen = stream_mempool_tokens(
+                scanner_common.SOLANA_RPC_URL, return_metrics=True
+            )
+            tokens = []
+            try:
+                tokens.append(await anext(gen))
+                try:
+                    tokens.append(await anext(gen))
+                except StopAsyncIteration:
+                    pass
+            except StopAsyncIteration:
+                tokens = []
+            finally:
+                await gen.aclose()
+            return tokens
+
+        base_task = asyncio.create_task(_mempool())
+    else:
+        base_task = asyncio.create_task(
+            offline_or_onchain_async(offline, token_file, method=method)
+        )
     birdeye_task = None
     dex_ws_task = None
     if (
@@ -95,7 +137,7 @@ async def scan_tokens_async(
         *extra_tasks,
     )
     idx = 0
-    base_tokens = results[idx]
+    base_data = results[idx]
     idx += 1
     birdeye_tokens = []
     if birdeye_task:
@@ -108,6 +150,12 @@ async def scan_tokens_async(
     extras = []
     for res in results[idx:]:
         extras.extend(res)
+
+    if use_metrics and not offline and token_file is None and method in {"onchain", "mempool"}:
+        base_tokens = [e["address"] for e in (base_data or [])]
+    else:
+        base_tokens = base_data
+
     tokens = base_tokens if base_tokens is not None else birdeye_tokens
     if not offline and token_file is None:
         tokens = list(dict.fromkeys((tokens or []) + dex_ws_tokens + extras))

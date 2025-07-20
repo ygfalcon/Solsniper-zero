@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import AsyncGenerator, Iterable
+from typing import AsyncGenerator, Iterable, Dict, Any
 
 from solana.publickey import PublicKey
 from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
@@ -11,6 +11,7 @@ from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
 from .scanner_onchain import TOKEN_PROGRAM_ID
 from .dex_scanner import DEX_PROGRAM_ID
 from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
+from . import onchain_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,8 @@ async def stream_mempool_tokens(
     suffix: str | None = None,
     keywords: Iterable[str] | None = None,
     include_pools: bool = True,
-) -> AsyncGenerator[str, None]:
+    return_metrics: bool = False,
+) -> AsyncGenerator[str | Dict[str, Any], None]:
     """Yield token mints from unconfirmed transactions."""
 
     if not rpc_url:
@@ -91,4 +93,15 @@ async def stream_mempool_tokens(
                                 tokens.add(tok)
 
                 for tok in tokens:
-                    yield tok
+                    volume = 0.0
+                    liquidity = 0.0
+                    if return_metrics:
+                        volume = await asyncio.to_thread(
+                            onchain_metrics.fetch_volume_onchain, tok, rpc_url
+                        )
+                        liquidity = await asyncio.to_thread(
+                            onchain_metrics.fetch_liquidity_onchain, tok, rpc_url
+                        )
+                        yield {"address": tok, "volume": volume, "liquidity": liquidity}
+                    else:
+                        yield tok

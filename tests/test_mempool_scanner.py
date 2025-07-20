@@ -88,3 +88,28 @@ def test_offline_or_onchain_async_mempool(monkeypatch):
 
     tokens = asyncio.run(scanner_common.offline_or_onchain_async(False, method="mempool"))
     assert tokens == ["tokmp"]
+
+
+def test_stream_mempool_tokens_with_metrics(monkeypatch):
+    msgs = [
+        {"result": {"value": {"logs": ["InitializeMint", "name: coolbonk", "mint: tok1"]}}},
+    ]
+
+    def fake_connect(url):
+        return FakeConnect(url, msgs)
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    import solhunter_zero.onchain_metrics as om
+
+    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
+    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 2.0)
+
+    async def run():
+        gen = mp_scanner.stream_mempool_tokens("ws://node", return_metrics=True)
+        data = await asyncio.wait_for(anext(gen), timeout=0.1)
+        await gen.aclose()
+        return data
+
+    data = asyncio.run(run())
+    assert data == {"address": "tok1", "volume": 1.0, "liquidity": 2.0}
