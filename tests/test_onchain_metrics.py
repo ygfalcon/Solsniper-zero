@@ -94,3 +94,56 @@ def test_fetch_dex_metrics_error(monkeypatch):
     metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
 
     assert metrics == {"liquidity": 0.0, "depth": 0.0, "volume": 0.0}
+
+
+class RPCClient:
+    def __init__(self, url, accounts=None, sigs=None):
+        self.url = url
+        self._accounts = accounts or []
+        self._sigs = sigs or []
+
+    def get_token_largest_accounts(self, addr):
+        return {"result": {"value": self._accounts}}
+
+    def get_signatures_for_address(self, addr):
+        return {"result": self._sigs}
+
+
+def test_onchain_metric_functions(monkeypatch):
+    accounts = [{"uiAmount": 5.0}, {"uiAmount": 3.0}]
+    sigs = [{"amount": 2.0}, {"amount": 1.0}]
+
+    def fake_client(url):
+        return RPCClient(url, accounts, sigs)
+
+    monkeypatch.setattr(onchain_metrics, "Client", fake_client)
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    liq = onchain_metrics.fetch_liquidity_onchain("tok", "http://node")
+    vol = onchain_metrics.fetch_volume_onchain("tok", "http://node")
+    slip = onchain_metrics.fetch_slippage_onchain("tok", "http://node")
+
+    assert liq == pytest.approx(8.0)
+    assert vol == pytest.approx(3.0)
+    assert slip == pytest.approx((5.0 - 3.0) / 5.0)
+
+
+class ErrorRPC:
+    def __init__(self, url):
+        self.url = url
+
+    def get_token_largest_accounts(self, addr):
+        raise Exception("boom")
+
+
+def test_onchain_metric_functions_error(monkeypatch):
+    monkeypatch.setattr(onchain_metrics, "Client", lambda url: ErrorRPC(url))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    liq = onchain_metrics.fetch_liquidity_onchain("tok", "http://node")
+    slip = onchain_metrics.fetch_slippage_onchain("tok", "http://node")
+    vol = onchain_metrics.fetch_volume_onchain("tok", "http://node")
+
+    assert liq == 0.0
+    assert slip == 0.0
+    assert vol == 0.0

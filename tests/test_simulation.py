@@ -17,7 +17,24 @@ def test_run_simulations_uses_metrics(monkeypatch):
         }
 
     def fake_dex_metrics(token):
-        return {"volume": 123.0, "liquidity": 456.0, "depth": 2.0}
+        return {"depth": 2.0}
+
+    monkeypatch.setenv("SOLANA_RPC_URL", "http://node")
+    monkeypatch.setattr(
+        simulation.onchain_metrics,
+        "fetch_volume_onchain",
+        lambda t, u: 123.0,
+    )
+    monkeypatch.setattr(
+        simulation.onchain_metrics,
+        "fetch_liquidity_onchain",
+        lambda t, u: 456.0,
+    )
+    monkeypatch.setattr(
+        simulation.onchain_metrics,
+        "fetch_slippage_onchain",
+        lambda t, u: 0.01,
+    )
 
     captured = {}
 
