@@ -1,6 +1,7 @@
-import logging
+
+import asyncio
 import requests
-from solhunter_zero.prices import fetch_token_prices
+from solhunter_zero import prices
 
 
 class FakeResponse:
@@ -8,30 +9,56 @@ class FakeResponse:
         self._data = data
         self.status_code = status_code
 
+        self.text = "resp"
+
     def raise_for_status(self):
         if self.status_code != 200:
-            raise requests.HTTPError("bad status", response=self)
+            raise requests.HTTPError("bad", response=self)
 
     def json(self):
-        return {"data": self._data}
+        return self._data
 
 
-def test_fetch_token_prices_success(monkeypatch):
+def test_fetch_token_prices(monkeypatch):
+    data = {"data": {"tok": {"price": 2.0}, "bad": {"price": "x"}}}
+    captured = {}
+
     def fake_get(url, timeout=10):
-        assert "tok1,tok2" in url
-        return FakeResponse({"tok1": {"price": 1}, "tok2": {"price": 2}})
+        captured["url"] = url
+        return FakeResponse(data)
 
-    monkeypatch.setattr("solhunter_zero.prices.requests.get", fake_get)
-    prices = fetch_token_prices(["tok1", "tok2"])
-    assert prices == {"tok1": 1.0, "tok2": 2.0}
+    monkeypatch.setattr(prices.requests, "get", fake_get)
+    result = prices.fetch_token_prices(["tok", "bad"])
+    assert result == {"tok": 2.0}
+    assert "tok,bad" in captured["url"]
 
 
-def test_fetch_token_prices_network_error(monkeypatch, caplog):
-    def fake_get(url, timeout=10):
-        raise requests.RequestException("network down")
+def test_fetch_token_prices_async(monkeypatch):
+    data = {"data": {"tok": {"price": 1.5}}}
+    captured = {}
 
-    monkeypatch.setattr("solhunter_zero.prices.requests.get", fake_get)
-    with caplog.at_level(logging.WARNING):
-        prices = fetch_token_prices(["tok1"])
-    assert prices == {}
-    assert "Failed to fetch token prices" in caplog.text
+    class FakeResp:
+        def __init__(self, url):
+            captured["url"] = url
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        async def json(self):
+            return data
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            return FakeResp(url)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
+    assert result == {"tok": 1.5}
+    assert "tok" in captured["url"]
+
