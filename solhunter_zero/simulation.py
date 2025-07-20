@@ -29,7 +29,9 @@ class SimulationResult:
 
     volatility: float = 0.0
 
+
     volume_spike: float = 1.0
+
 
 
 def fetch_token_metrics(token: str) -> dict:
