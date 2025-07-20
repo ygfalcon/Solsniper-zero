@@ -109,3 +109,24 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     assert used["keypair"] is sentinel
     assert used["path"] == "envpath"
 
+
+def test_get_and_set_risk_params(monkeypatch):
+    monkeypatch.delenv("RISK_TOLERANCE", raising=False)
+    monkeypatch.delenv("MAX_ALLOCATION", raising=False)
+    monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
+
+    client = ui.app.test_client()
+
+    resp = client.get("/risk")
+    data = resp.get_json()
+    assert "risk_tolerance" in data
+
+    resp = client.post(
+        "/risk",
+        json={"risk_tolerance": 0.2, "max_allocation": 0.3, "risk_multiplier": 1.5},
+    )
+    assert resp.get_json()["status"] == "ok"
+    assert os.getenv("RISK_TOLERANCE") == "0.2"
+    assert os.getenv("MAX_ALLOCATION") == "0.3"
+    assert os.getenv("RISK_MULTIPLIER") == "1.5"
+

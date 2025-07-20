@@ -192,8 +192,9 @@ def run_simulations(
     slip_hist = metrics.get("slippage_history")
 
     predicted_mean = mu
-    depth_features = metrics.get("depth_per_dex", [])
-    slip_features = metrics.get("slippage_per_dex", [])
+
+    results: List[SimulationResult] = []
+
     if (
         price_hist
         and liq_hist
@@ -254,15 +255,7 @@ def run_simulations(
 
         results.append(
 
-            SimulationResult(
-                success_prob,
-                roi,
-                volume,
-                liquidity,
-                slippage,
-                sigma,
-                volume_spike,
-            )
+            SimulationResult(success_prob, roi, volume, liquidity, slippage, volume_spike)
 
         )
 

@@ -57,8 +57,8 @@ async def stream_new_tokens(
     if not rpc_url:
         if False:
             yield None
-        yield "abcbonk"
-        yield "xyzBONK"
+
+
         return
 
     if suffix is None:
@@ -106,6 +106,9 @@ async def stream_new_tokens(
 
                     if name and mint and name.lower().endswith(suffix):
                         tokens.add(mint)
+
+
+
 
 
                 for token in tokens:
