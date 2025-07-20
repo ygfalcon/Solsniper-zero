@@ -1,67 +1,89 @@
+import base64
+import asyncio
 import pytest
-import requests
-from solhunter_zero.exchange import place_order, OrderPlacementError
+
 from solders.keypair import Keypair
+from solders.hash import Hash
+from solders.message import MessageV0
+from solders.pubkey import Pubkey
+from solders.instruction import Instruction
+from solders.signature import Signature
+from solders.transaction import VersionedTransaction
+
+from solhunter_zero.exchange import place_order, place_order_async
 
 
 class FakeResponse:
     def __init__(self, data, status_code=200):
         self._data = data
         self.status_code = status_code
-        self.text = "response"
+        self.text = "resp"
 
     def raise_for_status(self):
         if self.status_code != 200:
-            raise requests.HTTPError("bad status", response=self)
+            raise Exception("bad status")
 
     def json(self):
         return self._data
 
 
-def test_place_order_posts(monkeypatch):
-    captured = {}
-
-    def fake_post(url, json, timeout=10):
-        captured["url"] = url
-        captured["json"] = json
-        return FakeResponse({"order_id": "1"})
-
-    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
-    result = place_order("tok", "buy", 1.0, 0.5, testnet=True)
-    assert result == {"order_id": "1"}
-    assert captured["json"]["token"] == "tok"
-    assert "/v6/swap" in captured["url"]
+def _dummy_tx(kp: Keypair) -> str:
+    msg = MessageV0.try_compile(
+        kp.pubkey(), [Instruction(Pubkey.default(), b"", [])], [], Hash.new_unique()
+    )
+    tx = VersionedTransaction.populate(msg, [Signature.default()])
+    return base64.b64encode(bytes(tx)).decode()
 
 
-def test_place_order_dry_run(caplog):
-    result = place_order("tok", "buy", 1.0, 0.5, dry_run=True)
-    assert result["dry_run"] is True
-
-
-def test_place_order_with_keypair(monkeypatch):
+def test_place_order_sends(monkeypatch):
     kp = Keypair()
-    captured = {}
+    sent = {}
 
     def fake_post(url, json, timeout=10):
-        captured["json"] = json
-        return FakeResponse({"ok": True})
+        sent["url"] = url
+        return FakeResponse({"swapTransaction": _dummy_tx(kp)})
+
+    class FakeClient:
+        def __init__(self, url):
+            sent["rpc"] = url
+
+        def send_raw_transaction(self, data, opts=None):
+            sent["data_len"] = len(data)
+
+            class Resp:
+                value = "sig"
+
+            return Resp()
 
     monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
-    place_order("tok", "buy", 1.0, 0.5, keypair=kp)
-    assert "signature" in captured["json"]
+    monkeypatch.setattr("solhunter_zero.exchange.Client", FakeClient)
+    result = place_order("tok", "buy", 1.0, 0.0, keypair=kp, testnet=True)
+    assert result["signature"] == "sig"
+    assert sent["data_len"] > 0
+    assert "/v6/swap" in sent["url"]
 
 
-import asyncio
-from solhunter_zero.exchange import place_order_async
+def test_place_order_dry_run(monkeypatch):
+    kp = Keypair()
+    called = {}
+
+    def fake_post(*a, **k):
+        called["post"] = True
+        return FakeResponse({})
+
+    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
+    result = place_order("tok", "buy", 1.0, 0.0, keypair=kp, dry_run=True)
+    assert result["dry_run"] is True
+    assert "post" not in called
 
 
-def test_place_order_async_posts(monkeypatch):
-    captured = {}
+def test_place_order_async(monkeypatch):
+    kp = Keypair()
+    sent = {}
 
     class FakeResp:
-        def __init__(self, url, payload):
-            captured["url"] = url
-            captured["json"] = payload
+        def __init__(self, url):
+            sent["url"] = url
 
         async def __aenter__(self):
             return self
@@ -70,7 +92,7 @@ def test_place_order_async_posts(monkeypatch):
             pass
 
         async def json(self):
-            return {"order_id": "1"}
+            return {"swapTransaction": _dummy_tx(kp)}
 
         def raise_for_status(self):
             pass
@@ -83,9 +105,28 @@ def test_place_order_async_posts(monkeypatch):
             pass
 
         def post(self, url, json, timeout=10):
-            return FakeResp(url, json)
+            return FakeResp(url)
+
+    class FakeClient:
+        def __init__(self, url):
+            sent["rpc"] = url
+
+        async def send_raw_transaction(self, data, opts=None):
+            sent["len"] = len(data)
+
+            class Resp:
+                value = "sig"
+
+            return Resp()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
-    result = asyncio.run(place_order_async("tok", "buy", 1.0, 0.5, testnet=True))
-    assert result == {"order_id": "1"}
-    assert captured["json"]["token"] == "tok"
+    monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
+    result = asyncio.run(place_order_async("tok", "buy", 1.0, 0.0, keypair=kp, testnet=True))
+    assert result["signature"] == "sig"
+    assert sent["len"] > 0

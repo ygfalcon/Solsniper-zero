@@ -130,18 +130,17 @@ def run_simulations(
     mu = metrics.get("mean", 0.0)
     sigma = metrics.get("volatility", 0.02)
     base_volume = metrics.get("volume", 0.0)
-    volume = base_volume if recent_volume is None else float(recent_volume)
+    volume = base_volume
+    volume_spike = 1.0
+    if recent_volume is not None:
+        volume = float(recent_volume)
+        volume_spike = volume / base_volume if base_volume else 1.0
+
     liquidity = metrics.get("liquidity", 0.0)
     slippage = metrics.get("slippage", 0.0)
     if recent_slippage is not None:
         slippage = float(recent_slippage)
 
-
-
-    if recent_volume is not None and base_volume > 0:
-        volume_spike = float(recent_volume) / base_volume
-
-        volume = float(recent_volume)
 
 
     if recent_slippage is not None:
@@ -195,13 +194,6 @@ def run_simulations(
 
 
 
-    if recent_volume is not None and base_volume > 0:
-        volume = float(recent_volume)
-
-
-
-    if recent_slippage is not None:
-        slippage = recent_slippage
 
     for _ in range(count):
         daily_returns = np.random.normal(predicted_mean, sigma, days)
