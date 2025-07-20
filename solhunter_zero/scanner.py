@@ -17,6 +17,9 @@ from .scanner_common import (
     offline_or_onchain,
     parse_birdeye_tokens,
     scan_tokens_from_file,
+
+    offline_or_onchain,
+
 )
 from .scanner_onchain import scan_tokens_onchain
 
@@ -26,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 def scan_tokens_from_pools() -> List[str]:
     """Public wrapper for pool discovery used by tests."""
-    return dex_scanner.scan_new_pools(scanner_common.SOLANA_RPC_URL)
+
+    return scanner_common.scan_tokens_from_pools()
 
 
 
