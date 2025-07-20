@@ -102,7 +102,12 @@ def list_configs() -> list[str]:
 
 
 def save_config(name: str, data: bytes) -> None:
-    """Persist configuration ``data`` under ``name``."""
+    """Persist configuration ``data`` under ``name``.
+
+    The name must not contain path traversal components.
+    """
+    if os.path.sep in name or (os.path.altsep and os.path.altsep in name) or ".." in name:
+        raise ValueError("invalid config name")
     path = os.path.join(CONFIG_DIR, name)
     with open(path, "wb") as fh:
         fh.write(data)
