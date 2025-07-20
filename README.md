@@ -27,7 +27,12 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    ```
 
    Environment variables with the same names override values from the file.
-   You can specify an alternative file with the `--config` command line option.
+   You can specify an alternative file with the `--config` command line option
+   or by setting the `SOLHUNTER_CONFIG` environment variable.
+
+   ```bash
+   export SOLHUNTER_CONFIG=/path/to/config.yaml
+   ```
 
 4. **Configure API access**
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
@@ -41,9 +46,6 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    If this variable is unset, the bot logs a warning and automatically falls back
    to on-chain scanning.
    To scan the blockchain yourself, provide a Solana RPC endpoint instead:
-
-
-   Or provide a Solana RPC endpoint for on-chain scanning
 
    ```bash
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
