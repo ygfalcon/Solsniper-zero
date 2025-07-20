@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import requests
 import logging
 import time
@@ -20,7 +21,9 @@ from .scanner_onchain import scan_tokens_onchain
 logger = logging.getLogger(__name__)
 
 
+
 def _scan_tokens_websocket() -> List[str]:
+
     backoff = 1
     max_backoff = 60
     while True:
@@ -39,6 +42,7 @@ def _scan_tokens_websocket() -> List[str]:
         except requests.RequestException as e:
             logger.error("Scan failed: %s", e)
             return []
+
 
 
 def scan_tokens(*, offline: bool = False, method: str = "websocket") -> List[str]:
@@ -78,6 +82,7 @@ async def scan_tokens_async(*, offline: bool = False, method: str = "websocket")
         return await asyncio.to_thread(scan_tokens_from_pools)
     if method == "file":
         return await asyncio.to_thread(scan_tokens_from_file)
+
 
     raise ValueError(f"unknown discovery method: {method}")
 

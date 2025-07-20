@@ -19,8 +19,8 @@ DEFAULT_METRICS_BASE_URL = "https://api.example.com"
 class SimulationResult:
     success_prob: float
     expected_roi: float
-    volume: float
-    liquidity: float
+    volume: float = 0.0
+    liquidity: float = 0.0
 
 
 def fetch_token_metrics(token: str) -> dict:

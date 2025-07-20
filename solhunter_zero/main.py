@@ -19,6 +19,7 @@ from .decision import should_buy, should_sell
 from .memory import Memory
 from .portfolio import Portfolio
 from .exchange import place_order_async
+from .prices import fetch_token_prices_async
 
 logging.basicConfig(level=logging.INFO)
 
@@ -38,52 +39,61 @@ async def _run_iteration(
     """Execute a single trading iteration asynchronously."""
     tokens = await scan_tokens_async(offline=offline, method=discovery_method)
 
+
+    # run simulations for scanned tokens in parallel
+    buy_tasks = {token: asyncio.to_thread(run_simulations, token, count=100) for token in tokens}
+    buy_results = await asyncio.gather(*buy_tasks.values())
+    tokens_to_buy = [tok for tok, sims in zip(buy_tasks.keys(), buy_results) if should_buy(sims)]
+
+    # run simulations for currently held tokens in parallel
+    positions = list(portfolio.balances.items())
+    sell_tasks = {token: asyncio.to_thread(run_simulations, token, count=100) for token, _ in positions}
+    sell_results = await asyncio.gather(*sell_tasks.values())
+    tokens_to_sell = [
+        token
+        for (token, pos), sims in zip(positions, sell_results)
+        if should_sell(sims)
+    ]
+
+    all_tokens = tokens_to_buy + tokens_to_sell
+    prices = await fetch_token_prices_async(all_tokens) if all_tokens else {}
+
+    for token in tokens_to_buy:
+        price = prices.get(token, 0)
+        logging.info("Buying %s", token)
+        await place_order_async(
+            token,
+            side="buy",
+            amount=1,
+            price=price,
+            testnet=testnet,
+            dry_run=dry_run,
+            keypair=keypair,
+        )
+        if not dry_run:
+            memory.log_trade(token=token, direction="buy", amount=1, price=price)
+            portfolio.update(token, 1, price)
+
+    for token in tokens_to_sell:
+        pos = portfolio.balances[token]
+        price = prices.get(token, 0)
+        logging.info("Selling %s", token)
+        await place_order_async(
+            token,
+            side="sell",
+            amount=pos.amount,
+            price=price,
+            testnet=testnet,
+            dry_run=dry_run,
+            keypair=keypair,
+        )
+        if not dry_run:
+            memory.log_trade(token=token, direction="sell", amount=pos.amount, price=price)
+            portfolio.update(token, -pos.amount, price)
+=======
     for token in tokens:
         sims = run_simulations(token, count=100)
-        if should_buy(sims):
-            logging.info("Buying %s", token)
-            await place_order_async(
-                token,
-                side="buy",
-                amount=1,
-                price=0,
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
-            )
-            if not dry_run:
-                memory.log_trade(token=token, direction="buy", amount=1, price=0)
-                portfolio.update(token, 1, 0)
 
-    price_lookup = {}
-    if stop_loss is not None or take_profit is not None:
-        price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
-
-    for token, pos in list(portfolio.balances.items()):
-        sims = run_simulations(token, count=100)
-
-        roi_trigger = False
-        if token in price_lookup:
-            roi = portfolio.position_roi(token, price_lookup[token])
-            if stop_loss is not None and roi <= -stop_loss:
-                roi_trigger = True
-            if take_profit is not None and roi >= take_profit:
-                roi_trigger = True
-
-        if roi_trigger or should_sell(sims):
-            logging.info("Selling %s", token)
-            await place_order_async(
-                token,
-                side="sell",
-                amount=pos.amount,
-                price=0,
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
-            )
-            if not dry_run:
-                memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
-                portfolio.update(token, -pos.amount, 0)
 
 
 def main(
