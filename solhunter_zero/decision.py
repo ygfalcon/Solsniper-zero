@@ -17,6 +17,7 @@ def should_buy(
     min_volume_spike: float = 1.0,
     min_sentiment: float = 0.0,
     min_order_strength: float = 0.0,
+    gas_cost: float = 0.0,
 ) -> bool:
     """Decide whether to buy a token based on simulation results.
 
@@ -47,7 +48,7 @@ def should_buy(
     rois = [r.expected_roi for r in sim_results]
 
     avg_success = sum(successes) / len(successes)
-    avg_roi = sum(rois) / len(rois)
+    avg_roi = sum(rois) / len(rois) - gas_cost
     roi_std = statistics.stdev(rois) if len(rois) > 1 else 0.0
     sharpe = avg_roi / roi_std if roi_std > 0 else 0.0
 
@@ -66,6 +67,7 @@ def should_sell(
     trailing_stop: float | None = None,
     current_price: float | None = None,
     high_price: float | None = None,
+    gas_cost: float = 0.0,
 ) -> bool:
     """Decide whether to sell a token based on simulation results.
 
@@ -86,7 +88,7 @@ def should_sell(
     rois = [r.expected_roi for r in sim_results]
 
     avg_success = sum(successes) / len(successes)
-    avg_roi = sum(rois) / len(rois)
+    avg_roi = sum(rois) / len(rois) - gas_cost
 
     trailing_hit = False
     if (

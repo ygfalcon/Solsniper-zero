@@ -273,3 +273,24 @@ def test_run_simulations_optional_inputs(monkeypatch):
 
     assert res.sentiment == pytest.approx(0.8)
     assert res.order_book_strength == pytest.approx(0.9)
+
+
+def test_run_simulations_gas_cost(monkeypatch):
+    def fake_metrics(token):
+        return {
+            "mean": 0.1,
+            "volatility": 0.0,
+            "volume": 10.0,
+            "liquidity": 20.0,
+            "slippage": 0.01,
+        }
+
+    monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+
+    res_no_cost = simulation.run_simulations("tok", count=1, days=1)[0]
+    res_cost = simulation.run_simulations("tok", count=1, days=1, gas_cost=0.5)[0]
+
+    assert res_no_cost.expected_roi == pytest.approx(0.1)
+    assert res_cost.expected_roi == pytest.approx(-0.4)

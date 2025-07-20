@@ -144,3 +144,16 @@ def test_should_sell_low_liquidity():
         )
     ]
     assert should_sell(sims, min_liquidity=100.0) is True
+
+
+def test_high_gas_cost_blocks_buy_and_triggers_sell():
+    sims = [
+        SimulationResult(success_prob=0.8, expected_roi=1.2, volume=200.0, liquidity=500.0)
+    ]
+
+    assert should_buy(sims, min_sharpe=0.0) is True
+    assert should_buy(sims, min_sharpe=0.0, gas_cost=2.0) is False
+
+    sims_sell = [SimulationResult(success_prob=0.8, expected_roi=0.5, volume=200.0, liquidity=500.0)]
+    assert should_sell(sims_sell) is False
+    assert should_sell(sims_sell, gas_cost=1.0) is True

@@ -175,6 +175,7 @@ def run_simulations(
     min_volume: float = 0.0,
     recent_volume: float | None = None,
     recent_slippage: float | None = None,
+    gas_cost: float = 0.0,
     sentiment: float | None = None,
     order_book_strength: float | None = None,
 ) -> List[SimulationResult]:
@@ -371,6 +372,7 @@ def run_simulations(
     for _ in range(count):
         daily_returns = np.random.normal(predicted_mean, sigma, days)
         roi = float(np.prod(1 + daily_returns) - 1)
+        roi -= gas_cost
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
