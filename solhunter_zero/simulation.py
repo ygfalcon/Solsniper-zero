@@ -19,6 +19,8 @@ DEFAULT_METRICS_BASE_URL = "https://api.example.com"
 class SimulationResult:
     success_prob: float
     expected_roi: float
+    volume: float
+    liquidity: float
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -38,24 +40,37 @@ def fetch_token_metrics(token: str) -> dict:
         return {
             "mean": float(data.get("mean_return", 0.0)),
             "volatility": float(data.get("volatility", 0.02)),
+            "volume": float(data.get("volume_24h", 0.0)),
+            "liquidity": float(data.get("liquidity", 0.0)),
         }
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
-        return {"mean": 0.0, "volatility": 0.02}
+        return {"mean": 0.0, "volatility": 0.02, "volume": 0.0, "liquidity": 0.0}
 
 
-def run_simulations(token: str, count: int = 1000, days: int = 30) -> List[SimulationResult]:
+def run_simulations(
+    token: str,
+    count: int = 1000,
+    days: int = 30,
+    *,
+    min_volume: float = 0.0,
+) -> List[SimulationResult]:
     """Run Monte Carlo simulations for a given token."""
 
     metrics = fetch_token_metrics(token)
+    if metrics.get("volume", 0.0) < min_volume:
+        return []
+
     mu = metrics["mean"]
     sigma = metrics["volatility"]
+    volume = metrics.get("volume", 0.0)
+    liquidity = metrics.get("liquidity", 0.0)
 
     results: List[SimulationResult] = []
     for _ in range(count):
         daily_returns = np.random.normal(mu, sigma, days)
         roi = float(np.prod(1 + daily_returns) - 1)
         success_prob = float(np.mean(daily_returns > 0))
-        results.append(SimulationResult(success_prob, roi))
+        results.append(SimulationResult(success_prob, roi, volume, liquidity))
 
     return results

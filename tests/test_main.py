@@ -13,7 +13,9 @@ def test_main_invokes_place_order(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(success_prob=1.0, expected_roi=2.0)],
+        lambda token, count=100: [
+            SimulationResult(success_prob=1.0, expected_roi=2.0, volume=200.0, liquidity=400.0)
+        ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     async def fake_prices(tokens):
@@ -60,7 +62,9 @@ def test_main_offline(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(success_prob=1.0, expected_roi=2.0)],
+        lambda token, count=100: [
+            SimulationResult(success_prob=1.0, expected_roi=2.0, volume=200.0, liquidity=400.0)
+        ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     async def fake_place_order_async(*a, **k):
@@ -94,7 +98,11 @@ def test_run_iteration_sells(monkeypatch):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.2, -0.1)])
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [SimulationResult(0.2, -0.1, volume=200.0, liquidity=400.0)],
+    )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: True)
     async def fake_prices(tokens):
@@ -113,6 +121,74 @@ def test_run_iteration_sells(monkeypatch):
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
+
+    assert called["args"][0] == "tok"
+    assert called["args"][1] == "sell"
+
+
+def test_run_iteration_stop_loss(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    pf.add("tok", 1, 10.0)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False):
+        return []
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.9, 0.2)])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
+
+    async def fake_fetch_token_prices_async(tokens):
+        return {"tok": 8.0}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_fetch_token_prices_async)
+
+    called = {}
+
+    async def fake_place_order_async(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+        return {"order_id": "1"}
+
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True, stop_loss=0.1))
+
+    assert called["args"][0] == "tok"
+    assert called["args"][1] == "sell"
+
+
+def test_run_iteration_take_profit(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    pf.add("tok", 1, 10.0)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False):
+        return []
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.9, 0.2)])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
+
+    async def fake_fetch_token_prices_async(tokens):
+        return {"tok": 12.0}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_fetch_token_prices_async)
+
+    called = {}
+
+    async def fake_place_order_async(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+        return {"order_id": "1"}
+
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True, take_profit=0.1))
 
     assert called["args"][0] == "tok"
     assert called["args"][1] == "sell"
