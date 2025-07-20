@@ -163,6 +163,9 @@ def run_simulations(
         val = dex_metrics.get(key)
         if isinstance(val, (int, float)):
             metrics[key] = float(val)
+
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
@@ -254,9 +257,15 @@ def run_simulations(
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, volume_spike)
-
+            SimulationResult(
+                success_prob,
+                roi,
+                volume,
+                liquidity,
+                slippage,
+                sigma,
+                volume_spike,
+            )
         )
 
 
