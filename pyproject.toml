@@ -15,7 +15,7 @@ dependencies = [
     "flask",
 
     "aiohttp",
-
+    "pyyaml",
 ]
 
 [project.scripts]

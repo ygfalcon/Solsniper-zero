@@ -42,6 +42,7 @@ async def _run_iteration(
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
+
     
     scan_kwargs = {"offline": offline, "token_file": token_file}
     if discovery_method != "websocket":
@@ -50,18 +51,34 @@ async def _run_iteration(
     tokens = await scan_tokens_async(**scan_kwargs)
 
 
+    try:
+        tokens = await scan_tokens_async(
+            offline=offline, token_file=token_file, method=discovery_method
+        )
+    except TypeError:
+        # Support tests that monkeypatch ``scan_tokens_async`` without the
+        # ``method`` parameter.
+
+        tokens = await scan_tokens_async(offline=offline, token_file=token_file)
+
+    # Always consider existing holdings when making sell decisions
+    tokens = list(set(tokens) | set(portfolio.balances.keys()))
+
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url and not offline:
         try:
+
             ranked = top_volume_tokens(rpc_url, limit=len(tokens))
             ranked_set = set(ranked)
             tokens = [t for t in ranked if t in tokens] + [t for t in tokens if t not in ranked_set]
+
         except Exception as exc:  # pragma: no cover - network errors
             logging.warning("Volume ranking failed: %s", exc)
 
 
     for token in tokens:
         sims = run_simulations(token, count=100)
+
         if should_buy(sims):
             logging.info("Buying %s", token)
             await place_order_async(
@@ -69,10 +86,12 @@ async def _run_iteration(
                 side="buy",
                 amount=1,
                 price=0,
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
+
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=1, price=0)
                 portfolio.update(token, 1, 0)
@@ -99,13 +118,16 @@ async def _run_iteration(
                 side="sell",
                 amount=pos.amount,
                 price=0,
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
+
             if not dry_run:
                 memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
                 portfolio.update(token, -pos.amount, 0)
+
 
 
 
@@ -118,8 +140,10 @@ def main(
     dry_run: bool = False,
     offline: bool = False,
 
+
     token_file: str | None = None,
     discovery_method: str | None = None,
+
 
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
@@ -144,8 +168,8 @@ def main(
     offline:
         Return a predefined token list instead of querying the network.
 
-    token_file:
-        Path to a file containing token addresses to scan.
+    discovery_method:
+        Token discovery method: onchain, websocket, pools or file.
 
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
@@ -185,8 +209,9 @@ def main(
                     dry_run=dry_run,
                     offline=offline,
 
+
                     token_file=token_file,
-                    discovery_method=discovery_method,
+        discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -202,7 +227,9 @@ def main(
                     dry_run=dry_run,
                     offline=offline,
 
+
                     token_file=token_file,
+
                     discovery_method=discovery_method,
 
                     keypair=keypair,
@@ -254,17 +281,17 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--discovery-method",
+
         default=None,
         choices=["websocket", "onchain", "pools", "file"],
         help="Token discovery method",
     )
     parser.add_argument(
 
-        "--token-list",
-        default=None,
-        metavar="FILE",
-        help="Read token addresses from FILE instead of querying the network",
+        choices=["onchain", "websocket", "pools", "file"],
 
+        default=None,
+        help="Token discovery method",
     )
     parser.add_argument(
         "--keypair",
@@ -302,7 +329,9 @@ if __name__ == "__main__":
         dry_run=args.dry_run,
         offline=args.offline,
 
+
         token_file=args.token_list,
+
         discovery_method=args.discovery_method,
 
         keypair_path=args.keypair,

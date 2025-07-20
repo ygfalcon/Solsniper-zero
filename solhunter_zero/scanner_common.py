@@ -46,7 +46,12 @@ def parse_birdeye_tokens(data: dict) -> List[str]:
     return tokens
 
 
-def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional[List[str]]:
+def offline_or_onchain(
+    offline: bool,
+    token_file: str | None = None,
+    *,
+    method: str | None = None,
+) -> Optional[List[str]]:
     if token_file:
         return load_tokens_from_file(token_file)
     if offline:
@@ -55,6 +60,10 @@ def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")
+        if method == "pools":
+            return scan_tokens_from_pools()
+        if method == "file":
+            return scan_tokens_from_file()
         return scan_tokens_onchain(SOLANA_RPC_URL)
 
     return None
@@ -62,6 +71,7 @@ def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional
 
 
 async def offline_or_onchain_async(
+
     offline: bool,
     token_file: str | None = None,
     *,
@@ -75,6 +85,13 @@ async def offline_or_onchain_async(
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
+
+    if method == "onchain":
+        return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
+    if method == "pools":
+        return await asyncio.to_thread(scan_tokens_from_pools)
+    if method == "file":
+        return await asyncio.to_thread(scan_tokens_from_file)
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")
@@ -91,13 +108,19 @@ async def offline_or_onchain_async(
 
             return [token]
 
+        if method == "pools":
+            return await asyncio.to_thread(scan_tokens_from_pools)
+        if method == "file":
+            return await asyncio.to_thread(scan_tokens_from_file)
         return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
 
     return None
 
 
 def scan_tokens_from_pools() -> List[str]:
+
     """Discover tokens from recently created liquidity pools."""
+
     logger.info("Scanning pools for tokens")
     from . import dex_scanner
 
@@ -109,7 +132,4 @@ def scan_tokens_from_file(path: str = "tokens.txt") -> List[str]:
     if not os.path.isfile(path):
         logger.warning("Token file %s not found", path)
         return []
-    with open(path, "r", encoding="utf-8") as fh:
-        tokens = [line.strip() for line in fh if line.strip()]
-    logger.info("Loaded %d tokens from %s", len(tokens), path)
-    return tokens
+    return load_tokens_from_file(path)
