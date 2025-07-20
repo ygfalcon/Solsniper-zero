@@ -45,6 +45,7 @@ def scan_tokens(
 ) -> List[str]:
     """Scan the Solana network for new tokens using ``method``."""
     if method == "websocket":
+
         tokens = offline_or_onchain(offline, token_file)
         if tokens is None:
             backoff = 1
@@ -73,6 +74,7 @@ def scan_tokens(
                     logger.error("Scan failed: %s", e)
                     tokens = []
                     break
+
     elif offline:
         logger.info("Offline mode enabled, returning static tokens")
         tokens = OFFLINE_TOKENS
@@ -111,16 +113,17 @@ async def scan_tokens_async(
             from .websocket_scanner import stream_new_tokens
 
             gen = stream_new_tokens(SOLANA_RPC_URL)
+            tokens = []
             try:
-                token = await anext(gen)
+                tokens.append(await anext(gen))
+                try:
+                    tokens.append(await anext(gen))
+                except StopAsyncIteration:
+                    pass
             except StopAsyncIteration:
                 tokens = []
             finally:
                 await gen.aclose()
-            if "token" in locals() and token:
-                tokens = [token]
-            else:
-                tokens = []
     elif offline:
         logger.info("Offline mode enabled, returning static tokens")
         tokens = OFFLINE_TOKENS
