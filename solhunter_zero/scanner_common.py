@@ -54,3 +54,20 @@ async def offline_or_onchain_async(offline: bool) -> Optional[List[str]]:
         return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
 
     return None
+
+
+def scan_tokens_from_pools() -> List[str]:
+    """Placeholder discovery via liquidity pools."""
+    logger.info("Scanning pools for tokens")
+    return ["poolbonk1", "poolbonk2"]
+
+
+def scan_tokens_from_file(path: str = "tokens.txt") -> List[str]:
+    """Load token list from a file if it exists."""
+    if not os.path.isfile(path):
+        logger.warning("Token file %s not found", path)
+        return []
+    with open(path, "r", encoding="utf-8") as fh:
+        tokens = [line.strip() for line in fh if line.strip()]
+    logger.info("Loaded %d tokens from %s", len(tokens), path)
+    return tokens
