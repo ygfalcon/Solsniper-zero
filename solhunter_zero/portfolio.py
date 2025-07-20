@@ -85,3 +85,26 @@ class Portfolio:
         if pos is None or pos.entry_price == 0:
             return 0.0
         return (price - pos.entry_price) / pos.entry_price
+
+
+def calculate_order_size(
+    balance: float,
+    expected_roi: float,
+    *,
+    risk_tolerance: float = 0.1,
+    max_allocation: float = 0.2,
+) -> float:
+    """Return trade size based on ``balance`` and expected ROI.
+
+    The position size grows with the expected return but is limited by the
+    ``risk_tolerance`` and ``max_allocation`` fractions of the balance.
+    Negative or zero expected returns yield a size of ``0.0``.
+    """
+
+    if balance <= 0 or expected_roi <= 0:
+        return 0.0
+
+    fraction = expected_roi * risk_tolerance
+    if fraction > max_allocation:
+        fraction = max_allocation
+    return balance * fraction

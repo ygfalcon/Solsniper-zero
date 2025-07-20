@@ -18,7 +18,7 @@ from .onchain_metrics import top_volume_tokens
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .memory import Memory
-from .portfolio import Portfolio
+from .portfolio import Portfolio, calculate_order_size
 from .exchange import place_order_async
 from .prices import fetch_token_prices_async
 
@@ -81,10 +81,13 @@ async def _run_iteration(
 
         if should_buy(sims):
             logging.info("Buying %s", token)
+            avg_roi = sum(r.expected_roi for r in sims) / len(sims)
+            balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
+            amount = calculate_order_size(balance, avg_roi)
             await place_order_async(
                 token,
                 side="buy",
-                amount=1,
+                amount=amount,
                 price=0,
 
                 testnet=testnet,
@@ -93,8 +96,8 @@ async def _run_iteration(
             )
 
             if not dry_run:
-                memory.log_trade(token=token, direction="buy", amount=1, price=0)
-                portfolio.update(token, 1, 0)
+                memory.log_trade(token=token, direction="buy", amount=amount, price=0)
+                portfolio.update(token, amount, 0)
 
     price_lookup = {}
     if stop_loss is not None or take_profit is not None:
