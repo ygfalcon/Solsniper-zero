@@ -75,15 +75,9 @@ async def offline_or_onchain_async(
     offline: bool,
     token_file: str | None = None,
     *,
-    method: str = "websocket",
+    method: str = "rest",
 ) -> Optional[List[str]]:
-    """Return tokens immediately if no network scan is needed.
-
-    This helper mirrors :func:`offline_or_onchain` but works asynchronously and
-    additionally supports the ``method`` argument used by higher level scanning
-    helpers.
-    """
-
+    """Return tokens from file or on-chain when BirdEye is unavailable."""
 
     if token_file:
         return load_tokens_from_file(token_file)
@@ -125,7 +119,7 @@ async def offline_or_onchain_async(
 
 def scan_tokens_from_pools() -> List[str]:
 
-    """Discover tokens via recently created liquidity pools."""
+    """Discover tokens from recently created liquidity pools."""
 
     logger.info("Scanning pools for tokens")
     from . import dex_scanner

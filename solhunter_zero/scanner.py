@@ -5,10 +5,9 @@ import logging
 import time
 from typing import List
 
-import requests
 
 from . import scanner_common
-from .scanner_onchain import scan_tokens_onchain
+
 from .scanner_common import (
     BIRDEYE_API,
     HEADERS,
@@ -16,7 +15,8 @@ from .scanner_common import (
     parse_birdeye_tokens,
     scan_tokens_from_file,
 
-
+)
+from .scanner_onchain import scan_tokens_onchain
 
 
 logger = logging.getLogger(__name__)
@@ -52,29 +52,6 @@ def scan_tokens(
 
 
 
-
-def _scan_tokens_websocket() -> List[str]:
-    """Scan BirdEye for BONK-related tokens via REST."""
-    backoff = 1
-    max_backoff = 60
-    while True:
-        try:
-            resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
-            if resp.status_code == 429:
-                logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
-                time.sleep(backoff)
-                backoff = min(backoff * 2, max_backoff)
-                continue
-            resp.raise_for_status()
-            data = resp.json()
-            tokens = parse_birdeye_tokens(data)
-            backoff = 1
-            return tokens
-        except requests.RequestException as e:
-            logger.error("Scan failed: %s", e)
-            return []
-
-
 def scan_tokens(
     *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
 ) -> List[str]:
@@ -82,15 +59,35 @@ def scan_tokens(
     if method == "websocket":
         tokens = offline_or_onchain(offline, token_file)
         if tokens is not None:
+
             return tokens
-        return _scan_tokens_websocket()
+
+        backoff = 1
+        max_backoff = 60
+        while True:
+            try:
+                resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
+                if resp.status_code == 429:
+                    logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, max_backoff)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                tokens = parse_birdeye_tokens(data)
+                backoff = 1
+                return tokens
+            except requests.RequestException as e:
+                logger.error("Scan failed: %s", e)
+                return []
+
 
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
 
     if method == "onchain":
-        return scan_tokens_onchain(SOLANA_RPC_URL)
+        return scan_tokens_onchain(scanner_common.SOLANA_RPC_URL)
     if method == "pools":
         return scan_tokens_from_pools()
     if method == "file":
@@ -100,33 +97,31 @@ def scan_tokens(
 
 
 
-async def scan_tokens_async(
-
-    *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
-
 
 async def scan_tokens_async(
     *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
 ) -> List[str]:
 
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
-    if token_file:
-        return await asyncio.to_thread(scan_tokens_from_file, token_file)
+
+    if method == "websocket":
+        from .async_scanner import scan_tokens_async as _scan
+        return await _scan(offline=offline, token_file=token_file)
+
 
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
 
     if method == "onchain":
-        return await asyncio.to_thread(
-            scan_tokens_onchain, scanner_common.SOLANA_RPC_URL
-        )
+
+        return await asyncio.to_thread(scan_tokens_onchain, scanner_common.SOLANA_RPC_URL)
+
     if method == "pools":
         return await asyncio.to_thread(scan_tokens_from_pools)
     if method == "file":
         return await asyncio.to_thread(scan_tokens_from_file)
 
 
-    from .async_scanner import scan_tokens_async as _scan
-    return await _scan(offline=offline, token_file=token_file, method=method)
+    raise ValueError(f"unknown discovery method: {method}")
 
