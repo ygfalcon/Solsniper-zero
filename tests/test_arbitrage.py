@@ -128,3 +128,32 @@ def test_arbitrage_websocket_no_op(monkeypatch):
 
     assert result is None
     assert "called" not in calls
+
+
+def test_arbitrage_multiple_tokens(monkeypatch):
+    async def feed_low(token):
+        prices = {"tok1": 1.0, "tok2": 2.0}
+        return prices[token]
+
+    async def feed_high(token):
+        prices = {"tok1": 1.2, "tok2": 2.5}
+        return prices[token]
+
+    placed = []
+
+    async def fake_place(token, side, amount, price, **_):
+        placed.append((token, side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    results = asyncio.run(
+        arb.detect_and_execute_arbitrage([
+            "tok1",
+            "tok2",
+        ], [feed_low, feed_high], threshold=0.1, amount=3)
+    )
+
+    assert results == [(0, 1), (0, 1)]
+    assert ("tok1", "buy", 1.0) in placed
+    assert ("tok2", "sell", 2.5) in placed
