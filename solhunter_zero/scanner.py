@@ -5,6 +5,9 @@ import logging
 import time
 from typing import List
 
+import requests
+from . import dex_scanner
+
 
 from . import scanner_common
 
@@ -12,9 +15,10 @@ from .scanner_common import (
     BIRDEYE_API,
     HEADERS,
     OFFLINE_TOKENS,
+    SOLANA_RPC_URL,
+    offline_or_onchain,
     parse_birdeye_tokens,
     scan_tokens_from_file,
-
 )
 from .scanner_onchain import scan_tokens_onchain
 
