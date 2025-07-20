@@ -53,8 +53,13 @@ def scan_tokens(
             from .websocket_scanner import stream_new_tokens
 
             gen = stream_new_tokens(SOLANA_RPC_URL)
+            tokens = []
             try:
-                token = asyncio.run(anext(gen))
+                tokens.append(asyncio.run(anext(gen)))
+                try:
+                    tokens.append(asyncio.run(anext(gen)))
+                except StopAsyncIteration:
+                    pass
             except StopAsyncIteration:
                 tokens = []
             finally:
@@ -64,10 +69,14 @@ def scan_tokens(
                     loop = asyncio.new_event_loop()
                     loop.run_until_complete(gen.aclose())
                     loop.close()
-            if "token" in locals() and token:
-                tokens = [token]
-            else:
-                tokens = []
+            if HEADERS.get("X-API-KEY"):
+                try:
+                    resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    tokens += parse_birdeye_tokens(data)
+                except Exception as exc:  # pragma: no cover - network errors
+                    logger.warning("BirdEye fetch failed: %s", exc)
     elif offline:
         logger.info("Offline mode enabled, returning static tokens")
         tokens = OFFLINE_TOKENS
@@ -106,16 +115,17 @@ async def scan_tokens_async(
             from .websocket_scanner import stream_new_tokens
 
             gen = stream_new_tokens(SOLANA_RPC_URL)
+            tokens = []
             try:
-                token = await anext(gen)
+                tokens.append(await anext(gen))
+                try:
+                    tokens.append(await anext(gen))
+                except StopAsyncIteration:
+                    pass
             except StopAsyncIteration:
                 tokens = []
             finally:
                 await gen.aclose()
-            if "token" in locals() and token:
-                tokens = [token]
-            else:
-                tokens = []
     elif offline:
         logger.info("Offline mode enabled, returning static tokens")
         tokens = OFFLINE_TOKENS
