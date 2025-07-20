@@ -11,6 +11,7 @@ def should_buy(
     min_success: float = 0.6,
     min_roi: float = 1.0,
     min_sharpe: float = 1.0,
+    min_volume: float = 0.0,
 ) -> bool:
     """Decide whether to buy a token based on simulation results.
 
@@ -20,6 +21,9 @@ def should_buy(
     """
 
     if not sim_results:
+        return False
+
+    if sim_results[0].volume < min_volume:
         return False
 
     successes = [r.success_prob for r in sim_results]
