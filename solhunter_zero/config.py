@@ -21,6 +21,9 @@ ENV_VARS = {
     "risk_tolerance": "RISK_TOLERANCE",
     "max_allocation": "MAX_ALLOCATION",
     "max_risk_per_token": "MAX_RISK_PER_TOKEN",
+    "trailing_stop": "TRAILING_STOP",
+    "max_drawdown": "MAX_DRAWDOWN",
+    "volatility_factor": "VOLATILITY_FACTOR",
 }
 
 

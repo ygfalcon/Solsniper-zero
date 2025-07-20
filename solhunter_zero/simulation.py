@@ -26,6 +26,7 @@ class SimulationResult:
     expected_roi: float
     volume: float = 0.0
     liquidity: float = 0.0
+
     slippage: float = 0.0
     volatility: float = 0.0
 
@@ -132,6 +133,15 @@ def run_simulations(
         slippage = float(recent_slippage)
 
     volume_spike = volume / base_volume if recent_volume is not None and base_volume > 0 else 1.0
+
+    if recent_volume is not None and recent_volume > 0:
+        volume_spike = recent_volume / volume if volume > 0 else 1.0
+        volume = recent_volume
+    else:
+        volume_spike = 1.0
+
+    if recent_slippage is not None:
+        slippage = recent_slippage
 
     depth = metrics.get("depth", 0.0)
 

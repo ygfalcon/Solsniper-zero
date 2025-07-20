@@ -30,6 +30,9 @@ metrics_base_url: https://api.example.com
 risk_tolerance: 0.1
 max_allocation: 0.2
 max_risk_per_token: 0.05
+trailing_stop: 0.1
+max_drawdown: 0.5
+volatility_factor: 1.0
 ```
 
    An example configuration file named `config.example.toml` is included in
