@@ -42,17 +42,17 @@ arbitrage_amount: 1.0
    An example configuration file named `config.example.toml` is included in
    the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
    values as needed. A high risk preset called `config.highrisk.toml` is also
-   provided. The example configuration loads the built‑in
-   `solhunter_zero.sniper` and `solhunter_zero.arbitrage` strategies so the bot
-   can trade without custom modules.
+   provided. The example configuration loads several built‑in **agents** that
+   replace the previous static strategy modules.
 
-   To control how much each strategy influences trades, add a `strategy_weights`
-   table mapping module names to weights:
+   To control how much each agent influences trades, add an `agent_weights`
+   table mapping agent names to weights:
 
    ```toml
-   [strategy_weights]
-   "solhunter_zero.sniper" = 1.0
-   "solhunter_zero.arbitrage" = 2.0
+   [agent_weights]
+   "simulation" = 1.0
+   "conviction" = 1.0
+   "arbitrage" = 1.0
    ```
 
    Environment variables with the same names override values from the file.
@@ -119,6 +119,21 @@ Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
 `--dry-run` to skip order submission entirely, `--offline` to avoid
 network requests and use a static token list, or `--token-list <file>`
 to load token addresses from a file.
+
+## Agents
+
+The trading logic is implemented by a swarm of small agents:
+
+- **DiscoveryAgent** — finds new token listings using the existing scanners.
+- **SimulationAgent** — runs Monte Carlo simulations per token.
+- **ConvictionAgent** — rates tokens based on expected ROI.
+- **ArbitrageAgent** — detects DEX price discrepancies.
+- **ExitAgent** — proposes sells using trailing stops.
+- **ExecutionAgent** — rate‑limited order executor.
+- **MemoryAgent** — records past trades for analysis.
+
+Agents can be enabled or disabled in the configuration and their impact
+controlled via the `agent_weights` table.
 
 
 ## Requirements
