@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 from typing import Dict, List, Optional
+from builtins import anext
 
 from .scanner_onchain import scan_tokens_onchain
 
@@ -44,13 +45,28 @@ def offline_or_onchain(offline: bool) -> Optional[List[str]]:
     return None
 
 
-async def offline_or_onchain_async(offline: bool) -> Optional[List[str]]:
+async def offline_or_onchain_async(
+    offline: bool, *, method: str = "rest"
+) -> Optional[List[str]]:
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
 
     if not BIRDEYE_API_KEY:
         logger.info("No BirdEye API key set, scanning on-chain")
+        if method == "websocket":
+            from .websocket_scanner import stream_new_tokens
+
+            gen = stream_new_tokens(SOLANA_RPC_URL)
+            try:
+                token = await anext(gen)
+            except StopAsyncIteration:
+                return []
+            finally:
+                await gen.aclose()
+
+            return [token]
+
         return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
 
     return None
