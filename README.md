@@ -116,15 +116,18 @@ submitted:
 ```bash
 python -m solhunter_zero.main \
   --memory-path sqlite:///my.db --loop-delay 30 \
-  --testnet --dry-run --offline
+  --testnet --dry-run --offline \
+  --discovery-method websocket
   --config myconfig.yaml
 ```
 Set the keypair path with the `--keypair` flag or the `KEYPAIR_PATH`
 environment variable if you want to sign orders.
 
-The scanner can pull token information from BirdEye or directly from the
-blockchain. When `BIRDEYE_API_KEY` is set, requests are sent to BirdEye.
-If the key is absent, the scanner queries the blockchain using `SOLANA_RPC_URL`.
+Choose how tokens are discovered with `--discovery-method` (or the
+`DISCOVERY_METHOD` environment variable). Available methods are `onchain`,
+`websocket`, `pools` and `file`.
+The default `websocket` mode uses BirdEye when `BIRDEYE_API_KEY` is set and
+falls back to on-chain scanning otherwise.
 Set the API key like this:
 
 ```bash

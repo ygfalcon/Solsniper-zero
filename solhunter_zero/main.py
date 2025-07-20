@@ -31,12 +31,13 @@ async def _run_iteration(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    discovery_method: str = "websocket",
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
-    tokens = await scan_tokens_async(offline=offline)
+    tokens = await scan_tokens_async(offline=offline, method=discovery_method)
 
 
     # run simulations for scanned tokens in parallel
@@ -103,6 +104,7 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    discovery_method: str = "websocket",
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
     config_path: str | None = None,
@@ -125,6 +127,8 @@ def main(
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+    discovery_method:
+        Token discovery method: onchain, websocket, pools or file.
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
 
@@ -137,6 +141,11 @@ def main(
 
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
+
+    if discovery_method is None:
+        discovery_method = cfg.get("discovery_method")
+    if discovery_method is None:
+        discovery_method = os.getenv("DISCOVERY_METHOD", "websocket")
 
     if stop_loss is None:
         stop_loss = cfg.get("stop_loss")
@@ -157,6 +166,7 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
+                    discovery_method=discovery_method,
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -170,6 +180,7 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
+                    discovery_method=discovery_method,
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -218,6 +229,12 @@ if __name__ == "__main__":
         help="Use a static token list and skip network requests",
     )
     parser.add_argument(
+        "--discovery-method",
+        choices=["onchain", "websocket", "pools", "file"],
+        default=None,
+        help="Token discovery method",
+    )
+    parser.add_argument(
         "--keypair",
         default=os.getenv("KEYPAIR_PATH"),
         help="Path to a JSON keypair for signing transactions",
@@ -252,6 +269,7 @@ if __name__ == "__main__":
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
+        discovery_method=args.discovery_method,
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
         config_path=args.config,
