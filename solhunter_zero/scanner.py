@@ -7,6 +7,10 @@ from typing import List
 
 import requests
 
+from . import dex_scanner
+
+
+
 from . import scanner_common, dex_scanner
 
 from .scanner_common import (
@@ -18,9 +22,8 @@ from .scanner_common import (
     parse_birdeye_tokens,
     scan_tokens_from_file,
 
-    offline_or_onchain,
 
-)
+
 from .scanner_onchain import scan_tokens_onchain
 
 

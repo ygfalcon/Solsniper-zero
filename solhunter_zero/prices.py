@@ -1,10 +1,7 @@
 import os
 import logging
-
-import logging
 import requests
 import aiohttp
-import logging
 
 from typing import Iterable, Dict
 
