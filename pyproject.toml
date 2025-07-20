@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 solhunter-wallet = "solhunter_zero.wallet_cli:main"
+solhunter-backtest = "solhunter_zero.backtest_cli:main"
 
 [build-system]
 requires = ["setuptools>=61"]
