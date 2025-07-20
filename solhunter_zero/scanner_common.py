@@ -1,7 +1,7 @@
 import os
 import logging
 import asyncio
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 
 import requests
 import aiohttp
@@ -22,6 +22,24 @@ BIRDEYE_API = "https://public-api.birdeye.so/defi/tokenlist"
 BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
 SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
 
+# Additional discovery endpoints
+RAYDIUM_LISTINGS_API = os.getenv(
+    "RAYDIUM_LISTINGS_API", "https://api.raydium.io/new-listings"
+)
+ORCA_LISTINGS_API = os.getenv(
+    "ORCA_LISTINGS_API", "https://api.orca.so/new-listings"
+)
+JUPITER_WS_URL = os.getenv("JUPITER_WS_URL", "wss://stats.jup.ag/ws")
+
+# Filtering configuration
+TOKEN_SUFFIX = os.getenv("TOKEN_SUFFIX", "bonk")
+TOKEN_KEYWORDS: List[str] = [
+    k.strip().lower()
+    for k in os.getenv("TOKEN_KEYWORDS", "").split(",")
+    if k.strip()
+]
+VOLUME_THRESHOLD = float(os.getenv("VOLUME_THRESHOLD", "0") or 0)
+
 HEADERS: Dict[str, str] = {}
 if BIRDEYE_API_KEY:
     HEADERS["X-API-KEY"] = BIRDEYE_API_KEY
@@ -31,6 +49,41 @@ else:
     )
 
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
+
+
+def token_matches(
+    address: str,
+    name: str | None = None,
+    volume: float | None = None,
+    *,
+    suffix: str | None = None,
+    keywords: Iterable[str] | None = None,
+    volume_threshold: float | None = None,
+) -> bool:
+    """Return ``True`` if token passes configured filters."""
+
+    if volume_threshold is None:
+        volume_threshold = VOLUME_THRESHOLD
+    if volume is not None and volume_threshold and float(volume) < volume_threshold:
+        return False
+
+    if keywords is None:
+        keywords = TOKEN_KEYWORDS
+    if suffix is None:
+        suffix = TOKEN_SUFFIX
+
+    target = (name or address).lower()
+
+    if keywords:
+        for kw in keywords:
+            if kw and kw.lower() in target:
+                return True
+        return False
+
+    if suffix:
+        return target.endswith(suffix.lower())
+
+    return True
 
 
 def load_tokens_from_file(path: str) -> List[str]:
@@ -45,11 +98,14 @@ def load_tokens_from_file(path: str) -> List[str]:
 
 
 def parse_birdeye_tokens(data: dict) -> List[str]:
-    tokens = [
-        t["address"]
-        for t in data.get("data", [])
-        if t["address"].lower().endswith("bonk")
-    ]
+    tokens: List[str] = []
+    for t in data.get("data", []):
+        addr = t.get("address")
+        name = t.get("name") or t.get("symbol")
+        volume = t.get("volume") or t.get("volume_24h") or t.get("vol24h")
+        if addr and token_matches(addr, name, volume):
+            tokens.append(addr)
+
     logger.info("Found %d candidate tokens", len(tokens))
     return tokens
 
@@ -68,7 +124,9 @@ def parse_trending_tokens(data: dict) -> List[str]:
     tokens: List[str] = []
     for entry in token_list:
         addr = entry.get("address") or entry.get("id") or entry.get("mint")
-        if addr:
+        name = entry.get("name") or entry.get("symbol")
+        vol = entry.get("volume") or entry.get("volume_24h") or entry.get("vol24h")
+        if addr and token_matches(addr, name, vol):
             tokens.append(addr)
     logger.info("Found %d trending tokens", len(tokens))
     return tokens
@@ -98,6 +156,65 @@ async def fetch_trending_tokens_async() -> List[str]:
             return []
 
     return parse_trending_tokens(data)
+
+
+def parse_listing_tokens(data: dict) -> List[str]:
+    """Return token addresses from DEX listing APIs respecting filters."""
+    tokens: List[str] = []
+    for entry in data.get("data", []):
+        addr = entry.get("address") or entry.get("mint")
+        name = entry.get("name") or entry.get("symbol")
+        vol = entry.get("volume") or entry.get("volume_24h") or entry.get("vol24h")
+        if addr and token_matches(addr, name, vol):
+            tokens.append(addr)
+    logger.info("Found %d tokens from listings", len(tokens))
+    return tokens
+
+
+def fetch_raydium_listings() -> List[str]:
+    try:
+        resp = requests.get(RAYDIUM_LISTINGS_API, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Raydium listings: %s", exc)
+        return []
+    return parse_listing_tokens(data)
+
+
+async def fetch_raydium_listings_async() -> List[str]:
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(RAYDIUM_LISTINGS_API, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch Raydium listings: %s", exc)
+            return []
+    return parse_listing_tokens(data)
+
+
+def fetch_orca_listings() -> List[str]:
+    try:
+        resp = requests.get(ORCA_LISTINGS_API, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Orca listings: %s", exc)
+        return []
+    return parse_listing_tokens(data)
+
+
+async def fetch_orca_listings_async() -> List[str]:
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(ORCA_LISTINGS_API, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch Orca listings: %s", exc)
+            return []
+    return parse_listing_tokens(data)
 
 
 def offline_or_onchain(
