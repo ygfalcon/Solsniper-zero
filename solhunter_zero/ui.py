@@ -4,6 +4,9 @@ import os
 import asyncio
 import json
 from flask import Flask, jsonify, request
+from pathlib import Path
+
+from .config import load_config, apply_env_overrides, set_env_from_config
 
 from .prices import fetch_token_prices
 
@@ -19,6 +22,13 @@ from .config import (
     set_env_from_config,
     load_selected_config,
 )
+
+_DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+cfg = load_config()
+if not cfg and _DEFAULT_PRESET.is_file():
+    cfg = load_config(_DEFAULT_PRESET)
+cfg = apply_env_overrides(cfg)
+set_env_from_config(cfg)
 
 app = Flask(__name__)
 

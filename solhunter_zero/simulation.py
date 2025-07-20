@@ -165,6 +165,9 @@ def run_simulations(
         val = dex_metrics.get(key)
         if isinstance(val, (int, float)):
             metrics[key] = float(val)
+
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
