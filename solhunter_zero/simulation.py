@@ -155,6 +155,8 @@ def run_simulations(
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
 
     results: List[SimulationResult] = []
 

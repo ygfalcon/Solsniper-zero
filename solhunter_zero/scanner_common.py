@@ -30,6 +30,7 @@ ORCA_LISTINGS_API = os.getenv(
     "ORCA_LISTINGS_API", "https://api.orca.so/new-listings"
 )
 JUPITER_WS_URL = os.getenv("JUPITER_WS_URL", "wss://stats.jup.ag/ws")
+DEX_LISTING_WS_URL = os.getenv("DEX_LISTING_WS_URL", "")
 
 # Filtering configuration
 TOKEN_SUFFIX = os.getenv("TOKEN_SUFFIX", "bonk")
