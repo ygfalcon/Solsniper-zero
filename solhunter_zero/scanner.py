@@ -22,9 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 
-def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List[str]:
+def scan_tokens(
+    *,
+    offline: bool = False,
+    token_file: str | None = None,
+    method: str = "websocket",
+) -> List[str]:
     """Scan the Solana network for new tokens ending with 'bonk'."""
-    tokens = offline_or_onchain(offline, token_file)
+    tokens = offline_or_onchain(offline, token_file, method=method)
     if tokens is not None:
         return tokens
 
@@ -50,7 +55,12 @@ def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List
 
 
 
-async def scan_tokens_async(*, offline: bool = False, token_file: str | None = None) -> List[str]:
+async def scan_tokens_async(
+    *,
+    offline: bool = False,
+    token_file: str | None = None,
+    method: str = "websocket",
+) -> List[str]:
 
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
     if method == "websocket":
