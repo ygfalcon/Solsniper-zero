@@ -65,6 +65,21 @@ def test_should_buy_slippage_threshold():
     assert should_buy(sims, max_slippage=0.2, min_sharpe=0.0) is True
 
 
+def test_should_buy_volume_spike():
+    sims = [
+        SimulationResult(
+            success_prob=0.8,
+            expected_roi=1.1,
+            volume=200.0,
+            liquidity=200.0,
+            slippage=0.01,
+            volume_spike=2.0,
+        )
+    ]
+    assert should_buy(sims, min_volume_spike=1.5, min_sharpe=0.0) is True
+    assert should_buy(sims, min_volume_spike=3.0, min_sharpe=0.0) is False
+
+
 def test_should_sell_negative_roi():
     sims = [
         SimulationResult(success_prob=0.5, expected_roi=-0.1, volume=200.0, liquidity=500.0),
