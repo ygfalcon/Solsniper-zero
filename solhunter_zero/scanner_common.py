@@ -71,10 +71,9 @@ def offline_or_onchain(
 
 
 async def offline_or_onchain_async(
-    offline: bool,
-    token_file: str | None = None,
-    *,
-    method: str | None = None,
+
+    offline: bool, token_file: str | None = None, *, method: str = "rest"
+
 ) -> Optional[List[str]]:
     if token_file:
         return load_tokens_from_file(token_file)

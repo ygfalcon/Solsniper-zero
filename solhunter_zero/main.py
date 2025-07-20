@@ -33,6 +33,8 @@ async def _run_iteration(
     dry_run: bool = False,
     offline: bool = False,
 
+    discovery_method: str = "websocket",
+
     token_file: str | None = None,
 
     discovery_method: str = "websocket",
@@ -43,12 +45,16 @@ async def _run_iteration(
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
-    
+
     try:
         tokens = await scan_tokens_async(
-            offline=offline, token_file=token_file, method=discovery_method
+            offline=offline,
+            token_file=token_file,
+            method=discovery_method,
         )
     except TypeError:
+        # Backwards compatibility with older scan_tokens_async signature
+
         tokens = await scan_tokens_async(offline=offline, token_file=token_file)
 
 
@@ -61,111 +67,65 @@ async def _run_iteration(
             logging.warning("Volume ranking failed: %s", exc)
 
 
-    # Run Monte Carlo simulations for discovered tokens and current holdings.
-    tokens_to_sim = set(tokens) | set(portfolio.balances.keys())
-    sim_tasks = {
-        token: asyncio.to_thread(run_simulations, token, count=100)
-        for token in tokens_to_sim
-    }
-    sim_results = {tok: await task for tok, task in sim_tasks.items()}
 
-    # Fetch current prices for discovered tokens and any held positions.
-    price_tokens = tokens_to_sim
-    prices = await fetch_token_prices_async(price_tokens)
-
-    for token, sims in sim_results.items():
-        price = prices.get(token)
-        if price is None:
-            continue
-
-        # Decision to buy new token
-        if token in tokens and should_buy(sims):
-            amount = 1.0
+    for token in tokens:
+        sims = run_simulations(token, count=100)
+        if should_buy(sims):
+            price_lookup = await fetch_token_prices_async([token])
+            price = price_lookup.get(token, 0)
+            logging.info("Buying %s", token)
             await place_order_async(
                 token,
-                "buy",
-                amount,
-                price,
+                side="buy",
+                amount=1,
+                price=price,
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
-            memory.log_trade(
-                token=token,
-                direction="buy",
-                amount=amount,
-                price=price,
-                reason="buy",
-            )
-            portfolio.add(token, amount, price)
 
-        # Decision to sell based on simulations
-        elif should_sell(sims) and token in portfolio.balances:
-            amount = portfolio.balances[token].amount
-            await place_order_async(
-                token,
-                "sell",
-                amount,
-                price,
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
-            )
-            memory.log_trade(
-                token=token,
-                direction="sell",
-                amount=amount,
-                price=price,
-                reason="sell",
-            )
-            portfolio.update(token, -amount, price)
+            if not dry_run:
+                memory.log_trade(token=token, direction="buy", amount=1, price=price)
+                portfolio.update(token, 1, price)
 
-    # Stop-loss and take-profit checks for held positions.
+    price_lookup = {}
+    if stop_loss is not None or take_profit is not None:
+        price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+
     for token, pos in list(portfolio.balances.items()):
-        price = prices.get(token)
-        if price is None:
-            continue
-        roi = portfolio.position_roi(token, price)
+        sims = run_simulations(token, count=100)
 
-        if stop_loss is not None and roi <= -stop_loss:
-            amount = pos.amount
+        roi_trigger = False
+        if token in price_lookup:
+            roi = portfolio.position_roi(token, price_lookup[token])
+            if stop_loss is not None and roi <= -stop_loss:
+                roi_trigger = True
+            if take_profit is not None and roi >= take_profit:
+                roi_trigger = True
+
+        if roi_trigger or should_sell(sims):
+            price = price_lookup.get(token, 0)
+            logging.info("Selling %s", token)
             await place_order_async(
                 token,
-                "sell",
-                amount,
-                price,
+                side="sell",
+                amount=pos.amount,
+                price=price,
+
+            memory.log_trade(
+
                 testnet=testnet,
                 dry_run=dry_run,
                 keypair=keypair,
             )
-            memory.log_trade(
-                token=token,
-                direction="sell",
-                amount=amount,
-                price=price,
-                reason="stop-loss",
-            )
-            portfolio.update(token, -amount, price)
 
-        elif take_profit is not None and roi >= take_profit:
-            amount = pos.amount
-            await place_order_async(
-                token,
-                "sell",
-                amount,
-                price,
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
-            )
-            memory.log_trade(
-                token=token,
-                direction="sell",
-                amount=amount,
-                price=price,
-                reason="take-profit",
-            )
-            portfolio.update(token, -amount, price)
+            if not dry_run:
+                memory.log_trade(
+                    token=token, direction="sell", amount=pos.amount, price=price
+                )
+                portfolio.update(token, -pos.amount, price)
+
 
 
 
@@ -207,6 +167,10 @@ def main(
 
     token_file:
         Path to a file containing token addresses to scan.
+
+    discovery_method:
+        How to discover new tokens. One of ``"onchain"``, ``"websocket"``,
+        ``"pools"`` or ``"file"``.
 
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
@@ -316,7 +280,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--discovery-method",
         default=None,
-        help="Token discovery method (websocket, onchain, pools, file)",
+
+        choices=["onchain", "websocket", "pools", "file"],
+        help="Token discovery method",
+
     )
     parser.add_argument(
 
