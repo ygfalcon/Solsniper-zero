@@ -160,6 +160,8 @@ def run_simulations(
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
 
     depth_features = metrics.get("depth_per_dex", []) or []
     slip_features = metrics.get("slippage_per_dex", []) or []
@@ -171,6 +173,9 @@ def run_simulations(
         val = dex_metrics.get(key)
         if isinstance(val, (int, float)):
             metrics[key] = float(val)
+
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
@@ -189,8 +194,14 @@ def run_simulations(
         slippage = float(recent_slippage)
 
 
+    depth_features = metrics.get("depth_per_dex", [])[:2]
+    slip_features = metrics.get("slippage_per_dex", [])[:2]
+
+
+
 
     depth = metrics.get("depth", 0.0)
+
 
     sentiment_val = float(sentiment) if sentiment is not None else float(
         metrics.get("sentiment", 0.0)
@@ -198,6 +209,7 @@ def run_simulations(
     order_strength = float(order_book_strength) if order_book_strength is not None else float(
         metrics.get("order_book_strength", 0.0)
     )
+
 
     results: List[SimulationResult] = []
 
@@ -270,6 +282,7 @@ def run_simulations(
 
         results.append(
             SimulationResult(
+
                 success_prob=success_prob,
                 expected_roi=roi,
                 volume=volume,
@@ -279,6 +292,7 @@ def run_simulations(
                 volume_spike=volume_spike,
                 sentiment=sentiment_val,
                 order_book_strength=order_strength,
+
             )
         )
 

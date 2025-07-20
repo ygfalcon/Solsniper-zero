@@ -40,7 +40,8 @@ arbitrage_amount: 1.0
 
    An example configuration file named `config.example.toml` is included in
    the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
-   values as needed.
+   values as needed. A high risk preset called `config.highrisk.toml` is also
+   provided.
 
    Environment variables with the same names override values from the file.
    You can specify an alternative file with the `--config` command line option
@@ -170,3 +171,6 @@ python -m solhunter_zero.ui
 
 The UI provides **Start** and **Stop** buttons to control the trading loop. It
 is served on `http://localhost:5000` by default.
+When launched without a user configuration file or `SOLHUNTER_CONFIG`
+environment variable, the UI automatically loads the `config.highrisk.toml`
+preset.
