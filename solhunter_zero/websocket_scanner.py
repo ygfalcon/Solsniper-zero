@@ -29,9 +29,14 @@ logger = logging.getLogger(__name__)
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
 
+# Regex used to capture token mints from liquidity pool creation logs
+POOL_TOKEN_RE = re.compile(r"token[AB]:\s*([A-Za-z0-9]{32,44})", re.IGNORECASE)
 
+# Whether to subscribe to pool creation logs as well as mint events
+include_pools = False
 
-from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
+# Program ID for the Serum/Raydium DEX used when scanning pool events
+DEX_PROGRAM_ID = PublicKey("9xQeWvG816bUx9EPB8YVJprFLaDpbZc81FNtdVUL5J7")
 
 
 async def stream_new_tokens(
