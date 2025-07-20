@@ -185,6 +185,13 @@ def run_simulations(
     if recent_slippage is not None:
         slippage = float(recent_slippage)
 
+
+    depth_features = metrics.get("depth_per_dex", [])[:2]
+    slip_features = metrics.get("slippage_per_dex", [])[:2]
+
+
+
+
     depth = metrics.get("depth", 0.0)
 
     depth_features = metrics.get("depth_per_dex", [])[:2]

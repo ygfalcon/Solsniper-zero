@@ -15,6 +15,11 @@ def test_start_and_stop(monkeypatch):
 
     monkeypatch.setattr(ui, "trading_loop", fake_loop)
     monkeypatch.setattr(ui, "loop_delay", 0)
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
+    monkeypatch.setenv("DEX_BASE_URL", "x")
 
     client = ui.app.test_client()
 
@@ -66,6 +71,9 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
     monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.setattr(ui.wallet, "load_selected_keypair", lambda: None)
     monkeypatch.setattr(ui.wallet, "load_keypair", lambda path: None)
     monkeypatch.setattr(ui, "loop_delay", 0)
@@ -89,6 +97,9 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.setattr(ui.wallet, "load_selected_keypair", lambda: None)
 
     sentinel = object()
@@ -129,4 +140,18 @@ def test_get_and_set_risk_params(monkeypatch):
     assert os.getenv("RISK_TOLERANCE") == "0.2"
     assert os.getenv("MAX_ALLOCATION") == "0.3"
     assert os.getenv("RISK_MULTIPLIER") == "1.5"
+
+
+def test_start_requires_env(monkeypatch):
+    monkeypatch.setattr(ui, "trading_loop", lambda: None)
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
+    monkeypatch.delenv("DEX_BASE_URL", raising=False)
+    client = ui.app.test_client()
+    resp = client.post("/start")
+    assert resp.status_code == 400
+    msg = resp.get_json()["message"]
+    assert "BIRDEYE_API_KEY" in msg and "DEX_BASE_URL" in msg
 
