@@ -14,7 +14,7 @@ set_env_from_config(_cfg)
 from .scanner import scan_tokens_async
 
 from .simulation import run_simulations
-from .decision import should_buy
+from .decision import should_buy, should_sell
 from .memory import Memory
 from .portfolio import Portfolio
 from .exchange import place_order_async
@@ -50,6 +50,23 @@ async def _run_iteration(
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=1, price=0)
                 portfolio.update(token, 1, 0)
+
+    for token, pos in list(portfolio.balances.items()):
+        sims = run_simulations(token, count=100)
+        if should_sell(sims):
+            logging.info("Selling %s", token)
+            await place_order_async(
+                token,
+                side="sell",
+                amount=pos.amount,
+                price=0,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            if not dry_run:
+                memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
+                portfolio.update(token, -pos.amount, 0)
 
 
 def main(

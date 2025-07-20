@@ -1,6 +1,7 @@
 import pytest
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
+import asyncio
 
 
 def test_main_invokes_place_order(monkeypatch):
@@ -74,4 +75,33 @@ def test_main_offline(monkeypatch):
         main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
 
     assert recorded["offline"] is True
+
+
+def test_run_iteration_sells(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    pf.add("tok", 2, 1.0)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False):
+        return []
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.2, -0.1)])
+    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
+    monkeypatch.setattr(main_module, "should_sell", lambda sims: True)
+
+    called = {}
+
+    async def fake_place_order_async(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+        return {"order_id": "1"}
+
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
+
+    assert called["args"][0] == "tok"
+    assert called["args"][1] == "sell"
 
