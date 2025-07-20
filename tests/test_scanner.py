@@ -29,12 +29,13 @@ def test_scan_tokens_birdeye(monkeypatch):
         return FakeResponse(data)
 
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['trend'])
     scanner_common.BIRDEYE_API_KEY = "test"
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "test"
 
     tokens = scanner.scan_tokens()
-    assert tokens == ['abcbonk', 'xyzBONK']
+    assert tokens == ['abcbonk', 'xyzBONK', 'trend']
     assert captured['headers'] == scanner.HEADERS
 
 
@@ -48,6 +49,7 @@ def test_scan_tokens_offline(monkeypatch):
         return FakeResponse({}, 200)
 
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: (_ for _ in ()).throw(AssertionError('trending')))
 
     tokens = scanner.scan_tokens(offline=True)
     assert tokens == scanner.OFFLINE_TOKENS
@@ -66,13 +68,14 @@ def test_scan_tokens_onchain_when_no_key(monkeypatch):
 
     monkeypatch.setattr(scanner_common, 'scan_tokens_onchain', fake_onchain)
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['t2'])
 
     scanner_common.BIRDEYE_API_KEY = None
     scanner_common.HEADERS.clear()
     scanner_common.SOLANA_RPC_URL = 'http://node'
 
     tokens = scanner.scan_tokens()
-    assert tokens == ['tok']
+    assert tokens == ['tok', 't2']
     assert captured['url'] == 'http://node'
 
 
@@ -102,12 +105,16 @@ def test_scan_tokens_async(monkeypatch):
             return FakeResp()
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    async def fake_trend():
+        return ['trend']
+    import solhunter_zero.async_scanner as async_scanner_mod
+    monkeypatch.setattr(async_scanner_mod, 'fetch_trending_tokens_async', fake_trend)
     scanner_async_module = __import__('solhunter_zero.async_scanner', fromlist=[''])
     scanner_common.BIRDEYE_API_KEY = 'key'
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "key"
     tokens = asyncio.run(async_scan())
-    assert tokens == ["abcbonk", "otherbonk"]
+    assert tokens == ["abcbonk", "otherbonk", "trend"]
 
 
 def test_scan_tokens_from_file(monkeypatch, tmp_path):
@@ -119,6 +126,11 @@ def test_scan_tokens_from_file(monkeypatch, tmp_path):
 
     monkeypatch.setattr(scanner.requests, "get", fake_get)
     monkeypatch.setattr(scanner_common, "scan_tokens_onchain", lambda _: ["x"])  # should not be called
+    monkeypatch.setattr(
+        scanner,
+        "fetch_trending_tokens",
+        lambda: (_ for _ in ()).throw(AssertionError("trending")),
+    )
 
     tokens = scanner.scan_tokens(token_file=str(path))
     assert tokens == ["tok1", "tok2"]
@@ -132,6 +144,10 @@ def test_scan_tokens_async_from_file(monkeypatch, tmp_path):
         raise AssertionError("network should not be used")
 
     monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def fail():
+        raise AssertionError("trending")
+    import solhunter_zero.async_scanner as async_scanner_mod
+    monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fail)
 
     tokens = asyncio.run(async_scan(token_file=str(path)))
     assert tokens == ["a", "b"]

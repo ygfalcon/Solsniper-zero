@@ -241,6 +241,12 @@ def test_discovery_methods(monkeypatch, method, target):
     else:
         monkeypatch.setattr(target, fake_sync)
 
+    import solhunter_zero.scanner as scanner_mod
+    monkeypatch.setattr(scanner_mod, "fetch_trending_tokens", lambda: [])
+    async def fake_trend():
+        return []
+    monkeypatch.setattr(scanner_mod, "fetch_trending_tokens_async", fake_trend)
+
     monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: False)
