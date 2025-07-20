@@ -1,4 +1,5 @@
 from solhunter_zero import scanner
+from solhunter_zero import scanner_common
 
 class FakeResponse:
     def __init__(self, data, status_code=200):
@@ -28,8 +29,9 @@ def test_scan_tokens_birdeye(monkeypatch):
         return FakeResponse(data)
 
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
-    scanner.BIRDEYE_API_KEY = "test"
-    scanner.HEADERS = {"X-API-KEY": "test"}
+    scanner_common.BIRDEYE_API_KEY = "test"
+    scanner_common.HEADERS.clear()
+    scanner_common.HEADERS["X-API-KEY"] = "test"
 
     tokens = scanner.scan_tokens()
     assert tokens == ['abcbonk', 'xyzBONK']
@@ -62,12 +64,12 @@ def test_scan_tokens_onchain_when_no_key(monkeypatch):
     def fake_get(*args, **kwargs):
         raise AssertionError('should not call BirdEye')
 
-    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_onchain)
+    monkeypatch.setattr(scanner_common, 'scan_tokens_onchain', fake_onchain)
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
 
-    scanner.BIRDEYE_API_KEY = None
-    scanner.HEADERS = {}
-    scanner.SOLANA_RPC_URL = 'http://node'
+    scanner_common.BIRDEYE_API_KEY = None
+    scanner_common.HEADERS.clear()
+    scanner_common.SOLANA_RPC_URL = 'http://node'
 
     tokens = scanner.scan_tokens()
     assert tokens == ['tok']
@@ -101,7 +103,8 @@ def test_scan_tokens_async(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     scanner_async_module = __import__('solhunter_zero.async_scanner', fromlist=[''])
-    scanner_async_module.BIRDEYE_API_KEY = 'key'
-    scanner_async_module.HEADERS = {"X-API-KEY": "key"}
+    scanner_common.BIRDEYE_API_KEY = 'key'
+    scanner_common.HEADERS.clear()
+    scanner_common.HEADERS["X-API-KEY"] = "key"
     tokens = asyncio.run(async_scan())
     assert tokens == ["abcbonk", "otherbonk"]
