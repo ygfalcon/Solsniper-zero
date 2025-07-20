@@ -33,6 +33,8 @@ async def _run_iteration(
     dry_run: bool = False,
     offline: bool = False,
 
+    discovery_method: str = "websocket",
+
     token_file: str | None = None,
 
     keypair=None,
@@ -41,8 +43,15 @@ async def _run_iteration(
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
-    
-    tokens = await scan_tokens_async(offline=offline, token_file=token_file)
+    try:
+        tokens = await scan_tokens_async(
+            offline=offline,
+            token_file=token_file,
+            method=discovery_method,
+        )
+    except TypeError:
+        # Backwards compatibility with older scan_tokens_async signature
+        tokens = await scan_tokens_async(offline=offline, token_file=token_file)
 
 
     rpc_url = os.getenv("SOLANA_RPC_URL")
@@ -56,6 +65,55 @@ async def _run_iteration(
 
     for token in tokens:
         sims = run_simulations(token, count=100)
+        if should_buy(sims):
+            price_lookup = await fetch_token_prices_async([token])
+            price = price_lookup.get(token, 0)
+            logging.info("Buying %s", token)
+            await place_order_async(
+                token,
+                side="buy",
+                amount=1,
+                price=price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            if not dry_run:
+                memory.log_trade(token=token, direction="buy", amount=1, price=price)
+                portfolio.update(token, 1, price)
+
+    price_lookup = {}
+    if stop_loss is not None or take_profit is not None:
+        price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+
+    for token, pos in list(portfolio.balances.items()):
+        sims = run_simulations(token, count=100)
+
+        roi_trigger = False
+        if token in price_lookup:
+            roi = portfolio.position_roi(token, price_lookup[token])
+            if stop_loss is not None and roi <= -stop_loss:
+                roi_trigger = True
+            if take_profit is not None and roi >= take_profit:
+                roi_trigger = True
+
+        if roi_trigger or should_sell(sims):
+            price = price_lookup.get(token, 0)
+            logging.info("Selling %s", token)
+            await place_order_async(
+                token,
+                side="sell",
+                amount=pos.amount,
+                price=price,
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+            if not dry_run:
+                memory.log_trade(
+                    token=token, direction="sell", amount=pos.amount, price=price
+                )
+                portfolio.update(token, -pos.amount, price)
 
 
 
@@ -67,6 +125,8 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+
+    discovery_method: str | None = None,
 
     token_file: str | None = None,
 
@@ -95,6 +155,10 @@ def main(
 
     token_file:
         Path to a file containing token addresses to scan.
+
+    discovery_method:
+        How to discover new tokens. One of ``"onchain"``, ``"websocket"``,
+        ``"pools"`` or ``"file"``.
 
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
@@ -135,6 +199,7 @@ def main(
                     offline=offline,
 
                     token_file=token_file,
+                    discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -151,6 +216,7 @@ def main(
                     offline=offline,
 
                     token_file=token_file,
+                    discovery_method=discovery_method,
 
                     keypair=keypair,
                     stop_loss=stop_loss,
@@ -200,6 +266,12 @@ if __name__ == "__main__":
         help="Use a static token list and skip network requests",
     )
     parser.add_argument(
+        "--discovery-method",
+        default=None,
+        choices=["onchain", "websocket", "pools", "file"],
+        help="Token discovery method",
+    )
+    parser.add_argument(
 
         "--token-list",
         default=None,
@@ -244,6 +316,7 @@ if __name__ == "__main__":
         offline=args.offline,
 
         token_file=args.token_list,
+        discovery_method=args.discovery_method,
 
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
