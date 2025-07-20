@@ -1,11 +1,14 @@
+
 import asyncio
 import requests
 from solhunter_zero import prices
+
 
 class FakeResponse:
     def __init__(self, data, status_code=200):
         self._data = data
         self.status_code = status_code
+
         self.text = "resp"
 
     def raise_for_status(self):
@@ -58,3 +61,4 @@ def test_fetch_token_prices_async(monkeypatch):
     result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
     assert result == {"tok": 1.5}
     assert "tok" in captured["url"]
+

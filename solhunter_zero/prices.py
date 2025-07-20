@@ -1,7 +1,13 @@
 import os
+
 import requests
 import aiohttp
+
 from typing import Iterable, Dict
+
+import requests
+
+logger = logging.getLogger(__name__)
 
 PRICE_API_BASE_URL = os.getenv("PRICE_API_URL", "https://price.jup.ag")
 PRICE_API_PATH = "/v4/price"
@@ -15,9 +21,13 @@ def fetch_token_prices(tokens: Iterable[str]) -> Dict[str, float]:
 
     ids = ",".join(token_list)
     url = f"{PRICE_API_BASE_URL}{PRICE_API_PATH}?ids={ids}"
-    resp = requests.get(url, timeout=10)
-    resp.raise_for_status()
-    data = resp.json().get("data", {})
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json().get("data", {})
+    except requests.RequestException as exc:
+        logger.warning("Failed to fetch token prices: %s", exc)
+        return {}
     prices = {}
     for token, info in data.items():
         price = info.get("price")

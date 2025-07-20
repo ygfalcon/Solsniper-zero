@@ -2,6 +2,7 @@ import threading
 import time
 import os
 import json
+import asyncio
 from flask import Flask, jsonify, request
 
 from .prices import fetch_token_prices
@@ -33,13 +34,15 @@ def trading_loop() -> None:
 
     while not stop_event.is_set():
         keypair = wallet.load_selected_keypair()
-        main_module._run_iteration(
-            memory,
-            portfolio,
-            testnet=False,
-            dry_run=False,
-            offline=False,
-            keypair=keypair,
+        asyncio.run(
+            main_module._run_iteration(
+                memory,
+                portfolio,
+                testnet=False,
+                dry_run=False,
+                offline=False,
+                keypair=keypair,
+            )
         )
         for _ in range(loop_delay):
             if stop_event.is_set():

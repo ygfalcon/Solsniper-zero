@@ -3,6 +3,7 @@ import os
 from solders.keypair import Keypair
 from solhunter_zero import ui
 from solhunter_zero.portfolio import Position
+import threading
 
 
 def test_start_and_stop(monkeypatch):
@@ -53,4 +54,27 @@ def test_balances_includes_usd(monkeypatch):
     assert data["tok"]["price"] == 3.0
     assert data["tok"]["usd"] == 6.0
     assert data["tok"]["amount"] == 2
+
+
+def test_trading_loop_awaits_run_iteration(monkeypatch):
+    calls = []
+
+    async def fake_run_iteration(*args, **kwargs):
+        calls.append(True)
+        ui.stop_event.set()
+
+    monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
+    monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
+    monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
+    monkeypatch.setattr(ui.wallet, "load_selected_keypair", lambda: None)
+    monkeypatch.setattr(ui.wallet, "load_keypair", lambda path: None)
+    monkeypatch.setattr(ui, "loop_delay", 0)
+
+    ui.stop_event.clear()
+
+    thread = threading.Thread(target=ui.trading_loop, daemon=True)
+    thread.start()
+    thread.join(timeout=1)
+
+    assert calls
 
