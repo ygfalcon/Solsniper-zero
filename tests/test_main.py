@@ -19,10 +19,12 @@ def _stub_arbitrage(monkeypatch):
 
 
 def test_main_invokes_place_order(monkeypatch):
-    async def fake_scan_tokens_async(offline=False, token_file=None):
+    async def fake_discover_tokens(self, *_a, **_k):
         return ["tok"]
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -63,13 +65,13 @@ def test_main_invokes_place_order(monkeypatch):
 def test_main_offline(monkeypatch):
     recorded = {}
 
-
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
-
+    async def fake_discover_tokens(self, *, offline=False, token_file=None, method=None):
         recorded["offline"] = offline
         return ["tok"]
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -104,11 +106,12 @@ def test_run_iteration_sells(monkeypatch):
     mem = main_module.Memory("sqlite:///:memory:")
 
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
-
+    async def fake_discover_tokens(self, *_a, **_k):
         return []
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -141,11 +144,12 @@ def test_run_iteration_stop_loss(monkeypatch):
     mem = main_module.Memory("sqlite:///:memory:")
 
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
-
+    async def fake_discover_tokens(self, *_a, **_k):
         return []
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -178,11 +182,12 @@ def test_run_iteration_take_profit(monkeypatch):
     mem = main_module.Memory("sqlite:///:memory:")
 
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
-
+    async def fake_discover_tokens(self, *_a, **_k):
         return []
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -212,15 +217,19 @@ def test_run_iteration_take_profit(monkeypatch):
 @pytest.mark.parametrize(
     "method, target",
     [
-        ("onchain", "solhunter_zero.scanner.scan_tokens_onchain"),
+        ("onchain", "solhunter_zero.scanner_onchain.scan_tokens_onchain"),
         ("websocket", "solhunter_zero.websocket_scanner.stream_new_tokens"),
         ("mempool", "solhunter_zero.mempool_scanner.stream_mempool_tokens"),
-        ("pools", "solhunter_zero.scanner.scan_tokens_from_pools"),
-        ("file", "solhunter_zero.scanner.scan_tokens_from_file"),
+        ("pools", "solhunter_zero.scanner_common.scan_tokens_from_pools"),
+        ("file", "solhunter_zero.scanner_common.scan_tokens_from_file"),
     ],
 )
 def test_discovery_methods(monkeypatch, method, target):
     called = {}
+
+    import solhunter_zero.scanner_common as scanner_common
+    scanner_common.BIRDEYE_API_KEY = None
+    scanner_common.HEADERS.clear()
 
     async def fake_async(*_a, **_k):
         called["called"] = True
@@ -242,11 +251,25 @@ def test_discovery_methods(monkeypatch, method, target):
     else:
         monkeypatch.setattr(target, fake_sync)
 
-    import solhunter_zero.scanner as scanner_mod
-    monkeypatch.setattr(scanner_mod, "fetch_trending_tokens", lambda: [])
+    import solhunter_zero.async_scanner as async_scanner_mod
     async def fake_trend():
         return []
-    monkeypatch.setattr(scanner_mod, "fetch_trending_tokens_async", fake_trend)
+    monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fake_trend)
+    monkeypatch.setattr(async_scanner_mod, "fetch_raydium_listings_async", fake_trend)
+    monkeypatch.setattr(async_scanner_mod, "fetch_orca_listings_async", fake_trend)
+
+    method_name = method
+
+    async def fake_discover_tokens(self, *, offline=False, token_file=None, method=None):
+        return await async_scanner_mod.scan_tokens_async(
+            offline=offline,
+            token_file=token_file,
+            method=method or method_name,
+        )
+
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -276,10 +299,12 @@ def test_run_iteration_arbitrage(monkeypatch):
     pf = main_module.Portfolio(path=None)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
+    async def fake_discover_tokens(self, *_a, **_k):
         return ["tok"]
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
@@ -317,10 +342,12 @@ def test_trade_size_scales_with_portfolio_value(monkeypatch):
     pf.add("hold", 1, 1.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
+    async def fake_discover_tokens(self, *_a, **_k):
         return ["tok"]
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
     monkeypatch.setattr(
         main_module,
         "run_simulations",
@@ -361,10 +388,12 @@ def test_trade_size_scales_with_risk(monkeypatch):
     pf.add("hold", 1, 1.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None):
+    async def fake_discover_tokens(self, *_a, **_k):
         return ["tok"]
 
-    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
     monkeypatch.setattr(
         main_module,
         "run_simulations",

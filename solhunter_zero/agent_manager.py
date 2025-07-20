@@ -5,6 +5,8 @@ from typing import Iterable, Dict, Any, List
 
 from .agents import BaseAgent
 from .agents.execution import ExecutionAgent
+from .agents.discovery import DiscoveryAgent
+from .scanner import scan_tokens_async
 
 
 class AgentManager:
@@ -31,3 +33,32 @@ class AgentManager:
         for action in actions:
             results.append(await self.executor.execute(action))
         return results
+
+    async def discover_tokens(
+        self,
+        *,
+        offline: bool = False,
+        token_file: str | None = None,
+        method: str = "websocket",
+    ) -> List[str]:
+        """Return candidate tokens using the discovery agent if available."""
+
+        for agent in self.agents:
+            if isinstance(agent, DiscoveryAgent):
+                try:
+                    return await agent.discover_tokens(
+                        offline=offline, token_file=token_file, method=method
+                    )
+                except TypeError:
+                    return await agent.discover_tokens(
+                        offline=offline, token_file=token_file
+                    )
+
+        try:
+            return await scan_tokens_async(
+                offline=offline, token_file=token_file, method=method
+            )
+        except TypeError:
+            return await scan_tokens_async(
+                offline=offline, token_file=token_file
+            )
