@@ -34,6 +34,7 @@ def test_run_simulations_uses_metrics(monkeypatch):
     assert results[0].volume == pytest.approx(123.0)
     assert results[0].liquidity == pytest.approx(456.0)
     assert results[0].slippage == pytest.approx(0.01)
+    assert results[0].volume_spike == pytest.approx(1.0)
 
 
 def test_fetch_token_metrics_base_url(monkeypatch):
@@ -82,3 +83,20 @@ def test_run_simulations_volume_filter(monkeypatch):
 
     results = simulation.run_simulations("tok", count=1, min_volume=100.0)
     assert results == []
+
+
+def test_run_simulations_recent_volume(monkeypatch):
+    def fake_metrics(token):
+        return {
+            "mean": 0.01,
+            "volatility": 0.02,
+            "volume": 50.0,
+            "liquidity": 100.0,
+            "slippage": 0.05,
+        }
+
+    monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+
+    results = simulation.run_simulations("tok", count=1, recent_volume=150.0)
+    assert results[0].volume == pytest.approx(150.0)
+    assert results[0].volume_spike == pytest.approx(3.0)
