@@ -14,6 +14,7 @@ from solana.rpc.websocket_api import (
 )
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
+from .dex_scanner import DEX_PROGRAM_ID
 
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,13 @@ NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
 
 
-async def stream_new_tokens(rpc_url: str, suffix: str = "bonk") -> AsyncGenerator[str, None]:
-    """Yield new token mint addresses whose name ends with ``suffix``.
+POOL_TOKEN_RE = re.compile(r"token[AB]:\s*(\S+)", re.IGNORECASE)
+
+
+async def stream_new_tokens(
+    rpc_url: str, *, suffix: str = "bonk", include_pools: bool = True
+) -> AsyncGenerator[str, None]:
+    """Yield new token mint addresses or pool tokens matching ``suffix``.
 
     Parameters
     ----------
@@ -42,6 +48,10 @@ async def stream_new_tokens(rpc_url: str, suffix: str = "bonk") -> AsyncGenerato
         await ws.logs_subscribe(
             RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key)
         )
+        if include_pools:
+            await ws.logs_subscribe(
+                RpcTransactionLogsFilterMentions(PublicKey(str(DEX_PROGRAM_ID))._key)
+            )
 
         while True:
             try:
@@ -60,20 +70,32 @@ async def stream_new_tokens(rpc_url: str, suffix: str = "bonk") -> AsyncGenerato
                     except Exception:
                         continue
 
-                if not any("InitializeMint" in l for l in logs):
-                    continue
+                tokens = set()
 
-                name = None
-                mint = None
-                for log_line in logs:
-                    if name is None:
-                        m = NAME_RE.search(log_line)
-                        if m:
-                            name = m.group(1)
-                    if mint is None:
-                        m = MINT_RE.search(log_line)
-                        if m:
-                            mint = m.group(1)
+                if any("InitializeMint" in l for l in logs):
+                    name = None
+                    mint = None
+                    for log_line in logs:
+                        if name is None:
+                            m = NAME_RE.search(log_line)
+                            if m:
+                                name = m.group(1)
+                        if mint is None:
+                            m = MINT_RE.search(log_line)
+                            if m:
+                                mint = m.group(1)
 
-                if name and mint and name.lower().endswith(suffix):
-                    yield mint
+                    if name and mint and name.lower().endswith(suffix):
+                        tokens.add(mint)
+
+                if include_pools:
+                    for log_line in logs:
+                        m = POOL_TOKEN_RE.search(log_line)
+                        if m:
+                            tok = m.group(1)
+                            if tok.lower().endswith(suffix):
+                                tokens.add(tok)
+
+                for token in tokens:
+                    yield token
+

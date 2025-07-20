@@ -13,30 +13,16 @@ class FakeResponse:
     def json(self):
         return self._data
 
-def test_scan_tokens_birdeye(monkeypatch):
-    data = {
-        'data': [
-            {'address': 'abcbonk'},
-            {'address': 'xyzBONK'},
-            {'address': 'other'},
-        ]
-    }
+def test_scan_tokens_websocket(monkeypatch):
+    async def fake_stream(url, *, suffix="bonk", include_pools=True):
+        yield "webbonk"
 
-    captured = {}
-
-    def fake_get(url, headers=None, timeout=10):
-        captured['headers'] = headers
-        return FakeResponse(data)
-
-    monkeypatch.setattr(scanner.requests, 'get', fake_get)
-    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['trend'])
-    scanner_common.BIRDEYE_API_KEY = "test"
-    scanner_common.HEADERS.clear()
-    scanner_common.HEADERS["X-API-KEY"] = "test"
+    monkeypatch.setattr("solhunter_zero.websocket_scanner.stream_new_tokens", fake_stream)
+    monkeypatch.setattr(scanner, "fetch_trending_tokens", lambda: ["trend"])
+    scanner_common.SOLANA_RPC_URL = "ws://node"
 
     tokens = scanner.scan_tokens()
-    assert tokens == ['abcbonk', 'xyzBONK', 'trend']
-    assert captured['headers'] == scanner.HEADERS
+    assert tokens == ["webbonk", "trend"]
 
 
 
@@ -48,6 +34,7 @@ def test_scan_tokens_offline(monkeypatch):
         called['called'] = True
         return FakeResponse({}, 200)
 
+    monkeypatch.setattr("solhunter_zero.websocket_scanner.stream_new_tokens", lambda *a, **k: (_ for _ in ()).throw(AssertionError('ws')))
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
     monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: (_ for _ in ()).throw(AssertionError('trending')))
 
@@ -56,7 +43,7 @@ def test_scan_tokens_offline(monkeypatch):
     assert 'called' not in called
 
 
-def test_scan_tokens_onchain_when_no_key(monkeypatch):
+def test_scan_tokens_onchain(monkeypatch):
     captured = {}
 
     def fake_onchain(url):
@@ -66,15 +53,13 @@ def test_scan_tokens_onchain_when_no_key(monkeypatch):
     def fake_get(*args, **kwargs):
         raise AssertionError('should not call BirdEye')
 
-    monkeypatch.setattr(scanner_common, 'scan_tokens_onchain', fake_onchain)
+    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_onchain)
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
     monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['t2'])
 
-    scanner_common.BIRDEYE_API_KEY = None
-    scanner_common.HEADERS.clear()
     scanner_common.SOLANA_RPC_URL = 'http://node'
 
-    tokens = scanner.scan_tokens()
+    tokens = scanner.scan_tokens(method="onchain")
     assert tokens == ['tok', 't2']
     assert captured['url'] == 'http://node'
 
