@@ -62,17 +62,19 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
             max_drawdown=float(os.getenv("MAX_DRAWDOWN", "1.0")),
             volatility_factor=float(os.getenv("VOLATILITY_FACTOR", "1.0")),
             risk_multiplier=float(os.getenv("RISK_MULTIPLIER", "1.0")),
+            min_portfolio_value=float(os.getenv("MIN_PORTFOLIO_VALUE", "20")),
         )
 
+        balance = portfolio.total_value(prices)
         adj = rm.adjusted(
             drawdown=drawdown,
             volatility=volatility,
             volume_spike=getattr(sims[0], "volume_spike", 1.0),
             depth_change=getattr(sims[0], "depth_change", 0.0),
             whale_activity=getattr(sims[0], "whale_activity", 0.0),
+            portfolio_value=balance,
         )
 
-        balance = portfolio.total_value(prices)
         allocation = portfolio.percent_allocated(token, prices)
 
         amount = calculate_order_size(
@@ -86,6 +88,7 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
             max_drawdown=adj.max_drawdown,
             volatility_factor=adj.volatility_factor,
             current_allocation=allocation,
+            min_portfolio_value=adj.min_portfolio_value,
         )
         if amount > 0:
             actions.append({"token": token, "side": "buy", "amount": amount, "price": price})

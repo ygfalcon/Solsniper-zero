@@ -68,3 +68,35 @@ def test_risk_manager_new_metrics():
     low = rm.adjusted(0.0, 0.0, depth_change=-1.0, whale_activity=1.0)
     assert high.risk_tolerance > base.risk_tolerance
     assert low.risk_tolerance < base.risk_tolerance
+
+
+def test_low_portfolio_scales_risk():
+    rm = RiskManager(
+        risk_tolerance=0.1,
+        max_allocation=0.2,
+        max_risk_per_token=0.2,
+        min_portfolio_value=20.0,
+    )
+    high = rm.adjusted(0.0, 0.0, portfolio_value=100.0)
+    low = rm.adjusted(0.0, 0.0, portfolio_value=10.0)
+    assert low.risk_tolerance < high.risk_tolerance
+    size_low = calculate_order_size(
+        10.0,
+        1.0,
+        0.0,
+        0.0,
+        risk_tolerance=low.risk_tolerance,
+        max_allocation=low.max_allocation,
+        max_risk_per_token=low.max_risk_per_token,
+        min_portfolio_value=low.min_portfolio_value,
+    )
+    assert size_low < calculate_order_size(
+        100.0,
+        1.0,
+        0.0,
+        0.0,
+        risk_tolerance=high.risk_tolerance,
+        max_allocation=high.max_allocation,
+        max_risk_per_token=high.max_risk_per_token,
+        min_portfolio_value=high.min_portfolio_value,
+    )

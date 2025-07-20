@@ -150,9 +150,12 @@ async def _run_iteration(
                         "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
                         "max_drawdown": max_drawdown,
                         "volatility_factor": volatility_factor,
-                        "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
-                    }
-                )
+
+                    "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
+                    "min_portfolio_value": os.getenv("MIN_PORTFOLIO_VALUE", "20"),
+                }
+            )
+
                 first_sim = sims[0] if sims else None
                 params = rm.adjusted(
                     drawdown,
@@ -160,6 +163,9 @@ async def _run_iteration(
                     volume_spike=getattr(first_sim, "volume_spike", 1.0),
                     depth_change=getattr(first_sim, "depth_change", 0.0),
                     whale_activity=getattr(first_sim, "whale_activity", 0.0),
+
+                    portfolio_value=balance,
+
                 )
 
                 amount = calculate_order_size(
@@ -173,6 +179,9 @@ async def _run_iteration(
                     max_drawdown=max_drawdown,
                     volatility_factor=volatility_factor,
                     current_allocation=alloc,
+
+                    min_portfolio_value=params.min_portfolio_value,
+
                 )
                 await place_order_async(
                     token,
@@ -232,6 +241,18 @@ async def _run_iteration(
             strategy_manager = StrategyManager()
 
         for token in tokens:
+            if arbitrage_amount > 0 and arbitrage_threshold > 0:
+                try:
+                    await arbitrage.detect_and_execute_arbitrage(
+                        token,
+                        threshold=arbitrage_threshold,
+                        amount=arbitrage_amount,
+                        testnet=testnet,
+                        dry_run=dry_run,
+                        keypair=keypair,
+                    )
+                except Exception as exc:  # pragma: no cover - network errors
+                    logging.warning("Arbitrage check failed: %s", exc)
             try:
                 actions = await strategy_manager.evaluate(token, portfolio)
             except Exception as exc:  # pragma: no cover - strategy errors
@@ -258,19 +279,7 @@ async def _run_iteration(
                     memory.log_trade(token=token, direction=side, amount=amount, price=price)
                     portfolio.update(token, amount if side == "buy" else -amount, price)
 
-            sims = run_simulations(token, count=100)
-            if arbitrage_amount > 0 and arbitrage_threshold > 0:
-                try:
-                    await arbitrage.detect_and_execute_arbitrage(
-                        token,
-                        threshold=arbitrage_threshold,
-                        amount=arbitrage_amount,
-                        testnet=testnet,
-                        dry_run=dry_run,
-                        keypair=keypair,
-                    )
-                except Exception as exc:  # pragma: no cover - network errors
-                    logging.warning("Arbitrage check failed: %s", exc)
+
 
 
 
@@ -376,12 +385,9 @@ def main(
     if strategies is None:
         strategies = cfg.get("strategies")
         if isinstance(strategies, str):
-            strategies = [s.strip() for s in strategies.split(',') if s.strip()]
-    strategy_weights = cfg.get("strategy_weights")
-    if isinstance(strategy_weights, dict):
-        strategy_weights = {k: float(v) for k, v in strategy_weights.items()}
-    else:
-        strategy_weights = None
+
+            strategies = [s.strip() for s in strategies.split(",") if s.strip()]
+
     if market_ws_url is None:
         market_ws_url = cfg.get("market_ws_url")
     if market_ws_url is None:
@@ -400,7 +406,9 @@ def main(
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
 
-    strategy_manager = StrategyManager(strategies, weights=strategy_weights)
+
+    strategy_manager = StrategyManager(strategies)
+
 
     if keypair_path:
         keypair = load_keypair(keypair_path)

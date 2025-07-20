@@ -13,6 +13,7 @@ class RiskManager:
     max_drawdown: float = 1.0
     volatility_factor: float = 1.0
     risk_multiplier: float = 1.0
+    min_portfolio_value: float = 20.0
 
     @classmethod
     def from_config(cls, cfg: dict) -> "RiskManager":
@@ -24,6 +25,7 @@ class RiskManager:
             max_drawdown=float(cfg.get("max_drawdown", 1.0)),
             volatility_factor=float(cfg.get("volatility_factor", 1.0)),
             risk_multiplier=float(cfg.get("risk_multiplier", 1.0)),
+            min_portfolio_value=float(cfg.get("min_portfolio_value", 20.0)),
         )
 
     def adjusted(
@@ -34,6 +36,7 @@ class RiskManager:
         volume_spike: float = 1.0,
         depth_change: float = 0.0,
         whale_activity: float = 0.0,
+        portfolio_value: float | None = None,
     ) -> "RiskManager":
         """Return a new ``RiskManager`` with parameters adjusted for conditions."""
 
@@ -44,11 +47,16 @@ class RiskManager:
         scale /= 1 + abs(depth_change)
         scale /= 1 + whale_activity
         scale *= self.risk_multiplier
+
+        if portfolio_value is not None and portfolio_value < self.min_portfolio_value:
+            pv_scale = max(0.0, portfolio_value / self.min_portfolio_value)
+            scale *= pv_scale
         return RiskManager(
             risk_tolerance=self.risk_tolerance * scale,
             max_allocation=self.max_allocation * scale,
-            max_risk_per_token=self.max_risk_per_token * self.risk_multiplier,
+            max_risk_per_token=self.max_risk_per_token * scale,
             max_drawdown=self.max_drawdown,
             volatility_factor=self.volatility_factor,
             risk_multiplier=self.risk_multiplier,
+            min_portfolio_value=self.min_portfolio_value,
         )
