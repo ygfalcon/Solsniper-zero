@@ -77,6 +77,26 @@ def test_strategy_manager_weighted_merge(monkeypatch):
     ]
 
 
+def test_strategy_manager_init_weights(monkeypatch):
+    async def eval1(token, portfolio):
+        return [{"token": token, "side": "buy", "amount": 1, "price": 1.0}]
+
+    async def eval2(token, portfolio):
+        return [{"token": token, "side": "buy", "amount": 1, "price": 3.0}]
+
+    mod1 = types.SimpleNamespace(evaluate=eval1)
+    mod2 = types.SimpleNamespace(evaluate=eval2)
+    monkeypatch.setitem(sys.modules, "mod1", mod1)
+    monkeypatch.setitem(sys.modules, "mod2", mod2)
+
+    mgr = StrategyManager(["mod1", "mod2"], weights={"mod1": 1.0, "mod2": 2.0})
+    actions = asyncio.run(mgr.evaluate("tok", DummyPortfolio()))
+
+    assert actions == [
+        {"token": "tok", "side": "buy", "amount": 3.0, "price": pytest.approx(7 / 3)}
+    ]
+
+
 def test_strategy_manager_timeout(monkeypatch):
     async def slow_eval(token, portfolio):
         await asyncio.sleep(0.1)
