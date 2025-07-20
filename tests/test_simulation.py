@@ -10,10 +10,14 @@ def test_run_simulations_uses_metrics(monkeypatch):
         return {
             "mean": 0.01,
             "volatility": 0.0,
-            "volume": 123.0,
-            "liquidity": 456.0,
+            "volume": 50.0,
+            "liquidity": 60.0,
             "slippage": 0.01,
+            "depth": 1.0,
         }
+
+    def fake_dex_metrics(token):
+        return {"volume": 123.0, "liquidity": 456.0, "depth": 2.0}
 
     captured = {}
 
@@ -23,6 +27,7 @@ def test_run_simulations_uses_metrics(monkeypatch):
         return np.full(days, mean)
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", fake_dex_metrics)
     monkeypatch.setattr(simulation.np.random, "normal", fake_normal)
 
     results = simulation.run_simulations("tok", count=1, days=2)
@@ -80,6 +85,7 @@ def test_run_simulations_volume_filter(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
 
     results = simulation.run_simulations("tok", count=1, min_volume=100.0)
     assert results == []
@@ -96,6 +102,7 @@ def test_run_simulations_recent_volume(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
 
     results = simulation.run_simulations("tok", count=1, recent_volume=150.0)
     assert results[0].volume == pytest.approx(150.0)
@@ -129,6 +136,7 @@ def test_run_simulations_with_history(monkeypatch):
             return np.array([0.07])
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
     monkeypatch.setattr(simulation, "GradientBoostingRegressor", lambda: FakeGBR())
     monkeypatch.setattr(
         simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean)
