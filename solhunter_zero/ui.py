@@ -4,6 +4,8 @@ import os
 import asyncio
 from flask import Flask, jsonify, request
 
+from .config import load_config, apply_env_overrides, set_env_from_config
+
 from .prices import fetch_token_prices
 
 from . import wallet
@@ -21,8 +23,19 @@ loop_delay = 60
 current_portfolio: Portfolio | None = None
 current_keypair = None
 
+REQUIRED_ENV_VARS = ("BIRDEYE_API_KEY", "DEX_BASE_URL")
+
+
+def _missing_required() -> list[str]:
+    """Return names of required variables that are unset."""
+    return [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+
 def trading_loop() -> None:
     global current_portfolio, current_keypair
+
+    cfg = apply_env_overrides(load_config("config.toml"))
+    set_env_from_config(cfg)
+
     memory = Memory("sqlite:///memory.db")
     portfolio = Portfolio()
 
@@ -55,6 +68,15 @@ def start() -> dict:
     global trading_thread
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
+
+    cfg = apply_env_overrides(load_config("config.toml"))
+    set_env_from_config(cfg)
+
+    missing = _missing_required()
+    if missing:
+        msg = "Missing required configuration: " + ", ".join(missing)
+        return jsonify({"status": "error", "message": msg}), 400
+
     stop_event.clear()
     trading_thread = threading.Thread(target=trading_loop, daemon=True)
     trading_thread.start()
