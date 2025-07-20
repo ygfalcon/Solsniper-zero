@@ -451,3 +451,68 @@ def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
 
     assert called["path"] == str(cfg_file)
 
+
+def test_run_iteration_agent_manager(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_scan_tokens_async(*, offline=False, token_file=None, method="websocket"):
+        return ["tok"]
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
+
+    called = {}
+
+    class DummyManager:
+        async def execute(self, token, portfolio):
+            called["token"] = token
+
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True, agent_manager=DummyManager()))
+
+    assert called.get("token") == "tok"
+
+
+def test_main_uses_agent_manager(monkeypatch, tmp_path):
+    cfg_file = tmp_path / "cfg.toml"
+    cfg_file.write_text('agents=["dummy"]')
+
+    executed = []
+
+    class DummyManager:
+        def __init__(self):
+            self.tokens = []
+
+        @classmethod
+        def from_config(cls, cfg):
+            executed.append("cfg")
+            return cls()
+
+        async def execute(self, token, portfolio):
+            executed.append(token)
+
+    monkeypatch.setattr(main_module, "AgentManager", DummyManager)
+
+    def fail(*_a, **_k):
+        raise AssertionError("StrategyManager used")
+
+    monkeypatch.setattr(main_module, "StrategyManager", fail)
+
+    async def fake_scan(**k):
+        return ["tok"]
+
+    monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan)
+    monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
+
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=0,
+        dry_run=True,
+        iterations=1,
+        config_path=str(cfg_file),
+    )
+
+    assert executed == ["cfg", "tok"]
+

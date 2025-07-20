@@ -37,6 +37,7 @@ from .prices import fetch_token_prices_async
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .strategy_manager import StrategyManager
+from .agent_manager import AgentManager
 from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
@@ -66,6 +67,7 @@ async def _run_iteration(
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
     strategy_manager: StrategyManager | None = None,
+    agent_manager: AgentManager | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
@@ -114,6 +116,14 @@ async def _run_iteration(
             price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
         portfolio.update_drawdown(price_lookup)
     drawdown = portfolio.current_drawdown(price_lookup)
+
+    if agent_manager is not None:
+        for token in tokens:
+            try:
+                await agent_manager.execute(token, portfolio)
+            except Exception as exc:  # pragma: no cover - agent errors
+                logging.warning("Agent execution failed for %s: %s", token, exc)
+        return
 
     use_old = strategy_manager is None and run_simulations.__module__ != "solhunter_zero.simulation"
     if use_old:
@@ -407,7 +417,12 @@ def main(
     portfolio = Portfolio(path=portfolio_path)
 
 
-    strategy_manager = StrategyManager(strategies)
+    agent_manager: AgentManager | None = None
+    if cfg.get("agents"):
+        agent_manager = AgentManager.from_config(cfg)
+        strategy_manager = None
+    else:
+        strategy_manager = StrategyManager(strategies)
 
 
     if keypair_path:
@@ -467,6 +482,7 @@ def main(
                     arbitrage_threshold=arbitrage_threshold,
                     arbitrage_amount=arbitrage_amount,
                     strategy_manager=strategy_manager,
+                    agent_manager=agent_manager,
                 )
                 await asyncio.sleep(loop_delay)
         else:
@@ -489,6 +505,7 @@ def main(
                     arbitrage_threshold=arbitrage_threshold,
                     arbitrage_amount=arbitrage_amount,
                     strategy_manager=strategy_manager,
+                    agent_manager=agent_manager,
                 )
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
