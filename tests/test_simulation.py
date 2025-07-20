@@ -187,3 +187,28 @@ def test_run_simulations_with_history(monkeypatch):
     assert len(captured["predict_X"][0]) == 7
     expected_roi = pytest.approx((1 + 0.07) ** 2 - 1)
     assert results[0].expected_roi == expected_roi
+
+
+def test_run_simulations_optional_inputs(monkeypatch):
+    def fake_metrics(token):
+        return {
+            "mean": 0.0,
+            "volatility": 0.02,
+            "volume": 10.0,
+            "liquidity": 20.0,
+            "slippage": 0.01,
+        }
+
+    monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+
+    res = simulation.run_simulations(
+        "tok",
+        count=1,
+        sentiment=0.8,
+        order_book_strength=0.9,
+    )[0]
+
+    assert res.sentiment == pytest.approx(0.8)
+    assert res.order_book_strength == pytest.approx(0.9)

@@ -32,6 +32,9 @@ class SimulationResult:
     volatility: float = 0.0
     volume_spike: float = 1.0
 
+    sentiment: float = 0.0
+    order_book_strength: float = 0.0
+
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -151,10 +154,15 @@ def run_simulations(
     min_volume: float = 0.0,
     recent_volume: float | None = None,
     recent_slippage: float | None = None,
+    sentiment: float | None = None,
+    order_book_strength: float | None = None,
 ) -> List[SimulationResult]:
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+
+    depth_features = metrics.get("depth_per_dex", []) or []
+    slip_features = metrics.get("slippage_per_dex", []) or []
 
     results: List[SimulationResult] = []
 
@@ -183,6 +191,13 @@ def run_simulations(
 
 
     depth = metrics.get("depth", 0.0)
+
+    sentiment_val = float(sentiment) if sentiment is not None else float(
+        metrics.get("sentiment", 0.0)
+    )
+    order_strength = float(order_book_strength) if order_book_strength is not None else float(
+        metrics.get("order_book_strength", 0.0)
+    )
 
     results: List[SimulationResult] = []
 
@@ -254,9 +269,17 @@ def run_simulations(
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, volume_spike)
-
+            SimulationResult(
+                success_prob=success_prob,
+                expected_roi=roi,
+                volume=volume,
+                liquidity=liquidity,
+                slippage=slippage,
+                volatility=sigma,
+                volume_spike=volume_spike,
+                sentiment=sentiment_val,
+                order_book_strength=order_strength,
+            )
         )
 
 
