@@ -31,6 +31,8 @@ metrics_base_url: https://api.example.com
 risk_tolerance: 0.1
 max_allocation: 0.2
 max_risk_per_token: 0.05
+stop_loss: 0.1
+take_profit: 0.2
 trailing_stop: 0.1
 max_drawdown: 0.5
 volatility_factor: 1.0
@@ -128,7 +130,7 @@ The trading logic is implemented by a swarm of small agents:
 - **SimulationAgent** — runs Monte Carlo simulations per token.
 - **ConvictionAgent** — rates tokens based on expected ROI.
 - **ArbitrageAgent** — detects DEX price discrepancies.
-- **ExitAgent** — proposes sells using trailing stops.
+- **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
 - **MemoryAgent** — records past trades for analysis.
 
