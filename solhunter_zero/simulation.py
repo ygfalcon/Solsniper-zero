@@ -7,6 +7,7 @@ import aiohttp
 from typing import List
 
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import GradientBoostingRegressor
 
 import numpy as np
 import requests
@@ -26,9 +27,9 @@ class SimulationResult:
     volume: float = 0.0
     liquidity: float = 0.0
     slippage: float = 0.0
-
     volatility: float = 0.0
-in
+    volume_spike: float = 1.0
+
 
 
 def fetch_token_metrics(token: str) -> dict:
@@ -55,6 +56,7 @@ def fetch_token_metrics(token: str) -> dict:
             "price_history": data.get("price_history", []),
             "liquidity_history": data.get("liquidity_history", []),
             "depth_history": data.get("depth_history", []),
+            "slippage_history": data.get("slippage_history", []),
         }
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
@@ -68,6 +70,7 @@ def fetch_token_metrics(token: str) -> dict:
             "price_history": [],
             "liquidity_history": [],
             "depth_history": [],
+            "slippage_history": [],
         }
 
 
@@ -89,6 +92,7 @@ async def async_fetch_token_metrics(token: str) -> dict:
                 "volume": 0.0,
                 "liquidity": 0.0,
                 "slippage": 0.0,
+                "slippage_history": [],
             }
 
     return {
@@ -97,6 +101,7 @@ async def async_fetch_token_metrics(token: str) -> dict:
         "volume": float(data.get("volume_24h", 0.0)),
         "liquidity": float(data.get("liquidity", 0.0)),
         "slippage": float(data.get("slippage", 0.0)),
+        "slippage_history": data.get("slippage_history", []),
     }
 
 
@@ -117,18 +122,44 @@ def run_simulations(
 
     mu = metrics.get("mean", 0.0)
     sigma = metrics.get("volatility", 0.02)
-    volume = metrics.get("volume", 0.0)
+    base_volume = metrics.get("volume", 0.0)
+    volume = base_volume if recent_volume is None else float(recent_volume)
     liquidity = metrics.get("liquidity", 0.0)
     slippage = metrics.get("slippage", 0.0)
+    if recent_slippage is not None:
+        slippage = float(recent_slippage)
+
+    volume_spike = volume / base_volume if recent_volume is not None and base_volume > 0 else 1.0
 
     depth = metrics.get("depth", 0.0)
 
     price_hist = metrics.get("price_history")
     liq_hist = metrics.get("liquidity_history")
     depth_hist = metrics.get("depth_history")
+    slip_hist = metrics.get("slippage_history")
 
     predicted_mean = mu
     if (
+        price_hist
+        and liq_hist
+        and depth_hist
+        and slip_hist
+        and len(price_hist) >= 2
+        and len(liq_hist) >= 2
+        and len(depth_hist) >= 2
+        and len(slip_hist) >= 2
+    ):
+        try:
+            returns = np.diff(price_hist) / price_hist[:-1]
+            n = min(
+                len(returns), len(liq_hist) - 1, len(depth_hist) - 1, len(slip_hist) - 1
+            )
+            X = np.column_stack([liq_hist[:n], depth_hist[:n], slip_hist[:n]])
+            model = GradientBoostingRegressor().fit(X, returns[:n])
+            predicted_mean = float(model.predict([[liquidity, depth, slippage]])[0])
+        except Exception as exc:  # pragma: no cover - numeric issues
+            logger.warning("ROI model training failed: %s", exc)
+    elif (
         price_hist
         and liq_hist
         and depth_hist
@@ -153,7 +184,15 @@ def run_simulations(
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, sigma)
+            SimulationResult(
+                success_prob,
+                roi,
+                volume,
+                liquidity,
+                slippage,
+                sigma,
+                volume_spike,
+            )
         )
 
 
