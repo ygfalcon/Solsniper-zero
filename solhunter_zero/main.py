@@ -14,13 +14,19 @@ set_env_from_config(_cfg)
 
 
 from .scanner import scan_tokens_async
+from .prices import fetch_token_prices_async
 from .onchain_metrics import top_volume_tokens
 from .market_ws import listen_and_trade
 
+from .simulation import run_simulations
+from .decision import should_buy, should_sell
 from .memory import Memory
-from .portfolio import Portfolio
+from .portfolio import Portfolio, calculate_order_size
+from .risk import RiskManager
 from .exchange import place_order_async
+from .prices import fetch_token_prices_async
 from .strategy_manager import StrategyManager
+from . import arbitrage
 
 logging.basicConfig(level=logging.INFO)
 
@@ -87,6 +93,13 @@ async def _run_iteration(
             logging.warning("Volume ranking failed: %s", exc)
 
 
+    price_lookup = {}
+    if portfolio.balances:
+        if not offline:
+            price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
+        portfolio.update_drawdown(price_lookup)
+    drawdown = portfolio.current_drawdown(price_lookup)
+
     if strategy_manager is None:
         strategy_manager = StrategyManager()
 
@@ -95,7 +108,8 @@ async def _run_iteration(
             actions = await strategy_manager.evaluate(token, portfolio)
         except Exception as exc:  # pragma: no cover - strategy errors
             logging.warning("Strategy evaluation failed for %s: %s", token, exc)
-            continue
+            actions = []
+
         for action in actions:
             side = action.get("side")
             amount = action.get("amount", 0.0)
@@ -116,6 +130,119 @@ async def _run_iteration(
             if not dry_run:
                 memory.log_trade(token=token, direction=side, amount=amount, price=price)
                 portfolio.update(token, amount if side == "buy" else -amount, price)
+
+        sims = run_simulations(token, count=100)
+
+        if arbitrage_amount > 0 and arbitrage_threshold > 0:
+            try:
+                await arbitrage.detect_and_execute_arbitrage(
+                    token,
+                    threshold=arbitrage_threshold,
+                    amount=arbitrage_amount,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+            except Exception as exc:  # pragma: no cover - network errors
+                logging.warning("Arbitrage check failed: %s", exc)
+
+        if should_buy(sims):
+            logging.info("Buying %s", token)
+            avg_roi = sum(r.expected_roi for r in sims) / len(sims)
+            volatility = 0.0
+            if price_lookup:
+                balance = portfolio.total_value(price_lookup)
+                alloc = portfolio.percent_allocated(token, price_lookup)
+            else:
+                balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
+                alloc = portfolio.percent_allocated(token)
+
+            rm = RiskManager.from_config(
+                {
+                    "risk_tolerance": os.getenv("RISK_TOLERANCE", "0.1"),
+                    "max_allocation": os.getenv("MAX_ALLOCATION", "0.2"),
+                    "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
+                    "max_drawdown": max_drawdown,
+                    "volatility_factor": volatility_factor,
+                    "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
+                }
+            )
+            first_sim = sims[0] if sims else None
+            params = rm.adjusted(
+                drawdown,
+                volatility,
+                volume_spike=getattr(first_sim, "volume_spike", 1.0),
+                depth_change=getattr(first_sim, "depth_change", 0.0),
+                whale_activity=getattr(first_sim, "whale_activity", 0.0),
+            )
+
+            amount = calculate_order_size(
+                balance,
+                avg_roi,
+                0.0,
+                0.0,
+                risk_tolerance=params.risk_tolerance,
+                max_allocation=params.max_allocation,
+                max_risk_per_token=params.max_risk_per_token,
+                max_drawdown=max_drawdown,
+                volatility_factor=volatility_factor,
+                current_allocation=alloc,
+            )
+            await place_order_async(
+                token,
+                side="buy",
+                amount=amount,
+                price=0,
+
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+
+            if not dry_run:
+                memory.log_trade(token=token, direction="buy", amount=amount, price=0)
+                portfolio.update(token, amount, 0)
+
+    price_lookup_sell = {}
+    if stop_loss is not None or take_profit is not None or trailing_stop is not None:
+        price_lookup_sell = await fetch_token_prices_async(portfolio.balances.keys())
+        portfolio.update_highs(price_lookup_sell)
+
+    for token, pos in list(portfolio.balances.items()):
+        sims = run_simulations(token, count=100)
+
+        roi_trigger = False
+        if token in price_lookup_sell:
+            price = price_lookup_sell[token]
+            roi = portfolio.position_roi(token, price)
+            if stop_loss is not None and roi <= -stop_loss:
+                roi_trigger = True
+            if take_profit is not None and roi >= take_profit:
+                roi_trigger = True
+            if trailing_stop is not None and portfolio.trailing_stop_triggered(token, price, trailing_stop):
+                roi_trigger = True
+
+        if roi_trigger or should_sell(
+            sims,
+            trailing_stop=trailing_stop,
+            current_price=price_lookup_sell.get(token),
+            high_price=pos.high_price,
+        ):
+            logging.info("Selling %s", token)
+            await place_order_async(
+                token,
+                side="sell",
+                amount=pos.amount,
+                price=0,
+
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+
+            if not dry_run:
+                memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
+                portfolio.update(token, -pos.amount, 0)
 
 
 
@@ -148,8 +275,8 @@ def main(
     market_ws_url: str | None = None,
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
+    arbitrage_tokens: Sequence[str] | None = None,
     strategies: list[str] | None = None,
-
 ) -> None:
     """Run the trading loop.
 
@@ -174,9 +301,8 @@ def main(
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
 
-    strategies:
-        Optional list of strategy module names to load.
-
+    arbitrage_tokens:
+        Specific tokens to monitor for arbitrage opportunities.
 
 
 
@@ -217,7 +343,7 @@ def main(
     if strategies is None:
         strategies = cfg.get("strategies")
         if isinstance(strategies, str):
-            strategies = [s.strip() for s in strategies.split(",") if s.strip()]
+            strategies = [s.strip() for s in strategies.split(',') if s.strip()]
     if market_ws_url is None:
         market_ws_url = cfg.get("market_ws_url")
     if market_ws_url is None:
@@ -235,7 +361,6 @@ def main(
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
-
     strategy_manager = StrategyManager(strategies)
 
     keypair = load_keypair(keypair_path) if keypair_path else None
@@ -460,10 +585,14 @@ if __name__ == "__main__":
         help="Trade size when executing arbitrage",
     )
     parser.add_argument(
+        "--arbitrage-tokens",
+        default=None,
+        help="Comma separated list of tokens to monitor for arbitrage",
+    )
+    parser.add_argument(
         "--strategies",
         default=None,
         help="Comma-separated list of strategy modules",
-
     )
     args = parser.parse_args()
     main(
@@ -493,6 +622,6 @@ if __name__ == "__main__":
         market_ws_url=args.market_ws_url,
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
+        arbitrage_tokens=args.arbitrage_tokens.split(",") if args.arbitrage_tokens else None,
         strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
-
     )

@@ -1,6 +1,17 @@
 import pytest
 from solhunter_zero import main as main_module
+from solhunter_zero.simulation import SimulationResult
 import asyncio
+
+
+@pytest.fixture(autouse=True)
+def _stub_arbitrage(monkeypatch):
+    async def _fake(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(
+        main_module.arbitrage, "detect_and_execute_arbitrage", _fake
+    )
 
 
 def test_main_invokes_place_order(monkeypatch):
@@ -279,10 +290,10 @@ def test_run_iteration_arbitrage(monkeypatch):
             pass
 
         async def evaluate(self, token, portfolio):
-            await fake_arbitrage(token, 0.1, 2.0, dry_run=True)
             return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
+    monkeypatch.setattr(main_module.arbitrage, "detect_and_execute_arbitrage", fake_arbitrage)
 
     asyncio.run(
         main_module._run_iteration(
