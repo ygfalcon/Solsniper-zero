@@ -1,11 +1,10 @@
 import os
+import logging
 
 import requests
 import aiohttp
 
 from typing import Iterable, Dict
-
-import requests
 
 logger = logging.getLogger(__name__)
 
