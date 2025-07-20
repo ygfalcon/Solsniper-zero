@@ -21,3 +21,5 @@ token_suffix = "bonk"
 token_keywords = ""
 volume_threshold = 0
 
+strategies = ["solhunter_zero.sniper", "solhunter_zero.arbitrage"]
+

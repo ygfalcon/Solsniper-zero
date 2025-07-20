@@ -28,6 +28,8 @@ ENV_VARS = {
     "arbitrage_threshold": "ARBITRAGE_THRESHOLD",
     "arbitrage_amount": "ARBITRAGE_AMOUNT",
 
+    "strategies": "STRATEGIES",
+
     "token_suffix": "TOKEN_SUFFIX",
     "token_keywords": "TOKEN_KEYWORDS",
     "volume_threshold": "VOLUME_THRESHOLD",

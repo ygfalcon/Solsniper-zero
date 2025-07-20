@@ -1,42 +1,33 @@
 import pytest
 from solhunter_zero import main as main_module
-from solhunter_zero.simulation import SimulationResult
 import asyncio
 
 
 def test_main_invokes_place_order(monkeypatch):
-    # prepare mocks
-
     async def fake_scan_tokens_async(offline=False, token_file=None):
-
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(
-        main_module,
-        "run_simulations",
-        lambda token, count=100: [
-            SimulationResult(success_prob=1.0, expected_roi=2.0, volume=200.0, liquidity=400.0)
-        ],
-    )
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
-    async def fake_prices(tokens):
-        return {t: 1.0 for t in tokens}
 
-    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
+
+        async def evaluate(self, token, portfolio):
+            return [{"token": token, "side": "buy", "amount": 1, "price": 0}]
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     called = {}
 
     async def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
         called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
         return {"order_id": "1"}
-    monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
 
-    # avoid DB writes
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
-
-    monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_args, **_kw: None)
+    monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
 
     main_module.main(
         memory_path="sqlite:///:memory:",
@@ -63,22 +54,20 @@ def test_main_offline(monkeypatch):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(
-        main_module,
-        "run_simulations",
-        lambda token, count=100: [
-            SimulationResult(success_prob=1.0, expected_roi=2.0, volume=200.0, liquidity=400.0)
-        ],
-    )
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
+
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
+
+        async def evaluate(self, token, portfolio):
+            return [{"token": token, "side": "buy", "amount": 1, "price": 0}]
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
+
     async def fake_place_order_async(*a, **k):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
-    async def fake_prices(tokens):
-        return {t: 1.0 for t in tokens}
-
-    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
@@ -104,17 +93,15 @@ def test_run_iteration_sells(monkeypatch):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(
-        main_module,
-        "run_simulations",
-        lambda token, count=100: [SimulationResult(0.2, -0.1, volume=200.0, liquidity=400.0)],
-    )
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: True)
-    async def fake_prices(tokens):
-        return {t: 1.0 for t in tokens}
 
-    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
+
+        async def evaluate(self, token, portfolio):
+            return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     called = {}
 
@@ -143,20 +130,15 @@ def test_run_iteration_stop_loss(monkeypatch):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(
-        main_module,
-        "run_simulations",
-        lambda token, count=100: [
-            SimulationResult(0.9, 0.2, volume=200.0, liquidity=400.0)
-        ],
-    )
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
 
-    async def fake_fetch_token_prices_async(tokens):
-        return {"tok": 8.0}
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
 
-    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_fetch_token_prices_async)
+        async def evaluate(self, token, portfolio):
+            return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     called = {}
 
@@ -185,20 +167,15 @@ def test_run_iteration_take_profit(monkeypatch):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(
-        main_module,
-        "run_simulations",
-        lambda token, count=100: [
-            SimulationResult(0.9, 0.2, volume=200.0, liquidity=400.0)
-        ],
-    )
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
 
-    async def fake_fetch_token_prices_async(tokens):
-        return {"tok": 12.0}
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
 
-    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_fetch_token_prices_async)
+        async def evaluate(self, token, portfolio):
+            return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     called = {}
 
@@ -255,9 +232,14 @@ def test_discovery_methods(monkeypatch, method, target):
         return []
     monkeypatch.setattr(scanner_mod, "fetch_trending_tokens_async", fake_trend)
 
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
+
+        async def evaluate(self, token, portfolio):
+            return []
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
     monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
@@ -282,9 +264,6 @@ def test_run_iteration_arbitrage(monkeypatch):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [])
-    monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
-    monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
     monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
@@ -294,7 +273,15 @@ def test_run_iteration_arbitrage(monkeypatch):
         called["args"] = (token, threshold, amount, dry_run)
         return None
 
-    monkeypatch.setattr(main_module.arbitrage, "detect_and_execute_arbitrage", fake_arbitrage)
+    class DummySM:
+        def __init__(self, *a, **k):
+            pass
+
+        async def evaluate(self, token, portfolio):
+            await fake_arbitrage(token, 0.1, 2.0, dry_run=True)
+            return []
+
+    monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     asyncio.run(
         main_module._run_iteration(
