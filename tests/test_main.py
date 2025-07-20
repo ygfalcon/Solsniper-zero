@@ -13,7 +13,9 @@ def test_main_invokes_place_order(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(success_prob=1.0, expected_roi=2.0)],
+        lambda token, count=100: [
+            SimulationResult(success_prob=1.0, expected_roi=2.0, volume=200.0, liquidity=400.0)
+        ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
 
@@ -56,7 +58,9 @@ def test_main_offline(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(success_prob=1.0, expected_roi=2.0)],
+        lambda token, count=100: [
+            SimulationResult(success_prob=1.0, expected_roi=2.0, volume=200.0, liquidity=400.0)
+        ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     async def fake_place_order_async(*a, **k):
@@ -86,7 +90,11 @@ def test_run_iteration_sells(monkeypatch):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
-    monkeypatch.setattr(main_module, "run_simulations", lambda token, count=100: [SimulationResult(0.2, -0.1)])
+    monkeypatch.setattr(
+        main_module,
+        "run_simulations",
+        lambda token, count=100: [SimulationResult(0.2, -0.1, volume=200.0, liquidity=400.0)],
+    )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: False)
     monkeypatch.setattr(main_module, "should_sell", lambda sims: True)
 
