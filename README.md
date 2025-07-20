@@ -135,6 +135,11 @@ The trading logic is implemented by a swarm of small agents:
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.
 
+The `AgentManager` periodically adjusts these weights using the
+`update_weights()` method.  It reviews trade history recorded by the
+`MemoryAgent` and slightly increases the weight of agents with a positive ROI
+while decreasing the weight of those with losses.
+
 
 ## Requirements
 - Python 3.11+

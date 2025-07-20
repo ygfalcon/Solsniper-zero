@@ -37,6 +37,7 @@ from .prices import fetch_token_prices_async
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .strategy_manager import StrategyManager
+from .agent_manager import AgentManager
 from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
@@ -66,6 +67,7 @@ async def _run_iteration(
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
     strategy_manager: StrategyManager | None = None,
+    agent_manager: AgentManager | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
@@ -278,6 +280,9 @@ async def _run_iteration(
                 if not dry_run:
                     memory.log_trade(token=token, direction=side, amount=amount, price=price)
                     portfolio.update(token, amount if side == "buy" else -amount, price)
+
+        if agent_manager is not None:
+            agent_manager.update_weights()
 
 
 
