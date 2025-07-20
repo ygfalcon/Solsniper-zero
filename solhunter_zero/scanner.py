@@ -16,6 +16,10 @@ from .scanner_common import (
     SOLANA_RPC_URL,
     fetch_trending_tokens,
     fetch_trending_tokens_async,
+    fetch_raydium_listings,
+    fetch_raydium_listings_async,
+    fetch_orca_listings,
+    fetch_orca_listings_async,
     offline_or_onchain,
     parse_birdeye_tokens,
     scan_tokens_from_file,
@@ -78,6 +82,8 @@ def scan_tokens(
 
     if not offline and token_file is None:
         extra = fetch_trending_tokens()
+        extra += fetch_raydium_listings()
+        extra += fetch_orca_listings()
         tokens = list(dict.fromkeys(tokens + extra))
     return tokens
 
@@ -126,6 +132,8 @@ async def scan_tokens_async(
 
     if not offline and token_file is None:
         extra = await fetch_trending_tokens_async()
+        extra += await fetch_raydium_listings_async()
+        extra += await fetch_orca_listings_async()
         tokens = list(dict.fromkeys(tokens + extra))
     return tokens
 

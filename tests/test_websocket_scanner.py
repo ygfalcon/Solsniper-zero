@@ -57,9 +57,11 @@ def test_stream_new_tokens(monkeypatch):
     assert token == "tok1"
 
 
-def test_stream_new_tokens_pools(monkeypatch):
+
+def test_stream_new_tokens_keyword(monkeypatch):
     msgs = [
-        {"result": {"value": {"logs": ["tokenA: poolbonk", "tokenB: other"]}}},
+        {"result": {"value": {"logs": ["InitializeMint", "name: verycool", "mint: tok3"]}}},
+        {"result": {"value": {"logs": ["InitializeMint", "name: other", "mint: tok4"]}}},
     ]
 
     def fake_connect(url):
@@ -68,17 +70,21 @@ def test_stream_new_tokens_pools(monkeypatch):
     monkeypatch.setattr(ws_scanner, "connect", fake_connect)
 
     async def run():
-        gen = ws_scanner.stream_new_tokens("ws://node", suffix="bonk", include_pools=True)
+
+        gen = ws_scanner.stream_new_tokens("ws://node", keywords=["cool"])
+
         token = await asyncio.wait_for(anext(gen), timeout=0.1)
         await gen.aclose()
         return token
 
     token = asyncio.run(run())
-    assert token == "poolbonk"
+
+    assert token == "tok3"
+
 
 
 def test_offline_or_onchain_async_websocket(monkeypatch):
-    async def fake_stream_new_tokens(url, suffix="bonk"):
+    async def fake_stream_new_tokens(url, *, suffix=None, keywords=None):
         yield "tokws"
 
     monkeypatch.setattr(ws_scanner, "stream_new_tokens", fake_stream_new_tokens)

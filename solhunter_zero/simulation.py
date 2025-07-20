@@ -137,10 +137,10 @@ def run_simulations(
         slippage = float(recent_slippage)
 
 
-    volume_spike = (
-        (float(recent_volume) / base_volume) if recent_volume is not None and base_volume > 0 else 1.0
-    )
-    if recent_volume is not None:
+
+    if recent_volume is not None and base_volume > 0:
+        volume_spike = float(recent_volume) / base_volume
+
         volume = float(recent_volume)
 
 
@@ -192,6 +192,11 @@ def run_simulations(
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
 
+
+
+
+    if recent_volume is not None and base_volume > 0:
+        volume = float(recent_volume)
 
 
 

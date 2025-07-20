@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover - fallback when solana not installed
     sys.modules.setdefault("solana.publickey", mod)
 
 from solana.rpc.api import Client
+from .scanner_common import token_matches
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ DEX_PROGRAM_ID = PublicKey("9xQeWvG816bUx9EPB8YVJprFLaDpbZc81FNtdVUL5J7")
 
 
 def scan_new_pools(rpc_url: str) -> List[str]:
-    """Return BONK-related token mints from recently created pools."""
+    """Return token mints from recently created pools passing filters."""
     if not rpc_url:
         raise ValueError("rpc_url is required")
 
@@ -44,7 +45,8 @@ def scan_new_pools(rpc_url: str) -> List[str]:
         )
         for key in ("tokenA", "tokenB"):
             mint = info.get(key, {}).get("mint")
-            if mint and mint.lower().endswith("bonk"):
+            name = info.get(key, {}).get("name")
+            if mint and token_matches(mint, name):
                 tokens.append(mint)
     logger.info("Found %d tokens from pools", len(tokens))
     return tokens

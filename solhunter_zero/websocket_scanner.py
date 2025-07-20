@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Iterable
 
 from solana.publickey import PublicKey
 from solana.rpc.websocket_api import (
@@ -14,7 +14,14 @@ from solana.rpc.websocket_api import (
 )
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
-from .dex_scanner import DEX_PROGRAM_ID
+
+from .scanner_common import (
+    TOKEN_SUFFIX,
+    TOKEN_KEYWORDS,
+    JUPITER_WS_URL,
+    token_matches,
+)
+
 
 
 logger = logging.getLogger(__name__)
@@ -23,13 +30,18 @@ NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
 
 
-POOL_TOKEN_RE = re.compile(r"token[AB]:\s*(\S+)", re.IGNORECASE)
+
+from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
 
 
 async def stream_new_tokens(
-    rpc_url: str, *, suffix: str = "bonk", include_pools: bool = True
+    rpc_url: str,
+    *,
+    suffix: str | None = None,
+    keywords: Iterable[str] | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Yield new token mint addresses or pool tokens matching ``suffix``.
+    """Yield new token mint addresses passing configured filters.
+
 
     Parameters
     ----------
@@ -42,7 +54,11 @@ async def stream_new_tokens(
     if not rpc_url:
         raise ValueError("rpc_url is required")
 
-    suffix = suffix.lower()
+    if suffix is None:
+        suffix = TOKEN_SUFFIX
+    if keywords is None:
+        keywords = TOKEN_KEYWORDS
+    suffix = suffix.lower() if suffix else None
 
     async with connect(rpc_url) as ws:
         await ws.logs_subscribe(
@@ -98,4 +114,41 @@ async def stream_new_tokens(
 
                 for token in tokens:
                     yield token
+
+
+                if name and mint and token_matches(mint, name, suffix=suffix, keywords=keywords):
+                    yield mint
+
+
+async def stream_jupiter_tokens(
+    url: str = JUPITER_WS_URL,
+    *,
+    suffix: str | None = None,
+    keywords: Iterable[str] | None = None,
+) -> AsyncGenerator[str, None]:
+    """Yield tokens from the Jupiter aggregator websocket."""
+
+    if suffix is None:
+        suffix = TOKEN_SUFFIX
+    if keywords is None:
+        keywords = TOKEN_KEYWORDS
+
+    import aiohttp
+
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(url) as ws:
+            async for msg in ws:
+                try:
+                    data = msg.json()
+                except Exception:  # pragma: no cover - malformed message
+                    continue
+                addr = (
+                    data.get("address")
+                    or data.get("mint")
+                    or data.get("id")
+                )
+                name = data.get("name") or data.get("symbol")
+                vol = data.get("volume") or data.get("volume_24h")
+                if addr and token_matches(addr, name, vol, suffix=suffix, keywords=keywords):
+                    yield addr
 

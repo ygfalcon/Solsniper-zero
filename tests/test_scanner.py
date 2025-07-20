@@ -17,12 +17,25 @@ def test_scan_tokens_websocket(monkeypatch):
     async def fake_stream(url, *, suffix="bonk", include_pools=True):
         yield "webbonk"
 
-    monkeypatch.setattr("solhunter_zero.websocket_scanner.stream_new_tokens", fake_stream)
-    monkeypatch.setattr(scanner, "fetch_trending_tokens", lambda: ["trend"])
-    scanner_common.SOLANA_RPC_URL = "ws://node"
+
+    captured = {}
+
+    def fake_get(url, headers=None, timeout=10):
+        captured['headers'] = headers
+        return FakeResponse(data)
+
+    monkeypatch.setattr(scanner.requests, 'get', fake_get)
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['trend'])
+    monkeypatch.setattr(scanner, 'fetch_raydium_listings', lambda: ['ray'])
+    monkeypatch.setattr(scanner, 'fetch_orca_listings', lambda: ['orca'])
+    scanner_common.BIRDEYE_API_KEY = "test"
+    scanner_common.HEADERS.clear()
+    scanner_common.HEADERS["X-API-KEY"] = "test"
 
     tokens = scanner.scan_tokens()
-    assert tokens == ["webbonk", "trend"]
+    assert tokens == ['abcbonk', 'xyzBONK', 'trend', 'ray', 'orca']
+    assert captured['headers'] == scanner.HEADERS
+
 
 
 
@@ -56,6 +69,8 @@ def test_scan_tokens_onchain(monkeypatch):
     monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_onchain)
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
     monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['t2'])
+    monkeypatch.setattr(scanner, 'fetch_raydium_listings', lambda: [])
+    monkeypatch.setattr(scanner, 'fetch_orca_listings', lambda: [])
 
     scanner_common.SOLANA_RPC_URL = 'http://node'
 
@@ -98,8 +113,14 @@ def test_scan_tokens_async(monkeypatch):
     scanner_common.BIRDEYE_API_KEY = 'key'
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "key"
+    async def fr_func():
+        return ['ray']
+    async def fo_func():
+        return ['orca']
+    monkeypatch.setattr(async_scanner_mod, 'fetch_raydium_listings_async', fr_func)
+    monkeypatch.setattr(async_scanner_mod, 'fetch_orca_listings_async', fo_func)
     tokens = asyncio.run(async_scan())
-    assert tokens == ["abcbonk", "otherbonk", "trend"]
+    assert tokens == ["abcbonk", "otherbonk", "trend", "ray", "orca"]
 
 
 def test_scan_tokens_from_file(monkeypatch, tmp_path):
