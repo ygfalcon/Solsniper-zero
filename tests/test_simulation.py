@@ -100,3 +100,42 @@ def test_run_simulations_recent_volume(monkeypatch):
     results = simulation.run_simulations("tok", count=1, recent_volume=150.0)
     assert results[0].volume == pytest.approx(150.0)
     assert results[0].volume_spike == pytest.approx(3.0)
+
+
+def test_run_simulations_with_history(monkeypatch):
+    metrics = {
+        "mean": 0.01,
+        "volatility": 0.02,
+        "volume": 50.0,
+        "liquidity": 100.0,
+        "slippage": 0.05,
+        "depth": 1.0,
+        "price_history": [1.0, 1.1, 1.05],
+        "liquidity_history": [90, 95, 100],
+        "depth_history": [0.8, 0.9, 1.0],
+        "slippage_history": [0.04, 0.045, 0.05],
+    }
+
+    captured = {}
+
+    class FakeGBR:
+        def fit(self, X, y):
+            captured["X"] = X
+            captured["y"] = y
+            return self
+
+        def predict(self, X):
+            captured["predict_X"] = X
+            return np.array([0.07])
+
+    monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
+    monkeypatch.setattr(simulation, "GradientBoostingRegressor", lambda: FakeGBR())
+    monkeypatch.setattr(
+        simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean)
+    )
+
+    results = simulation.run_simulations("tok", count=1, days=2)
+
+    assert len(captured["predict_X"][0]) == 3
+    expected_roi = pytest.approx((1 + 0.07) ** 2 - 1)
+    assert results[0].expected_roi == expected_roi
