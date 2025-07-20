@@ -21,5 +21,6 @@ token_suffix = "bonk"
 token_keywords = ""
 volume_threshold = 0
 
+# Load built-in strategies so the bot can trade without additional modules
 strategies = ["solhunter_zero.sniper", "solhunter_zero.arbitrage"]
 

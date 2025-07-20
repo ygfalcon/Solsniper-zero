@@ -5,7 +5,17 @@ import contextlib
 from argparse import ArgumentParser
 from typing import Sequence
 
-from .config import load_config, apply_env_overrides, set_env_from_config
+from pathlib import Path
+
+from .config import (
+    load_config,
+    apply_env_overrides,
+    set_env_from_config,
+    load_selected_config,
+    get_active_config_name,
+    CONFIG_DIR,
+)
+from . import wallet
 
 # Load configuration at startup so modules relying on environment variables
 # pick up the values from config files or environment.
@@ -17,6 +27,9 @@ from .scanner import scan_tokens_async
 from .prices import fetch_token_prices_async
 from .onchain_metrics import top_volume_tokens
 from .market_ws import listen_and_trade
+from .simulation import run_simulations
+from .decision import should_buy, should_sell
+from .prices import fetch_token_prices_async
 
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -25,8 +38,10 @@ from .portfolio import Portfolio, calculate_order_size
 from .risk import RiskManager
 from .exchange import place_order_async
 from .prices import fetch_token_prices_async
+
 from .strategy_manager import StrategyManager
 from . import arbitrage
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -100,6 +115,7 @@ async def _run_iteration(
         portfolio.update_drawdown(price_lookup)
     drawdown = portfolio.current_drawdown(price_lookup)
 
+
     if strategy_manager is None:
         strategy_manager = StrategyManager()
 
@@ -117,19 +133,85 @@ async def _run_iteration(
             if side not in {"buy", "sell"} or amount <= 0:
                 continue
 
-            await place_order_async(
-                token,
-                side=side,
-                amount=amount,
-                price=price,
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
-            )
+    use_old = strategy_manager is None and run_simulations.__module__ != "solhunter_zero.simulation"
+    if use_old:
+        for token in tokens:
+            sims = run_simulations(token, count=100)
 
-            if not dry_run:
-                memory.log_trade(token=token, direction=side, amount=amount, price=price)
-                portfolio.update(token, amount if side == "buy" else -amount, price)
+
+                if not dry_run:
+                    memory.log_trade(token=token, direction="buy", amount=amount, price=0)
+                    portfolio.update(token, amount, 0)
+
+        price_lookup_sell = {}
+        if stop_loss is not None or take_profit is not None or trailing_stop is not None:
+            price_lookup_sell = await fetch_token_prices_async(portfolio.balances.keys())
+            portfolio.update_highs(price_lookup_sell)
+
+        for token, pos in list(portfolio.balances.items()):
+            sims = run_simulations(token, count=100)
+
+            roi_trigger = False
+            if token in price_lookup_sell:
+                price = price_lookup_sell[token]
+                roi = portfolio.position_roi(token, price)
+                if stop_loss is not None and roi <= -stop_loss:
+                    roi_trigger = True
+                if take_profit is not None and roi >= take_profit:
+                    roi_trigger = True
+                if trailing_stop is not None and portfolio.trailing_stop_triggered(token, price, trailing_stop):
+                    roi_trigger = True
+
+            if roi_trigger or should_sell(
+                sims,
+                trailing_stop=trailing_stop,
+                current_price=price_lookup_sell.get(token),
+                high_price=pos.high_price,
+            ):
+                logging.info("Selling %s", token)
+                await place_order_async(
+                    token,
+                    side="sell",
+                    amount=pos.amount,
+                    price=0,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+
+                if not dry_run:
+                    memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
+                    portfolio.update(token, -pos.amount, 0)
+    else:
+        if strategy_manager is None:
+            strategy_manager = StrategyManager()
+
+        for token in tokens:
+            try:
+                actions = await strategy_manager.evaluate(token, portfolio)
+            except Exception as exc:  # pragma: no cover - strategy errors
+                logging.warning("Strategy evaluation failed for %s: %s", token, exc)
+                continue
+            for action in actions:
+                side = action.get("side")
+                amount = action.get("amount", 0.0)
+                price = action.get("price", 0.0)
+                if side not in {"buy", "sell"} or amount <= 0:
+                    continue
+
+                await place_order_async(
+                    token,
+                    side=side,
+                    amount=amount,
+                    price=price,
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+
+                if not dry_run:
+                    memory.log_trade(token=token, direction=side, amount=amount, price=price)
+                    portfolio.update(token, amount if side == "buy" else -amount, price)
 
         sims = run_simulations(token, count=100)
 
@@ -275,7 +357,9 @@ def main(
     market_ws_url: str | None = None,
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
+
     arbitrage_tokens: Sequence[str] | None = None,
+
     strategies: list[str] | None = None,
 ) -> None:
     """Run the trading loop.
@@ -302,7 +386,9 @@ def main(
         Path to the JSON file for persisting portfolio state.
 
     arbitrage_tokens:
+
         Specific tokens to monitor for arbitrage opportunities.
+
 
 
 
@@ -363,7 +449,10 @@ def main(
     portfolio = Portfolio(path=portfolio_path)
     strategy_manager = StrategyManager(strategies)
 
-    keypair = load_keypair(keypair_path) if keypair_path else None
+    if keypair_path:
+        keypair = load_keypair(keypair_path)
+    else:
+        keypair = wallet.load_selected_keypair()
 
     async def loop() -> None:
         ws_task = None
@@ -453,6 +542,27 @@ def main(
                 await arb_task
 
     asyncio.run(loop())
+
+
+def run_auto(**kwargs) -> None:
+    """Start trading with selected config or high-risk preset."""
+    cfg = load_selected_config()
+    cfg_path = None
+    if cfg:
+        name = get_active_config_name()
+        cfg_path = os.path.join(CONFIG_DIR, name) if name else None
+    elif _HIGH_RISK_PRESET.is_file():
+        cfg_path = str(_HIGH_RISK_PRESET)
+        cfg = load_config(cfg_path)
+    cfg = apply_env_overrides(cfg)
+    set_env_from_config(cfg)
+
+    if wallet.get_active_keypair_name() is None:
+        keys = wallet.list_keypairs()
+        if len(keys) == 1:
+            wallet.select_keypair(keys[0])
+
+    main(config_path=cfg_path, **kwargs)
 
 
 
@@ -594,8 +704,13 @@ if __name__ == "__main__":
         default=None,
         help="Comma-separated list of strategy modules",
     )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Load selected config and start trading automatically",
+    )
     args = parser.parse_args()
-    main(
+    kwargs = dict(
         memory_path=args.memory_path,
         loop_delay=args.loop_delay,
         iterations=args.iterations,
@@ -622,6 +737,13 @@ if __name__ == "__main__":
         market_ws_url=args.market_ws_url,
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
+
         arbitrage_tokens=args.arbitrage_tokens.split(",") if args.arbitrage_tokens else None,
+
         strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
     )
+
+    if args.auto:
+        run_auto(**kwargs)
+    else:
+        main(**kwargs)

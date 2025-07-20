@@ -2,6 +2,10 @@ import pytest
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 import asyncio
+import os
+import json
+from solders.keypair import Keypair
+from solhunter_zero.simulation import SimulationResult
 
 
 @pytest.fixture(autouse=True)
@@ -395,4 +399,55 @@ def test_trade_size_scales_with_risk(monkeypatch):
     size2 = called[-1]
 
     assert size2 > size1
+
+
+def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
+    import solhunter_zero.config as cfg_mod
+    monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfg" / "active"))
+    monkeypatch.setattr(main_module, "CONFIG_DIR", str(tmp_path / "cfg"))
+    os.makedirs(cfg_mod.CONFIG_DIR, exist_ok=True)
+
+    keys_dir = tmp_path / "keys"
+    monkeypatch.setattr(main_module.wallet, "KEYPAIR_DIR", str(keys_dir))
+    monkeypatch.setattr(main_module.wallet, "ACTIVE_KEYPAIR_FILE", str(keys_dir / "active"))
+    os.makedirs(keys_dir, exist_ok=True)
+
+    kp = Keypair()
+    (keys_dir / "only.json").write_text(json.dumps(list(kp.to_bytes())))
+
+    called = {}
+
+    def fake_main(**kwargs):
+        called["path"] = kwargs.get("config_path")
+
+    monkeypatch.setattr(main_module, "main", fake_main)
+
+    main_module.run_auto()
+
+    assert called["path"].endswith("config.highrisk.toml")
+    assert (keys_dir / "active").read_text() == "only"
+
+
+def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
+    cfg_dir = tmp_path / "cfg"
+    import solhunter_zero.config as cfg_mod
+    monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(cfg_dir / "active"))
+    monkeypatch.setattr(main_module, "CONFIG_DIR", str(cfg_dir))
+    os.makedirs(cfg_dir, exist_ok=True)
+    cfg_file = cfg_dir / "my.toml"
+    cfg_file.write_text("risk_tolerance=0.5")
+    (cfg_dir / "active").write_text("my.toml")
+
+    called = {}
+
+    def fake_main(**kwargs):
+        called["path"] = kwargs.get("config_path")
+
+    monkeypatch.setattr(main_module, "main", fake_main)
+
+    main_module.run_auto()
+
+    assert called["path"] == str(cfg_file)
 

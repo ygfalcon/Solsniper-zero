@@ -42,7 +42,9 @@ arbitrage_amount: 1.0
    An example configuration file named `config.example.toml` is included in
    the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
    values as needed. A high risk preset called `config.highrisk.toml` is also
-   provided.
+   provided. The example configuration loads the built‑in
+   `solhunter_zero.sniper` and `solhunter_zero.arbitrage` strategies so the bot
+   can trade without custom modules.
 
    Environment variables with the same names override values from the file.
    You can specify an alternative file with the `--config` command line option
@@ -91,6 +93,14 @@ arbitrage_amount: 1.0
    ```
 8. **Run the bot**
    ```bash
+   ./run.sh --auto
+   ```
+   This automatically loads the selected configuration (or the `config.highrisk.toml`
+   preset when none is selected), selects the only available keypair if there is
+   just one, and begins trading with the default strategies.
+
+   You can still run the bot manually with:
+   ```bash
    ./run.sh
    # or
    python -m solhunter_zero.main
@@ -125,6 +135,11 @@ Run the bot with:
 python -m solhunter_zero.main
 ```
 Or simply use the helper script which installs any missing dependencies:
+```bash
+./run.sh --auto
+```
+The `--auto` flag performs the automatic configuration and keypair selection
+described above. To run manually without automation use:
 ```bash
 ./run.sh
 ```
