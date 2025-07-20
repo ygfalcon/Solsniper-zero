@@ -112,3 +112,76 @@ def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, floa
 
     return metrics
 
+
+def fetch_liquidity_onchain(token: str, rpc_url: str) -> float:
+    """Return token liquidity computed from on-chain data.
+
+    The function queries ``get_token_largest_accounts`` and sums the
+    returned balances.  Failures result in ``0.0`` being returned.
+    """
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_token_largest_accounts(PublicKey(token))
+        accounts = resp.get("result", {}).get("value", [])
+        total = 0.0
+        for acc in accounts:
+            val = acc.get("uiAmount")
+            if isinstance(val, (int, float)):
+                total += float(val)
+            else:
+                val = acc.get("amount")
+                if isinstance(val, (int, float, str)):
+                    try:
+                        total += float(val)
+                    except Exception:
+                        pass
+        return total
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch liquidity for %s: %s", token, exc)
+        return 0.0
+
+
+def fetch_volume_onchain(token: str, rpc_url: str) -> float:
+    """Return recent transaction volume for ``token`` using ``get_signatures_for_address``."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_signatures_for_address(PublicKey(token))
+        entries = resp.get("result", [])
+        return _tx_volume(entries)
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch volume for %s: %s", token, exc)
+        return 0.0
+
+
+def fetch_slippage_onchain(token: str, rpc_url: str) -> float:
+    """Estimate slippage based on token account distribution."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_token_largest_accounts(PublicKey(token))
+        accounts = resp.get("result", {}).get("value", [])
+        if len(accounts) < 2:
+            return 0.0
+        first = accounts[0].get("uiAmount", accounts[0].get("amount", 0))
+        second = accounts[1].get("uiAmount", accounts[1].get("amount", 0))
+        try:
+            first_val = float(first)
+            second_val = float(second)
+        except Exception:
+            return 0.0
+        return (first_val - second_val) / first_val if first_val else 0.0
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch slippage for %s: %s", token, exc)
+        return 0.0
+

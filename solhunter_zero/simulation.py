@@ -174,6 +174,19 @@ def run_simulations(
         if isinstance(val, (int, float)):
             metrics[key] = float(val)
 
+    rpc_url = os.getenv("SOLANA_RPC_URL")
+    if rpc_url:
+        try:
+            metrics["liquidity"] = onchain_metrics.fetch_liquidity_onchain(
+                token, rpc_url
+            )
+            metrics["volume"] = onchain_metrics.fetch_volume_onchain(token, rpc_url)
+            metrics["slippage"] = onchain_metrics.fetch_slippage_onchain(
+                token, rpc_url
+            )
+        except Exception as exc:  # pragma: no cover - unexpected errors
+            logger.warning("On-chain metric fetch failed: %s", exc)
+
     depth_features = metrics.get("depth_per_dex", [])
     slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
