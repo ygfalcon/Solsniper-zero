@@ -19,12 +19,16 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    your API keys, RPC URL and DEX endpoints:
 
    ```yaml
-   birdeye_api_key: YOUR_BIRDEYE_KEY
-   solana_rpc_url: https://api.mainnet-beta.solana.com
-   dex_base_url: https://dex.example/api
-   dex_testnet_url: https://dex.testnet/api
-   metrics_base_url: https://api.example.com
-   ```
+birdeye_api_key: YOUR_BIRDEYE_KEY
+solana_rpc_url: https://api.mainnet-beta.solana.com
+dex_base_url: https://dex.example/api
+dex_testnet_url: https://dex.testnet/api
+metrics_base_url: https://api.example.com
+```
+
+   An example configuration file named `config.example.toml` is included in
+   the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
+   values as needed.
 
    Environment variables with the same names override values from the file.
    You can specify an alternative file with the `--config` command line option.
