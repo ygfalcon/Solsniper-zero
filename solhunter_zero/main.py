@@ -283,17 +283,15 @@ if __name__ == "__main__":
         help="Use a static token list and skip network requests",
     )
     parser.add_argument(
+        "--token-list",
+        dest="token_file",
+        help="Load token addresses from FILE (one per line)",
+    )
+    parser.add_argument(
         "--discovery-method",
 
         default=None,
         choices=["websocket", "onchain", "pools", "file"],
-        help="Token discovery method",
-    )
-    parser.add_argument(
-
-        choices=["onchain", "websocket", "pools", "file"],
-
-        default=None,
         help="Token discovery method",
     )
     parser.add_argument(
@@ -315,7 +313,7 @@ if __name__ == "__main__":
         "--stop-loss",
         type=float,
         default=None,
-        help="Stop loss threshold as a fraction (e.g. 0.1 for 10%)",
+        help="Stop loss threshold as a fraction (e.g. 0.1 for 10%%)",
     )
     parser.add_argument(
         "--take-profit",
@@ -333,7 +331,7 @@ if __name__ == "__main__":
         offline=args.offline,
 
 
-        token_file=args.token_list,
+        token_file=args.token_file,
 
         discovery_method=args.discovery_method,
 

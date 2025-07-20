@@ -7,15 +7,19 @@ from typing import List
 
 import requests
 
-from . import scanner_common
+from . import scanner_common, dex_scanner
 
 from .scanner_common import (
     BIRDEYE_API,
     HEADERS,
     OFFLINE_TOKENS,
+    SOLANA_RPC_URL,
+    offline_or_onchain,
     parse_birdeye_tokens,
     scan_tokens_from_file,
+
     offline_or_onchain,
+
 )
 from .scanner_onchain import scan_tokens_onchain
 
@@ -25,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 def scan_tokens_from_pools() -> List[str]:
     """Public wrapper for pool discovery used by tests."""
+
     return scanner_common.scan_tokens_from_pools()
+
 
 
 def scan_tokens(
