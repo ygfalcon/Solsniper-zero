@@ -5,6 +5,7 @@ dex_testnet_url = "https://dex.testnet/api"
 metrics_base_url = "https://api.example.com"
 dex_listing_ws_url = "wss://dex.example/ws"
 discovery_method = "websocket"
+# Sell thresholds
 stop_loss = 0.1
 take_profit = 0.2
 # Adjust weights based on agent success
