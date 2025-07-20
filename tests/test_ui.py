@@ -78,3 +78,34 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
 
     assert calls
 
+
+def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
+    used = {}
+
+    async def fake_run_iteration(*args, keypair=None, **kwargs):
+        used["keypair"] = keypair
+        ui.stop_event.set()
+
+    monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
+    monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
+    monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
+    monkeypatch.setattr(ui.wallet, "load_selected_keypair", lambda: None)
+
+    sentinel = object()
+
+    def fake_load_keypair(path):
+        used["path"] = path
+        return sentinel
+
+    monkeypatch.setattr(ui.wallet, "load_keypair", fake_load_keypair)
+    monkeypatch.setenv("KEYPAIR_PATH", "envpath")
+    monkeypatch.setattr(ui, "loop_delay", 0)
+
+    ui.stop_event.clear()
+    thread = threading.Thread(target=ui.trading_loop, daemon=True)
+    thread.start()
+    thread.join(timeout=1)
+
+    assert used["keypair"] is sentinel
+    assert used["path"] == "envpath"
+
