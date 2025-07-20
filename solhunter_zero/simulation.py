@@ -29,6 +29,7 @@ class SimulationResult:
     liquidity: float = 0.0
 
     slippage: float = 0.0
+    volatility: float = 0.0
     volume_spike: float = 1.0
 
 
@@ -47,7 +48,7 @@ def fetch_token_metrics(token: str) -> dict:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json()
-        return {
+        metrics = {
             "mean": float(data.get("mean_return", 0.0)),
             "volatility": float(data.get("volatility", 0.02)),
             "volume": float(data.get("volume_24h", 0.0)),
@@ -61,7 +62,7 @@ def fetch_token_metrics(token: str) -> dict:
         }
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
-        return {
+        metrics = {
             "mean": 0.0,
             "volatility": 0.02,
             "volume": 0.0,
@@ -73,6 +74,42 @@ def fetch_token_metrics(token: str) -> dict:
             "depth_history": [],
             "slippage_history": [],
         }
+
+    dex_urls = [u.strip() for u in os.getenv("DEX_METRIC_URLS", "").split(",") if u.strip()]
+    depth_vals = []
+    slip_vals = []
+    for base in dex_urls:
+        d_url = f"{base.rstrip('/')}/v1/depth?token={token}"
+        try:
+            resp = requests.get(d_url, timeout=5)
+            resp.raise_for_status()
+            val = resp.json().get("depth")
+            if isinstance(val, (int, float)):
+                depth_vals.append(float(val))
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch depth from %s: %s", base, exc)
+        s_url = f"{base.rstrip('/')}/v1/slippage?token={token}"
+        try:
+            resp = requests.get(s_url, timeout=5)
+            resp.raise_for_status()
+            val = resp.json().get("slippage")
+            if isinstance(val, (int, float)):
+                slip_vals.append(float(val))
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch slippage from %s: %s", base, exc)
+
+    if depth_vals:
+        metrics["depth_per_dex"] = depth_vals
+        metrics["depth"] = float(sum(depth_vals) / len(depth_vals))
+    else:
+        metrics["depth_per_dex"] = []
+    if slip_vals:
+        metrics["slippage_per_dex"] = slip_vals
+        metrics["slippage"] = float(sum(slip_vals) / len(slip_vals))
+    else:
+        metrics["slippage_per_dex"] = []
+
+    return metrics
 
 
 async def async_fetch_token_metrics(token: str) -> dict:
@@ -119,6 +156,8 @@ def run_simulations(
 
     metrics = fetch_token_metrics(token)
 
+    results: List[SimulationResult] = []
+
     dex_metrics = onchain_metrics.fetch_dex_metrics(token)
     for key in ("volume", "liquidity", "depth"):
         val = dex_metrics.get(key)
@@ -154,6 +193,8 @@ def run_simulations(
     slip_hist = metrics.get("slippage_history")
 
     predicted_mean = mu
+    depth_features = metrics.get("depth_per_dex", [])
+    slip_features = metrics.get("slippage_per_dex", [])
     if (
         price_hist
         and liq_hist
@@ -169,9 +210,15 @@ def run_simulations(
             n = min(
                 len(returns), len(liq_hist) - 1, len(depth_hist) - 1, len(slip_hist) - 1
             )
-            X = np.column_stack([liq_hist[:n], depth_hist[:n], slip_hist[:n]])
+            cols = [liq_hist[:n], depth_hist[:n], slip_hist[:n]]
+            for val in depth_features:
+                cols.append(np.full(n, val))
+            for val in slip_features:
+                cols.append(np.full(n, val))
+            X = np.column_stack(cols)
             model = GradientBoostingRegressor().fit(X, returns[:n])
-            predicted_mean = float(model.predict([[liquidity, depth, slippage]])[0])
+            feat = [liquidity, depth, slippage] + depth_features + slip_features
+            predicted_mean = float(model.predict([feat])[0])
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
     elif (
@@ -185,9 +232,15 @@ def run_simulations(
         try:
             returns = np.diff(price_hist) / price_hist[:-1]
             n = min(len(returns), len(liq_hist) - 1, len(depth_hist) - 1)
-            X = np.column_stack([liq_hist[:n], depth_hist[:n], np.full(n, sigma)])
+            cols = [liq_hist[:n], depth_hist[:n], np.full(n, sigma)]
+            for val in depth_features:
+                cols.append(np.full(n, val))
+            for val in slip_features:
+                cols.append(np.full(n, val))
+            X = np.column_stack(cols)
             model = LinearRegression().fit(X, returns[:n])
-            predicted_mean = float(model.predict([[liquidity, depth, sigma]])[0])
+            feat = [liquidity, depth, sigma] + depth_features + slip_features
+            predicted_mean = float(model.predict([feat])[0])
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
 
@@ -201,9 +254,15 @@ def run_simulations(
         success_prob = float(np.mean(daily_returns > 0))
 
         results.append(
-
-            SimulationResult(success_prob, roi, volume, liquidity, slippage, vol_spike)
-
+            SimulationResult(
+                success_prob,
+                roi,
+                volume,
+                liquidity,
+                slippage,
+                sigma,
+                volume_spike,
+            )
         )
 
 
