@@ -30,12 +30,13 @@ async def _run_iteration(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    token_file: str | None = None,
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
-    tokens = await scan_tokens_async(offline=offline)
+    tokens = await scan_tokens_async(offline=offline, token_file=token_file)
 
     for token in tokens:
         sims = run_simulations(token, count=100)
@@ -93,6 +94,7 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
+    token_file: str | None = None,
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
     config_path: str | None = None,
@@ -115,6 +117,8 @@ def main(
         Number of iterations to run before exiting. ``None`` runs forever.
     offline:
         Return a predefined token list instead of querying the network.
+    token_file:
+        Path to a file containing token addresses to scan.
     portfolio_path:
         Path to the JSON file for persisting portfolio state.
 
@@ -147,6 +151,7 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
+                    token_file=token_file,
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -160,6 +165,7 @@ def main(
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
+                    token_file=token_file,
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -208,6 +214,12 @@ if __name__ == "__main__":
         help="Use a static token list and skip network requests",
     )
     parser.add_argument(
+        "--token-list",
+        default=None,
+        metavar="FILE",
+        help="Read token addresses from FILE instead of querying the network",
+    )
+    parser.add_argument(
         "--keypair",
         default=os.getenv("KEYPAIR_PATH"),
         help="Path to a JSON keypair for signing transactions",
@@ -242,6 +254,7 @@ if __name__ == "__main__":
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
+        token_file=args.token_list,
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
         config_path=args.config,

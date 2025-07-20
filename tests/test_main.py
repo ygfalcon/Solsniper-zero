@@ -6,7 +6,7 @@ import asyncio
 
 def test_main_invokes_place_order(monkeypatch):
     # prepare mocks
-    async def fake_scan_tokens_async(offline=False):
+    async def fake_scan_tokens_async(offline=False, token_file=None):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
@@ -50,7 +50,7 @@ def test_main_invokes_place_order(monkeypatch):
 def test_main_offline(monkeypatch):
     recorded = {}
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
         recorded["offline"] = offline
         return ["tok"]
 
@@ -86,7 +86,7 @@ def test_run_iteration_sells(monkeypatch):
     pf.add("tok", 2, 1.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
@@ -119,7 +119,7 @@ def test_run_iteration_stop_loss(monkeypatch):
     pf.add("tok", 1, 10.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
@@ -153,7 +153,7 @@ def test_run_iteration_take_profit(monkeypatch):
     pf.add("tok", 1, 10.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False):
+    async def fake_scan_tokens_async(*, offline=False, token_file=None):
         return []
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)

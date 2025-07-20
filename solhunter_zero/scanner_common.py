@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 from typing import Dict, List, Optional
+from pathlib import Path
 
 from .scanner_onchain import scan_tokens_onchain
 
@@ -22,6 +23,17 @@ else:
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 
 
+def load_tokens_from_file(path: str) -> List[str]:
+    """Return token addresses listed one per line in *path*."""
+    tokens: List[str] = []
+    for line in Path(path).read_text().splitlines():
+        tok = line.strip()
+        if tok and not tok.startswith("#"):
+            tokens.append(tok)
+    logger.info("Loaded %d tokens from %s", len(tokens), path)
+    return tokens
+
+
 def parse_birdeye_tokens(data: dict) -> List[str]:
     tokens = [
         t["address"]
@@ -32,7 +44,9 @@ def parse_birdeye_tokens(data: dict) -> List[str]:
     return tokens
 
 
-def offline_or_onchain(offline: bool) -> Optional[List[str]]:
+def offline_or_onchain(offline: bool, token_file: str | None = None) -> Optional[List[str]]:
+    if token_file:
+        return load_tokens_from_file(token_file)
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS
@@ -44,7 +58,9 @@ def offline_or_onchain(offline: bool) -> Optional[List[str]]:
     return None
 
 
-async def offline_or_onchain_async(offline: bool) -> Optional[List[str]]:
+async def offline_or_onchain_async(offline: bool, token_file: str | None = None) -> Optional[List[str]]:
+    if token_file:
+        return load_tokens_from_file(token_file)
     if offline:
         logger.info("Offline mode enabled, returning static tokens")
         return OFFLINE_TOKENS

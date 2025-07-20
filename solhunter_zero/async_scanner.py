@@ -15,9 +15,9 @@ from .scanner_common import (
 logger = logging.getLogger(__name__)
 
 
-async def scan_tokens_async(*, offline: bool = False) -> List[str]:
+async def scan_tokens_async(*, offline: bool = False, token_file: str | None = None) -> List[str]:
     """Async variant of :func:`scanner.scan_tokens`."""
-    tokens = await offline_or_onchain_async(offline)
+    tokens = await offline_or_onchain_async(offline, token_file)
     if tokens is not None:
         return tokens
 

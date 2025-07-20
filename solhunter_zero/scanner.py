@@ -15,9 +15,9 @@ from .scanner_common import (
 logger = logging.getLogger(__name__)
 
 
-def scan_tokens(*, offline: bool = False) -> List[str]:
+def scan_tokens(*, offline: bool = False, token_file: str | None = None) -> List[str]:
     """Scan the Solana network for new tokens ending with 'bonk'."""
-    tokens = offline_or_onchain(offline)
+    tokens = offline_or_onchain(offline, token_file)
     if tokens is not None:
         return tokens
 
@@ -41,9 +41,9 @@ def scan_tokens(*, offline: bool = False) -> List[str]:
             return []
 
 
-async def scan_tokens_async(*, offline: bool = False) -> List[str]:
+async def scan_tokens_async(*, offline: bool = False, token_file: str | None = None) -> List[str]:
     """Async wrapper around :func:`scan_tokens` using aiohttp."""
     from .async_scanner import scan_tokens_async as _scan
 
-    return await _scan(offline=offline)
+    return await _scan(offline=offline, token_file=token_file)
 

@@ -108,3 +108,30 @@ def test_scan_tokens_async(monkeypatch):
     scanner_common.HEADERS["X-API-KEY"] = "key"
     tokens = asyncio.run(async_scan())
     assert tokens == ["abcbonk", "otherbonk"]
+
+
+def test_scan_tokens_from_file(monkeypatch, tmp_path):
+    path = tmp_path / "tokens.txt"
+    path.write_text("tok1\n tok2\n\n#comment\n")
+
+    def fake_get(*a, **k):
+        raise AssertionError("should not call network")
+
+    monkeypatch.setattr(scanner.requests, "get", fake_get)
+    monkeypatch.setattr(scanner_common, "scan_tokens_onchain", lambda _: ["x"])  # should not be called
+
+    tokens = scanner.scan_tokens(token_file=str(path))
+    assert tokens == ["tok1", "tok2"]
+
+
+def test_scan_tokens_async_from_file(monkeypatch, tmp_path):
+    path = tmp_path / "tokens.txt"
+    path.write_text("a\nb\n")
+
+    def fake_session():
+        raise AssertionError("network should not be used")
+
+    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+
+    tokens = asyncio.run(async_scan(token_file=str(path)))
+    assert tokens == ["a", "b"]
