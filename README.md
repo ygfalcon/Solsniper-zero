@@ -54,7 +54,8 @@ arbitrage_amount: 1.0
 4. **Configure API access**
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
    is missing, it will fall back to scanning the blockchain directly using the
-   RPC endpoint specified by `SOLANA_RPC_URL`.
+   RPC endpoint specified by `SOLANA_RPC_URL` and will query on-chain volume
+   and liquidity metrics for discovered tokens.
    To use BirdEye, export the API key:
 
    ```bash
@@ -140,7 +141,7 @@ environment variable if you want to sign orders.
 
 Choose how tokens are discovered with `--discovery-method` (or the
 `DISCOVERY_METHOD` environment variable). Available methods are `onchain`,
-`websocket`, `pools` and `file`.
+`mempool`, `websocket`, `pools` and `file`.
 The default `websocket` mode uses BirdEye when `BIRDEYE_API_KEY` is set and
 falls back to on-chain scanning otherwise.
 Set the API key like this:

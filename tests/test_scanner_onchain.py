@@ -67,3 +67,31 @@ def test_scan_tokens_onchain_retries(monkeypatch):
     assert tokens == ["m1"]
     assert captured["client"].calls == 3
     assert sleeps == [1, 2]
+
+
+def test_scan_tokens_onchain_with_metrics(monkeypatch):
+    class FakeClient:
+        def __init__(self, url):
+            self.url = url
+
+        def get_program_accounts(self, program_id, encoding="jsonParsed"):
+            return {
+                "result": [
+                    {
+                        "account": {
+                            "data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(scanner_onchain, "Client", lambda url: FakeClient(url))
+
+    import solhunter_zero.onchain_metrics as om
+
+    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
+    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 2.0)
+
+    res = scanner_onchain.scan_tokens_onchain("http://node", return_metrics=True)
+
+    assert res == [{"address": "m1", "volume": 1.0, "liquidity": 2.0}]
