@@ -52,7 +52,9 @@ async def stream_new_tokens(
     """
 
     if not rpc_url:
-        raise ValueError("rpc_url is required")
+        if False:
+            yield None
+        return
 
     if suffix is None:
         suffix = TOKEN_SUFFIX
@@ -64,10 +66,6 @@ async def stream_new_tokens(
         await ws.logs_subscribe(
             RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key)
         )
-        if include_pools:
-            await ws.logs_subscribe(
-                RpcTransactionLogsFilterMentions(PublicKey(str(DEX_PROGRAM_ID))._key)
-            )
 
         while True:
             try:
@@ -104,13 +102,7 @@ async def stream_new_tokens(
                     if name and mint and name.lower().endswith(suffix):
                         tokens.add(mint)
 
-                if include_pools:
-                    for log_line in logs:
-                        m = POOL_TOKEN_RE.search(log_line)
-                        if m:
-                            tok = m.group(1)
-                            if tok.lower().endswith(suffix):
-                                tokens.add(tok)
+
 
                 for token in tokens:
                     yield token

@@ -2,7 +2,7 @@ import threading
 import time
 import os
 import asyncio
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 from .prices import fetch_token_prices
 
@@ -68,6 +68,29 @@ def stop() -> dict:
     return jsonify({"status": "stopped"})
 
 
+@app.route("/risk", methods=["GET", "POST"])
+def risk_params() -> dict:
+    if request.method == "POST":
+        data = request.get_json() or {}
+        rt = data.get("risk_tolerance")
+        ma = data.get("max_allocation")
+        rm = data.get("risk_multiplier")
+        if rt is not None:
+            os.environ["RISK_TOLERANCE"] = str(rt)
+        if ma is not None:
+            os.environ["MAX_ALLOCATION"] = str(ma)
+        if rm is not None:
+            os.environ["RISK_MULTIPLIER"] = str(rm)
+        return jsonify({"status": "ok"})
+    return jsonify(
+        {
+            "risk_tolerance": float(os.getenv("RISK_TOLERANCE", "0.1")),
+            "max_allocation": float(os.getenv("MAX_ALLOCATION", "0.2")),
+            "risk_multiplier": float(os.getenv("RISK_MULTIPLIER", "1.0")),
+        }
+    )
+
+
 
 @app.route("/balances")
 def balances() -> dict:
@@ -92,6 +115,13 @@ HTML_PAGE = """
 <body>
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
+
+    <div id='risk'>
+        <label>Risk tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
+        <label>Max allocation <input id='max_allocation' type='number' step='0.01'></label>
+        <label>Risk multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
+        <button id='save_risk'>Save</button>
+    </div>
 
     <table id='balances'>
 
@@ -119,7 +149,24 @@ HTML_PAGE = """
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
 
+    function loadRisk() {
+        fetch('/risk').then(r => r.json()).then(data => {
+            document.getElementById('risk_tolerance').value = data.risk_tolerance;
+            document.getElementById('max_allocation').value = data.max_allocation;
+            document.getElementById('risk_multiplier').value = data.risk_multiplier;
+        });
+    }
+    document.getElementById('save_risk').onclick = function() {
+        const data = {
+            risk_tolerance: parseFloat(document.getElementById('risk_tolerance').value),
+            max_allocation: parseFloat(document.getElementById('max_allocation').value),
+            risk_multiplier: parseFloat(document.getElementById('risk_multiplier').value)
+        };
+        fetch('/risk', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(r => r.json()).then(console.log);
+    };
+
     refresh();
+    loadRisk();
 
     </script>
 </body>

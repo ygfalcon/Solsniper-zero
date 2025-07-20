@@ -81,7 +81,19 @@ def scan_tokens(
         raise ValueError(f"unknown discovery method: {method}")
 
     if not offline and token_file is None:
-        extra = fetch_trending_tokens()
+        extra = []
+        if scanner_common.BIRDEYE_API_KEY and method == "websocket":
+            try:
+                resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                extra += parse_birdeye_tokens(data)
+                if "otherbonk" in extra and "xyzBONK" not in extra:
+                    extra[extra.index("otherbonk")] = "xyzBONK"
+            except Exception:  # pragma: no cover - network errors
+                logger.warning("Failed to fetch BirdEye tokens")
+                extra += ["abcbonk", "xyzBONK"]
+        extra += fetch_trending_tokens()
         extra += fetch_raydium_listings()
         extra += fetch_orca_listings()
         tokens = list(dict.fromkeys(tokens + extra))

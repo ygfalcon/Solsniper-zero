@@ -205,6 +205,9 @@ def main(
     trailing_stop: float | None = None,
     max_drawdown: float | None = None,
     volatility_factor: float | None = None,
+    risk_tolerance: float | None = None,
+    max_allocation: float | None = None,
+    risk_multiplier: float | None = None,
     market_ws_url: str | None = None,
 ) -> None:
     """Run the trading loop.
@@ -239,6 +242,13 @@ def main(
 
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
+
+    if risk_tolerance is not None:
+        os.environ["RISK_TOLERANCE"] = str(risk_tolerance)
+    if max_allocation is not None:
+        os.environ["MAX_ALLOCATION"] = str(max_allocation)
+    if risk_multiplier is not None:
+        os.environ["RISK_MULTIPLIER"] = str(risk_multiplier)
 
     if discovery_method is None:
         discovery_method = cfg.get("discovery_method")
@@ -421,6 +431,24 @@ if __name__ == "__main__":
         help="Scaling factor for volatility in position sizing",
     )
     parser.add_argument(
+        "--risk-tolerance",
+        type=float,
+        default=None,
+        help="Base risk tolerance for position sizing",
+    )
+    parser.add_argument(
+        "--max-allocation",
+        type=float,
+        default=None,
+        help="Maximum portfolio allocation per trade",
+    )
+    parser.add_argument(
+        "--risk-multiplier",
+        type=float,
+        default=None,
+        help="Multiplier applied to risk parameters",
+    )
+    parser.add_argument(
         "--market-ws-url",
         default=None,
         help="Websocket URL for real-time market events",
@@ -447,5 +475,8 @@ if __name__ == "__main__":
         trailing_stop=args.trailing_stop,
         max_drawdown=args.max_drawdown,
         volatility_factor=args.volatility_factor,
+        risk_tolerance=args.risk_tolerance,
+        max_allocation=args.max_allocation,
+        risk_multiplier=args.risk_multiplier,
         market_ws_url=args.market_ws_url,
     )
