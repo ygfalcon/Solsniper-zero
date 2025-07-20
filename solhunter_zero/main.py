@@ -3,6 +3,7 @@ import os
 import asyncio
 import contextlib
 from argparse import ArgumentParser
+from typing import Sequence
 
 from .config import load_config, apply_env_overrides, set_env_from_config
 
@@ -101,6 +102,7 @@ async def _run_iteration(
             price = action.get("price", 0.0)
             if side not in {"buy", "sell"} or amount <= 0:
                 continue
+
             await place_order_async(
                 token,
                 side=side,
@@ -147,6 +149,7 @@ def main(
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
     strategies: list[str] | None = None,
+
 ) -> None:
     """Run the trading loop.
 
@@ -173,6 +176,7 @@ def main(
 
     strategies:
         Optional list of strategy module names to load.
+
 
 
 
@@ -218,6 +222,16 @@ def main(
         market_ws_url = cfg.get("market_ws_url")
     if market_ws_url is None:
         market_ws_url = os.getenv("MARKET_WS_URL")
+    if arbitrage_tokens is None:
+        tokens_cfg = cfg.get("arbitrage_tokens")
+        if isinstance(tokens_cfg, str):
+            arbitrage_tokens = [t.strip() for t in tokens_cfg.split(",") if t.strip()]
+        elif tokens_cfg:
+            arbitrage_tokens = list(tokens_cfg)
+    if arbitrage_tokens is None:
+        env_tokens = os.getenv("ARBITRAGE_TOKENS")
+        if env_tokens:
+            arbitrage_tokens = [t.strip() for t in env_tokens.split(",") if t.strip()]
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
@@ -228,6 +242,7 @@ def main(
 
     async def loop() -> None:
         ws_task = None
+        arb_task = None
         if market_ws_url:
             ws_task = asyncio.create_task(
                 listen_and_trade(
@@ -239,6 +254,24 @@ def main(
                     keypair=keypair,
                 )
             )
+
+        if arbitrage_tokens:
+            async def monitor_arbitrage() -> None:
+                while True:
+                    try:
+                        await arbitrage.detect_and_execute_arbitrage(
+                            arbitrage_tokens,
+                            threshold=arbitrage_threshold,
+                            amount=arbitrage_amount,
+                            testnet=testnet,
+                            dry_run=dry_run,
+                            keypair=keypair,
+                        )
+                    except Exception as exc:  # pragma: no cover - network errors
+                        logging.warning("Arbitrage monitor failed: %s", exc)
+                    await asyncio.sleep(loop_delay)
+
+            arb_task = asyncio.create_task(monitor_arbitrage())
 
         if iterations is None:
             while True:
@@ -289,6 +322,10 @@ def main(
             ws_task.cancel()
             with contextlib.suppress(Exception):
                 await ws_task
+        if arb_task:
+            arb_task.cancel()
+            with contextlib.suppress(Exception):
+                await arb_task
 
     asyncio.run(loop())
 
@@ -426,6 +463,7 @@ if __name__ == "__main__":
         "--strategies",
         default=None,
         help="Comma-separated list of strategy modules",
+
     )
     args = parser.parse_args()
     main(
@@ -456,4 +494,5 @@ if __name__ == "__main__":
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
         strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
+
     )

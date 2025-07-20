@@ -74,3 +74,4 @@ class StrategyManager:
                 m["price"] = (m["price"] * old_amt + price * amt) / (old_amt + amt)
             m["amount"] += amt
         return list(merged.values())
+

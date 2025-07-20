@@ -107,7 +107,7 @@ async def stream_raydium_prices(token: str, url: str = RAYDIUM_WS_URL) -> AsyncG
                     yield float(price)
 
 
-async def detect_and_execute_arbitrage(
+async def _detect_for_token(
     token: str,
     feeds: Sequence[PriceFeed] | None = None,
     streams: Sequence[AsyncGenerator[float, None]] | None = None,
@@ -247,3 +247,25 @@ async def detect_and_execute_arbitrage(
     )
 
     return buy_index, sell_index
+
+
+async def detect_and_execute_arbitrage(
+    tokens: str | Sequence[str],
+    feeds: Sequence[PriceFeed] | None = None,
+    streams: Sequence[AsyncGenerator[float, None]] | None = None,
+    **kwargs,
+) -> Optional[Tuple[int, int]] | list[Optional[Tuple[int, int]]]:
+    """Run arbitrage detection for one or multiple tokens.
+
+    When ``tokens`` is a sequence, price checks for each token are executed
+    concurrently using :func:`asyncio.gather`.
+    """
+
+    if isinstance(tokens, Sequence) and not isinstance(tokens, str):
+        tasks = [
+            _detect_for_token(t, feeds=feeds, streams=streams, **kwargs)
+            for t in tokens
+        ]
+        return await asyncio.gather(*tasks)
+
+    return await _detect_for_token(tokens, feeds=feeds, streams=streams, **kwargs)

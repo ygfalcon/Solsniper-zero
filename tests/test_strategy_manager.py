@@ -48,3 +48,4 @@ def test_strategy_manager_merges_actions(monkeypatch):
     actions = asyncio.run(mgr.evaluate("tok", DummyPortfolio()))
 
     assert actions == [{"token": "tok", "side": "buy", "amount": 2.0, "price": 2.0}]
+
