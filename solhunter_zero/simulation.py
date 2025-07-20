@@ -136,9 +136,11 @@ def run_simulations(
     if recent_slippage is not None:
         slippage = float(recent_slippage)
 
-    if recent_volume is not None:
+
+    if recent_volume is not None and base_volume > 0:
         volume = float(recent_volume)
-        volume_spike = volume / base_volume if base_volume > 0 else 1.0
+        volume_spike = volume / base_volume
+
     else:
         volume_spike = 1.0
 
@@ -192,11 +194,7 @@ def run_simulations(
 
 
 
-    results: List[SimulationResult] = []
-    vol_spike = 1.0
-    if recent_volume is not None and volume:
-        vol_spike = recent_volume / volume
-        volume = recent_volume
+    # ``volume`` and ``volume_spike`` already account for ``recent_volume``
 
     if recent_slippage is not None:
         slippage = recent_slippage
