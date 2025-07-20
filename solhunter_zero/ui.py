@@ -42,12 +42,17 @@ loop_delay = 60
 current_portfolio: Portfolio | None = None
 current_keypair = None
 
-REQUIRED_ENV_VARS = ("BIRDEYE_API_KEY", "DEX_BASE_URL")
+# ``BIRDEYE_API_KEY`` is optional when ``SOLANA_RPC_URL`` is provided for
+# on-chain scanning.
+REQUIRED_ENV_VARS = ("DEX_BASE_URL",)
 
 
 def _missing_required() -> list[str]:
     """Return names of required variables that are unset."""
-    return [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    if not (os.getenv("BIRDEYE_API_KEY") or os.getenv("SOLANA_RPC_URL")):
+        missing.append("BIRDEYE_API_KEY or SOLANA_RPC_URL")
+    return missing
 
 def trading_loop() -> None:
     global current_portfolio, current_keypair
