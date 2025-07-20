@@ -14,8 +14,9 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    pip install -r requirements.txt
    ```
    This installs all required Python packages, including
-   [PyYAML](https://pyyaml.org/) which is necessary when using YAML
-   configuration files.
+   [PyYAML](https://pyyaml.org/) and
+   [solders](https://pypi.org/project/solders/) which are necessary when using
+   YAML configuration files and Solana keypair functionality.
 
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with
@@ -104,6 +105,7 @@ to load token addresses from a file.
 - Python 3.11+
 - [Poetry](https://python-poetry.org/) (optional but recommended)
 - [PyYAML](https://pyyaml.org/) for YAML configuration files
+- [solders](https://pypi.org/project/solders/) for Solana keypair operations
 
 Install Python dependencies:
 ```bash

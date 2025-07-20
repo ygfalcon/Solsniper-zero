@@ -12,6 +12,7 @@ dependencies = [
     "scikit-learn",
 
     "solana",
+    "solders",
     "flask",
 
     "aiohttp",
