@@ -284,6 +284,22 @@ plots ROI over time, recent trade counts and current agent weights.  You can
 adjust risk parameters and agent weights directly in the browser and the values
 are sent back to the server via the `/risk` and `/weights` endpoints.
 
+The UI also exposes simple SQL helpers.  Use `/memory/insert` and
+`/memory/update` to execute parameterised statements and `/memory/query` to
+fetch rows from the `memory.db` database.
+
+Example inserting and reading trades:
+
+```bash
+curl -X POST http://localhost:5000/memory/insert \
+  -H 'Content-Type: application/json' \
+  -d '{"sql":"INSERT INTO trades(token,direction,amount,price) VALUES(:t,:d,:a,:p)","params":{"t":"SOL","d":"buy","a":1.0,"p":20.0}}'
+
+curl -X POST http://localhost:5000/memory/query \
+  -H 'Content-Type: application/json' \
+  -d '{"sql":"SELECT token, direction, amount, price FROM trades"}'
+```
+
 ## Additional Metrics
 
 Recent updates introduce new real-time metrics used by the simulator and risk

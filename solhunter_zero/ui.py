@@ -6,6 +6,7 @@ import json
 import logging
 from collections import deque
 from flask import Flask, jsonify, request
+import sqlalchemy as sa
 from pathlib import Path
 
 from .config import load_config, apply_env_overrides, set_env_from_config
@@ -359,6 +360,48 @@ def balances() -> dict:
 def logs() -> dict:
     """Return recent log messages."""
     return jsonify({"logs": list(log_buffer)})
+
+
+@app.route("/memory/insert", methods=["POST"])
+def memory_insert() -> dict:
+    data = request.get_json() or {}
+    sql = data.get("sql")
+    params = data.get("params", {})
+    if not sql:
+        return jsonify({"error": "missing sql"}), 400
+    mem = Memory("sqlite:///memory.db")
+    with mem.Session() as session:
+        result = session.execute(sa.text(sql), params)
+        session.commit()
+    return jsonify({"status": "ok", "rows": result.rowcount})
+
+
+@app.route("/memory/update", methods=["POST"])
+def memory_update() -> dict:
+    data = request.get_json() or {}
+    sql = data.get("sql")
+    params = data.get("params", {})
+    if not sql:
+        return jsonify({"error": "missing sql"}), 400
+    mem = Memory("sqlite:///memory.db")
+    with mem.Session() as session:
+        result = session.execute(sa.text(sql), params)
+        session.commit()
+    return jsonify({"status": "ok", "rows": result.rowcount})
+
+
+@app.route("/memory/query", methods=["POST"])
+def memory_query() -> dict:
+    data = request.get_json() or {}
+    sql = data.get("sql")
+    params = data.get("params", {})
+    if not sql:
+        return jsonify({"error": "missing sql"}), 400
+    mem = Memory("sqlite:///memory.db")
+    with mem.Session() as session:
+        result = session.execute(sa.text(sql), params)
+        rows = [dict(row._mapping) for row in result]
+    return jsonify(rows)
 
 
 HTML_PAGE = """
