@@ -68,6 +68,8 @@ loop_delay = 60
 current_portfolio: Portfolio | None = None
 current_keypair = None
 pnl_history: list[float] = []
+token_pnl_history: dict[str, list[float]] = {}
+allocation_history: dict[str, list[float]] = {}
 
 # ``BIRDEYE_API_KEY`` is optional when ``SOLANA_RPC_URL`` is provided for
 # on-chain scanning.
@@ -318,6 +320,26 @@ def pnl() -> dict:
     return jsonify({"pnl": pnl, "history": pnl_history})
 
 
+@app.route("/token_history")
+def token_history() -> dict:
+    pf = current_portfolio or Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    total = pf.total_value(prices)
+    result: dict[str, dict[str, list[float]]] = {}
+    for token, pos in pf.balances.items():
+        price = prices.get(token, pos.entry_price)
+        pnl = (price - pos.entry_price) * pos.amount
+        token_pnl_history.setdefault(token, []).append(pnl)
+        alloc = (pos.amount * price) / total if total else 0.0
+        allocation_history.setdefault(token, []).append(alloc)
+        result[token] = {
+            "pnl_history": token_pnl_history[token],
+            "allocation_history": allocation_history[token],
+        }
+    return jsonify(result)
+
+
 
 @app.route("/balances")
 def balances() -> dict:
@@ -366,6 +388,12 @@ HTML_PAGE = """
     <button id='save_weights'>Save Weights</button>
     <canvas id='weights_chart' width='400' height='100'></canvas>
 
+    <h3>Token PnL</h3>
+    <canvas id='pnl_chart' width='400' height='100'></canvas>
+
+    <h3>Token Allocation</h3>
+    <canvas id='allocation_chart' width='400' height='100'></canvas>
+
     <h3>Risk Parameters</h3>
     <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
     <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
@@ -396,6 +424,18 @@ HTML_PAGE = """
         type: 'bar',
         data: {labels: [], datasets: [{label:'Weight', data: []}]},
         options: {scales:{y:{beginAtZero:true}}}
+    });
+
+    const pnlChart = new Chart(document.getElementById('pnl_chart'), {
+        type: 'line',
+        data: {labels: [], datasets: []},
+        options: {scales:{y:{beginAtZero:true}}}
+    });
+
+    const allocationChart = new Chart(document.getElementById('allocation_chart'), {
+        type: 'line',
+        data: {labels: [], datasets: []},
+        options: {scales:{y:{beginAtZero:true, max:1}}}
     });
 
     function loadKeypairs() {
@@ -487,6 +527,22 @@ HTML_PAGE = """
             roiChart.data.datasets[0].data.push(data.roi);
             if(roiChart.data.labels.length>50){roiChart.data.labels.shift();roiChart.data.datasets[0].data.shift();}
             roiChart.update();
+        });
+        fetch('/token_history').then(r => r.json()).then(data => {
+            let maxLen = 0;
+            Object.values(data).forEach(v => { if(v.pnl_history.length > maxLen) maxLen = v.pnl_history.length; });
+            pnlChart.data.labels = Array.from({length:maxLen}, ()=>'');
+            allocationChart.data.labels = pnlChart.data.labels;
+            Object.entries(data).forEach(([tok, stats]) => {
+                let ds = pnlChart.data.datasets.find(d => d.label===tok);
+                if(!ds){ ds = {label:tok, data:[]}; pnlChart.data.datasets.push(ds); }
+                ds.data = stats.pnl_history;
+                let da = allocationChart.data.datasets.find(d => d.label===tok);
+                if(!da){ da = {label:tok, data:[]}; allocationChart.data.datasets.push(da); }
+                da.data = stats.allocation_history;
+            });
+            pnlChart.update();
+            allocationChart.update();
         });
         loadWeights();
     }
