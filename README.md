@@ -156,6 +156,7 @@ The trading logic is implemented by a swarm of small agents:
 - **DiscoveryAgent** — finds new token listings using the existing scanners.
 - **SimulationAgent** — runs Monte Carlo simulations per token.
 - **ConvictionAgent** — rates tokens based on expected ROI.
+- **MetaConvictionAgent** — aggregates multiple conviction signals.
 - **ArbitrageAgent** — detects DEX price discrepancies.
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.

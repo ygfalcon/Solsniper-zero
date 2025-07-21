@@ -9,6 +9,7 @@ from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.meta_conviction import MetaConvictionAgent
 from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.memory import Memory
 
@@ -254,5 +255,52 @@ def test_agent_manager_weights_persistence_toml(tmp_path):
 
     mgr2 = AgentManager([], weights_path=str(path))
     assert mgr2.weights == {"a": 1.5}
+
+
+def test_meta_conviction_majority_buy(monkeypatch):
+    calls = []
+
+    async def buy(self, token, pf):
+        calls.append("b")
+        return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
+
+    async def sell(self, token, pf):
+        calls.append("s")
+        return [{"token": token, "side": "sell", "amount": 1.0, "price": 0.0}]
+
+    monkeypatch.setattr(SimulationAgent, "propose_trade", buy)
+    monkeypatch.setattr(ConvictionAgent, "propose_trade", buy)
+    monkeypatch.setattr(
+        "solhunter_zero.agents.ramanujan.RamanujanAgent.propose_trade",
+        sell,
+    )
+
+    agent = MetaConvictionAgent()
+    actions = asyncio.run(agent.propose_trade("tok", DummyPortfolio()))
+
+    assert calls.count("b") == 2 and calls.count("s") == 1
+    assert actions and actions[0]["side"] == "buy"
+
+
+def test_meta_conviction_majority_sell(monkeypatch):
+    async def buy(self, token, pf):
+        return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
+
+    async def sell(self, token, pf):
+        return [{"token": token, "side": "sell", "amount": 1.0, "price": 0.0}]
+
+    monkeypatch.setattr(SimulationAgent, "propose_trade", sell)
+    monkeypatch.setattr(ConvictionAgent, "propose_trade", sell)
+    monkeypatch.setattr(
+        "solhunter_zero.agents.ramanujan.RamanujanAgent.propose_trade",
+        buy,
+    )
+
+    pf = DummyPortfolio()
+    pf.balances["tok"] = Position("tok", 2, 1.0, 1.0)
+    agent = MetaConvictionAgent()
+    actions = asyncio.run(agent.propose_trade("tok", pf))
+
+    assert actions and actions[0]["side"] == "sell"
 
 
