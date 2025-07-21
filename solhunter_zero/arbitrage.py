@@ -16,8 +16,11 @@ import aiohttp
 from .scanner_common import JUPITER_WS_URL
 
 from .exchange import place_order_async
+from . import order_book_ws
 
 logger = logging.getLogger(__name__)
+
+DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 
 PriceFeed = Callable[[str], Awaitable[float]]
 
@@ -29,7 +32,7 @@ ORCA_WS_URL = os.getenv("ORCA_WS_URL", "")
 RAYDIUM_WS_URL = os.getenv("RAYDIUM_WS_URL", "")
 DEX_PRIORITIES = [
     n.strip()
-    for n in os.getenv("DEX_PRIORITIES", "orca,raydium,jupiter")
+    for n in os.getenv("DEX_PRIORITIES", "service,orca,raydium,jupiter")
     .replace(";", ",")
     .split(",")
     if n.strip()
@@ -342,6 +345,7 @@ async def detect_and_execute_arbitrage(
             "orca": (ORCA_WS_URL, stream_orca_prices),
             "raydium": (RAYDIUM_WS_URL, stream_raydium_prices),
             "jupiter": (JUPITER_WS_URL, stream_jupiter_prices),
+            "service": (f"ipc://{DEPTH_SERVICE_SOCKET}?{token}", order_book_ws.stream_order_book),
         }
         auto: list[AsyncGenerator[float, None]] = []
         names: list[str] = []

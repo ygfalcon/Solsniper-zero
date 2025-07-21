@@ -67,6 +67,18 @@ weight_step: 0.05
    provided. The example configuration loads several built‑in **agents** that
    replace the previous static strategy modules.
 
+## Rust Depth Service
+
+The `depth_service` crate provides low‑latency order book snapshots and
+direct transaction submission to the Solana RPC. Start the service with
+
+```bash
+cargo run --manifest-path depth_service/Cargo.toml -- --serum wss://serum/ws --raydium wss://raydium/ws
+```
+
+It writes depth data to `/tmp/depth_service.mmap` and exposes an IPC socket at
+`/tmp/depth_service.sock` used by the Python modules.
+
    The `AgentManager` loads the agents listed under `agents` and applies any
    weights defined in the `agent_weights` table.  When `dynamic_weights` is set
    to `true` a `SwarmCoordinator` derives weights dynamically from each
