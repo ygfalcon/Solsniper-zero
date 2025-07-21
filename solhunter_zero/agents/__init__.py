@@ -17,6 +17,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .reinforcement import ReinforcementAgent
 
     from .dqn import DQNAgent
+    from .ramanujan_agent import RamanujanAgent
 
 
 
@@ -60,6 +61,7 @@ def _ensure_agents_loaded() -> None:
         "discovery": DiscoveryAgent,
         "reinforcement": ReinforcementAgent,
         "dqn": DQNAgent,
+        "ramanujan": RamanujanAgent,
     })
 
 
