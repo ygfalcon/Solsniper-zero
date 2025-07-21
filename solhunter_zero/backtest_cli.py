@@ -6,6 +6,8 @@ from argparse import ArgumentParser
 from datetime import datetime
 import tomllib
 
+from .trade_analyzer import analyze_trades
+
 from .backtester import (
     backtest_strategies,
     backtest_configs,
@@ -13,8 +15,11 @@ from .backtester import (
 )
 
 
-def _load_history(path: str, start: str | None, end: str | None) -> list[float]:
+def _load_history(path: str | None, start: str | None, end: str | None) -> list[float]:
     """Load price history from ``path`` filtered by ``start`` and ``end`` dates."""
+
+    if not path:
+        return []
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -43,7 +48,7 @@ def _load_history(path: str, start: str | None, end: str | None) -> list[float]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = ArgumentParser(description="Run strategy backtests")
-    parser.add_argument("history", help="JSON file with price history list")
+    parser.add_argument("history", nargs="?", help="JSON file with price history list")
     parser.add_argument(
         "-c",
         "--config",
@@ -61,7 +66,34 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--start", help="Start date YYYY-MM-DD")
     parser.add_argument("--end", help="End date YYYY-MM-DD")
+    parser.add_argument(
+        "--analyze-trades",
+        action="store_true",
+        help="Analyze recorded trades and suggest weight updates",
+    )
+    parser.add_argument(
+        "--memory",
+        dest="memory",
+        default="sqlite:///memory.db",
+        help="Memory database URL",
+    )
+    parser.add_argument(
+        "--weights-out",
+        dest="weights_out",
+        help="Write updated weights to FILE",
+    )
     args = parser.parse_args(argv)
+
+    if args.analyze_trades:
+        analyze_trades(
+            args.memory,
+            args.configs,
+            weights_out=args.weights_out,
+        )
+        return 0
+
+    if not args.history:
+        parser.error("history is required unless --analyze-trades is used")
 
     prices = _load_history(args.history, args.start, args.end)
 
