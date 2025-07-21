@@ -5,8 +5,8 @@ from typing import Iterable, Dict, Any, List
 
 from .agents import BaseAgent
 from .agents.execution import ExecutionAgent
-from .agents.discovery import DiscoveryAgent
-from .scanner import scan_tokens_async
+from .agents.memory import MemoryAgent
+
 
 
 class AgentManager:
@@ -52,8 +52,14 @@ class AgentManager:
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
         results = []
+        mem_agent = next(
+            (a for a in self.agents if isinstance(a, MemoryAgent)), None
+        )
         for action in actions:
-            results.append(await self.executor.execute(action))
+            res = await self.executor.execute(action)
+            results.append(res)
+            if mem_agent:
+                await mem_agent.log(action, skip_db=self.executor.dry_run)
         return results
 
     async def discover_tokens(

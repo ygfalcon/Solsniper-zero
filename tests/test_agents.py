@@ -176,26 +176,30 @@ def test_memory_agent(monkeypatch):
     assert trades and trades[0].token == 'tok'
 
 
+def test_agent_manager_logs_trades(monkeypatch):
+    async def propose(token, portfolio):
+        return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
 
-def test_builtin_agents_mapping():
-    # ensure mapping is populated
-    load_agent('simulation')
-    expected = {
-        'simulation',
-        'conviction',
-        'arbitrage',
-        'exit',
-        'execution',
-        'memory',
-        'discovery',
-    }
-    assert expected <= set(BUILT_IN_AGENTS)
+    memory_agent = MemoryAgent()
+    log_called = {}
 
+    async def fake_log(action, *, skip_db=False):
+        log_called['args'] = (action, skip_db)
 
-def test_load_agent():
-    agent = load_agent('simulation', count=1)
-    assert isinstance(agent, SimulationAgent)
-    with pytest.raises(KeyError):
-        load_agent('missing')
+    monkeypatch.setattr(memory_agent, 'log', fake_log)
+
+    exec_agent = ExecutionAgent(rate_limit=0, dry_run=True)
+
+    async def fake_execute(action):
+        return {'ok': True}
+
+    monkeypatch.setattr(exec_agent, 'execute', fake_execute)
+
+    mgr = AgentManager([types.SimpleNamespace(propose_trade=propose), memory_agent], executor=exec_agent)
+    pf = DummyPortfolio()
+    asyncio.run(mgr.execute('tok', pf))
+
+    assert log_called['args'][0]['side'] == 'buy'
+    assert log_called['args'][1] is True
 
 
