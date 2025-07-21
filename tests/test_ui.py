@@ -2,6 +2,7 @@ import time
 import os
 import io
 import json
+import pytest
 from solders.keypair import Keypair
 from solhunter_zero import ui, config
 import logging
@@ -251,4 +252,20 @@ def test_logs_endpoint(monkeypatch):
 
     assert any("alpha" in l for l in logs)
     assert logs[-1] == "beta"
+
+
+def test_token_history_endpoint(monkeypatch):
+    pf = ui.Portfolio(path=None)
+    pf.balances = {"tok": Position("tok", 1, 2.0)}
+    monkeypatch.setattr(ui, "current_portfolio", pf, raising=False)
+    monkeypatch.setattr(ui, "fetch_token_prices", lambda tokens: {"tok": 3.0})
+    monkeypatch.setattr(ui, "token_pnl_history", {}, raising=False)
+    monkeypatch.setattr(ui, "allocation_history", {}, raising=False)
+
+    client = ui.app.test_client()
+    resp = client.get("/token_history")
+    data = resp.get_json()
+    assert "tok" in data
+    assert data["tok"]["pnl_history"][-1] == pytest.approx(1.0)
+    assert data["tok"]["allocation_history"][-1] == pytest.approx(1.0)
 
