@@ -17,7 +17,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
 
     from .dqn import DQNAgent
 
-    from .ramanujan import RamanujanAgent
+    from .ramanujan_agent import RamanujanAgent
     from .meta_conviction import MetaConvictionAgent
 
 
@@ -50,7 +50,7 @@ def _ensure_agents_loaded() -> None:
     from .reinforcement import ReinforcementAgent
 
     from .dqn import DQNAgent
-    from .ramanujan import RamanujanAgent
+    from .ramanujan_agent import RamanujanAgent
     from .meta_conviction import MetaConvictionAgent
 
     BUILT_IN_AGENTS.update({
