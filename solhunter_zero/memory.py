@@ -1,6 +1,14 @@
 from __future__ import annotations
 import datetime
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    Float,
+    String,
+    DateTime,
+    Text,
+)
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -19,6 +27,14 @@ class Trade(Base):
     reason = Column(Text)
 
 
+class VaRLog(Base):
+    __tablename__ = "var_logs"
+
+    id = Column(Integer, primary_key=True)
+    value = Column(Float, nullable=False)
+    timestamp = Column(DateTime, default=utcnow)
+
+
 class Memory:
     def __init__(self, url: str = 'sqlite:///memory.db'):
         self.engine = create_engine(url, echo=False, future=True)
@@ -31,6 +47,17 @@ class Memory:
             session.add(trade)
             session.commit()
 
+    def log_var(self, value: float) -> None:
+        """Record a value-at-risk measurement."""
+        with self.Session() as session:
+            rec = VaRLog(value=value)
+            session.add(rec)
+            session.commit()
+
     def list_trades(self):
         with self.Session() as session:
             return session.query(Trade).all()
+
+    def list_vars(self):
+        with self.Session() as session:
+            return session.query(VaRLog).all()
