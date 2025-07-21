@@ -31,12 +31,25 @@ metrics_base_url: https://api.example.com
 risk_tolerance: 0.1
 max_allocation: 0.2
 max_risk_per_token: 0.05
+stop_loss: 0.1
+take_profit: 0.2
 trailing_stop: 0.1
 max_drawdown: 0.5
 volatility_factor: 1.0
 risk_multiplier: 1.0
 arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
+agents:
+  - simulation
+  - conviction
+  - arbitrage
+  - exit
+agent_weights:
+  simulation: 1.0
+  conviction: 1.0
+  arbitrage: 1.0
+dynamic_weights: true
+weight_step: 0.05
 ```
 
    An example configuration file named `config.example.toml` is included in
@@ -45,14 +58,19 @@ arbitrage_amount: 1.0
    provided. The example configuration loads several built‑in **agents** that
    replace the previous static strategy modules.
 
-   To control how much each agent influences trades, add an `agent_weights`
-   table mapping agent names to weights:
+   The `AgentManager` loads the agents listed under `agents` and applies any
+   weights defined in the `agent_weights` table.  When `dynamic_weights` is set
+   to `true` the manager adjusts these weights automatically after every
+   iteration by `weight_step` depending on each agent's recent performance.
+   To control how much each agent influences trades manually, add an
+   `agent_weights` table mapping agent names to weights:
 
    ```toml
    [agent_weights]
    "simulation" = 1.0
    "conviction" = 1.0
    "arbitrage" = 1.0
+   "exit" = 1.0
    ```
 
    Environment variables with the same names override values from the file.
@@ -128,12 +146,14 @@ The trading logic is implemented by a swarm of small agents:
 - **SimulationAgent** — runs Monte Carlo simulations per token.
 - **ConvictionAgent** — rates tokens based on expected ROI.
 - **ArbitrageAgent** — detects DEX price discrepancies.
-- **ExitAgent** — proposes sells using trailing stops.
+- **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
 - **MemoryAgent** — records past trades for analysis.
 
 Agents can be enabled or disabled in the configuration and their impact
-controlled via the `agent_weights` table.
+controlled via the `agent_weights` table.  When dynamic weighting is enabled,
+the `AgentManager` updates these weights automatically over time based on each
+agent's trading performance.
 
 
 ## Requirements
@@ -157,6 +177,12 @@ pip install -e .
 Run the bot with:
 ```bash
 python -m solhunter_zero.main
+```
+By default the `AgentManager` uses the agents listed in `config.toml`.  You can
+edit that file to enable or disable agents or adjust their weights.  Then run
+the bot with:
+```bash
+python -m solhunter_zero.main --config config.toml
 ```
 Or simply use the helper script which installs any missing dependencies:
 ```bash

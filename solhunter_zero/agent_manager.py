@@ -16,6 +16,28 @@ class AgentManager:
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent()
 
+    # ------------------------------------------------------------------
+    #  Construction helpers
+    # ------------------------------------------------------------------
+    @classmethod
+    def from_config(cls, cfg: dict) -> "AgentManager":
+        """Create ``AgentManager`` from configuration dictionary."""
+
+        agent_names = cfg.get("agents", [])
+        weights = cfg.get("agent_weights", {}) or {}
+
+        agents: list[BaseAgent] = []
+        for name in agent_names:
+            weight = weights.get(name)
+            try:
+                agent = load_agent(name, weight=weight)
+            except Exception:
+                continue
+            agents.append(agent)
+
+        executor = ExecutionAgent()
+        return cls(agents, executor=executor)
+
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         async def run(agent: BaseAgent):
             return await agent.propose_trade(token, portfolio)
@@ -62,3 +84,4 @@ class AgentManager:
             return await scan_tokens_async(
                 offline=offline, token_file=token_file
             )
+
