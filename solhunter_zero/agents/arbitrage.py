@@ -21,6 +21,7 @@ class ArbitrageAgent(BaseAgent):
         threshold: float = 0.0,
         amount: float = 1.0,
         feeds: Mapping[str, PriceFeed] | Sequence[PriceFeed] | None = None,
+        backup_feeds: Mapping[str, PriceFeed] | Sequence[PriceFeed] | None = None,
         *,
         fees: Mapping[str, float] | None = None,
         gas: Mapping[str, float] | None = None,
@@ -47,12 +48,52 @@ class ArbitrageAgent(BaseAgent):
             self.gas_multiplier = float(gas_multiplier)
         else:
             self.gas_multiplier = float(os.getenv("GAS_MULTIPLIER", "1.0"))
+        if backup_feeds is None:
+            self.backup_feeds: Dict[str, PriceFeed] | None = None
+        elif isinstance(backup_feeds, Mapping):
+            self.backup_feeds = dict(backup_feeds)
+        else:
+            self.backup_feeds = {
+                getattr(f, "__name__", f"backup{i}"): f
+                for i, f in enumerate(backup_feeds)
+            }
+        # Cache of latest known prices per token and feed
+        self.price_cache: Dict[str, Dict[str, float]] = {}
 
     async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+        token_cache = self.price_cache.setdefault(token, {})
+
+        # Fetch prices from main feeds
         names = list(self.feeds.keys())
         prices = await asyncio.gather(*(f(token) for f in self.feeds.values()))
-        if not prices:
+
+        valid: Dict[str, float] = {}
+        for name, price in zip(names, prices):
+            if price > 0:
+                token_cache[name] = price
+                valid[name] = price
+            elif name in token_cache:
+                valid[name] = token_cache[name]
+
+        # If all feeds failed, try backup feeds
+        if len(valid) < 2 and self.backup_feeds:
+            b_names = list(self.backup_feeds.keys())
+            b_prices = await asyncio.gather(
+                *(f(token) for f in self.backup_feeds.values())
+            )
+            for b_name, b_price in zip(b_names, b_prices):
+                if b_price > 0:
+                    token_cache[b_name] = b_price
+                    valid[b_name] = b_price
+                elif b_name in token_cache:
+                    valid[b_name] = token_cache[b_name]
+
+        # If still not enough data, give up
+        if len(valid) < 2:
             return []
+
+        names = list(valid.keys())
+        prices = list(valid.values())
         min_price = min(prices)
         max_price = max(prices)
         if min_price <= 0:

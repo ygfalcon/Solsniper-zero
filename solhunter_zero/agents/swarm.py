@@ -17,7 +17,8 @@ class AgentSwarm:
         self._last_outcomes: Dict[str, bool | None] = {a.name: None for a in self.agents}
         self._last_actions: List[Dict[str, Any]] = []
         for a in self.agents:
-            setattr(a, "memory", memory)
+            if memory is not None:
+                setattr(a, "memory", memory)
             setattr(a, "swarm", self)
             setattr(a, "last_outcome", None)
 
@@ -91,7 +92,14 @@ class AgentSwarm:
                 key = (token, side)
                 m = merged.setdefault(key, {"token": token, "side": side, "amount": 0.0, "price": 0.0})
                 for extra in ("conviction_delta", "regret", "misfires", "agent"):
-                    if extra in r and extra not in m:
+                    if extra not in r:
+                        continue
+                    if extra == "agent":
+                        if "agent" in m and m["agent"] != r["agent"]:
+                            m.pop("agent", None)
+                        elif "agent" not in m:
+                            m["agent"] = r["agent"]
+                    elif extra not in m:
                         m[extra] = r[extra]
                 old_amt = m["amount"]
                 if old_amt + amt > 0:
