@@ -4,8 +4,11 @@ import random
 from collections import defaultdict
 from typing import List, Dict, Any
 
+from pathlib import Path
+
 import numpy as np
-from sklearn.neural_network import MLPRegressor
+import torch
+from torch import nn, optim
 
 from . import BaseAgent
 from .memory import MemoryAgent
@@ -25,16 +28,29 @@ class DQNAgent(BaseAgent):
         learning_rate: float = 0.001,
         epsilon: float = 0.1,
         discount: float = 0.95,
+        model_path: str | Path = "dqn_model.pt",
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.epsilon = epsilon
         self.discount = discount
-        self.model = MLPRegressor(
-            hidden_layer_sizes=(hidden_size,),
-            learning_rate_init=learning_rate,
-            max_iter=200,
+        self.model_path = Path(model_path)
+
+        self.model = nn.Sequential(
+            nn.Linear(1, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 2),
         )
+        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        self.loss_fn = nn.MSELoss()
         self._fitted = False
+
+        if self.model_path.exists():
+            data = torch.load(self.model_path)
+            self.model.load_state_dict(data.get("model_state", {}))
+            opt_state = data.get("optimizer_state")
+            if opt_state:
+                self.optimizer.load_state_dict(opt_state)
+            self._fitted = True
 
     # ------------------------------------------------------------------
     def _state(self, token: str, portfolio: Portfolio) -> List[float]:
@@ -59,17 +75,34 @@ class DQNAgent(BaseAgent):
             y.append([reward, -reward])
         if not X:
             return
-        X_arr = np.array(X)
-        y_arr = np.array(y)
-        self.model.fit(X_arr, y_arr)
+        X_arr = torch.tensor(np.array(X), dtype=torch.float32)
+        y_arr = torch.tensor(np.array(y), dtype=torch.float32)
+
+        self.model.train()
+        for _ in range(100):
+            self.optimizer.zero_grad()
+            pred = self.model(X_arr)
+            loss = self.loss_fn(pred, y_arr)
+            loss.backward()
+            self.optimizer.step()
         self._fitted = True
+
+        if self.model_path:
+            torch.save(
+                {
+                    "model_state": self.model.state_dict(),
+                    "optimizer_state": self.optimizer.state_dict(),
+                },
+                self.model_path,
+            )
 
     # ------------------------------------------------------------------
     async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
         self.train(portfolio)
-        state = np.array([self._state(token, portfolio)])
+        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
         if self._fitted:
-            q = self.model.predict(state)[0]
+            with torch.no_grad():
+                q = self.model(state)[0].numpy()
         else:
             q = [0.0, 0.0]
         if random.random() < self.epsilon:
