@@ -297,6 +297,11 @@ volume spikes increase the scale, while large depth changes or heavy whale
 concentration reduce it.  This helps the bot back off during potential dumps and
 scale in aggressively when on-chain activity surges.
 
+The helper function `predict_price_movement()` exposes this regression step
+directly. `ConvictionAgent` mixes the predicted short‑term return with the
+Monte Carlo average to adjust sniper timing. A strong positive prediction will
+trigger buys sooner while a negative one delays them.
+
 ## Minimum Portfolio Value
 
 `RiskManager` scales down risk when the value of the entire portfolio falls
