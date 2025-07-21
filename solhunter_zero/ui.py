@@ -3,6 +3,8 @@ import time
 import os
 import asyncio
 import json
+import logging
+from collections import deque
 from flask import Flask, jsonify, request
 from pathlib import Path
 
@@ -40,6 +42,23 @@ cfg = apply_env_overrides(cfg)
 set_env_from_config(cfg)
 
 app = Flask(__name__)
+
+# in-memory log storage for UI access
+log_buffer: deque[str] = deque(maxlen=200)
+
+
+class _BufferHandler(logging.Handler):
+    """Logging handler that stores formatted log records in ``log_buffer``."""
+
+    def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - simple
+        log_buffer.append(self.format(record))
+
+
+buffer_handler = _BufferHandler()
+buffer_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+)
+logging.getLogger().addHandler(buffer_handler)
 
 trading_thread = None
 stop_event = threading.Event()
@@ -312,6 +331,12 @@ def balances() -> dict:
         usd = pos.amount * price if price is not None else None
         result[token] = {"amount": pos.amount, "price": price, "usd": usd}
     return jsonify(result)
+
+
+@app.route("/logs")
+def logs() -> dict:
+    """Return recent log messages."""
+    return jsonify({"logs": list(log_buffer)})
 
 
 HTML_PAGE = """
