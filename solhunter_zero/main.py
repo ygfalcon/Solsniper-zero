@@ -295,6 +295,7 @@ async def _run_iteration(
 
         if agent_manager is not None:
             agent_manager.update_weights()
+            agent_manager.save_weights()
 
 
 

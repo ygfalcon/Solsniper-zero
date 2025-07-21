@@ -94,7 +94,9 @@ class AgentManager:
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent()
-        self.weights_path = str(weights_path) if weights_path is not None else None
+        self.weights_path = (
+            str(weights_path) if weights_path is not None else "weights.json"
+        )
 
         file_weights: Dict[str, float] = {}
         if self.weights_path and os.path.exists(self.weights_path):
