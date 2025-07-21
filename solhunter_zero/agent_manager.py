@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 from typing import Iterable, Dict, Any, List
 
 import tomllib
@@ -14,6 +15,7 @@ from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
+from . import mutation
 
 
 class StrategySelector:
@@ -91,6 +93,7 @@ class AgentManager:
         weights_path: str | os.PathLike | None = None,
         strategy_selection: bool = False,
         vote_threshold: float = 0.0,
+        mutation_path: str | os.PathLike | None = "mutation_state.json",
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent()
@@ -116,6 +119,9 @@ class AgentManager:
         )
 
         self.coordinator = SwarmCoordinator(self.memory_agent, self.weights)
+
+        self.mutation_path = str(mutation_path) if mutation_path is not None else "mutation_state.json"
+        self.mutation_state = mutation.load_state(self.mutation_path)
 
         self.strategy_selection = strategy_selection
         self.vote_threshold = float(vote_threshold)
@@ -171,6 +177,67 @@ class AgentManager:
                 self.weights[name] = self.weights.get(name, 1.0) * 0.9
 
         self.coordinator.base_weights = self.weights
+
+    # ------------------------------------------------------------------
+    #  Mutation helpers
+    # ------------------------------------------------------------------
+    def _roi_by_agent(self, names: Iterable[str]) -> Dict[str, float]:
+        if not self.memory_agent:
+            return {n: 0.0 for n in names}
+        trades = self.memory_agent.memory.list_trades()
+        summary: Dict[str, Dict[str, float]] = {}
+        for t in trades:
+            if t.reason not in names:
+                continue
+            info = summary.setdefault(t.reason, {"buy": 0.0, "sell": 0.0})
+            info[t.direction] += float(t.amount) * float(t.price)
+        rois = {n: 0.0 for n in names}
+        for name, info in summary.items():
+            spent = info.get("buy", 0.0)
+            revenue = info.get("sell", 0.0)
+            if spent > 0:
+                rois[name] = (revenue - spent) / spent
+        return rois
+
+    def spawn_mutations(self, count: int = 1) -> None:
+        base_agents = [a for a in self.agents if a.name not in self.mutation_state.get("active", []) and not isinstance(a, MemoryAgent)]
+        if not base_agents:
+            return
+        for _ in range(count):
+            base = random.choice(base_agents)
+            name = f"{base.name}_m{len(self.mutation_state.get('active', [])) + 1}"
+            mutated = mutation.mutate_agent(base, name=name)
+            self.agents.append(mutated)
+            self.mutation_state.setdefault("active", []).append(mutated.name)
+
+    def prune_underperforming(self, threshold: float = 0.0) -> None:
+        active = list(self.mutation_state.get("active", []))
+        if not active:
+            return
+        rois = self._roi_by_agent(active)
+        keep = []
+        remaining_agents = []
+        for agent in self.agents:
+            if agent.name in active:
+                if rois.get(agent.name, 0.0) >= threshold:
+                    remaining_agents.append(agent)
+                    keep.append(agent.name)
+            else:
+                remaining_agents.append(agent)
+        self.agents = remaining_agents
+        self.mutation_state["active"] = keep
+        self.mutation_state.setdefault("roi", {}).update(rois)
+
+    def save_mutation_state(self, path: str | os.PathLike | None = None) -> None:
+        path = path or self.mutation_path
+        if path:
+            mutation.save_state(self.mutation_state, str(path))
+
+    def evolve(self, spawn_count: int = 1, threshold: float = 0.0) -> None:
+        self.spawn_mutations(spawn_count)
+        self.prune_underperforming(threshold)
+        if self.mutation_path:
+            self.save_mutation_state()
 
     # ------------------------------------------------------------------
     #  Persistence helpers
