@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from . import BaseAgent
+
 from ..portfolio import Portfolio, calculate_order_size
 
 
@@ -37,3 +38,4 @@ class PortfolioAgent(BaseAgent):
                 actions.append({"token": token, "side": "buy", "amount": size, "price": 0.0})
 
         return actions
+

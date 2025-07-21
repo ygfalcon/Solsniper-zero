@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 from . import BaseAgent
 from .simulation import SimulationAgent
 from .conviction import ConvictionAgent
-from .ramanujan import RamanujanAgent
+from .ramanujan_agent import RamanujanAgent
 from ..portfolio import Portfolio
 
 
