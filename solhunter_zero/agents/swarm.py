@@ -50,6 +50,9 @@ class AgentSwarm:
                 price = float(r.get("price", 0.0))
                 key = (token, side)
                 m = merged.setdefault(key, {"token": token, "side": side, "amount": 0.0, "price": 0.0})
+                for extra in ("conviction_delta", "regret", "misfires", "agent"):
+                    if extra in r and extra not in m:
+                        m[extra] = r[extra]
                 old_amt = m["amount"]
                 if old_amt + amt > 0:
                     m["price"] = (m["price"] * old_amt + price * amt) / (old_amt + amt)
@@ -62,8 +65,16 @@ class AgentSwarm:
             sell = merged.get((tok, "sell"), {"amount": 0.0, "price": 0.0})
             net = buy["amount"] - sell["amount"]
             if net > 0:
-                final.append({"token": tok, "side": "buy", "amount": net, "price": buy["price"]})
+                entry = {"token": tok, "side": "buy", "amount": net, "price": buy["price"]}
+                for extra in ("conviction_delta", "regret", "misfires", "agent"):
+                    if extra in buy:
+                        entry[extra] = buy[extra]
+                final.append(entry)
             elif net < 0:
-                final.append({"token": tok, "side": "sell", "amount": -net, "price": sell["price"]})
+                entry = {"token": tok, "side": "sell", "amount": -net, "price": sell["price"]}
+                for extra in ("conviction_delta", "regret", "misfires", "agent"):
+                    if extra in sell:
+                        entry[extra] = sell[extra]
+                final.append(entry)
 
         return final

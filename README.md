@@ -164,6 +164,8 @@ The trading logic is implemented by a swarm of small agents:
 - **MemoryAgent** — records past trades for analysis. Trade context and emotion
   tags are saved to `memory.db` and a FAISS index (`trade.index`) for semantic
   search.
+- **EmotionAgent** — assigns emotion tags such as "confident" or "anxious" after
+  each trade based on conviction delta, regret level and simulation misfires.
 - **ReinforcementAgent** — learns from trade history using Q-learning.
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
 - **RamanujanAgent** — proposes deterministic buys or sells from a hashed conviction score.
@@ -178,6 +180,11 @@ The `AgentManager` periodically adjusts these weights using the
 `update_weights()` method.  It reviews trade history recorded by the
 `MemoryAgent` and slightly increases the weight of agents with a positive ROI
 while decreasing the weight of those with losses.
+
+Emotion tags produced by the `EmotionAgent` are stored alongside each trade.
+Reinforcement agents can read these tags to temper their proposals. A streak of
+negative emotions like `anxious` or `regret` reduces conviction in later
+iterations, while positive emotions encourage larger allocations.
 
 
 ## Requirements
