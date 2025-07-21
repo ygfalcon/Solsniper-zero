@@ -4,6 +4,8 @@ import io
 import json
 from solders.keypair import Keypair
 from solhunter_zero import ui, config
+import logging
+from collections import deque
 from solhunter_zero.portfolio import Position
 import threading
 
@@ -233,4 +235,20 @@ def test_get_and_set_weights(monkeypatch):
     resp = client.post("/weights", json={"sim": 1.2})
     assert resp.get_json()["status"] == "ok"
     assert json.loads(os.getenv("AGENT_WEIGHTS"))["sim"] == 1.2
+
+
+def test_logs_endpoint(monkeypatch):
+    monkeypatch.setattr(ui, "log_buffer", deque(maxlen=5))
+    ui.buffer_handler.setFormatter(logging.Formatter("%(message)s"))
+    logging.getLogger().setLevel(logging.INFO)
+
+    logging.getLogger().info("alpha")
+    logging.getLogger().error("beta")
+
+    client = ui.app.test_client()
+    resp = client.get("/logs")
+    logs = resp.get_json()["logs"]
+
+    assert any("alpha" in l for l in logs)
+    assert logs[-1] == "beta"
 
