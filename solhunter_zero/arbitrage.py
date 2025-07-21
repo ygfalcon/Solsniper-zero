@@ -261,11 +261,22 @@ async def detect_and_execute_arbitrage(
     concurrently using :func:`asyncio.gather`.
     """
 
+    def _streams_for(token: str):
+        if streams is not None:
+            return streams
+
+        auto: list[AsyncGenerator[float, None]] = []
+        if ORCA_WS_URL:
+            auto.append(stream_orca_prices(token, url=ORCA_WS_URL))
+        if RAYDIUM_WS_URL:
+            auto.append(stream_raydium_prices(token, url=RAYDIUM_WS_URL))
+        return auto if auto else None
+
     if isinstance(tokens, Sequence) and not isinstance(tokens, str):
         tasks = [
-            _detect_for_token(t, feeds=feeds, streams=streams, **kwargs)
+            _detect_for_token(t, feeds=feeds, streams=_streams_for(t), **kwargs)
             for t in tokens
         ]
         return await asyncio.gather(*tasks)
 
-    return await _detect_for_token(tokens, feeds=feeds, streams=streams, **kwargs)
+    return await _detect_for_token(tokens, feeds=feeds, streams=_streams_for(tokens), **kwargs)
