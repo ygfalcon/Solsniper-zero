@@ -15,7 +15,10 @@ class MemoryAgent(BaseAgent):
     def __init__(self, memory: Memory | None = None):
         self.memory = memory or Memory("sqlite:///:memory:")
 
-    async def log(self, action: Dict[str, Any]) -> None:
+    async def log(self, action: Dict[str, Any], *, skip_db: bool = False) -> None:
+        """Record ``action`` in memory unless ``skip_db`` is True."""
+        if skip_db:
+            return
         self.memory.log_trade(
             token=action.get("token"),
             direction=action.get("side"),

@@ -8,6 +8,7 @@ from .agents.execution import ExecutionAgent
 from .agents.memory import MemoryAgent
 
 
+
 class AgentManager:
     """Manage and coordinate trading agents and execute actions."""
 
@@ -28,6 +29,28 @@ class AgentManager:
         if weights:
             self.weights.update(weights)
         self.memory_agent = memory_agent
+
+    # ------------------------------------------------------------------
+    #  Construction helpers
+    # ------------------------------------------------------------------
+    @classmethod
+    def from_config(cls, cfg: dict) -> "AgentManager":
+        """Create ``AgentManager`` from configuration dictionary."""
+
+        agent_names = cfg.get("agents", [])
+        weights = cfg.get("agent_weights", {}) or {}
+
+        agents: list[BaseAgent] = []
+        for name in agent_names:
+            weight = weights.get(name)
+            try:
+                agent = load_agent(name, weight=weight)
+            except Exception:
+                continue
+            agents.append(agent)
+
+        executor = ExecutionAgent()
+        return cls(agents, executor=executor)
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         async def run(agent: BaseAgent):
@@ -52,6 +75,9 @@ class AgentManager:
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
         results = []
+        mem_agent = next(
+            (a for a in self.agents if isinstance(a, MemoryAgent)), None
+        )
         for action in actions:
             results.append(await self.executor.execute(action))
             if self.memory_agent:
@@ -80,3 +106,4 @@ class AgentManager:
                 self.weights[name] = self.weights.get(name, 1.0) * 1.1
             elif roi < 0:
                 self.weights[name] = self.weights.get(name, 1.0) * 0.9
+

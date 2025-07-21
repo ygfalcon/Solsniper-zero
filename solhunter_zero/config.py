@@ -36,6 +36,9 @@ ENV_VARS = {
     "token_keywords": "TOKEN_KEYWORDS",
     "volume_threshold": "VOLUME_THRESHOLD",
 
+    "agents": "AGENTS",
+    "agent_weights": "AGENT_WEIGHTS",
+
 }
 
 

@@ -10,6 +10,7 @@ from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
+
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
 
@@ -94,6 +95,40 @@ def test_exit_agent_trailing(monkeypatch):
         'solhunter_zero.agents.exit.fetch_token_prices_async',
         price_low,
     )
+    actions = asyncio.run(agent.propose_trade('tok', pf))
+    assert actions and actions[0]['side'] == 'sell'
+
+
+def test_exit_agent_stop_loss(monkeypatch):
+    pf = DummyPortfolio()
+    pf.balances['tok'] = Position('tok', 10, 10.0, 10.0)
+
+    async def price_low(tokens):
+        return {'tok': 8.0}
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.exit.fetch_token_prices_async',
+        price_low,
+    )
+
+    agent = ExitAgent(stop_loss=0.2)
+    actions = asyncio.run(agent.propose_trade('tok', pf))
+    assert actions and actions[0]['side'] == 'sell'
+
+
+def test_exit_agent_take_profit(monkeypatch):
+    pf = DummyPortfolio()
+    pf.balances['tok'] = Position('tok', 5, 10.0, 10.0)
+
+    async def price_high(tokens):
+        return {'tok': 12.0}
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.exit.fetch_token_prices_async',
+        price_high,
+    )
+
+    agent = ExitAgent(take_profit=0.2)
     actions = asyncio.run(agent.propose_trade('tok', pf))
     assert actions and actions[0]['side'] == 'sell'
 
