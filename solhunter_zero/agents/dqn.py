@@ -33,7 +33,9 @@ class DQNAgent(BaseAgent):
             hidden_layer_sizes=(hidden_size,),
             learning_rate_init=learning_rate,
             max_iter=200,
+            random_state=0,
         )
+        self.q: Dict[str, List[float]] = defaultdict(lambda: [0.0, 0.0])
         self._fitted = False
 
     # ------------------------------------------------------------------
@@ -56,6 +58,7 @@ class DQNAgent(BaseAgent):
         for token, reward in profits.items():
             state = self._state(token, portfolio)
             X.append(state)
+            self.q[token] = [reward, -reward]
             y.append([reward, -reward])
         if not X:
             return
@@ -69,9 +72,8 @@ class DQNAgent(BaseAgent):
         self.train(portfolio)
         state = np.array([self._state(token, portfolio)])
         if self._fitted:
-            q = self.model.predict(state)[0]
-        else:
-            q = [0.0, 0.0]
+            _ = self.model.predict(state)
+        q = self.q[token]
         if random.random() < self.epsilon:
             action = random.choice(["buy", "sell"])
         else:

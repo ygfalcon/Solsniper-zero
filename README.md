@@ -37,6 +37,7 @@ metrics_base_url: https://api.example.com
 risk_tolerance: 0.1
 max_allocation: 0.2
 max_risk_per_token: 0.05
+portfolio_max_exposure: 0.5
 stop_loss: 0.1
 take_profit: 0.2
 trailing_stop: 0.1
@@ -71,7 +72,10 @@ weight_step: 0.05
    weights defined in the `agent_weights` table.  When `dynamic_weights` is set
    to `true` the manager adjusts these weights automatically after every
    iteration by `weight_step` depending on each agent's recent performance.
-   To control how much each agent influences trades manually, add an
+   Set `portfolio_max_exposure` to cap the proportion of the portfolio held
+   in any single token. The `PortfolioAgent` will generate sell orders when
+   holdings grow beyond this threshold. To control how much each agent
+   influences trades manually, add an
    `agent_weights` table mapping agent names to weights:
 
    ```toml
@@ -162,6 +166,8 @@ The trading logic is implemented by a swarm of small agents:
 - **MemoryAgent** — records past trades for analysis.
 - **ReinforcementAgent** — learns from trade history using Q-learning.
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
+- **PortfolioAgent** — rebalances positions when any token exceeds the allowed
+  share of the portfolio.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
