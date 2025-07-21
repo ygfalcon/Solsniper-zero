@@ -38,6 +38,7 @@ from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
+from .agents.discovery import DiscoveryAgent
 
 from .portfolio import calculate_order_size
 from .risk import RiskManager

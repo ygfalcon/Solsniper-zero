@@ -6,6 +6,7 @@ from typing import Iterable, Dict, Any, List
 from .agents import BaseAgent
 from .agents.execution import ExecutionAgent
 from .agents.swarm import AgentSwarm
+from .agents.memory import MemoryAgent
 
 
 
@@ -18,10 +19,15 @@ class AgentManager:
         executor: ExecutionAgent | None = None,
         *,
         weights: Dict[str, float] | None = None,
+        memory_agent: MemoryAgent | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent()
         self.weights = weights or {}
+        self.memory_agent = memory_agent or next(
+            (a for a in self.agents if isinstance(a, MemoryAgent)),
+            None,
+        )
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         swarm = AgentSwarm(self.agents)
@@ -31,9 +37,6 @@ class AgentManager:
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
         results = []
-        mem_agent = next(
-            (a for a in self.agents if isinstance(a, MemoryAgent)), None
-        )
         for action in actions:
             results.append(await self.executor.execute(action))
             if self.memory_agent:

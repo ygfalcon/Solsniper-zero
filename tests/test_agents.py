@@ -10,6 +10,7 @@ from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.swarm import AgentSwarm
+from solhunter_zero.memory import Memory
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
@@ -164,7 +165,11 @@ def test_agent_manager_execute(monkeypatch):
 
     monkeypatch.setattr('solhunter_zero.agents.execution.place_order_async', fake_place)
     exec_agent = ExecutionAgent(rate_limit=0)
-    mgr = AgentManager([types.SimpleNamespace(propose_trade=buy_agent, name='b'), DummyAgent()], executor=exec_agent)
+    mgr = AgentManager(
+        [types.SimpleNamespace(propose_trade=buy_agent, name='b'), DummyAgent()],
+        executor=exec_agent,
+        memory_agent=None,
+    )
 
     pf = DummyPortfolio()
     asyncio.run(mgr.execute('tok', pf))
