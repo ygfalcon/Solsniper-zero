@@ -71,6 +71,8 @@ def test_arbitrage_agent(monkeypatch):
     actions = asyncio.run(agent.propose_trade('tok', DummyPortfolio()))
     assert {"side": "buy"} in [{"side": a['side']} for a in actions]
     assert {"side": "sell"} in [{"side": a['side']} for a in actions]
+    venues = {a['venue'] for a in actions}
+    assert len(venues) == 2
 
 
 def test_exit_agent_trailing(monkeypatch):
