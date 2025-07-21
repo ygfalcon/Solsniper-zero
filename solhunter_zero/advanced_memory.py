@@ -5,8 +5,12 @@ import datetime
 from typing import List
 
 import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
+try:  # optional heavy deps
+    import faiss  # type: ignore
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - optional dependency
+    faiss = None
+    SentenceTransformer = None
 from sqlalchemy import (
     create_engine,
     Column,
@@ -61,17 +65,25 @@ class AdvancedMemory:
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
         self.index_path = index_path
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
-        dim = self.model.get_sentence_embedding_dimension()
-        if os.path.exists(index_path):
-            self.index = faiss.read_index(index_path)
-        else:
-            self.index = faiss.IndexIDMap2(faiss.IndexFlatL2(dim))
+        if faiss is not None and SentenceTransformer is not None:
+            self.model = SentenceTransformer("all-MiniLM-L6-v2")
+            dim = self.model.get_sentence_embedding_dimension()
+            if os.path.exists(index_path):
+                self.index = faiss.read_index(index_path)
+            else:
+                self.index = faiss.IndexIDMap2(faiss.IndexFlatL2(dim))
+        else:  # fallback without embeddings
+            self.model = None
+            self.index = None
 
     # ------------------------------------------------------------------
     def _add_embedding(self, text: str, trade_id: int) -> None:
+        if self.index is None or self.model is None:
+            return
         vec = self.model.encode([text])[0].astype("float32")
-        self.index.add_with_ids(np.array([vec]), np.array([trade_id], dtype="int64"))
+        self.index.add_with_ids(
+            np.array([vec]), np.array([trade_id], dtype="int64")
+        )
         faiss.write_index(self.index, self.index_path)
 
     # ------------------------------------------------------------------
@@ -129,16 +141,26 @@ class AdvancedMemory:
 
     # ------------------------------------------------------------------
     def search(self, query: str, k: int = 5) -> List[Trade]:
-        if self.index.ntotal == 0:
-            return []
-        vec = self.model.encode([query])[0].astype("float32")
-        D, I = self.index.search(np.array([vec]), k)
-        ids = [int(i) for i in I[0] if i != -1]
-        if not ids:
-            return []
+        if self.index is not None and self.model is not None:
+            if self.index.ntotal == 0:
+                return []
+            vec = self.model.encode([query])[0].astype("float32")
+            _D, I = self.index.search(np.array([vec]), k)
+            ids = [int(i) for i in I[0] if i != -1]
+            if not ids:
+                return []
+            with self.Session() as session:
+                return list(session.query(Trade).filter(Trade.id.in_(ids)))
+        # simple fallback search
         with self.Session() as session:
-            return list(session.query(Trade).filter(Trade.id.in_(ids)))
+            return (
+                session.query(Trade)
+                .filter(Trade.context.contains(query))
+                .limit(k)
+                .all()
+            )
 
     # ------------------------------------------------------------------
     def close(self) -> None:
-        faiss.write_index(self.index, self.index_path)
+        if self.index is not None:
+            faiss.write_index(self.index, self.index_path)

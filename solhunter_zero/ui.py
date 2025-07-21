@@ -298,6 +298,17 @@ def trades() -> dict:
     return jsonify(recents)
 
 
+@app.route("/vars")
+def vars_route() -> dict:
+    """Return recent VaR measurements."""
+    mem = Memory("sqlite:///memory.db")
+    data = [
+        {"value": v.value, "timestamp": v.timestamp.isoformat()}
+        for v in mem.list_vars()[-50:]
+    ]
+    return jsonify(data)
+
+
 @app.route("/roi")
 def roi() -> dict:
     pf = current_portfolio or Portfolio()
@@ -437,6 +448,10 @@ HTML_PAGE = """
     <h3>Token Allocation</h3>
     <canvas id='allocation_chart' width='400' height='100'></canvas>
 
+    <h3>VaR History</h3>
+    <pre id='var_values'></pre>
+    <canvas id='var_chart' width='400' height='100'></canvas>
+
     <h3>Risk Parameters</h3>
     <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
     <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
@@ -479,6 +494,12 @@ HTML_PAGE = """
         type: 'line',
         data: {labels: [], datasets: []},
         options: {scales:{y:{beginAtZero:true, max:1}}}
+    });
+
+    const varChart = new Chart(document.getElementById('var_chart'), {
+        type: 'line',
+        data: {labels: [], datasets: [{label:'VaR', data:[]}]},
+        options: {scales:{y:{beginAtZero:true}}}
     });
 
     function loadKeypairs() {
@@ -586,6 +607,12 @@ HTML_PAGE = """
             });
             pnlChart.update();
             allocationChart.update();
+        });
+        fetch('/vars').then(r => r.json()).then(data => {
+            document.getElementById('var_values').textContent = JSON.stringify(data.slice(-10), null, 2);
+            varChart.data.labels = data.map(()=>'');
+            varChart.data.datasets[0].data = data.map(v=>v.value);
+            varChart.update();
         });
         loadWeights();
     }

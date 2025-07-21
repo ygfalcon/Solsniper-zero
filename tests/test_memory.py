@@ -13,3 +13,11 @@ def test_log_and_list_trades():
     assert trades[0].direction == 'buy'
     assert trades[1].token == 'TEST2'
     assert trades[1].direction == 'sell'
+
+
+def test_log_and_list_vars():
+    mem = Memory('sqlite:///:memory:')
+    mem.log_var(0.1)
+    mem.log_var(0.2)
+    vals = mem.list_vars()
+    assert [v.value for v in vals] == [0.1, 0.2]
