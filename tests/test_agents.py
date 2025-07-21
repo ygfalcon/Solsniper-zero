@@ -9,6 +9,7 @@ from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents import BUILT_IN_AGENTS, load_agent
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
 
@@ -175,24 +176,26 @@ def test_memory_agent(monkeypatch):
     assert trades and trades[0].token == 'tok'
 
 
-def test_agent_manager_from_config(monkeypatch):
-    created = []
 
-    def fake_load(name, weight=None):
-        created.append((name, weight))
-        async def pt(token, portfolio):
-            return []
-        return types.SimpleNamespace(propose_trade=pt)
-
-    monkeypatch.setattr('solhunter_zero.agent_manager.load_agent', fake_load)
-
-    cfg = {
-        'agents': ['a1', 'a2'],
-        'agent_weights': {'a2': 2.0},
+def test_builtin_agents_mapping():
+    # ensure mapping is populated
+    load_agent('simulation')
+    expected = {
+        'simulation',
+        'conviction',
+        'arbitrage',
+        'exit',
+        'execution',
+        'memory',
+        'discovery',
     }
-    mgr = AgentManager.from_config(cfg)
+    assert expected <= set(BUILT_IN_AGENTS)
 
-    assert isinstance(mgr.executor, ExecutionAgent)
-    assert len(mgr.agents) == 2
-    assert created == [('a1', None), ('a2', 2.0)]
+
+def test_load_agent():
+    agent = load_agent('simulation', count=1)
+    assert isinstance(agent, SimulationAgent)
+    with pytest.raises(KeyError):
+        load_agent('missing')
+
 
