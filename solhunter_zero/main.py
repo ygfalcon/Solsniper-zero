@@ -86,15 +86,19 @@ async def _run_iteration(
         "method": discovery_method,
     }
 
-    if agent_manager is None:
-        agent_manager = AgentManager([DiscoveryAgent()])
 
-    try:
-        tokens = await agent_manager.discover_tokens(**scan_kwargs)
-    except TypeError:
-        tokens = await agent_manager.discover_tokens(
-            offline=offline, token_file=token_file
-        )
+    if agent_manager is not None:
+        if hasattr(agent_manager, "discover_tokens"):
+            try:
+                tokens = await agent_manager.discover_tokens(**scan_kwargs)
+            except TypeError:
+                tokens = await agent_manager.discover_tokens(
+                    offline=offline, token_file=token_file
+                )
+        else:
+            tokens = await scan_tokens_async(**scan_kwargs)
+    else:
+        tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
 
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
@@ -424,7 +428,10 @@ def main(
     agent_manager: AgentManager | None = None
     if cfg.get("agents"):
         agent_manager = AgentManager.from_config(cfg)
-        strategy_manager = None
+        if agent_manager is None:
+            strategy_manager = StrategyManager(strategies)
+        else:
+            strategy_manager = None
     else:
         strategy_manager = StrategyManager(strategies)
 
