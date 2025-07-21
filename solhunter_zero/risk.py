@@ -36,14 +36,36 @@ class RiskManager:
         volume_spike: float = 1.0,
         depth_change: float = 0.0,
         whale_activity: float = 0.0,
+        tx_rate: float = 0.0,
         portfolio_value: float | None = None,
     ) -> "RiskManager":
-        """Return a new ``RiskManager`` with parameters adjusted for conditions."""
+        """Return a new ``RiskManager`` adjusted using recent market metrics.
+
+        Parameters
+        ----------
+        drawdown:
+            Current portfolio drawdown as a fraction of ``max_drawdown``.
+        volatility:
+            Recent price volatility.
+        volume_spike:
+            Multiplicative factor representing sudden volume increase.
+        depth_change:
+            Change in order book depth from :mod:`onchain_metrics`.
+        whale_activity:
+            Fraction of liquidity controlled by large wallets.
+        tx_rate:
+            Mempool transaction rate from :mod:`onchain_metrics`.
+        portfolio_value:
+            Current portfolio USD value.  When below ``min_portfolio_value`` the
+            scaling factor is reduced further.
+        """
 
         factor = max(0.0, 1 - drawdown / self.max_drawdown)
         scale = factor / (1 + volatility * self.volatility_factor)
         if volume_spike > 1:
             scale *= min(volume_spike, 2.0)
+        if tx_rate > 1:
+            scale *= min(tx_rate, 2.0)
         scale /= 1 + abs(depth_change)
         scale /= 1 + whale_activity
         scale *= self.risk_multiplier

@@ -72,6 +72,7 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
             volume_spike=getattr(sims[0], "volume_spike", 1.0),
             depth_change=getattr(sims[0], "depth_change", 0.0),
             whale_activity=getattr(sims[0], "whale_activity", 0.0),
+            tx_rate=getattr(sims[0], "tx_rate", 1.0),
             portfolio_value=balance,
         )
 

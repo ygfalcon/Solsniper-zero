@@ -65,9 +65,11 @@ def test_risk_manager_new_metrics():
     rm = RiskManager(risk_tolerance=0.1, max_allocation=0.2, max_risk_per_token=0.2)
     base = rm.adjusted(0.0, 0.0)
     high = rm.adjusted(0.0, 0.0, volume_spike=2.0)
-    low = rm.adjusted(0.0, 0.0, depth_change=-1.0, whale_activity=1.0)
+    low = rm.adjusted(0.0, 0.0, depth_change=-1.0, whale_activity=1.0, tx_rate=0.5)
+    burst = rm.adjusted(0.0, 0.0, tx_rate=2.0)
     assert high.risk_tolerance > base.risk_tolerance
     assert low.risk_tolerance < base.risk_tolerance
+    assert burst.risk_tolerance > base.risk_tolerance
 
 
 def test_low_portfolio_scales_risk():
@@ -100,3 +102,17 @@ def test_low_portfolio_scales_risk():
         max_risk_per_token=high.max_risk_per_token,
         min_portfolio_value=high.min_portfolio_value,
     )
+
+
+def test_extreme_metric_values():
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.2, max_risk_per_token=0.2)
+    base = rm.adjusted(0.0, 0.0)
+
+    high_rate = rm.adjusted(0.0, 0.0, tx_rate=5.0)
+    assert high_rate.risk_tolerance > base.risk_tolerance
+
+    deep = rm.adjusted(0.0, 0.0, depth_change=3.0)
+    assert deep.risk_tolerance < base.risk_tolerance
+
+    whales = rm.adjusted(0.0, 0.0, whale_activity=5.0)
+    assert whales.risk_tolerance < base.risk_tolerance

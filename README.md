@@ -260,9 +260,11 @@ model:
 - **Whale wallet activity** — share of liquidity held by very large accounts.
 
 These metrics are gathered automatically by the on-chain scanners and fed into
-`run_simulations`.  Sudden spikes or drops adjust the `RiskManager` parameters so
-the bot reduces exposure during potential dumps and scales in when activity
-surges.
+`run_simulations`.  `RiskManager.adjusted()` now factors them directly into the
+scaling of `risk_tolerance` and allocation limits.  High transaction rates or
+volume spikes increase the scale, while large depth changes or heavy whale
+concentration reduce it.  This helps the bot back off during potential dumps and
+scale in aggressively when on-chain activity surges.
 
 ## Minimum Portfolio Value
 
