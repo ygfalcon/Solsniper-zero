@@ -27,6 +27,12 @@ birdeye_api_key: YOUR_BIRDEYE_KEY
 solana_rpc_url: https://api.mainnet-beta.solana.com
 dex_base_url: https://dex.example/api
 dex_testnet_url: https://dex.testnet/api
+orca_api_url: https://api.orca.so
+raydium_api_url: https://api.raydium.io
+orca_ws_url: ""
+raydium_ws_url: ""
+orca_dex_url: https://dex.orca.so
+raydium_dex_url: https://dex.raydium.io
 metrics_base_url: https://api.example.com
 risk_tolerance: 0.1
 max_allocation: 0.2
@@ -104,10 +110,12 @@ weight_step: 0.05
 
 5. **Configure DEX endpoints**
    Set the base URL of the DEX API for mainnet and (optionally) the testnet
-   endpoint. The defaults are placeholders, so you should provide your own:
+   endpoint. You can also override URLs for individual venues:
    ```bash
    export DEX_BASE_URL=https://dex.example/api
    export DEX_TESTNET_URL=https://dex.testnet/api
+   export ORCA_DEX_URL=https://dex.orca.so
+   export RAYDIUM_DEX_URL=https://dex.raydium.io
    ```
 6. **Set the metrics API endpoint**
    Specify the base URL used by the simulator to fetch historical return
