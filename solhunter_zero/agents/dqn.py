@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from collections import defaultdict
 from typing import List, Dict, Any
 
 from pathlib import Path
@@ -13,6 +12,7 @@ from torch import nn, optim
 from . import BaseAgent
 from .memory import MemoryAgent
 from ..portfolio import Portfolio
+from ..replay import ReplayBuffer
 
 
 class DQNAgent(BaseAgent):
@@ -29,11 +29,14 @@ class DQNAgent(BaseAgent):
         epsilon: float = 0.1,
         discount: float = 0.95,
         model_path: str | Path = "dqn_model.pt",
+        replay_url: str = "sqlite:///replay.db",
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.epsilon = epsilon
         self.discount = discount
         self.model_path = Path(model_path)
+        self.replay = ReplayBuffer(replay_url)
+        self._seen_ids: set[int] = set()
 
         self.model = nn.Sequential(
             nn.Linear(1, hidden_size),
@@ -60,21 +63,30 @@ class DQNAgent(BaseAgent):
 
     def train(self, portfolio: Portfolio) -> None:
         trades = self.memory_agent.memory.list_trades()
-        profits: Dict[str, float] = defaultdict(float)
         for t in trades:
-            value = float(t.amount) * float(t.price)
+            tid = getattr(t, "id", None)
+            if tid is not None and tid in self._seen_ids:
+                continue
+            if tid is not None:
+                self._seen_ids.add(tid)
+            reward = float(t.amount) * float(t.price)
             if t.direction == "buy":
-                profits[t.token] -= value
-            else:
-                profits[t.token] += value
+                reward = -reward
+            emotion = getattr(t, "emotion", "")
+            if emotion == "regret":
+                continue
+            self.replay.add([float(t.amount)], t.direction, reward, emotion)
+
+        batch = self.replay.sample(32)
+        if not batch:
+            return
+
         X: List[List[float]] = []
         y: List[List[float]] = []
-        for token, reward in profits.items():
-            state = self._state(token, portfolio)
-            X.append(state)
+        for state, action, reward, _ in batch:
+            X.append(list(state))
             y.append([reward, -reward])
-        if not X:
-            return
+
         X_arr = torch.tensor(np.array(X), dtype=torch.float32)
         y_arr = torch.tensor(np.array(y), dtype=torch.float32)
 
