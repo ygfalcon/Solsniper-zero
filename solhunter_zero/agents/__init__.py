@@ -16,6 +16,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .discovery import DiscoveryAgent
 
     from .dqn import DQNAgent
+    from .opportunity_cost import OpportunityCostAgent
 
     from .ramanujan_agent import RamanujanAgent
     from .meta_conviction import MetaConvictionAgent
@@ -70,6 +71,7 @@ def _ensure_agents_loaded() -> None:
         "portfolio": PortfolioAgent,
         "portfolio_manager": PortfolioManager,
         "dqn": DQNAgent,
+        "opportunity_cost": OpportunityCostAgent,
 
         "meta_conviction": MetaConvictionAgent,
 
