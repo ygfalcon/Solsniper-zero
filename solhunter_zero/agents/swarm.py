@@ -5,13 +5,50 @@ from typing import Iterable, List, Dict, Any
 
 from . import BaseAgent
 from ..portfolio import Portfolio
+from ..advanced_memory import AdvancedMemory
 
 
 class AgentSwarm:
     """Coordinate multiple agents and aggregate their proposals."""
 
-    def __init__(self, agents: Iterable[BaseAgent] | None = None):
+    def __init__(self, agents: Iterable[BaseAgent] | None = None, *, memory: AdvancedMemory | None = None):
         self.agents: List[BaseAgent] = list(agents or [])
+        self.memory = memory
+        self._last_outcomes: Dict[str, bool | None] = {a.name: None for a in self.agents}
+        self._last_actions: List[Dict[str, Any]] = []
+        for a in self.agents:
+            setattr(a, "memory", memory)
+            setattr(a, "swarm", self)
+            setattr(a, "last_outcome", None)
+
+    # ------------------------------------------------------------------
+    def success_rate(self, token: str) -> float:
+        """Return average recorded success probability for ``token``."""
+        if not self.memory:
+            return 0.0
+        return self.memory.simulation_success_rate(token)
+
+    # ------------------------------------------------------------------
+    def record_results(self, results: List[Dict[str, Any]]) -> None:
+        """Store execution results and update agent state."""
+        if not self.memory:
+            return
+        by_agent: Dict[str, bool] = {}
+        for action, res in zip(self._last_actions, results):
+            name = action.get("agent")
+            token = action.get("token")
+            if not name or not token:
+                continue
+            ok = bool(res.get("ok", False))
+            by_agent[name] = ok
+            expected = float(action.get("expected_roi", 0.0))
+            prob = 1.0 if ok else 0.0
+            self.memory.log_simulation(token, expected_roi=expected, success_prob=prob)
+        for agent in self.agents:
+            if agent.name in by_agent:
+                outcome = by_agent[agent.name]
+                self._last_outcomes[agent.name] = outcome
+                agent.last_outcome = outcome
 
     async def propose(
         self,
@@ -30,6 +67,8 @@ class AgentSwarm:
         """
 
         async def run(agent: BaseAgent):
+            if hasattr(agent, "last_outcome"):
+                agent.last_outcome = self._last_outcomes.get(agent.name)
             return await agent.propose_trade(token, portfolio)
 
         results = await asyncio.gather(*(run(a) for a in self.agents))
@@ -42,6 +81,7 @@ class AgentSwarm:
             if not res:
                 continue
             for r in res:
+                r.setdefault("agent", agent.name)
                 token = r.get("token")
                 side = r.get("side")
                 if not token or not side:
@@ -77,4 +117,5 @@ class AgentSwarm:
                         entry[extra] = sell[extra]
                 final.append(entry)
 
+        self._last_actions = list(final)
         return final
