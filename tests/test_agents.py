@@ -9,7 +9,7 @@ from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
+from solhunter_zero.agents.swarm import AgentSwarm
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
@@ -152,6 +152,7 @@ def test_agent_manager_execute(monkeypatch):
         return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
 
     class DummyAgent:
+        name = 'dummy'
         async def propose_trade(self, token, portfolio):
             return [{'token': token, 'side': 'sell', 'amount': 1.0, 'price': 1.5}]
 
@@ -163,11 +164,47 @@ def test_agent_manager_execute(monkeypatch):
 
     monkeypatch.setattr('solhunter_zero.agents.execution.place_order_async', fake_place)
     exec_agent = ExecutionAgent(rate_limit=0)
-    mgr = AgentManager([types.SimpleNamespace(propose_trade=buy_agent), DummyAgent()], executor=exec_agent)
+    mgr = AgentManager([types.SimpleNamespace(propose_trade=buy_agent, name='b'), DummyAgent()], executor=exec_agent)
 
     pf = DummyPortfolio()
     asyncio.run(mgr.execute('tok', pf))
-    assert ('buy', 1.0) in captured and ('sell', 1.0) in captured
+    # Buy and sell of equal size cancel out -> no orders executed
+    assert captured == []
+
+
+def test_agent_swarm_weighted(monkeypatch):
+    async def buy_one(token, pf):
+        return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
+
+    async def buy_two(token, pf):
+        return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 2.0}]
+
+    swarm = AgentSwarm([
+        types.SimpleNamespace(propose_trade=buy_one, name='a'),
+        types.SimpleNamespace(propose_trade=buy_two, name='b'),
+    ])
+    actions = asyncio.run(swarm.propose('tok', DummyPortfolio(), weights={'a': 1.0, 'b': 2.0}))
+    assert actions == [{
+        'token': 'tok',
+        'side': 'buy',
+        'amount': 3.0,
+        'price': pytest.approx(5 / 3),
+    }]
+
+
+def test_agent_swarm_conflict_cancel():
+    async def buy(token, pf):
+        return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
+
+    async def sell(token, pf):
+        return [{'token': token, 'side': 'sell', 'amount': 1.0, 'price': 1.5}]
+
+    swarm = AgentSwarm([
+        types.SimpleNamespace(propose_trade=buy, name='b'),
+        types.SimpleNamespace(propose_trade=sell, name='s'),
+    ])
+    actions = asyncio.run(swarm.propose('tok', DummyPortfolio()))
+    assert actions == []
 
 
 def test_memory_agent(monkeypatch):

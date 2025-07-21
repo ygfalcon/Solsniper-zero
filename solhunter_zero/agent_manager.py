@@ -5,7 +5,7 @@ from typing import Iterable, Dict, Any, List
 
 from .agents import BaseAgent
 from .agents.execution import ExecutionAgent
-from .agents.memory import MemoryAgent
+from .agents.swarm import AgentSwarm
 
 
 
@@ -18,59 +18,15 @@ class AgentManager:
         executor: ExecutionAgent | None = None,
         *,
         weights: Dict[str, float] | None = None,
-        memory_agent: MemoryAgent | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent()
-        self.weights: Dict[str, float] = {}
-        for i, a in enumerate(self.agents):
-            name = getattr(a, "name", f"agent{i}")
-            self.weights.setdefault(name, 1.0)
-        if weights:
-            self.weights.update(weights)
-        self.memory_agent = memory_agent
-
-    # ------------------------------------------------------------------
-    #  Construction helpers
-    # ------------------------------------------------------------------
-    @classmethod
-    def from_config(cls, cfg: dict) -> "AgentManager":
-        """Create ``AgentManager`` from configuration dictionary."""
-
-        agent_names = cfg.get("agents", [])
-        weights = cfg.get("agent_weights", {}) or {}
-
-        agents: list[BaseAgent] = []
-        for name in agent_names:
-            weight = weights.get(name)
-            try:
-                agent = load_agent(name, weight=weight)
-            except Exception:
-                continue
-            agents.append(agent)
-
-        executor = ExecutionAgent()
-        return cls(agents, executor=executor)
+        self.weights = weights or {}
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
-        async def run(agent: BaseAgent):
-            res = await agent.propose_trade(token, portfolio)
-            if res:
-                for r in res:
-                    r.setdefault("agent", getattr(agent, "name", agent.__class__.__name__))
-            return res
+        swarm = AgentSwarm(self.agents)
+        return await swarm.propose(token, portfolio, weights=self.weights)
 
-        results = await asyncio.gather(*(run(a) for a in self.agents))
-        actions: List[Dict[str, Any]] = []
-        for res in results:
-            if not res:
-                continue
-            for r in res:
-                weight = self.weights.get(r.get("agent", ""), 1.0)
-                r = dict(r)
-                r["amount"] = float(r.get("amount", 0.0)) * weight
-                actions.append(r)
-        return actions
 
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
