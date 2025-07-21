@@ -11,6 +11,7 @@ from .agents import BaseAgent, load_agent
 from .agents.execution import ExecutionAgent
 from .agents.swarm import AgentSwarm
 from .agents.memory import MemoryAgent
+from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
 
@@ -26,6 +27,7 @@ class AgentManager:
         *,
         weights: Dict[str, float] | None = None,
         memory_agent: MemoryAgent | None = None,
+        emotion_agent: EmotionAgent | None = None,
         weights_path: str | os.PathLike | None = None,
     ):
         self.agents = list(agents)
@@ -44,6 +46,11 @@ class AgentManager:
             None,
         )
 
+        self.emotion_agent = emotion_agent or next(
+            (a for a in self.agents if isinstance(a, EmotionAgent)),
+            None,
+        )
+
         self.coordinator = SwarmCoordinator(self.memory_agent, self.weights)
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
@@ -56,7 +63,11 @@ class AgentManager:
         actions = await self.evaluate(token, portfolio)
         results = []
         for action in actions:
-            results.append(await self.executor.execute(action))
+            result = await self.executor.execute(action)
+            if self.emotion_agent:
+                emotion = self.emotion_agent.evaluate(action, result)
+                action["emotion"] = emotion
+            results.append(result)
             if self.memory_agent:
                 await self.memory_agent.log(action)
         return results
@@ -173,12 +184,17 @@ class AgentManager:
             (a for a in agents if isinstance(a, MemoryAgent)),
             None,
         )
+        emotion_agent = next(
+            (a for a in agents if isinstance(a, EmotionAgent)),
+            None,
+        )
         if not agents:
             return None
         return cls(
             agents,
             weights=weights,
             memory_agent=memory_agent,
+            emotion_agent=emotion_agent,
             weights_path=weights_path,
         )
 
