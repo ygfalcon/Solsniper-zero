@@ -119,6 +119,15 @@ class AdvancedMemory:
             return session.query(Trade).all()
 
     # ------------------------------------------------------------------
+    def simulation_success_rate(self, token: str) -> float:
+        """Return the average success probability for recorded simulations."""
+        with self.Session() as session:
+            sims = session.query(SimulationSummary).filter_by(token=token).all()
+            if not sims:
+                return 0.0
+            return float(sum(s.success_prob for s in sims) / len(sims))
+
+    # ------------------------------------------------------------------
     def search(self, query: str, k: int = 5) -> List[Trade]:
         if self.index.ntotal == 0:
             return []
