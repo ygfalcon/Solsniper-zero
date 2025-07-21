@@ -269,3 +269,48 @@ def test_token_history_endpoint(monkeypatch):
     assert data["tok"]["pnl_history"][-1] == pytest.approx(1.0)
     assert data["tok"]["allocation_history"][-1] == pytest.approx(1.0)
 
+
+def _setup_memory(monkeypatch):
+    mem = ui.Memory("sqlite:///:memory:")
+    monkeypatch.setattr(ui, "Memory", lambda *a, **k: mem)
+    return mem
+
+
+def test_memory_insert(monkeypatch):
+    mem = _setup_memory(monkeypatch)
+    client = ui.app.test_client()
+    resp = client.post(
+        "/memory/insert",
+        json={
+            "sql": "INSERT INTO trades(token,direction,amount,price) VALUES(:t,:d,:a,:p)",
+            "params": {"t": "TOK", "d": "buy", "a": 1.0, "p": 2.0},
+        },
+    )
+    assert resp.get_json()["status"] == "ok"
+    trades = mem.list_trades()
+    assert len(trades) == 1 and trades[0].token == "TOK"
+
+
+def test_memory_update(monkeypatch):
+    mem = _setup_memory(monkeypatch)
+    mem.log_trade(token="TOK", direction="buy", amount=1.0, price=2.0)
+    client = ui.app.test_client()
+    resp = client.post(
+        "/memory/update",
+        json={"sql": "UPDATE trades SET price=:p WHERE token=:t", "params": {"p": 3.0, "t": "TOK"}},
+    )
+    assert resp.get_json()["rows"] == 1
+    assert mem.list_trades()[0].price == 3.0
+
+
+def test_memory_query(monkeypatch):
+    mem = _setup_memory(monkeypatch)
+    mem.log_trade(token="TOK", direction="buy", amount=1.0, price=2.0)
+    client = ui.app.test_client()
+    resp = client.post(
+        "/memory/query",
+        json={"sql": "SELECT token, price FROM trades WHERE token=:t", "params": {"t": "TOK"}},
+    )
+    data = resp.get_json()
+    assert data == [{"token": "TOK", "price": 2.0}]
+
