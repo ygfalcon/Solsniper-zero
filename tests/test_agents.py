@@ -257,6 +257,7 @@ def test_agent_manager_weights_persistence_toml(tmp_path):
     assert mgr2.weights == {"a": 1.5}
 
 
+
 def test_meta_conviction_majority_buy(monkeypatch):
     calls = []
 
