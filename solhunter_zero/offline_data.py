@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 import datetime
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    Float,
+    String,
+    DateTime,
+)
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -19,6 +26,17 @@ class MarketSnapshot(Base):
     price = Column(Float, nullable=False)
     depth = Column(Float, nullable=False)
     imbalance = Column(Float, nullable=False)
+    timestamp = Column(DateTime, default=utcnow)
+
+
+class MarketTrade(Base):
+    __tablename__ = "market_trades"
+
+    id = Column(Integer, primary_key=True)
+    token = Column(String, nullable=False)
+    side = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    amount = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=utcnow)
 
 
@@ -43,9 +61,34 @@ class OfflineData:
             session.add(snap)
             session.commit()
 
+    def log_trade(
+        self,
+        token: str,
+        side: str,
+        price: float,
+        amount: float,
+    ) -> None:
+        """Record an executed trade for offline learning."""
+        with self.Session() as session:
+            trade = MarketTrade(
+                token=token,
+                side=side,
+                price=price,
+                amount=amount,
+            )
+            session.add(trade)
+            session.commit()
+
     def list_snapshots(self, token: str | None = None):
         with self.Session() as session:
             q = session.query(MarketSnapshot)
             if token:
                 q = q.filter_by(token=token)
             return list(q.order_by(MarketSnapshot.timestamp))
+
+    def list_trades(self, token: str | None = None):
+        with self.Session() as session:
+            q = session.query(MarketTrade)
+            if token:
+                q = q.filter_by(token=token)
+            return list(q.order_by(MarketTrade.timestamp))
