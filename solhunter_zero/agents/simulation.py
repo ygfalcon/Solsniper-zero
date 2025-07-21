@@ -17,7 +17,14 @@ class SimulationAgent(BaseAgent):
     def __init__(self, count: int = 100):
         self.count = count
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         sims = run_simulations(token, count=self.count)
         if not sims:
             return []

@@ -23,6 +23,8 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .portfolio_agent import PortfolioAgent
     from .emotion_agent import EmotionAgent
 
+    from .opportunity_cost import OpportunityCostAgent
+
 
 
 
@@ -32,7 +34,14 @@ class BaseAgent(ABC):
     name: str = "base"
 
     @abstractmethod
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         """Return proposed trade actions for ``token``."""
         raise NotImplementedError
 
@@ -54,6 +63,7 @@ def _ensure_agents_loaded() -> None:
     from .portfolio_agent import PortfolioAgent
     from .portfolio_manager import PortfolioManager
     from .emotion_agent import EmotionAgent
+    from .opportunity_cost import OpportunityCostAgent
 
     from .dqn import DQNAgent
     from .ramanujan_agent import RamanujanAgent

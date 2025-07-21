@@ -29,7 +29,7 @@ def test_simulation_agent_buy(monkeypatch):
 
     monkeypatch.setattr(
         'solhunter_zero.agents.simulation.run_simulations',
-        lambda t, count=1: [types.SimpleNamespace(expected_roi=0.5)],
+        lambda t, count=1, **_: [types.SimpleNamespace(expected_roi=0.5)],
     )
     monkeypatch.setattr(
         'solhunter_zero.agents.simulation.should_buy', lambda sims: True
@@ -53,7 +53,7 @@ def test_conviction_agent_threshold(monkeypatch):
     agent = ConvictionAgent(threshold=0.1, count=1)
     monkeypatch.setattr(
         'solhunter_zero.agents.conviction.run_simulations',
-        lambda t, count=1: [types.SimpleNamespace(expected_roi=0.2)],
+        lambda t, count=1, **_: [types.SimpleNamespace(expected_roi=0.2)],
     )
 
     actions = asyncio.run(agent.propose_trade('tok', DummyPortfolio()))
@@ -153,12 +153,13 @@ def test_execution_agent(monkeypatch):
 
 
 def test_agent_manager_execute(monkeypatch):
-    async def buy_agent(token, portfolio):
+    async def buy_agent(token, portfolio, *, depth=None, imbalance=None):
         return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
 
     class DummyAgent:
         name = 'dummy'
-        async def propose_trade(self, token, portfolio):
+
+        async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
             return [{'token': token, 'side': 'sell', 'amount': 1.0, 'price': 1.5}]
 
     captured = []
@@ -182,10 +183,10 @@ def test_agent_manager_execute(monkeypatch):
 
 
 def test_agent_swarm_weighted(monkeypatch):
-    async def buy_one(token, pf):
+    async def buy_one(token, pf, *, depth=None, imbalance=None):
         return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
 
-    async def buy_two(token, pf):
+    async def buy_two(token, pf, *, depth=None, imbalance=None):
         return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 2.0}]
 
     swarm = AgentSwarm([
@@ -202,10 +203,10 @@ def test_agent_swarm_weighted(monkeypatch):
 
 
 def test_agent_swarm_conflict_cancel():
-    async def buy(token, pf):
+    async def buy(token, pf, *, depth=None, imbalance=None):
         return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
 
-    async def sell(token, pf):
+    async def sell(token, pf, *, depth=None, imbalance=None):
         return [{'token': token, 'side': 'sell', 'amount': 1.0, 'price': 1.5}]
 
     swarm = AgentSwarm([
@@ -262,11 +263,11 @@ def test_agent_manager_weights_persistence_toml(tmp_path):
 def test_meta_conviction_majority_buy(monkeypatch):
     calls = []
 
-    async def buy(self, token, pf):
+    async def buy(self, token, pf, *, depth=None, imbalance=None):
         calls.append("b")
         return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
 
-    async def sell(self, token, pf):
+    async def sell(self, token, pf, *, depth=None, imbalance=None):
         calls.append("s")
         return [{"token": token, "side": "sell", "amount": 1.0, "price": 0.0}]
 
@@ -285,10 +286,10 @@ def test_meta_conviction_majority_buy(monkeypatch):
 
 
 def test_meta_conviction_majority_sell(monkeypatch):
-    async def buy(self, token, pf):
+    async def buy(self, token, pf, *, depth=None, imbalance=None):
         return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
 
-    async def sell(self, token, pf):
+    async def sell(self, token, pf, *, depth=None, imbalance=None):
         return [{"token": token, "side": "sell", "amount": 1.0, "price": 0.0}]
 
     monkeypatch.setattr(SimulationAgent, "propose_trade", sell)

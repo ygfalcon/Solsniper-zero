@@ -20,7 +20,7 @@ class MemoryAwareAgent:
         self.swarm = None
         self.memory = None
 
-    async def propose_trade(self, token, portfolio):
+    async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
         if self.last_outcome is False:
             return []
         rate = self.swarm.success_rate(token) if self.swarm else 0.0

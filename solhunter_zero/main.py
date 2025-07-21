@@ -336,6 +336,7 @@ def main(
     max_allocation: float | None = None,
     risk_multiplier: float | None = None,
     market_ws_url: str | None = None,
+    order_book_ws_url: str | None = None,
     arbitrage_threshold: float | None = None,
     arbitrage_amount: float | None = None,
     arbitrage_tokens: list[str] | None = None,
@@ -420,6 +421,10 @@ def main(
         market_ws_url = cfg.get("market_ws_url")
     if market_ws_url is None:
         market_ws_url = os.getenv("MARKET_WS_URL")
+    if order_book_ws_url is None:
+        order_book_ws_url = cfg.get("order_book_ws_url")
+    if order_book_ws_url is None:
+        order_book_ws_url = os.getenv("ORDER_BOOK_WS_URL")
     if arbitrage_tokens is None:
         tokens_cfg = cfg.get("arbitrage_tokens")
         if isinstance(tokens_cfg, str):
@@ -461,6 +466,7 @@ def main(
     async def loop() -> None:
         nonlocal loop_delay
         ws_task = None
+        book_task = None
         arb_task = None
         prev_activity = 0.0
 
@@ -474,16 +480,34 @@ def main(
                     loop_delay = min(max_delay, loop_delay * 2)
             prev_activity = activity
         if market_ws_url:
-            ws_task = asyncio.create_task(
-                listen_and_trade(
-                    market_ws_url,
-                    memory,
-                    portfolio,
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
-                )
-            )
+            async def run_market_ws() -> None:
+                while True:
+                    try:
+                        await listen_and_trade(
+                            market_ws_url,
+                            memory,
+                            portfolio,
+                            testnet=testnet,
+                            dry_run=dry_run,
+                            keypair=keypair,
+                        )
+                    except Exception as exc:  # pragma: no cover - network errors
+                        logging.error("Market websocket failed: %s", exc)
+                        await asyncio.sleep(1.0)
+
+            ws_task = asyncio.create_task(run_market_ws())
+
+        if order_book_ws_url:
+            async def run_order_book() -> None:
+                while True:
+                    try:
+                        async for _ in order_book_ws.stream_order_book(order_book_ws_url):
+                            pass
+                    except Exception as exc:  # pragma: no cover - network errors
+                        logging.error("Order book stream failed: %s", exc)
+                        await asyncio.sleep(1.0)
+
+            book_task = asyncio.create_task(run_order_book())
 
         if arbitrage_tokens:
             async def monitor_arbitrage() -> None:
@@ -564,6 +588,10 @@ def main(
             ws_task.cancel()
             with contextlib.suppress(Exception):
                 await ws_task
+        if book_task:
+            book_task.cancel()
+            with contextlib.suppress(Exception):
+                await book_task
         if arb_task:
             arb_task.cancel()
             with contextlib.suppress(Exception):
@@ -733,6 +761,11 @@ if __name__ == "__main__":
         help="Websocket URL for real-time market events",
     )
     parser.add_argument(
+        "--order-book-ws-url",
+        default=None,
+        help="Websocket URL for order book depth updates",
+    )
+    parser.add_argument(
         "--arbitrage-threshold",
         type=float,
         default=None,
@@ -781,6 +814,7 @@ if __name__ == "__main__":
         max_allocation=args.max_allocation,
         risk_multiplier=args.risk_multiplier,
         market_ws_url=args.market_ws_url,
+        order_book_ws_url=args.order_book_ws_url,
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
         arbitrage_tokens=None,

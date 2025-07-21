@@ -50,6 +50,7 @@ ENV_VARS = {
     "weights_path": "WEIGHTS_PATH",
     "dex_priorities": "DEX_PRIORITIES",
     "dex_fees": "DEX_FEES",
+    "order_book_ws_url": "ORDER_BOOK_WS_URL",
 
 }
 

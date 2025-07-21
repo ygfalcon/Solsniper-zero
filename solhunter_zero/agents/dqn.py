@@ -109,7 +109,14 @@ class DQNAgent(BaseAgent):
             )
 
     # ------------------------------------------------------------------
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         self.train(portfolio)
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
         if self._fitted:

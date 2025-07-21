@@ -7,7 +7,7 @@ class DummyAgent:
     def __init__(self, name):
         self.name = name
 
-    async def propose_trade(self, token, portfolio):
+    async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
         return []
 
 

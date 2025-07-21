@@ -49,6 +49,13 @@ class EmotionAgent(BaseAgent):
             return "anxious"
         return "neutral"
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         # The emotion agent itself does not propose trades
         return []

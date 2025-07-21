@@ -43,7 +43,14 @@ class ReinforcementAgent(BaseAgent):
             q["buy"] += self.learning_rate * (reward - q["buy"])
             q["sell"] += self.learning_rate * (-reward - q["sell"])
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         self.train()
         q = self.q[token]
         if random.random() < self.epsilon:

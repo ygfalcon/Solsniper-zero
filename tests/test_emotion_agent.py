@@ -30,7 +30,7 @@ def test_emotion_logged(tmp_path, monkeypatch):
         "solhunter_zero.agents.execution.place_order_async", fake_place
     )
 
-    async def proposer(token, pf):
+    async def proposer(token, pf, *, depth=None, imbalance=None):
         return [
             {
                 "token": token,
