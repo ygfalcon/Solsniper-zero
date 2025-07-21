@@ -41,6 +41,7 @@ def _ensure_agents_loaded() -> None:
     from .execution import ExecutionAgent
     from .memory import MemoryAgent
     from .discovery import DiscoveryAgent
+    from .reinforcement import ReinforcementAgent
 
     from .reinforcement import ReinforcementAgent
     BUILT_IN_AGENTS.update({
