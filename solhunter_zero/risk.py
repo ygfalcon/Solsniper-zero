@@ -14,6 +14,9 @@ class RiskManager:
     volatility_factor: float = 1.0
     risk_multiplier: float = 1.0
     min_portfolio_value: float = 20.0
+    funding_rate_factor: float = 1.0
+    sentiment_factor: float = 1.0
+    token_age_factor: float = 30.0
 
     @classmethod
     def from_config(cls, cfg: dict) -> "RiskManager":
@@ -26,6 +29,9 @@ class RiskManager:
             volatility_factor=float(cfg.get("volatility_factor", 1.0)),
             risk_multiplier=float(cfg.get("risk_multiplier", 1.0)),
             min_portfolio_value=float(cfg.get("min_portfolio_value", 20.0)),
+            funding_rate_factor=float(cfg.get("funding_rate_factor", 1.0)),
+            sentiment_factor=float(cfg.get("sentiment_factor", 1.0)),
+            token_age_factor=float(cfg.get("token_age_factor", 30.0)),
         )
 
     def adjusted(
@@ -38,6 +44,9 @@ class RiskManager:
         whale_activity: float = 0.0,
         tx_rate: float = 0.0,
         portfolio_value: float | None = None,
+        funding_rate: float = 0.0,
+        sentiment: float = 0.0,
+        token_age: float | None = None,
     ) -> "RiskManager":
         """Return a new ``RiskManager`` adjusted using recent market metrics.
 
@@ -70,6 +79,19 @@ class RiskManager:
         scale /= 1 + whale_activity
         scale *= self.risk_multiplier
 
+        if funding_rate:
+            if funding_rate > 0:
+                scale *= 1 + funding_rate * self.funding_rate_factor
+            else:
+                scale /= 1 + abs(funding_rate) * self.funding_rate_factor
+
+        if sentiment:
+            scale *= 1 + sentiment * self.sentiment_factor
+
+        if token_age is not None and self.token_age_factor > 0:
+            age_scale = min(1.0, token_age / self.token_age_factor)
+            scale *= age_scale
+
         if portfolio_value is not None and portfolio_value < self.min_portfolio_value:
             pv_scale = max(0.0, portfolio_value / self.min_portfolio_value)
             scale *= pv_scale
@@ -81,4 +103,7 @@ class RiskManager:
             volatility_factor=self.volatility_factor,
             risk_multiplier=self.risk_multiplier,
             min_portfolio_value=self.min_portfolio_value,
+            funding_rate_factor=self.funding_rate_factor,
+            sentiment_factor=self.sentiment_factor,
+            token_age_factor=self.token_age_factor,
         )

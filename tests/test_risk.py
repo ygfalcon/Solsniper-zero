@@ -116,3 +116,24 @@ def test_extreme_metric_values():
 
     whales = rm.adjusted(0.0, 0.0, whale_activity=5.0)
     assert whales.risk_tolerance < base.risk_tolerance
+
+
+def test_optional_metrics_adjustment():
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.2, max_risk_per_token=0.2)
+    base = rm.adjusted(0.0, 0.0)
+    good = rm.adjusted(0.0, 0.0, funding_rate=0.05, sentiment=0.5, token_age=30)
+    bad = rm.adjusted(0.0, 0.0, funding_rate=-0.05, sentiment=-0.5, token_age=1)
+    assert good.risk_tolerance > base.risk_tolerance
+    assert bad.risk_tolerance < base.risk_tolerance
+
+
+def test_from_config_parses_new_fields():
+    cfg = {
+        "funding_rate_factor": "2.0",
+        "sentiment_factor": "0.5",
+        "token_age_factor": "10",
+    }
+    rm = RiskManager.from_config(cfg)
+    assert rm.funding_rate_factor == 2.0
+    assert rm.sentiment_factor == 0.5
+    assert rm.token_age_factor == 10.0
