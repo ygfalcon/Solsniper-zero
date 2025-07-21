@@ -14,6 +14,9 @@ __all__ = [
     "fetch_token_prices",
     "fetch_token_prices_async",
     "RiskManager",
+    "covariance_matrix",
+    "portfolio_cvar",
+    "portfolio_variance",
 ]
 
 
@@ -34,4 +37,16 @@ def __getattr__(name: str):
         from .risk import RiskManager as cls
 
         return cls
+    if name == "covariance_matrix":
+        from .risk import covariance_matrix as func
+
+        return func
+    if name == "portfolio_cvar":
+        from .risk import portfolio_cvar as func
+
+        return func
+    if name == "portfolio_variance":
+        from .risk import portfolio_variance as func
+
+        return func
     raise AttributeError(name)
