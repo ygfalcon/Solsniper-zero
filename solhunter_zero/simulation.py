@@ -325,11 +325,27 @@ def run_simulations(
     slip_hist = metrics.get("slippage_history")
 
     predicted_mean = mu
+    used_ml = False
+
+    model_path = os.getenv("PRICE_MODEL_PATH")
+    if model_path:
+        try:
+            from . import models
+            model = models.get_model(model_path)
+            if model and price_hist and liq_hist and depth_hist and tx_hist:
+                seq = np.column_stack(
+                    [price_hist, liq_hist, depth_hist, tx_hist]
+                )[-30:]
+                predicted_mean = float(model.predict(seq))
+                used_ml = True
+        except Exception as exc:  # pragma: no cover - model errors
+            logger.warning("Failed to load ML model: %s", exc)
 
     results: List[SimulationResult] = []
 
     if (
-        price_hist
+        not used_ml
+        and price_hist
         and liq_hist
         and depth_hist
         and slip_hist
@@ -377,7 +393,8 @@ def run_simulations(
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
     elif (
-        price_hist
+        not used_ml
+        and price_hist
         and liq_hist
         and depth_hist
         and slip_hist
@@ -403,7 +420,8 @@ def run_simulations(
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
     elif (
-        price_hist
+        not used_ml
+        and price_hist
         and liq_hist
         and depth_hist
         and len(price_hist) >= 2
