@@ -24,7 +24,14 @@ class PortfolioManager(BaseAgent):
         self.pnl_history: List[float] = []
         self.exited = False
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         symbols = set(portfolio.balances.keys()) | {token}
         prices = await fetch_token_prices_async(symbols)
 

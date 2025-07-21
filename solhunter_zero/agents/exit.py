@@ -17,7 +17,14 @@ class ExitAgent(BaseAgent):
         self.stop_loss = stop_loss
         self.take_profit = take_profit
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         if token not in portfolio.balances:
             return []
         prices = await fetch_token_prices_async({token})

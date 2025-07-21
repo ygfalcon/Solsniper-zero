@@ -16,7 +16,14 @@ class PortfolioAgent(BaseAgent):
         self.max_allocation = max_allocation
         self.buy_risk = buy_risk
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         allocation = portfolio.percent_allocated(token)
         pos = portfolio.balances.get(token)
         actions: List[Dict[str, Any]] = []

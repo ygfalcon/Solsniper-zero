@@ -6,6 +6,7 @@ import pytest
 from solhunter_zero import order_book_ws
 from solhunter_zero.agents.conviction import ConvictionAgent
 from solhunter_zero.agents.arbitrage import ArbitrageAgent
+from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.simulation import SimulationResult
 from solhunter_zero.portfolio import Portfolio
 
@@ -105,4 +106,35 @@ def test_agents_use_depth(monkeypatch):
         arb.propose_trade("tok", pf, depth=-1.0, imbalance=0.0)
     )
     assert no_trade == []
+
+
+def test_swarm_integration(monkeypatch):
+    msgs = [{"token": "tok", "bids": 90, "asks": 10}]
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession(msgs))
+
+    captured = {}
+
+    def fake_run(token, count=1, order_book_strength=None, **_):
+        captured["depth"] = order_book_strength
+        return [SimulationResult(1.0, 0.06)]
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.conviction.run_simulations", fake_run
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.agents.conviction.predict_price_movement", lambda t: 0.0
+    )
+
+    pf = DummyPortfolio()
+
+    async def run():
+        gen = order_book_ws.stream_order_book("ws://dex", rate_limit=0, max_updates=1)
+        await anext(gen)
+        await gen.aclose()
+        swarm = AgentSwarm([ConvictionAgent(threshold=0.05, count=1)])
+        return await swarm.propose("tok", pf)
+
+    actions = asyncio.run(run())
+    assert captured["depth"] == 100.0
+    assert actions and actions[0]["side"] == "buy"
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from typing import Iterable, List, Dict, Any
 
+from .. import order_book_ws
+
 from . import BaseAgent
 from ..portfolio import Portfolio
 from ..advanced_memory import AdvancedMemory
@@ -67,10 +69,17 @@ class AgentSwarm:
             amounts returned by that agent. Defaults to ``1.0`` for all agents.
         """
 
+        depth, imbalance = order_book_ws.snapshot(token)
+
         async def run(agent: BaseAgent):
             if hasattr(agent, "last_outcome"):
                 agent.last_outcome = self._last_outcomes.get(agent.name)
-            return await agent.propose_trade(token, portfolio)
+            return await agent.propose_trade(
+                token,
+                portfolio,
+                depth=depth,
+                imbalance=imbalance,
+            )
 
         results = await asyncio.gather(*(run(a) for a in self.agents))
 

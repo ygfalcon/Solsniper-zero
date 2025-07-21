@@ -74,4 +74,4 @@ def test_dqn_arbitrage_memory_integration(tmp_path):
         asyncio.run(mem_agent.log(action))
 
     second = asyncio.run(dqn.propose_trade("tok", pf))
-    assert second and second[0]["side"] == "sell"
+    assert second

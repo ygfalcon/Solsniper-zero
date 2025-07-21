@@ -17,7 +17,14 @@ class RamanujanAgent(BaseAgent):
         self.threshold = threshold
         self.amount = amount
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         # Deterministic score based on token hash.
         digest = int(hashlib.sha256(token.encode()).hexdigest(), 16)
         score = math.tanh(math.sin(digest % 1000))

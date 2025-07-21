@@ -25,11 +25,18 @@ class MetaConvictionAgent(BaseAgent):
             "ramanujan": 1.0,
         }
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         results = await asyncio.gather(
-            self.sim_agent.propose_trade(token, portfolio),
-            self.conv_agent.propose_trade(token, portfolio),
-            self.ram_agent.propose_trade(token, portfolio),
+            self.sim_agent.propose_trade(token, portfolio, depth=depth, imbalance=imbalance),
+            self.conv_agent.propose_trade(token, portfolio, depth=depth, imbalance=imbalance),
+            self.ram_agent.propose_trade(token, portfolio, depth=depth, imbalance=imbalance),
         )
 
         agents = [self.sim_agent, self.conv_agent, self.ram_agent]

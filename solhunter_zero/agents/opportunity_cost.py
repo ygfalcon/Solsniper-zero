@@ -58,7 +58,14 @@ class OpportunityCostAgent(BaseAgent):
         return roi
 
     # ------------------------------------------------------------------
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         if token not in portfolio.balances:
             return []
 
