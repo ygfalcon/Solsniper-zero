@@ -1,3 +1,4 @@
 memory.db
 solhunter_zero/__pycache__/
 keypair.json
+depth_service/target/
