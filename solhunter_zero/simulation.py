@@ -25,6 +25,28 @@ logger = logging.getLogger(__name__)
 # sets this variable before the module is imported.
 DEFAULT_METRICS_BASE_URL = "https://api.example.com"
 
+# Recent trade ROI history used for bias adjustment
+_TRADE_ROIS: list[float] = []
+
+# Stored bias values updated via :func:`bias_correction`
+_BIAS: dict[str, float] = {"mean": 0.0, "volatility": 0.0}
+
+
+def log_trade_outcome(roi: float) -> None:
+    """Record a realized trade ROI for later bias correction."""
+    _TRADE_ROIS.append(float(roi))
+
+
+def bias_correction(window: int = 20) -> dict[str, float]:
+    """Recompute prediction bias from recent trade outcomes."""
+    if not _TRADE_ROIS:
+        return _BIAS
+
+    recent = _TRADE_ROIS[-window:]
+    _BIAS["mean"] = float(np.mean(recent))
+    _BIAS["volatility"] = float(np.std(recent))
+    return _BIAS
+
 
 @dataclass
 class SimulationResult:
@@ -210,6 +232,7 @@ def run_simulations(
     """Run ROI simulations using a simple regression-based model."""
 
     metrics = fetch_token_metrics(token)
+    bias = bias_correction()
     depth_features = metrics.get("depth_per_dex", [])
     slip_features = metrics.get("slippage_per_dex", [])
 
@@ -401,6 +424,10 @@ def run_simulations(
             predicted_mean = float(model.predict([feat])[0])
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
+
+    # Apply bias adjustments after model prediction
+    predicted_mean += bias.get("mean", 0.0)
+    sigma = max(0.0, sigma + bias.get("volatility", 0.0))
 
 
 
