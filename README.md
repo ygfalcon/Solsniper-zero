@@ -165,6 +165,7 @@ The trading logic is implemented by a swarm of small agents:
 - **ReinforcementAgent** — learns from trade history using Q-learning.
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
 - **RamanujanAgent** — proposes deterministic buys or sells from a hashed conviction score.
+- **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
