@@ -256,3 +256,27 @@ def test_agent_manager_weights_persistence_toml(tmp_path):
     assert mgr2.weights == {"a": 1.5}
 
 
+
+
+def test_agent_manager_dynamic_weights():
+    mem = Memory('sqlite:///:memory:')
+    mem_agent = MemoryAgent(mem)
+
+    class DummyAgent:
+        def __init__(self, name):
+            self.name = name
+        async def propose_trade(self, token, portfolio):
+            return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
+
+    a1 = DummyAgent('a1')
+    a2 = DummyAgent('a2')
+    mgr = AgentManager([a1, a2], memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
+
+    mem.log_trade(token='tok', direction='buy', amount=1, price=2, reason='a1')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=1, reason='a1')
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='a2')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='a2')
+
+    actions = asyncio.run(mgr.evaluate('tok', DummyPortfolio()))
+    assert actions and actions[0]['amount'] > 0
+

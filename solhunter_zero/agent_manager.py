@@ -12,6 +12,7 @@ from .agents.execution import ExecutionAgent
 from .agents.swarm import AgentSwarm
 from .agents.memory import MemoryAgent
 from .agents.discovery import DiscoveryAgent
+from .swarm_coordinator import SwarmCoordinator
 
 
 
@@ -43,9 +44,12 @@ class AgentManager:
             None,
         )
 
+        self.coordinator = SwarmCoordinator(self.memory_agent, self.weights)
+
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         swarm = AgentSwarm(self.agents)
-        return await swarm.propose(token, portfolio, weights=self.weights)
+        weights = self.coordinator.compute_weights(self.agents)
+        return await swarm.propose(token, portfolio, weights=weights)
 
 
     async def execute(self, token: str, portfolio) -> List[Any]:
@@ -79,6 +83,8 @@ class AgentManager:
                 self.weights[name] = self.weights.get(name, 1.0) * 1.1
             elif roi < 0:
                 self.weights[name] = self.weights.get(name, 1.0) * 0.9
+
+        self.coordinator.base_weights = self.weights
 
     # ------------------------------------------------------------------
     #  Persistence helpers
