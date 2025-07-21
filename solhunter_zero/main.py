@@ -24,7 +24,7 @@ set_env_from_config(_cfg)
 
 
 from .scanner import scan_tokens_async
-from .onchain_metrics import top_volume_tokens
+from .onchain_metrics import top_volume_tokens, fetch_dex_metrics
 from .market_ws import listen_and_trade
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -40,6 +40,9 @@ from .agents.discovery import DiscoveryAgent
 from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
+
+# keep track of recently traded tokens for scheduling
+_LAST_TOKENS: list[str] = []
 
 _HIGH_RISK_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
 
@@ -97,6 +100,9 @@ async def _run_iteration(
             tokens = await scan_tokens_async(**scan_kwargs)
     else:
         tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
+
+    global _LAST_TOKENS
+    _LAST_TOKENS = list(tokens)
 
 
     # Always consider existing holdings when making sell decisions
@@ -305,6 +311,8 @@ async def _run_iteration(
 def main(
     memory_path: str = "sqlite:///memory.db",
     loop_delay: int = 60,
+    min_delay: int | None = None,
+    max_delay: int | None = None,
     *,
     iterations: int | None = None,
     testnet: bool = False,
@@ -423,6 +431,11 @@ def main(
         if env_tokens:
             arbitrage_tokens = [t.strip() for t in env_tokens.split(",") if t.strip()]
 
+    if min_delay is None:
+        min_delay = int(cfg.get("min_delay", 1))
+    if max_delay is None:
+        max_delay = int(cfg.get("max_delay", loop_delay))
+
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
 
@@ -446,8 +459,20 @@ def main(
         keypair = wallet.load_selected_keypair()
 
     async def loop() -> None:
+        nonlocal loop_delay
         ws_task = None
         arb_task = None
+        prev_activity = 0.0
+
+        def adjust_delay(metrics: dict) -> None:
+            nonlocal loop_delay, prev_activity
+            activity = metrics.get("liquidity", 0.0) + metrics.get("volume", 0.0)
+            if prev_activity:
+                if activity > prev_activity * 1.5:
+                    loop_delay = max(min_delay, max(1, loop_delay // 2))
+                elif activity < prev_activity * 0.5:
+                    loop_delay = min(max_delay, loop_delay * 2)
+            prev_activity = activity
         if market_ws_url:
             ws_task = asyncio.create_task(
                 listen_and_trade(
@@ -499,6 +524,11 @@ def main(
                     strategy_manager=strategy_manager,
                     agent_manager=agent_manager,
                 )
+                if _LAST_TOKENS:
+                    metrics = fetch_dex_metrics(
+                        _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
+                    )
+                    adjust_delay(metrics)
                 await asyncio.sleep(loop_delay)
         else:
             for i in range(iterations):
@@ -522,6 +552,11 @@ def main(
                     strategy_manager=strategy_manager,
                     agent_manager=agent_manager,
                 )
+                if _LAST_TOKENS:
+                    metrics = fetch_dex_metrics(
+                        _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
+                    )
+                    adjust_delay(metrics)
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
 
@@ -750,6 +785,8 @@ if __name__ == "__main__":
         arbitrage_amount=args.arbitrage_amount,
         arbitrage_tokens=None,
         strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
+        min_delay=None,
+        max_delay=None,
     )
 
     if args.auto:
