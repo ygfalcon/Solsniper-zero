@@ -19,6 +19,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
 
     from .ramanujan import RamanujanAgent
     from .meta_conviction import MetaConvictionAgent
+    from .portfolio_agent import PortfolioAgent
 
 
 
@@ -52,6 +53,7 @@ def _ensure_agents_loaded() -> None:
     from .dqn import DQNAgent
     from .ramanujan import RamanujanAgent
     from .meta_conviction import MetaConvictionAgent
+    from .portfolio_agent import PortfolioAgent
 
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -67,6 +69,7 @@ def _ensure_agents_loaded() -> None:
         "meta_conviction": MetaConvictionAgent,
 
         "ramanujan": RamanujanAgent,
+        "portfolio": PortfolioAgent,
 
     })
 

@@ -10,6 +10,7 @@ from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.meta_conviction import MetaConvictionAgent
+from solhunter_zero.agents.portfolio_agent import PortfolioAgent
 from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.memory import Memory
 
@@ -303,5 +304,21 @@ def test_meta_conviction_majority_sell(monkeypatch):
     actions = asyncio.run(agent.propose_trade("tok", pf))
 
     assert actions and actions[0]["side"] == "sell"
+
+
+def test_portfolio_agent_sell():
+    pf = DummyPortfolio()
+    pf.balances["tok"] = Position("tok", 10, 1.0, 1.0)
+    agent = PortfolioAgent(max_allocation=0.5)
+    actions = asyncio.run(agent.propose_trade("tok", pf))
+    assert actions and actions[0]["side"] == "sell"
+    assert actions[0]["amount"] < 10
+
+
+def test_portfolio_agent_buy():
+    pf = DummyPortfolio()
+    agent = PortfolioAgent(max_allocation=0.5)
+    actions = asyncio.run(agent.propose_trade("tok", pf))
+    assert actions and actions[0]["side"] == "buy"
 
 
