@@ -1,6 +1,6 @@
 import pytest
 
-from solhunter_zero.risk import RiskManager
+from solhunter_zero.risk import RiskManager, value_at_risk
 from solhunter_zero.portfolio import calculate_order_size
 
 
@@ -137,3 +137,36 @@ def test_from_config_parses_new_fields():
     assert rm.funding_rate_factor == 2.0
     assert rm.sentiment_factor == 0.5
     assert rm.token_age_factor == 10.0
+
+
+def test_value_at_risk_calculation():
+    prices = [100, 110, 100, 90, 95]
+    var = value_at_risk(prices, 0.95)
+    assert var == pytest.approx(0.1)
+
+
+def test_var_reduces_order_size():
+    prices = [100, 110, 100, 90, 95]
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.5, max_risk_per_token=0.5)
+    base = rm.adjusted(0.0, 0.0)
+    base_size = calculate_order_size(
+        100.0,
+        1.0,
+        0.0,
+        0.0,
+        risk_tolerance=base.risk_tolerance,
+        max_allocation=base.max_allocation,
+        max_risk_per_token=base.max_risk_per_token,
+    )
+    params = rm.adjusted(0.0, 0.0, prices=prices, var_threshold=0.05)
+    var_size = calculate_order_size(
+        100.0,
+        1.0,
+        0.0,
+        0.0,
+        risk_tolerance=params.risk_tolerance,
+        max_allocation=params.max_allocation,
+        max_risk_per_token=params.max_risk_per_token,
+    )
+    assert params.risk_tolerance < base.risk_tolerance
+    assert var_size < base_size

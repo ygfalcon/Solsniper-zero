@@ -1,6 +1,39 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
+
+from .memory import Memory
+
+
+def value_at_risk(
+    prices: Sequence[float], confidence: float = 0.95, memory: Memory | None = None
+) -> float:
+    """Return historical Value-at-Risk of ``prices``.
+
+    ``prices`` should be ordered oldest to newest.  The VaR is returned as a
+    positive fraction representing the maximum expected loss at the given
+    confidence level.
+    """
+
+    if len(prices) < 2:
+        var = 0.0
+    else:
+        returns = [prices[i + 1] / prices[i] - 1 for i in range(len(prices) - 1)]
+        returns.sort()
+        idx = int((1 - confidence) * len(returns))
+        idx = max(0, min(idx, len(returns) - 1))
+        var = -returns[idx]
+        if var < 0:
+            var = 0.0
+
+    if memory is not None:
+        try:  # pragma: no cover - logging failures are non-critical
+            memory.log_var(var)
+        except Exception:
+            pass
+
+    return var
 
 
 @dataclass
@@ -47,6 +80,10 @@ class RiskManager:
         funding_rate: float = 0.0,
         sentiment: float = 0.0,
         token_age: float | None = None,
+        prices: Sequence[float] | None = None,
+        var_threshold: float | None = None,
+        var_confidence: float = 0.95,
+        memory: Memory | None = None,
     ) -> "RiskManager":
         """Return a new ``RiskManager`` adjusted using recent market metrics.
 
@@ -95,6 +132,11 @@ class RiskManager:
         if portfolio_value is not None and portfolio_value < self.min_portfolio_value:
             pv_scale = max(0.0, portfolio_value / self.min_portfolio_value)
             scale *= pv_scale
+
+        if prices is not None and var_threshold is not None:
+            var = value_at_risk(prices, var_confidence, memory=memory)
+            if var > var_threshold and var > 0:
+                scale *= var_threshold / var
         return RiskManager(
             risk_tolerance=self.risk_tolerance * scale,
             max_allocation=self.max_allocation * scale,
