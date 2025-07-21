@@ -1,6 +1,12 @@
 import asyncio
+import pytest
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
+
+
+@pytest.fixture(autouse=True)
+def _disable_jup(monkeypatch):
+    monkeypatch.setattr(arb, "JUPITER_WS_URL", "")
 
 
 def test_arbitrage_executes_orders(monkeypatch):
@@ -211,6 +217,81 @@ def test_arbitrage_env_streams_no_op(monkeypatch):
     monkeypatch.setattr(arb, "RAYDIUM_WS_URL", "ws://ray")
     monkeypatch.setattr(arb, "stream_orca_prices", fake_orca)
     monkeypatch.setattr(arb, "stream_raydium_prices", fake_ray)
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        arb.detect_and_execute_arbitrage(
+            "tok",
+            threshold=0.2,
+            amount=5,
+            max_updates=1,
+        )
+    )
+
+    assert result is None
+    assert "called" not in called
+
+
+def test_arbitrage_env_streams_three(monkeypatch):
+    async def fake_orca(token, url="ws://o"):
+        yield 1.0
+
+    async def fake_ray(token, url="ws://r"):
+        yield 1.3
+
+    async def fake_jup(token, url="ws://j"):
+        yield 1.5
+
+    calls = []
+
+    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        calls.append((side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "ORCA_WS_URL", "ws://o")
+    monkeypatch.setattr(arb, "RAYDIUM_WS_URL", "ws://r")
+    monkeypatch.setattr(arb, "JUPITER_WS_URL", "ws://j")
+    monkeypatch.setattr(arb, "stream_orca_prices", fake_orca)
+    monkeypatch.setattr(arb, "stream_raydium_prices", fake_ray)
+    monkeypatch.setattr(arb, "stream_jupiter_prices", fake_jup)
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        arb.detect_and_execute_arbitrage(
+            "tok",
+            threshold=0.2,
+            amount=5,
+            max_updates=1,
+        )
+    )
+
+    assert result == (0, 2)
+    assert ("buy", 1.0) in calls
+    assert ("sell", 1.5) in calls
+
+
+def test_arbitrage_env_streams_three_no_op(monkeypatch):
+    async def fake_orca(token, url="ws://o"):
+        yield 1.0
+
+    async def fake_ray(token, url="ws://r"):
+        yield 1.05
+
+    async def fake_jup(token, url="ws://j"):
+        yield 1.08
+
+    called = {}
+
+    async def fake_place(*a, **k):
+        called["called"] = True
+        return {}
+
+    monkeypatch.setattr(arb, "ORCA_WS_URL", "ws://o")
+    monkeypatch.setattr(arb, "RAYDIUM_WS_URL", "ws://r")
+    monkeypatch.setattr(arb, "JUPITER_WS_URL", "ws://j")
+    monkeypatch.setattr(arb, "stream_orca_prices", fake_orca)
+    monkeypatch.setattr(arb, "stream_raydium_prices", fake_ray)
+    monkeypatch.setattr(arb, "stream_jupiter_prices", fake_jup)
     monkeypatch.setattr(arb, "place_order_async", fake_place)
 
     result = asyncio.run(

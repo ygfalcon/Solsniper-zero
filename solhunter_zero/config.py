@@ -20,6 +20,7 @@ ENV_VARS = {
     "raydium_api_url": "RAYDIUM_API_URL",
     "orca_ws_url": "ORCA_WS_URL",
     "raydium_ws_url": "RAYDIUM_WS_URL",
+    "jupiter_ws_url": "JUPITER_WS_URL",
     "orca_dex_url": "ORCA_DEX_URL",
     "raydium_dex_url": "RAYDIUM_DEX_URL",
     "metrics_base_url": "METRICS_BASE_URL",
@@ -45,6 +46,8 @@ ENV_VARS = {
     "agents": "AGENTS",
     "agent_weights": "AGENT_WEIGHTS",
     "weights_path": "WEIGHTS_PATH",
+    "dex_priorities": "DEX_PRIORITIES",
+    "dex_fees": "DEX_FEES",
 
 }
 
