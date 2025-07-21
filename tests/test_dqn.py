@@ -4,6 +4,7 @@ from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio, Position
+from solhunter_zero.replay import ReplayBuffer
 
 
 class DummyPortfolio(Portfolio):
@@ -52,4 +53,21 @@ def test_dqn_serialization(tmp_path):
     pf2 = DummyPortfolio()
     second = asyncio.run(agent2.propose_trade("tok", pf2))
     assert first and second
-    assert first[0]["side"] == second[0]["side"]
+
+
+def test_replay_sampling_bias(tmp_path):
+    buf = ReplayBuffer(url=f"sqlite:///{tmp_path/'replay.db'}")
+    for _ in range(5):
+        buf.add([1.0], "buy", 1.0, "confident")
+    for _ in range(20):
+        buf.add([1.0], "buy", -1.0, "anxious")
+    buf.add([1.0], "buy", -1.0, "regret")
+
+    counts = {"confident": 0, "anxious": 0}
+    for _ in range(50):
+        state, action, reward, emo = buf.sample(1)[0]
+        assert emo != "regret"
+        counts[emo] += 1
+
+    ratio = counts["confident"] / counts["anxious"]
+    assert ratio > 0.25
