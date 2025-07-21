@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from . import BaseAgent
-from ..simulation import run_simulations
+from ..simulation import run_simulations, predict_price_movement
 from ..portfolio import Portfolio
 
 
@@ -21,6 +21,8 @@ class ConvictionAgent(BaseAgent):
         if not sims:
             return []
         avg_roi = sum(r.expected_roi for r in sims) / len(sims)
+        pred = predict_price_movement(token)
+        avg_roi = (avg_roi + pred) / 2
         if avg_roi > self.threshold:
             return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
         if avg_roi < -self.threshold:

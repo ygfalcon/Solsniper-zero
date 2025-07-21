@@ -171,6 +171,30 @@ async def async_fetch_token_metrics(token: str) -> dict:
     }
 
 
+def predict_price_movement(
+    token: str,
+    *,
+    min_volume: float = 0.0,
+    recent_volume: float | None = None,
+    recent_slippage: float | None = None,
+    sentiment: float | None = None,
+    order_book_strength: float | None = None,
+) -> float:
+    """Predict short term price change using the regression model."""
+
+    sims = run_simulations(
+        token,
+        count=1,
+        days=1,
+        min_volume=min_volume,
+        recent_volume=recent_volume,
+        recent_slippage=recent_slippage,
+        sentiment=sentiment,
+        order_book_strength=order_book_strength,
+    )
+    return sims[0].expected_roi if sims else 0.0
+
+
 def run_simulations(
     token: str,
     count: int = 1000,
