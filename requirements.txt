@@ -11,6 +11,5 @@ flask
 aiohttp
 pyyaml
 
-autogen
 faiss-cpu
 sentence-transformers
