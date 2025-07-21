@@ -17,6 +17,7 @@ dependencies = [
 
     "aiohttp",
     "pyyaml",
+    "torch",
 ]
 
 [project.scripts]

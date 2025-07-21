@@ -13,3 +13,4 @@ pyyaml
 
 faiss-cpu
 sentence-transformers
+torch
