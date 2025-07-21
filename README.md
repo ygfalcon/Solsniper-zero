@@ -179,10 +179,10 @@ The trading logic is implemented by a swarm of small agents:
 - **Adaptive memory** — each agent receives feedback on the outcome of its last
   proposal. The swarm logs success metrics to the advanced memory module and
   agents can query this history to refine future simulations.
-- **EmotionAgent** — assigns emotion tags such as "confident" or "anxious" after
-  each trade based on conviction delta, regret level and simulation misfires.
+- **EmotionAgent** — assigns emotion tags such as "confident" or "anxious" after each trade based on conviction delta, regret level and simulation misfires.
 - **ReinforcementAgent** — learns from trade history using Q-learning.
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
+- **PPOAgent** — actor-critic model trained on offline order book history.
 - **RamanujanAgent** — proposes deterministic buys or sells from a hashed conviction score.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 
@@ -349,12 +349,10 @@ very small.
   concurrently with `asyncio.gather` via `AgentSwarm` and merges their trade
   proposals. Typical agents handle discovery, simulation, conviction scoring,
   arbitrage checks, exits, execution, logging and reinforcement learning.
-- **Persistence** — `ReinforcementAgent` and `DQNAgent` keep their Q-values in
-  memory only and are not saved between runs. `DQNAgent` trains directly on all
-  recorded trades without a replay buffer. `MemoryAgent` persists actions to a
-  SQLite database for later analysis and weight updates. The database is saved
-  as `memory.db` by default and a FAISS index named `trade.index` stores trade
-  embeddings.
+- **Persistence** — trade history and order book snapshots are stored in
+  `offline_data.db` for offline training. PPO models are periodically retrained
+  on this dataset and saved to disk for inference. `MemoryAgent` also records
+  trades in `memory.db` for ROI tracking.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
