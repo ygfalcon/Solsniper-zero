@@ -248,6 +248,11 @@ When launched without a user configuration file or `SOLHUNTER_CONFIG`
 environment variable, the UI automatically loads the `config.highrisk.toml`
 preset.
 
+Recent updates embed **Chart.js** to visualise trading activity.  The UI now
+plots ROI over time, recent trade counts and current agent weights.  You can
+adjust risk parameters and agent weights directly in the browser and the values
+are sent back to the server via the `/risk` and `/weights` endpoints.
+
 ## Additional Metrics
 
 Recent updates introduce new real-time metrics used by the simulator and risk
