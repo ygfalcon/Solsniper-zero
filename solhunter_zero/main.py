@@ -38,6 +38,8 @@ from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
+from .agents.discovery import DiscoveryAgent
+
 from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
@@ -78,22 +80,21 @@ async def _run_iteration(
 
 
     
-    scan_kwargs = {"offline": offline, "token_file": token_file}
-    if discovery_method != "websocket":
-        scan_kwargs["method"] = discovery_method
+    scan_kwargs = {
+        "offline": offline,
+        "token_file": token_file,
+        "method": discovery_method,
+    }
 
-    tokens = await scan_tokens_async(**scan_kwargs)
-
+    if agent_manager is None:
+        agent_manager = AgentManager([DiscoveryAgent()])
 
     try:
-        tokens = await scan_tokens_async(
-            offline=offline, token_file=token_file, method=discovery_method
-        )
+        tokens = await agent_manager.discover_tokens(**scan_kwargs)
     except TypeError:
-        # Support tests that monkeypatch ``scan_tokens_async`` without the
-        # ``method`` parameter.
-
-        tokens = await scan_tokens_async(offline=offline, token_file=token_file)
+        tokens = await agent_manager.discover_tokens(
+            offline=offline, token_file=token_file
+        )
 
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
