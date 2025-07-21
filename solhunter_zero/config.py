@@ -38,6 +38,7 @@ ENV_VARS = {
 
     "agents": "AGENTS",
     "agent_weights": "AGENT_WEIGHTS",
+    "weights_path": "WEIGHTS_PATH",
 
 }
 

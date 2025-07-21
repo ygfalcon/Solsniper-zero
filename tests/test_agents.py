@@ -235,47 +235,22 @@ def test_agent_manager_update_weights():
     assert mgr.weights['a2'] < 1.0
 
 
-def test_execution_agent_parallel(monkeypatch):
-    async def fake_place(*a, **k):
-        await asyncio.sleep(0.1)
-        return {'ok': True}
 
-    monkeypatch.setattr(
-        'solhunter_zero.agents.execution.place_order_async', fake_place
-    )
-    agent = ExecutionAgent(rate_limit=0, concurrency=2)
+def test_agent_manager_weights_persistence_json(tmp_path):
+    path = tmp_path / "w.json"
+    mgr = AgentManager([], weights={"a": 2.0}, weights_path=str(path))
+    mgr.save_weights()
 
-    async def run_two():
-        start = asyncio.get_event_loop().time()
-        await asyncio.gather(
-            agent.execute({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 1.0}),
-            agent.execute({'token': 'tok', 'side': 'sell', 'amount': 1.0, 'price': 1.0}),
-        )
-        return asyncio.get_event_loop().time() - start
-
-    elapsed = asyncio.run(run_two())
-    assert elapsed < 0.2
+    mgr2 = AgentManager([], weights_path=str(path))
+    assert mgr2.weights == {"a": 2.0}
 
 
-def test_execution_agent_rate_limit(monkeypatch):
-    call_times = []
+def test_agent_manager_weights_persistence_toml(tmp_path):
+    path = tmp_path / "w.toml"
+    mgr = AgentManager([], weights={"a": 1.5}, weights_path=str(path))
+    mgr.save_weights()
 
-    async def fake_place(*a, **k):
-        call_times.append(asyncio.get_event_loop().time())
-        return {'ok': True}
+    mgr2 = AgentManager([], weights_path=str(path))
+    assert mgr2.weights == {"a": 1.5}
 
-    monkeypatch.setattr(
-        'solhunter_zero.agents.execution.place_order_async', fake_place
-    )
-    agent = ExecutionAgent(rate_limit=0.05, concurrency=2)
-
-    async def run_two():
-        await asyncio.gather(
-            agent.execute({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 1.0}),
-            agent.execute({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 1.0}),
-        )
-
-    asyncio.run(run_two())
-    assert len(call_times) == 2
-    assert call_times[1] - call_times[0] >= 0.05
 

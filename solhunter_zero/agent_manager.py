@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 from typing import Iterable, Dict, Any, List
 
-from .agents import BaseAgent
+import tomllib
+
+from .agents import BaseAgent, load_agent
 from .agents.execution import ExecutionAgent
 from .agents.swarm import AgentSwarm
 from .agents.memory import MemoryAgent
+from .agents.discovery import DiscoveryAgent
 
 
 
@@ -20,10 +25,19 @@ class AgentManager:
         *,
         weights: Dict[str, float] | None = None,
         memory_agent: MemoryAgent | None = None,
+        weights_path: str | os.PathLike | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent()
-        self.weights = weights or {}
+        self.weights_path = str(weights_path) if weights_path is not None else None
+
+        file_weights: Dict[str, float] = {}
+        if self.weights_path and os.path.exists(self.weights_path):
+            file_weights = self._load_weights(self.weights_path)
+
+        init_weights = weights or {}
+        self.weights = {**file_weights, **init_weights}
+
         self.memory_agent = memory_agent or next(
             (a for a in self.agents if isinstance(a, MemoryAgent)),
             None,
@@ -65,4 +79,100 @@ class AgentManager:
                 self.weights[name] = self.weights.get(name, 1.0) * 1.1
             elif roi < 0:
                 self.weights[name] = self.weights.get(name, 1.0) * 0.9
+
+    # ------------------------------------------------------------------
+    #  Persistence helpers
+    # ------------------------------------------------------------------
+    def _load_weights(self, path: str | os.PathLike) -> Dict[str, float]:
+        try:
+            if str(path).endswith(".toml"):
+                with open(path, "rb") as fh:
+                    data = tomllib.load(fh)
+            else:
+                with open(path, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+        except Exception:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        return {str(k): float(v) for k, v in data.items()}
+
+    def save_weights(self, path: str | os.PathLike | None = None) -> None:
+        path = path or self.weights_path
+        if not path:
+            return
+        if str(path).endswith(".toml"):
+            lines = [f"{k} = {v}" for k, v in self.weights.items()]
+            content = "\n".join(lines) + "\n"
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+        else:
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(self.weights, fh)
+
+    # ------------------------------------------------------------------
+    #  Convenience helpers
+    # ------------------------------------------------------------------
+    async def discover_tokens(
+        self,
+        *,
+        offline: bool = False,
+        token_file: str | None = None,
+        method: str | None = None,
+    ) -> List[str]:
+        for agent in self.agents:
+            if isinstance(agent, DiscoveryAgent):
+                return await agent.discover_tokens(
+                    offline=offline, token_file=token_file, method=method
+                )
+        disc = DiscoveryAgent()
+        return await disc.discover_tokens(
+            offline=offline, token_file=token_file, method=method
+        )
+
+    @classmethod
+    def from_config(cls, cfg: dict) -> "AgentManager | None":
+        names = cfg.get("agents", [])
+        if isinstance(names, str):
+            try:
+                import ast
+
+                parsed = ast.literal_eval(names)
+                if isinstance(parsed, list):
+                    names = parsed
+                else:
+                    names = [n.strip() for n in names.split(",") if n.strip()]
+            except Exception:
+                names = [n.strip() for n in names.split(",") if n.strip()]
+        agents = []
+        for name in names:
+            try:
+                agents.append(load_agent(name))
+            except KeyError:
+                continue
+        weights = cfg.get("agent_weights") or {}
+        if isinstance(weights, str):
+            try:
+                import ast
+
+                parsed_w = ast.literal_eval(weights)
+                if isinstance(parsed_w, dict):
+                    weights = parsed_w
+                else:
+                    weights = {}
+            except Exception:
+                weights = {}
+        weights_path = cfg.get("weights_path")
+        memory_agent = next(
+            (a for a in agents if isinstance(a, MemoryAgent)),
+            None,
+        )
+        if not agents:
+            return None
+        return cls(
+            agents,
+            weights=weights,
+            memory_agent=memory_agent,
+            weights_path=weights_path,
+        )
 

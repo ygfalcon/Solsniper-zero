@@ -22,6 +22,7 @@ volatility_factor = 1.0
 min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
+weights_path = "weights.json"
 
 token_suffix = "bonk"
 token_keywords = ""
