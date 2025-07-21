@@ -10,6 +10,7 @@ jupiter_ws_url = ""
 orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
 metrics_base_url = "https://api.example.com"
+news_feeds = "https://news.example.com/rss"
 dex_listing_ws_url = "wss://dex.example/ws"
 discovery_method = "websocket"
 # Sell thresholds
