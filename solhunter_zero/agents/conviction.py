@@ -16,8 +16,15 @@ class ConvictionAgent(BaseAgent):
         self.threshold = threshold
         self.count = count
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
-        sims = run_simulations(token, count=self.count)
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
+        sims = run_simulations(token, count=self.count, order_book_strength=depth)
         if not sims:
             return []
         avg_roi = sum(r.expected_roi for r in sims) / len(sims)
@@ -27,6 +34,8 @@ class ConvictionAgent(BaseAgent):
             pred = 0.0
         if abs(pred) >= self.threshold * 0.5:
             avg_roi = (avg_roi + pred) / 2
+        if imbalance is not None:
+            avg_roi += imbalance * 0.05
         if avg_roi > self.threshold:
             return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
         if avg_roi < -self.threshold:
