@@ -161,6 +161,7 @@ The trading logic is implemented by a swarm of small agents:
 - **ExecutionAgent** — rate‑limited order executor.
 - **MemoryAgent** — records past trades for analysis.
 - **ReinforcementAgent** — learns from trade history using Q-learning.
+- **DQNAgent** — deep Q-network that learns optimal trade actions.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,

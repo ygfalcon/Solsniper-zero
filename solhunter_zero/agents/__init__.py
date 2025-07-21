@@ -15,7 +15,9 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .memory import MemoryAgent
     from .discovery import DiscoveryAgent
     from .reinforcement import ReinforcementAgent
-    from .reinforcement import ReinforcementAgent
+
+    from .dqn import DQNAgent
+
 
 
 class BaseAgent(ABC):
@@ -44,6 +46,9 @@ def _ensure_agents_loaded() -> None:
     from .discovery import DiscoveryAgent
     from .reinforcement import ReinforcementAgent
 
+    from .dqn import DQNAgent
+
+
     from .reinforcement import ReinforcementAgent
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -54,6 +59,7 @@ def _ensure_agents_loaded() -> None:
         "memory": MemoryAgent,
         "discovery": DiscoveryAgent,
         "reinforcement": ReinforcementAgent,
+        "dqn": DQNAgent,
     })
 
 
