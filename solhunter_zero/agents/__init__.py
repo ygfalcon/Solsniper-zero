@@ -15,6 +15,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .memory import MemoryAgent
     from .discovery import DiscoveryAgent
     from .reinforcement import ReinforcementAgent
+    from .reinforcement import ReinforcementAgent
 
 
 class BaseAgent(ABC):

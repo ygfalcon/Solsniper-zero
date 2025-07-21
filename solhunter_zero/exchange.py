@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 # Using Jupiter Aggregator REST API for token swaps.
 DEX_BASE_URL = os.getenv("DEX_BASE_URL", "https://quote-api.jup.ag")
 DEX_TESTNET_URL = os.getenv("DEX_TESTNET_URL", "https://quote-api.jup.ag")
+ORCA_DEX_URL = os.getenv("ORCA_DEX_URL", DEX_BASE_URL)
+RAYDIUM_DEX_URL = os.getenv("RAYDIUM_DEX_URL", DEX_BASE_URL)
 SWAP_PATH = "/v6/swap"
 
 RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
@@ -44,10 +46,12 @@ def place_order(
     testnet: bool = False,
     dry_run: bool = False,
     keypair: Keypair | None = None,
+    base_url: str | None = None,
 ) -> Optional[Dict[str, Any]]:
     """Submit an order to the Jupiter swap API and broadcast the transaction."""
 
-    base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
+    if base_url is None:
+        base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
     url = f"{base_url}{SWAP_PATH}"
 
     payload = {
@@ -99,10 +103,12 @@ async def place_order_async(
     testnet: bool = False,
     dry_run: bool = False,
     keypair: Keypair | None = None,
+    base_url: str | None = None,
 ) -> Optional[Dict[str, Any]]:
     """Asynchronously submit an order and broadcast the transaction."""
 
-    base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
+    if base_url is None:
+        base_url = DEX_TESTNET_URL if testnet else DEX_BASE_URL
     url = f"{base_url}{SWAP_PATH}"
 
     fee = await get_current_fee_async(testnet=testnet)

@@ -4,7 +4,12 @@ import asyncio
 from typing import Dict, Any, List
 
 from . import BaseAgent
-from ..exchange import place_order_async
+from ..exchange import (
+    place_order_async,
+    ORCA_DEX_URL,
+    RAYDIUM_DEX_URL,
+    DEX_BASE_URL,
+)
 from ..portfolio import Portfolio
 
 
@@ -38,6 +43,13 @@ class ExecutionAgent(BaseAgent):
                 if delay > 0:
                     await asyncio.sleep(delay)
                 self._last = asyncio.get_event_loop().time()
+            venue = str(action.get("venue", "")).lower()
+            if venue == "orca":
+                base_url = ORCA_DEX_URL
+            elif venue == "raydium":
+                base_url = RAYDIUM_DEX_URL
+            else:
+                base_url = DEX_BASE_URL
             return await place_order_async(
                 action["token"],
                 action["side"],
@@ -46,6 +58,7 @@ class ExecutionAgent(BaseAgent):
                 testnet=self.testnet,
                 dry_run=self.dry_run,
                 keypair=self.keypair,
+                base_url=base_url,
             )
 
     async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
