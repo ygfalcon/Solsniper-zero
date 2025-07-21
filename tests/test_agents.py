@@ -10,6 +10,7 @@ from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.swarm import AgentSwarm
+
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
 
@@ -98,6 +99,40 @@ def test_exit_agent_trailing(monkeypatch):
     assert actions and actions[0]['side'] == 'sell'
 
 
+def test_exit_agent_stop_loss(monkeypatch):
+    pf = DummyPortfolio()
+    pf.balances['tok'] = Position('tok', 10, 10.0, 10.0)
+
+    async def price_low(tokens):
+        return {'tok': 8.0}
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.exit.fetch_token_prices_async',
+        price_low,
+    )
+
+    agent = ExitAgent(stop_loss=0.2)
+    actions = asyncio.run(agent.propose_trade('tok', pf))
+    assert actions and actions[0]['side'] == 'sell'
+
+
+def test_exit_agent_take_profit(monkeypatch):
+    pf = DummyPortfolio()
+    pf.balances['tok'] = Position('tok', 5, 10.0, 10.0)
+
+    async def price_high(tokens):
+        return {'tok': 12.0}
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.exit.fetch_token_prices_async',
+        price_high,
+    )
+
+    agent = ExitAgent(take_profit=0.2)
+    actions = asyncio.run(agent.propose_trade('tok', pf))
+    assert actions and actions[0]['side'] == 'sell'
+
+
 def test_execution_agent(monkeypatch):
     captured = {}
 
@@ -177,4 +212,20 @@ def test_memory_agent(monkeypatch):
     asyncio.run(mem_agent.log({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 2.0}))
     trades = mem_agent.memory.list_trades()
     assert trades and trades[0].token == 'tok'
+
+
+def test_agent_manager_update_weights():
+    mem = Memory('sqlite:///:memory:')
+    mem_agent = MemoryAgent(mem)
+    mgr = AgentManager([], memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
+
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='a1')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='a1')
+    mem.log_trade(token='tok', direction='buy', amount=1, price=2, reason='a2')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=1, reason='a2')
+
+    mgr.update_weights()
+
+    assert mgr.weights['a1'] > 1.0
+    assert mgr.weights['a2'] < 1.0
 
