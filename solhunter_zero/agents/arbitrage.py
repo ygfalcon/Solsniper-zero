@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import List, Dict, Any, Sequence, Callable, Awaitable, Mapping
 
 from . import BaseAgent
@@ -20,6 +21,11 @@ class ArbitrageAgent(BaseAgent):
         threshold: float = 0.0,
         amount: float = 1.0,
         feeds: Mapping[str, PriceFeed] | Sequence[PriceFeed] | None = None,
+        *,
+        fees: Mapping[str, float] | None = None,
+        gas: Mapping[str, float] | None = None,
+        latency: Mapping[str, float] | None = None,
+        gas_multiplier: float | None = None,
     ):
         self.threshold = threshold
         self.amount = amount
@@ -34,6 +40,13 @@ class ArbitrageAgent(BaseAgent):
             self.feeds = {
                 getattr(f, "__name__", f"feed{i}"): f for i, f in enumerate(feeds)
             }
+        self.fees = dict(fees or {})
+        self.gas = dict(gas or {})
+        self.latency = dict(latency or {})
+        if gas_multiplier is not None:
+            self.gas_multiplier = float(gas_multiplier)
+        else:
+            self.gas_multiplier = float(os.getenv("GAS_MULTIPLIER", "1.0"))
 
     async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
         names = list(self.feeds.keys())
@@ -47,21 +60,39 @@ class ArbitrageAgent(BaseAgent):
         diff = (max_price - min_price) / min_price
         if diff < self.threshold:
             return []
+
         buy_idx = prices.index(min_price)
         sell_idx = prices.index(max_price)
+        buy_name = names[buy_idx]
+        sell_name = names[sell_idx]
+
+        fee_cost = (
+            min_price * self.amount * self.fees.get(buy_name, 0.0)
+            + max_price * self.amount * self.fees.get(sell_name, 0.0)
+        )
+        gas_cost = (
+            self.gas.get(buy_name, 0.0) + self.gas.get(sell_name, 0.0)
+        ) * self.gas_multiplier
+        latency_cost = self.latency.get(buy_name, 0.0) + self.latency.get(sell_name, 0.0)
+
+        profit = (max_price - min_price) * self.amount - fee_cost - gas_cost - latency_cost
+
+        if profit <= 0:
+            return []
+
         return [
             {
                 "token": token,
                 "side": "buy",
                 "amount": self.amount,
                 "price": min_price,
-                "venue": names[buy_idx],
+                "venue": buy_name,
             },
             {
                 "token": token,
                 "side": "sell",
                 "amount": self.amount,
                 "price": max_price,
-                "venue": names[sell_idx],
+                "venue": sell_name,
             },
         ]
