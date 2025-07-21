@@ -545,3 +545,39 @@ def test_main_uses_agent_manager(monkeypatch, tmp_path):
 
     assert executed == ["cfg", "tok"]
 
+
+def test_scheduler_adjusts_delay(monkeypatch):
+    metrics = [
+        {"liquidity": 1.0, "volume": 1.0},
+        {"liquidity": 50.0, "volume": 50.0},
+        {"liquidity": 1.0, "volume": 1.0},
+        {"liquidity": 1.0, "volume": 1.0},
+    ]
+
+    async def fake_run_iteration(*_a, **_k):
+        main_module._LAST_TOKENS = ["tok"]
+
+    monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
+    monkeypatch.setattr(
+        main_module,
+        "fetch_dex_metrics",
+        lambda t, base_url=None: metrics.pop(0),
+    )
+
+    sleeps = []
+
+    async def fake_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(main_module.asyncio, "sleep", fake_sleep)
+
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=4,
+        iterations=4,
+        min_delay=1,
+        max_delay=8,
+    )
+
+    assert sleeps == [4, 2, 4]
+

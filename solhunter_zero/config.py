@@ -36,6 +36,8 @@ ENV_VARS = {
     "arbitrage_amount": "ARBITRAGE_AMOUNT",
 
     "min_portfolio_value": "MIN_PORTFOLIO_VALUE",
+    "min_delay": "MIN_DELAY",
+    "max_delay": "MAX_DELAY",
 
     "strategies": "STRATEGIES",
 
