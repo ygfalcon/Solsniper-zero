@@ -39,6 +39,9 @@ volatility_factor: 1.0
 risk_multiplier: 1.0
 arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
+learning_rate: 0.1
+epsilon: 0.1
+discount: 0.95
 agents:
   - simulation
   - conviction
@@ -149,6 +152,7 @@ The trading logic is implemented by a swarm of small agents:
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
 - **MemoryAgent** — records past trades for analysis.
+- **ReinforcementAgent** — learns from trade history using Q-learning.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
