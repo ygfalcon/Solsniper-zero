@@ -51,6 +51,7 @@ def _ensure_agents_loaded() -> None:
     from .discovery import DiscoveryAgent
     from .reinforcement import ReinforcementAgent
     from .portfolio_agent import PortfolioAgent
+    from .portfolio_manager import PortfolioManager
     from .emotion_agent import EmotionAgent
 
     from .dqn import DQNAgent
@@ -67,6 +68,7 @@ def _ensure_agents_loaded() -> None:
         "discovery": DiscoveryAgent,
         "reinforcement": ReinforcementAgent,
         "portfolio": PortfolioAgent,
+        "portfolio_manager": PortfolioManager,
         "dqn": DQNAgent,
 
         "meta_conviction": MetaConvictionAgent,

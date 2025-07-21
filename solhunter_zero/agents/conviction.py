@@ -21,8 +21,12 @@ class ConvictionAgent(BaseAgent):
         if not sims:
             return []
         avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-        pred = predict_price_movement(token)
-        avg_roi = (avg_roi + pred) / 2
+        try:
+            pred = predict_price_movement(token)
+        except Exception:
+            pred = 0.0
+        if abs(pred) >= self.threshold * 0.5:
+            avg_roi = (avg_roi + pred) / 2
         if avg_roi > self.threshold:
             return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
         if avg_roi < -self.threshold:

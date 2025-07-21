@@ -48,6 +48,7 @@ loop_delay = 60
 # currently active portfolio and keypair used by the trading loop
 current_portfolio: Portfolio | None = None
 current_keypair = None
+pnl_history: list[float] = []
 
 # ``BIRDEYE_API_KEY`` is optional when ``SOLANA_RPC_URL`` is provided for
 # on-chain scanning.
@@ -284,6 +285,18 @@ def roi() -> dict:
     value = sum(p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items())
     roi = (value - entry) / entry if entry else 0.0
     return jsonify({"roi": roi})
+
+
+@app.route("/pnl")
+def pnl() -> dict:
+    pf = current_portfolio or Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    entry = sum(p.amount * p.entry_price for p in pf.balances.values())
+    value = sum(p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items())
+    pnl = value - entry
+    pnl_history.append(pnl)
+    return jsonify({"pnl": pnl, "history": pnl_history})
 
 
 
