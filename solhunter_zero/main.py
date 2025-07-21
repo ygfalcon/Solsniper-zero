@@ -33,9 +33,6 @@ from .prices import fetch_token_prices_async
 from .memory import Memory
 from .portfolio import Portfolio
 from .exchange import place_order_async
-from .prices import fetch_token_prices_async
-from .simulation import run_simulations
-from .decision import should_buy, should_sell
 from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
 from .agents.discovery import DiscoveryAgent
