@@ -157,3 +157,70 @@ def test_arbitrage_multiple_tokens(monkeypatch):
     assert results == [(0, 1), (0, 1)]
     assert ("tok1", "buy", 1.0) in placed
     assert ("tok2", "sell", 2.5) in placed
+
+
+def test_arbitrage_env_streams(monkeypatch):
+    """Automatically open websocket streams when URLs are set."""
+
+    async def fake_orca(token, url="ws://orca"):
+        yield 1.0
+
+    async def fake_ray(token, url="ws://ray"):
+        yield 1.5
+
+    calls = []
+
+    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        calls.append((side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "ORCA_WS_URL", "ws://orca")
+    monkeypatch.setattr(arb, "RAYDIUM_WS_URL", "ws://ray")
+    monkeypatch.setattr(arb, "stream_orca_prices", fake_orca)
+    monkeypatch.setattr(arb, "stream_raydium_prices", fake_ray)
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        arb.detect_and_execute_arbitrage(
+            "tok",
+            threshold=0.2,
+            amount=5,
+            max_updates=1,
+        )
+    )
+
+    assert result == (0, 1)
+    assert ("buy", 1.0) in calls
+    assert ("sell", 1.5) in calls
+
+
+def test_arbitrage_env_streams_no_op(monkeypatch):
+    async def fake_orca(token, url="ws://orca"):
+        yield 1.0
+
+    async def fake_ray(token, url="ws://ray"):
+        yield 1.05
+
+    called = {}
+
+    async def fake_place(*a, **k):
+        called["called"] = True
+        return {}
+
+    monkeypatch.setattr(arb, "ORCA_WS_URL", "ws://orca")
+    monkeypatch.setattr(arb, "RAYDIUM_WS_URL", "ws://ray")
+    monkeypatch.setattr(arb, "stream_orca_prices", fake_orca)
+    monkeypatch.setattr(arb, "stream_raydium_prices", fake_ray)
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        arb.detect_and_execute_arbitrage(
+            "tok",
+            threshold=0.2,
+            amount=5,
+            max_updates=1,
+        )
+    )
+
+    assert result is None
+    assert "called" not in called
