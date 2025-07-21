@@ -60,7 +60,14 @@ class ArbitrageAgent(BaseAgent):
         # Cache of latest known prices per token and feed
         self.price_cache: Dict[str, Dict[str, float]] = {}
 
-    async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
+    async def propose_trade(
+        self,
+        token: str,
+        portfolio: Portfolio,
+        *,
+        depth: float | None = None,
+        imbalance: float | None = None,
+    ) -> List[Dict[str, Any]]:
         token_cache = self.price_cache.setdefault(token, {})
 
         # Fetch prices from main feeds
@@ -99,6 +106,10 @@ class ArbitrageAgent(BaseAgent):
         if min_price <= 0:
             return []
         diff = (max_price - min_price) / min_price
+        if imbalance is not None:
+            diff *= 1 + imbalance
+        if depth is not None and depth < 0:
+            return []
         if diff < self.threshold:
             return []
 
