@@ -235,6 +235,7 @@ def test_agent_manager_update_weights():
     assert mgr.weights['a2'] < 1.0
 
 
+
 def test_agent_manager_weights_persistence_json(tmp_path):
     path = tmp_path / "w.json"
     mgr = AgentManager([], weights={"a": 2.0}, weights_path=str(path))
@@ -251,4 +252,5 @@ def test_agent_manager_weights_persistence_toml(tmp_path):
 
     mgr2 = AgentManager([], weights_path=str(path))
     assert mgr2.weights == {"a": 1.5}
+
 

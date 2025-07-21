@@ -222,3 +222,15 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     ui.trading_thread.join(timeout=1)
     assert (tmp_path / "active").read_text() == "only"
 
+
+def test_get_and_set_weights(monkeypatch):
+    monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
+    client = ui.app.test_client()
+
+    resp = client.get("/weights")
+    assert resp.get_json() == {}
+
+    resp = client.post("/weights", json={"sim": 1.2})
+    assert resp.get_json()["status"] == "ok"
+    assert json.loads(os.getenv("AGENT_WEIGHTS"))["sim"] == 1.2
+

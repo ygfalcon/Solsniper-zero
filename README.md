@@ -39,6 +39,9 @@ volatility_factor: 1.0
 risk_multiplier: 1.0
 arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
+learning_rate: 0.1
+epsilon: 0.1
+discount: 0.95
 agents:
   - simulation
   - conviction
@@ -149,6 +152,7 @@ The trading logic is implemented by a swarm of small agents:
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
 - **MemoryAgent** — records past trades for analysis.
+- **ReinforcementAgent** — learns from trade history using Q-learning.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
@@ -248,6 +252,11 @@ When launched without a user configuration file or `SOLHUNTER_CONFIG`
 environment variable, the UI automatically loads the `config.highrisk.toml`
 preset.
 
+Recent updates embed **Chart.js** to visualise trading activity.  The UI now
+plots ROI over time, recent trade counts and current agent weights.  You can
+adjust risk parameters and agent weights directly in the browser and the values
+are sent back to the server via the `/risk` and `/weights` endpoints.
+
 ## Additional Metrics
 
 Recent updates introduce new real-time metrics used by the simulator and risk
@@ -260,9 +269,11 @@ model:
 - **Whale wallet activity** — share of liquidity held by very large accounts.
 
 These metrics are gathered automatically by the on-chain scanners and fed into
-`run_simulations`.  Sudden spikes or drops adjust the `RiskManager` parameters so
-the bot reduces exposure during potential dumps and scales in when activity
-surges.
+`run_simulations`.  `RiskManager.adjusted()` now factors them directly into the
+scaling of `risk_tolerance` and allocation limits.  High transaction rates or
+volume spikes increase the scale, while large depth changes or heavy whale
+concentration reduce it.  This helps the bot back off during potential dumps and
+scale in aggressively when on-chain activity surges.
 
 ## Minimum Portfolio Value
 

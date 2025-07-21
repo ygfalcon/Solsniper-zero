@@ -87,6 +87,7 @@ async def _run_iteration(
     }
 
 
+
     if agent_manager is not None:
         if hasattr(agent_manager, "discover_tokens"):
             try:
@@ -99,6 +100,7 @@ async def _run_iteration(
             tokens = await scan_tokens_async(**scan_kwargs)
     else:
         tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
+
 
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
@@ -372,6 +374,8 @@ def main(
     from .wallet import load_keypair
 
     cfg = apply_env_overrides(load_config(config_path))
+    prev_agents = os.environ.get("AGENTS")
+    prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
 
     if risk_tolerance is not None:
@@ -426,12 +430,14 @@ def main(
 
 
     agent_manager: AgentManager | None = None
+
     if cfg.get("agents"):
         agent_manager = AgentManager.from_config(cfg)
         if agent_manager is None:
             strategy_manager = StrategyManager(strategies)
         else:
             strategy_manager = None
+
     else:
         strategy_manager = StrategyManager(strategies)
 
@@ -530,7 +536,17 @@ def main(
             with contextlib.suppress(Exception):
                 await arb_task
 
-    asyncio.run(loop())
+    try:
+        asyncio.run(loop())
+    finally:
+        if prev_agents is None:
+            os.environ.pop("AGENTS", None)
+        else:
+            os.environ["AGENTS"] = prev_agents
+        if prev_weights is None:
+            os.environ.pop("AGENT_WEIGHTS", None)
+        else:
+            os.environ["AGENT_WEIGHTS"] = prev_weights
 
 
 def run_auto(**kwargs) -> None:
@@ -544,6 +560,8 @@ def run_auto(**kwargs) -> None:
         cfg_path = str(_HIGH_RISK_PRESET)
         cfg = load_config(cfg_path)
     cfg = apply_env_overrides(cfg)
+    prev_agents = os.environ.get("AGENTS")
+    prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
 
     if wallet.get_active_keypair_name() is None:
@@ -551,7 +569,17 @@ def run_auto(**kwargs) -> None:
         if len(keys) == 1:
             wallet.select_keypair(keys[0])
 
-    main(config_path=cfg_path, **kwargs)
+    try:
+        main(config_path=cfg_path, **kwargs)
+    finally:
+        if prev_agents is None:
+            os.environ.pop("AGENTS", None)
+        else:
+            os.environ["AGENTS"] = prev_agents
+        if prev_weights is None:
+            os.environ.pop("AGENT_WEIGHTS", None)
+        else:
+            os.environ["AGENT_WEIGHTS"] = prev_weights
 
 
 

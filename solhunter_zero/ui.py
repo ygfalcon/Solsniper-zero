@@ -153,6 +153,28 @@ def risk_params() -> dict:
     )
 
 
+@app.route("/weights", methods=["GET", "POST"])
+def agent_weights() -> dict:
+    """Get or update agent weighting factors."""
+    if request.method == "POST":
+        weights = request.get_json() or {}
+        os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
+        return jsonify({"status": "ok"})
+
+    env = os.getenv("AGENT_WEIGHTS")
+    if not env:
+        return jsonify({})
+    try:
+        return jsonify(json.loads(env))
+    except Exception:
+        try:
+            import ast
+
+            return jsonify(ast.literal_eval(env))
+        except Exception:
+            return jsonify({})
+
+
 @app.route("/discovery", methods=["GET", "POST"])
 def discovery_method() -> dict:
     if request.method == "POST":
@@ -284,6 +306,7 @@ HTML_PAGE = """
 <html>
 <head>
     <title>SolHunter UI</title>
+    <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
     <button id='start'>Start</button>
@@ -291,10 +314,25 @@ HTML_PAGE = """
     <select id='keypair_select'></select>
 
     <h3>ROI: <span id='roi_value'>0</span></h3>
+    <canvas id='roi_chart' width='400' height='100'></canvas>
+
     <h3>Positions</h3>
     <pre id='positions'></pre>
+
     <h3>Recent Trades</h3>
     <pre id='trades'></pre>
+    <canvas id='trade_chart' width='400' height='100'></canvas>
+
+    <h3>Agent Weights</h3>
+    <div id='weights_controls'></div>
+    <button id='save_weights'>Save Weights</button>
+    <canvas id='weights_chart' width='400' height='100'></canvas>
+
+    <h3>Risk Parameters</h3>
+    <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
+    <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
+    <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
+    <button id='save_risk'>Save Risk</button>
 
     <script>
     document.getElementById('start').onclick = function() {
@@ -303,6 +341,24 @@ HTML_PAGE = """
     document.getElementById('stop').onclick = function() {
         fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+
+    const roiChart = new Chart(document.getElementById('roi_chart'), {
+        type: 'line',
+        data: {labels: [], datasets: [{label: 'ROI', data: []}]},
+        options: {scales: {y: {beginAtZero: true}}}
+    });
+
+    const tradeChart = new Chart(document.getElementById('trade_chart'), {
+        type: 'bar',
+        data: {labels: ['buy', 'sell'], datasets: [{label:'Trades', data:[0,0]}]},
+        options: {scales:{y:{beginAtZero:true}}}
+    });
+
+    const weightsChart = new Chart(document.getElementById('weights_chart'), {
+        type: 'bar',
+        data: {labels: [], datasets: [{label:'Weight', data: []}]},
+        options: {scales:{y:{beginAtZero:true}}}
+    });
 
     function loadKeypairs() {
         fetch('/keypairs').then(r => r.json()).then(data => {
@@ -319,19 +375,87 @@ HTML_PAGE = """
         fetch('/keypairs/select', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:this.value})});
     };
 
+    function loadRisk() {
+        fetch('/risk').then(r => r.json()).then(data => {
+            document.getElementById('risk_tolerance').value = data.risk_tolerance;
+            document.getElementById('max_allocation').value = data.max_allocation;
+            document.getElementById('risk_multiplier').value = data.risk_multiplier;
+        });
+    }
+
+    document.getElementById('save_risk').onclick = function() {
+        fetch('/risk', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                risk_tolerance: parseFloat(document.getElementById('risk_tolerance').value),
+                max_allocation: parseFloat(document.getElementById('max_allocation').value),
+                risk_multiplier: parseFloat(document.getElementById('risk_multiplier').value)
+            })
+        });
+    };
+
+    function loadWeights() {
+        fetch('/weights').then(r => r.json()).then(data => {
+            const div = document.getElementById('weights_controls');
+            div.innerHTML = '';
+            const labels = [];
+            const values = [];
+            Object.entries(data).forEach(([name, val]) => {
+                const label = document.createElement('label');
+                label.textContent = name;
+                const inp = document.createElement('input');
+                inp.type = 'number';
+                inp.step = '0.1';
+                inp.value = val;
+                inp.dataset.agent = name;
+                label.appendChild(inp);
+                div.appendChild(label);
+                labels.push(name);
+                values.push(val);
+            });
+            weightsChart.data.labels = labels;
+            weightsChart.data.datasets[0].data = values;
+            weightsChart.update();
+        });
+    }
+
+    document.getElementById('save_weights').onclick = function() {
+        const data = {};
+        document.querySelectorAll('#weights_controls input').forEach(inp => {
+            data[inp.dataset.agent] = parseFloat(inp.value);
+        });
+        fetch('/weights', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(data)
+        });
+    };
+
     function refreshData() {
         fetch('/positions').then(r => r.json()).then(data => {
             document.getElementById('positions').textContent = JSON.stringify(data, null, 2);
         });
         fetch('/trades').then(r => r.json()).then(data => {
             document.getElementById('trades').textContent = JSON.stringify(data.slice(-10), null, 2);
+            const buy = data.filter(t=>t.direction==='buy').length;
+            const sell = data.filter(t=>t.direction==='sell').length;
+            tradeChart.data.datasets[0].data = [buy, sell];
+            tradeChart.update();
         });
         fetch('/roi').then(r => r.json()).then(data => {
             document.getElementById('roi_value').textContent = data.roi.toFixed(4);
+            roiChart.data.labels.push('');
+            roiChart.data.datasets[0].data.push(data.roi);
+            if(roiChart.data.labels.length>50){roiChart.data.labels.shift();roiChart.data.datasets[0].data.shift();}
+            roiChart.update();
         });
+        loadWeights();
     }
 
     loadKeypairs();
+    loadRisk();
+    loadWeights();
     refreshData();
     setInterval(refreshData, 5000);
     </script>

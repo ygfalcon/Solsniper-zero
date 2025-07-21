@@ -14,6 +14,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .execution import ExecutionAgent
     from .memory import MemoryAgent
     from .discovery import DiscoveryAgent
+    from .reinforcement import ReinforcementAgent
 
 
 class BaseAgent(ABC):
@@ -49,6 +50,7 @@ def _ensure_agents_loaded() -> None:
         "execution": ExecutionAgent,
         "memory": MemoryAgent,
         "discovery": DiscoveryAgent,
+        "reinforcement": ReinforcementAgent,
     })
 
 
