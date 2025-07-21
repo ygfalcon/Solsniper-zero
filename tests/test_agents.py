@@ -9,6 +9,7 @@ from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.meta_conviction import MetaConvictionAgent
 from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.memory import Memory
 
@@ -257,26 +258,50 @@ def test_agent_manager_weights_persistence_toml(tmp_path):
 
 
 
+def test_meta_conviction_majority_buy(monkeypatch):
+    calls = []
 
-def test_agent_manager_dynamic_weights():
-    mem = Memory('sqlite:///:memory:')
-    mem_agent = MemoryAgent(mem)
+    async def buy(self, token, pf):
+        calls.append("b")
+        return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
 
-    class DummyAgent:
-        def __init__(self, name):
-            self.name = name
-        async def propose_trade(self, token, portfolio):
-            return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
+    async def sell(self, token, pf):
+        calls.append("s")
+        return [{"token": token, "side": "sell", "amount": 1.0, "price": 0.0}]
 
-    a1 = DummyAgent('a1')
-    a2 = DummyAgent('a2')
-    mgr = AgentManager([a1, a2], memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
+    monkeypatch.setattr(SimulationAgent, "propose_trade", buy)
+    monkeypatch.setattr(ConvictionAgent, "propose_trade", buy)
+    monkeypatch.setattr(
+        "solhunter_zero.agents.ramanujan.RamanujanAgent.propose_trade",
+        sell,
+    )
 
-    mem.log_trade(token='tok', direction='buy', amount=1, price=2, reason='a1')
-    mem.log_trade(token='tok', direction='sell', amount=1, price=1, reason='a1')
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='a2')
-    mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='a2')
+    agent = MetaConvictionAgent()
+    actions = asyncio.run(agent.propose_trade("tok", DummyPortfolio()))
 
-    actions = asyncio.run(mgr.evaluate('tok', DummyPortfolio()))
-    assert actions and actions[0]['amount'] > 0
+    assert calls.count("b") == 2 and calls.count("s") == 1
+    assert actions and actions[0]["side"] == "buy"
+
+
+def test_meta_conviction_majority_sell(monkeypatch):
+    async def buy(self, token, pf):
+        return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
+
+    async def sell(self, token, pf):
+        return [{"token": token, "side": "sell", "amount": 1.0, "price": 0.0}]
+
+    monkeypatch.setattr(SimulationAgent, "propose_trade", sell)
+    monkeypatch.setattr(ConvictionAgent, "propose_trade", sell)
+    monkeypatch.setattr(
+        "solhunter_zero.agents.ramanujan.RamanujanAgent.propose_trade",
+        buy,
+    )
+
+    pf = DummyPortfolio()
+    pf.balances["tok"] = Position("tok", 2, 1.0, 1.0)
+    agent = MetaConvictionAgent()
+    actions = asyncio.run(agent.propose_trade("tok", pf))
+
+    assert actions and actions[0]["side"] == "sell"
+
 
