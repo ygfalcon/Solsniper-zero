@@ -69,8 +69,9 @@ weight_step: 0.05
 
    The `AgentManager` loads the agents listed under `agents` and applies any
    weights defined in the `agent_weights` table.  When `dynamic_weights` is set
-   to `true` the manager adjusts these weights automatically after every
-   iteration by `weight_step` depending on each agent's recent performance.
+   to `true` a `SwarmCoordinator` derives weights dynamically from each
+   agent's historical ROI. The coordinator normalizes ROI values into a
+   confidence score and feeds these weights to the `AgentSwarm` at run time.
    To control how much each agent influences trades manually, add an
    `agent_weights` table mapping agent names to weights:
 
@@ -306,9 +307,9 @@ very small.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
-- **Weight updates and ROI** — `AgentManager.update_weights()` computes ROI for
-  each agent as `(revenue - spent) / spent` using all logged trades and then
-  multiplies weights by `1.1` on profit or `0.9` on loss.
+- **Weight updates and ROI** — `SwarmCoordinator` computes ROI for each agent
+  using the `MemoryAgent` logs and normalizes these values to produce
+  per‑agent confidence scores supplied to `AgentSwarm` during evaluation.
 - **Token discovery fallback** — the default `websocket` discovery mode uses
   BirdEye when `BIRDEYE_API_KEY` is set and automatically falls back to
   on-chain scanning if the key is missing.
