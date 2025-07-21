@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from . import BaseAgent
 from ..memory import Memory
 from ..advanced_memory import AdvancedMemory
+from ..offline_data import OfflineData
 from ..portfolio import Portfolio
 
 
@@ -13,8 +14,13 @@ class MemoryAgent(BaseAgent):
 
     name = "memory"
 
-    def __init__(self, memory: Memory | AdvancedMemory | None = None):
+    def __init__(
+        self,
+        memory: Memory | AdvancedMemory | None = None,
+        offline_data: OfflineData | None = None,
+    ):
         self.memory = memory or Memory("sqlite:///:memory:")
+        self.offline_data = offline_data
 
     async def log(self, action: Dict[str, Any], *, skip_db: bool = False) -> None:
         """Record ``action`` in memory unless ``skip_db`` is True."""
@@ -35,6 +41,13 @@ class MemoryAgent(BaseAgent):
             reason=action.get("agent"),
             **extra,
         )
+        if self.offline_data:
+            self.offline_data.log_trade(
+                token=action.get("token", ""),
+                side=action.get("side", ""),
+                price=float(action.get("price", 0.0)),
+                amount=float(action.get("amount", 0.0)),
+            )
 
     async def propose_trade(
         self,

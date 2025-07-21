@@ -7,3 +7,6 @@ def test_offline_data_roundtrip(tmp_path):
     data.log_snapshot("tok", 1.0, 2.0, 0.5)
     snaps = data.list_snapshots("tok")
     assert snaps and snaps[0].token == "tok"
+    data.log_trade("tok", "buy", 1.0, 2.0)
+    trades = data.list_trades("tok")
+    assert trades and trades[0].side == "buy"

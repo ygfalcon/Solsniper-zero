@@ -353,6 +353,10 @@ very small.
   `offline_data.db` for offline training. PPO models are periodically retrained
   on this dataset and saved to disk for inference. `MemoryAgent` also records
   trades in `memory.db` for ROI tracking.
+- **Advanced forecasting** — transformer and LSTM models can be trained on the
+  collected snapshots using `scripts/train_transformer_model.py` and
+  `scripts/train_price_model.py`. Set `PRICE_MODEL_PATH` to the resulting model
+  file and `predict_price_movement()` will load it automatically.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.

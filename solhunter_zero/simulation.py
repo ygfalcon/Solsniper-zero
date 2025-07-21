@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - when xgboost is missing
 
 import numpy as np
 import requests
-from . import onchain_metrics
+from . import onchain_metrics, models
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,25 @@ def predict_price_movement(
     sentiment: float | None = None,
     order_book_strength: float | None = None,
 ) -> float:
-    """Predict short term price change using the regression model."""
+    """Predict short term price change using ML models when available."""
+
+    model_path = os.getenv("PRICE_MODEL_PATH")
+    model = models.get_model(model_path, reload=True)
+    if model:
+        metrics = fetch_token_metrics(token)
+        ph = metrics.get("price_history") or []
+        lh = metrics.get("liquidity_history") or []
+        dh = metrics.get("depth_history") or []
+        th = metrics.get("tx_count_history") or []
+        n = min(len(ph), len(lh), len(dh), len(th or ph))
+        if n >= 30:
+            seq = np.column_stack(
+                [ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]]
+            )
+            try:
+                return float(model.predict(seq))
+            except Exception:
+                pass
 
     sims = run_simulations(
         token,

@@ -1,5 +1,4 @@
 import os
-from functools import lru_cache
 from typing import Iterable, Sequence, Tuple
 
 import torch
@@ -19,6 +18,34 @@ class PriceModel(nn.Module):
         out = out[:, -1]
         return self.fc(out).squeeze(-1)
 
+
+class TransformerModel(nn.Module):
+    """Simple transformer encoder based predictor."""
+
+    def __init__(self, input_dim: int, hidden_dim: int = 32, num_layers: int = 2) -> None:
+        super().__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        encoder_layer = nn.TransformerEncoderLayer(
+            input_dim, nhead=4, dim_feedforward=hidden_dim
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
+        self.fc = nn.Linear(input_dim, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (batch, seq, features)
+        t = self.encoder(x)
+        out = t[:, -1]
+        return self.fc(out).squeeze(-1)
+
+    def predict(self, seq: Sequence[Sequence[float]]) -> float:
+        self.eval()
+        with torch.no_grad():
+            t = torch.tensor(seq, dtype=torch.float32).unsqueeze(0)
+            pred = self(t)
+            return float(pred.item())
+
     def predict(self, seq: Sequence[Sequence[float]]) -> float:
         self.eval()
         with torch.no_grad():
@@ -27,45 +54,63 @@ class PriceModel(nn.Module):
             return float(pred.item())
 
 
-def save_model(model: PriceModel, path: str) -> None:
+def save_model(model: nn.Module, path: str) -> None:
     """Save ``model`` to ``path`` using a portable format."""
-    torch.save(
-        {
-            "cfg": {
-                "input_dim": model.lstm.input_size,
-                "hidden_dim": model.lstm.hidden_size,
-                "num_layers": model.lstm.num_layers,
-            },
-            "state": model.state_dict(),
-        },
-        path,
-    )
+    if isinstance(model, PriceModel):
+        cfg = {
+            "cls": "PriceModel",
+            "input_dim": model.lstm.input_size,
+            "hidden_dim": model.lstm.hidden_size,
+            "num_layers": model.lstm.num_layers,
+        }
+    elif isinstance(model, TransformerModel):
+        cfg = {
+            "cls": "TransformerModel",
+            "input_dim": model.input_dim,
+            "hidden_dim": model.hidden_dim,
+            "num_layers": model.num_layers,
+        }
+    else:
+        cfg = {"cls": type(model).__name__}
+    torch.save({"cfg": cfg, "state": model.state_dict()}, path)
 
 
-def load_model(path: str) -> PriceModel:
-    """Load a :class:`PriceModel` from ``path``."""
+def load_model(path: str) -> nn.Module:
+    """Load a saved ML model from ``path``."""
     obj = torch.load(path, map_location="cpu")
-    if isinstance(obj, PriceModel):
+    if isinstance(obj, (PriceModel, TransformerModel)):
         obj.eval()
         return obj
     if isinstance(obj, dict) and "state" in obj:
         cfg = obj.get("cfg", {})
-        model = PriceModel(**cfg)
+        cls_name = cfg.pop("cls", "PriceModel")
+        model_cls = PriceModel if cls_name == "PriceModel" else TransformerModel
+        model = model_cls(**cfg)
         model.load_state_dict(obj["state"])
         model.eval()
         return model
     raise TypeError("Invalid model file")
 
 
-@lru_cache(None)
-def _cached_load(path: str) -> PriceModel:
-    return load_model(path)
+_MODEL_CACHE: dict[str, tuple[float, nn.Module]] = {}
 
 
-def get_model(path: str | None) -> PriceModel | None:
-    """Return model from path if it exists, otherwise ``None``."""
+def _cached_load(path: str) -> nn.Module:
+    mtime = os.path.getmtime(path)
+    entry = _MODEL_CACHE.get(path)
+    if entry and entry[0] == mtime:
+        return entry[1]
+    model = load_model(path)
+    _MODEL_CACHE[path] = (mtime, model)
+    return model
+
+
+def get_model(path: str | None, *, reload: bool = False) -> nn.Module | None:
+    """Return model from path if it exists, reloading when ``reload`` is True."""
     if not path or not os.path.exists(path):
         return None
+    if reload and path in _MODEL_CACHE:
+        _MODEL_CACHE.pop(path, None)
     try:
         return _cached_load(path)
     except Exception:
@@ -126,6 +171,34 @@ def train_price_model(
 
     X, y = make_training_data(prices, liquidity, depth, tx_counts, seq_len)
     model = PriceModel(4, hidden_dim=hidden_dim, num_layers=num_layers)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        opt.step()
+    model.eval()
+    return model
+
+
+def train_transformer_model(
+    prices: Iterable[float],
+    liquidity: Iterable[float],
+    depth: Iterable[float],
+    tx_counts: Iterable[float] | None = None,
+    *,
+    seq_len: int = 30,
+    epochs: int = 10,
+    lr: float = 1e-3,
+    hidden_dim: int = 32,
+    num_layers: int = 2,
+) -> TransformerModel:
+    """Train a :class:`TransformerModel` on historical data."""
+
+    X, y = make_training_data(prices, liquidity, depth, tx_counts, seq_len)
+    model = TransformerModel(4, hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
