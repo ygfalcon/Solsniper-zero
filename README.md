@@ -161,7 +161,9 @@ The trading logic is implemented by a swarm of small agents:
 - **ArbitrageAgent** — detects DEX price discrepancies.
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
-- **MemoryAgent** — records past trades for analysis.
+- **MemoryAgent** — records past trades for analysis. Trade context and emotion
+  tags are saved to `memory.db` and a FAISS index (`trade.index`) for semantic
+  search.
 - **ReinforcementAgent** — learns from trade history using Q-learning.
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
 - **RamanujanAgent** — proposes deterministic buys or sells from a hashed conviction score.
@@ -216,8 +218,8 @@ described above. To run manually without automation use:
 ./run.sh
 ```
 You can customize the database path and the delay between iterations.  The bot
-can also run against a DEX testnet or in dry‑run mode where orders are not
-submitted:
+also saves a FAISS index named `trade.index` next to the database.  The bot can
+run against a DEX testnet or in dry‑run mode where orders are not submitted:
 ```bash
 python -m solhunter_zero.main \
   --memory-path sqlite:///my.db --loop-delay 30 \
@@ -305,7 +307,9 @@ very small.
 - **Persistence** — `ReinforcementAgent` and `DQNAgent` keep their Q-values in
   memory only and are not saved between runs. `DQNAgent` trains directly on all
   recorded trades without a replay buffer. `MemoryAgent` persists actions to a
-  SQLite database for later analysis and weight updates.
+  SQLite database for later analysis and weight updates. The database is saved
+  as `memory.db` by default and a FAISS index named `trade.index` stores trade
+  embeddings.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
