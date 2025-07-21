@@ -272,7 +272,7 @@ def test_meta_conviction_majority_buy(monkeypatch):
     monkeypatch.setattr(SimulationAgent, "propose_trade", buy)
     monkeypatch.setattr(ConvictionAgent, "propose_trade", buy)
     monkeypatch.setattr(
-        "solhunter_zero.agents.ramanujan.RamanujanAgent.propose_trade",
+        "solhunter_zero.agents.ramanujan_agent.RamanujanAgent.propose_trade",
         sell,
     )
 
@@ -293,7 +293,7 @@ def test_meta_conviction_majority_sell(monkeypatch):
     monkeypatch.setattr(SimulationAgent, "propose_trade", sell)
     monkeypatch.setattr(ConvictionAgent, "propose_trade", sell)
     monkeypatch.setattr(
-        "solhunter_zero.agents.ramanujan.RamanujanAgent.propose_trade",
+        "solhunter_zero.agents.ramanujan_agent.RamanujanAgent.propose_trade",
         buy,
     )
 
