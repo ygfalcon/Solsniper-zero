@@ -291,3 +291,29 @@ below `min_portfolio_value` (default `$20`). The same threshold is passed to
 `calculate_order_size` so order sizing never assumes less than this value. This
 avoids placing trades that would not cover network fees once the balance is
 very small.
+
+## Architecture Details
+
+- **Agent execution and roles** — `AgentManager` launches all agents
+  concurrently with `asyncio.gather` via `AgentSwarm` and merges their trade
+  proposals. Typical agents handle discovery, simulation, conviction scoring,
+  arbitrage checks, exits, execution, logging and reinforcement learning.
+- **Persistence** — `ReinforcementAgent` and `DQNAgent` keep their Q-values in
+  memory only and are not saved between runs. `DQNAgent` trains directly on all
+  recorded trades without a replay buffer. `MemoryAgent` persists actions to a
+  SQLite database for later analysis and weight updates.
+- **Scheduling loop** — trading iterations run in a time-driven loop using
+  `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
+  this loop in a dedicated thread while the web server handles requests.
+- **Weight updates and ROI** — `AgentManager.update_weights()` computes ROI for
+  each agent as `(revenue - spent) / spent` using all logged trades and then
+  multiplies weights by `1.1` on profit or `0.9` on loss.
+- **Token discovery fallback** — the default `websocket` discovery mode uses
+  BirdEye when `BIRDEYE_API_KEY` is set and automatically falls back to
+  on-chain scanning if the key is missing.
+- **Web UI polling** — the browser polls `/positions`, `/trades`, `/roi`,
+  `/risk` and `/weights` every 5&nbsp;s. It assumes a single user and exposes
+  JSON endpoints to inspect trades and ROI history.
+- **Alerts and position sizing** — no Telegram or other alerting is built in.
+  `RiskManager.adjusted()` factors whale liquidity share, mempool transaction
+  rate and `min_portfolio_value` into position sizing.
