@@ -1,6 +1,7 @@
 import pytest
 
 from solhunter_zero.risk import RiskManager, value_at_risk
+from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import calculate_order_size
 
 
@@ -143,6 +144,14 @@ def test_value_at_risk_calculation():
     prices = [100, 110, 100, 90, 95]
     var = value_at_risk(prices, 0.95)
     assert var == pytest.approx(0.1)
+
+
+def test_var_logging():
+    prices = [100, 110, 100, 90, 95]
+    mem = Memory('sqlite:///:memory:')
+    value_at_risk(prices, 0.95, memory=mem)
+    logs = mem.list_vars()
+    assert logs and logs[-1].value == pytest.approx(0.1)
 
 
 def test_var_reduces_order_size():

@@ -314,3 +314,13 @@ def test_memory_query(monkeypatch):
     data = resp.get_json()
     assert data == [{"token": "TOK", "price": 2.0}]
 
+
+def test_vars_endpoint(monkeypatch):
+    mem = _setup_memory(monkeypatch)
+    mem.log_var(0.1)
+    mem.log_var(0.2)
+    client = ui.app.test_client()
+    resp = client.get("/vars")
+    data = resp.get_json()
+    assert [v["value"] for v in data] == [0.1, 0.2]
+
