@@ -1,5 +1,5 @@
 import types
-from solhunter_zero.agent_manager import StrategySelector
+from solhunter_zero.agent_manager import StrategySelector, AgentManager
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 
@@ -33,3 +33,20 @@ def test_strategy_selector_updates_ranking():
 
     ranking2 = selector.rank_agents(agents)
     assert ranking2[0] == 'arbitrage'
+
+
+def test_strategy_selector_weights_persist(tmp_path):
+    mem = Memory('sqlite:///:memory:')
+    mem_agent = MemoryAgent(mem)
+
+    path = tmp_path / 'weights.json'
+    mgr = AgentManager([], memory_agent=mem_agent, weights={'sniper': 1.0}, weights_path=str(path))
+
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='sniper')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='sniper')
+
+    mgr.update_weights()
+    mgr.save_weights()
+
+    mgr2 = AgentManager([], memory_agent=mem_agent, weights_path=str(path))
+    assert mgr2.weights['sniper'] > 1.0
