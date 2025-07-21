@@ -38,7 +38,6 @@ from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
-from .agents.discovery import DiscoveryAgent
 
 from .portfolio import calculate_order_size
 from .risk import RiskManager
@@ -289,6 +288,9 @@ async def _run_iteration(
                 if not dry_run:
                     memory.log_trade(token=token, direction=side, amount=amount, price=price)
                     portfolio.update(token, amount if side == "buy" else -amount, price)
+
+        if agent_manager is not None:
+            agent_manager.update_weights()
 
 
 

@@ -24,6 +24,7 @@ class MemoryAgent(BaseAgent):
             direction=action.get("side"),
             amount=action.get("amount", 0.0),
             price=action.get("price", 0.0),
+            reason=action.get("agent"),
         )
 
     async def propose_trade(self, token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:

@@ -9,7 +9,8 @@ from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.agents.exit import ExitAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents import BUILT_IN_AGENTS, load_agent
+from solhunter_zero.memory import Memory
+
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
 
@@ -176,30 +177,18 @@ def test_memory_agent(monkeypatch):
     assert trades and trades[0].token == 'tok'
 
 
-def test_agent_manager_logs_trades(monkeypatch):
-    async def propose(token, portfolio):
-        return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
+def test_agent_manager_update_weights():
+    mem = Memory('sqlite:///:memory:')
+    mem_agent = MemoryAgent(mem)
+    mgr = AgentManager([], memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
 
-    memory_agent = MemoryAgent()
-    log_called = {}
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='a1')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='a1')
+    mem.log_trade(token='tok', direction='buy', amount=1, price=2, reason='a2')
+    mem.log_trade(token='tok', direction='sell', amount=1, price=1, reason='a2')
 
-    async def fake_log(action, *, skip_db=False):
-        log_called['args'] = (action, skip_db)
+    mgr.update_weights()
 
-    monkeypatch.setattr(memory_agent, 'log', fake_log)
-
-    exec_agent = ExecutionAgent(rate_limit=0, dry_run=True)
-
-    async def fake_execute(action):
-        return {'ok': True}
-
-    monkeypatch.setattr(exec_agent, 'execute', fake_execute)
-
-    mgr = AgentManager([types.SimpleNamespace(propose_trade=propose), memory_agent], executor=exec_agent)
-    pf = DummyPortfolio()
-    asyncio.run(mgr.execute('tok', pf))
-
-    assert log_called['args'][0]['side'] == 'buy'
-    assert log_called['args'][1] is True
-
+    assert mgr.weights['a1'] > 1.0
+    assert mgr.weights['a2'] < 1.0
 

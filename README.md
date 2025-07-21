@@ -155,6 +155,11 @@ controlled via the `agent_weights` table.  When dynamic weighting is enabled,
 the `AgentManager` updates these weights automatically over time based on each
 agent's trading performance.
 
+The `AgentManager` periodically adjusts these weights using the
+`update_weights()` method.  It reviews trade history recorded by the
+`MemoryAgent` and slightly increases the weight of agents with a positive ROI
+while decreasing the weight of those with losses.
+
 
 ## Requirements
 - Python 3.11+
