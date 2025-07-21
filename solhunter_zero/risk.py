@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Mapping, Sequence
+
+import numpy as np
 
 from .memory import Memory
 
@@ -34,6 +36,73 @@ def value_at_risk(
             pass
 
     return var
+
+
+def conditional_value_at_risk(returns: Sequence[float], confidence: float = 0.95) -> float:
+    """Return Conditional Value-at-Risk (expected shortfall) of ``returns``."""
+
+    if len(returns) == 0:
+        return 0.0
+    arr = np.sort(np.asarray(returns, dtype=float))
+    cutoff = int((1 - confidence) * len(arr))
+    cutoff = max(1, cutoff)
+    tail = arr[:cutoff]
+    cvar = -float(tail.mean())
+    return max(cvar, 0.0)
+
+
+def covariance_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
+    """Return covariance matrix of token returns."""
+
+    series = []
+    for seq in prices.values():
+        arr = np.asarray(seq, dtype=float)
+        if len(arr) < 2:
+            continue
+        rets = arr[1:] / arr[:-1] - 1
+        series.append(rets)
+    if not series:
+        return np.empty((0, 0))
+    min_len = min(len(s) for s in series)
+    mat = np.vstack([s[:min_len] for s in series])
+    return np.cov(mat)
+
+
+def portfolio_cvar(
+    prices: Mapping[str, Sequence[float]],
+    weights: Mapping[str, float],
+    confidence: float = 0.95,
+) -> float:
+    """Return portfolio CVaR for ``prices`` and ``weights``."""
+
+    series = []
+    w_list = []
+    for tok, w in weights.items():
+        seq = prices.get(tok)
+        if seq is None or len(seq) < 2:
+            continue
+        arr = np.asarray(seq, dtype=float)
+        rets = arr[1:] / arr[:-1] - 1
+        series.append(rets)
+        w_list.append(w)
+    if not series:
+        return 0.0
+    min_len = min(len(s) for s in series)
+    mat = np.vstack([s[:min_len] for s in series]).T
+    w = np.asarray(w_list, dtype=float)
+    port_rets = mat @ w
+    return conditional_value_at_risk(port_rets, confidence)
+
+
+def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
+    """Return portfolio variance given covariance ``cov`` and ``weights``."""
+
+    if cov.size == 0:
+        return 0.0
+    w = np.asarray(list(weights), dtype=float)
+    if cov.shape[0] != w.size:
+        return 0.0
+    return float(w @ cov @ w.T)
 
 
 @dataclass
@@ -83,6 +152,13 @@ class RiskManager:
         prices: Sequence[float] | None = None,
         var_threshold: float | None = None,
         var_confidence: float = 0.95,
+        covariance: float | None = None,
+        covar_threshold: float | None = None,
+        portfolio_cvar: float | None = None,
+        cvar_threshold: float | None = None,
+        leverage: float | None = None,
+        correlation: float | None = None,
+        regime: str | None = None,
         memory: Memory | None = None,
     ) -> "RiskManager":
         """Return a new ``RiskManager`` adjusted using recent market metrics.
@@ -104,6 +180,18 @@ class RiskManager:
         portfolio_value:
             Current portfolio USD value.  When below ``min_portfolio_value`` the
             scaling factor is reduced further.
+        covariance:
+            Portfolio return covariance measure.  When exceeding ``covar_threshold``
+            risk is scaled down.
+        portfolio_cvar:
+            Conditional VaR of the portfolio returns.
+        leverage:
+            Target leverage factor for dynamic scaling.
+        correlation:
+            Average correlation across held assets used for hedging.
+        regime:
+            Optional market regime label (``"bull"``, ``"bear"`` or ``"sideways"``)
+            that influences scaling.
         """
 
         factor = max(0.0, 1 - drawdown / self.max_drawdown)
@@ -137,6 +225,26 @@ class RiskManager:
             var = value_at_risk(prices, var_confidence, memory=memory)
             if var > var_threshold and var > 0:
                 scale *= var_threshold / var
+
+        if covariance is not None and covar_threshold is not None and covariance > covar_threshold:
+            scale *= covar_threshold / covariance
+
+        if portfolio_cvar is not None and cvar_threshold is not None and portfolio_cvar > cvar_threshold:
+            scale *= cvar_threshold / portfolio_cvar
+
+        if correlation is not None:
+            corr = max(-1.0, min(1.0, correlation))
+            scale *= max(0.0, 1 - corr)
+
+        if leverage is not None and leverage > 0:
+            scale *= leverage
+
+        if regime:
+            reg = regime.lower()
+            if reg == "bull":
+                scale *= 1.2
+            elif reg == "bear":
+                scale *= 0.8
         return RiskManager(
             risk_tolerance=self.risk_tolerance * scale,
             max_allocation=self.max_allocation * scale,

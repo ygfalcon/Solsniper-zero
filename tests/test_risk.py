@@ -1,6 +1,12 @@
 import pytest
 
-from solhunter_zero.risk import RiskManager, value_at_risk
+from solhunter_zero.risk import (
+    RiskManager,
+    value_at_risk,
+    covariance_matrix,
+    portfolio_cvar,
+    portfolio_variance,
+)
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import calculate_order_size
 
@@ -179,3 +185,29 @@ def test_var_reduces_order_size():
     )
     assert params.risk_tolerance < base.risk_tolerance
     assert var_size < base_size
+
+
+def test_portfolio_covariance_and_variance():
+    prices = {
+        "a": [1, 2, 3],
+        "b": [2, 1, 2],
+    }
+    cov = covariance_matrix(prices)
+    assert cov.shape == (2, 2)
+    var = portfolio_variance(cov, [0.5, 0.5])
+    assert var > 0
+
+
+def test_cross_token_cvar_adjustment():
+    prices = {"a": [1, 1.1, 1.0], "b": [2, 1.8, 1.9]}
+    weights = {"a": 0.5, "b": 0.5}
+    cvar = portfolio_cvar(prices, weights, confidence=0.9)
+    rm = RiskManager()
+    high = rm.adjusted(portfolio_cvar=cvar, cvar_threshold=cvar / 2)
+    assert high.risk_tolerance < rm.risk_tolerance
+
+
+def test_leverage_and_correlation_scaling():
+    rm = RiskManager()
+    hedged = rm.adjusted(leverage=2.0, correlation=-0.5)
+    assert hedged.risk_tolerance > rm.risk_tolerance

@@ -152,6 +152,19 @@ class Portfolio:
         price = prices.get(token, pos.entry_price)
         return (pos.amount * price) / total
 
+    def weights(self, prices: Dict[str, float] | None = None) -> Dict[str, float]:
+        """Return portfolio allocation weights for each token."""
+
+        prices = prices or {}
+        total = self.total_value(prices)
+        if total <= 0:
+            return {}
+        weights: Dict[str, float] = {}
+        for token, pos in self.balances.items():
+            price = prices.get(token, pos.entry_price)
+            weights[token] = (pos.amount * price) / total
+        return weights
+
 
 def calculate_order_size(
     balance: float,
