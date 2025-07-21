@@ -6,6 +6,7 @@ orca_api_url = "https://api.orca.so"
 raydium_api_url = "https://api.raydium.io"
 orca_ws_url = ""
 raydium_ws_url = ""
+jupiter_ws_url = ""
 orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
 metrics_base_url = "https://api.example.com"
@@ -30,6 +31,8 @@ volatility_factor = 1.0
 min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
+dex_priorities = "orca,raydium,jupiter"
+dex_fees = "{}"
 weights_path = "weights.json"
 
 token_suffix = "bonk"
