@@ -38,7 +38,9 @@ def value_at_risk(
     return var
 
 
-def conditional_value_at_risk(returns: Sequence[float], confidence: float = 0.95) -> float:
+def conditional_value_at_risk(
+    returns: Sequence[float], confidence: float = 0.95
+) -> float:
     """Return Conditional Value-at-Risk (expected shortfall) of ``returns``."""
 
     if len(returns) == 0:
@@ -49,6 +51,34 @@ def conditional_value_at_risk(returns: Sequence[float], confidence: float = 0.95
     tail = arr[:cutoff]
     cvar = -float(tail.mean())
     return max(cvar, 0.0)
+
+
+def entropic_value_at_risk(
+    returns: Sequence[float], confidence: float = 0.95, *, steps: int = 100
+) -> float:
+    """Return Entropic Value-at-Risk of ``returns``.
+
+    The EVaR is approximated by numerically minimising the entropic
+    bound over ``steps`` points.  The result is always positive and
+    represents the maximum expected loss at the desired confidence
+    level.
+    """
+
+    if len(returns) == 0:
+        return 0.0
+
+    arr = np.asarray(returns, dtype=float)
+    losses = -arr
+    if np.allclose(losses, 0.0):
+        return 0.0
+
+    ts = np.logspace(-3, 1, steps)
+    bound = float("inf")
+    for t in ts:
+        val = (np.log(np.mean(np.exp(t * losses))) - np.log(1 - confidence)) / t
+        if val < bound:
+            bound = val
+    return max(bound, 0.0)
 
 
 def covariance_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
@@ -92,6 +122,34 @@ def portfolio_cvar(
     w = np.asarray(w_list, dtype=float)
     port_rets = mat @ w
     return conditional_value_at_risk(port_rets, confidence)
+
+
+def portfolio_evar(
+    prices: Mapping[str, Sequence[float]],
+    weights: Mapping[str, float],
+    confidence: float = 0.95,
+    *,
+    steps: int = 100,
+) -> float:
+    """Return portfolio EVaR for ``prices`` and ``weights``."""
+
+    series = []
+    w_list = []
+    for tok, w in weights.items():
+        seq = prices.get(tok)
+        if seq is None or len(seq) < 2:
+            continue
+        arr = np.asarray(seq, dtype=float)
+        rets = arr[1:] / arr[:-1] - 1
+        series.append(rets)
+        w_list.append(w)
+    if not series:
+        return 0.0
+    min_len = min(len(s) for s in series)
+    mat = np.vstack([s[:min_len] for s in series]).T
+    w = np.asarray(w_list, dtype=float)
+    port_rets = mat @ w
+    return entropic_value_at_risk(port_rets, confidence, steps=steps)
 
 
 def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
@@ -156,6 +214,8 @@ class RiskManager:
         covar_threshold: float | None = None,
         portfolio_cvar: float | None = None,
         cvar_threshold: float | None = None,
+        portfolio_evar: float | None = None,
+        evar_threshold: float | None = None,
         leverage: float | None = None,
         correlation: float | None = None,
         regime: str | None = None,
@@ -185,6 +245,9 @@ class RiskManager:
             risk is scaled down.
         portfolio_cvar:
             Conditional VaR of the portfolio returns.
+        portfolio_evar:
+            Entropic VaR of the portfolio returns used for extreme tail
+            risk management.
         leverage:
             Target leverage factor for dynamic scaling.
         correlation:
@@ -226,11 +289,26 @@ class RiskManager:
             if var > var_threshold and var > 0:
                 scale *= var_threshold / var
 
-        if covariance is not None and covar_threshold is not None and covariance > covar_threshold:
+        if (
+            covariance is not None
+            and covar_threshold is not None
+            and covariance > covar_threshold
+        ):
             scale *= covar_threshold / covariance
 
-        if portfolio_cvar is not None and cvar_threshold is not None and portfolio_cvar > cvar_threshold:
+        if (
+            portfolio_cvar is not None
+            and cvar_threshold is not None
+            and portfolio_cvar > cvar_threshold
+        ):
             scale *= cvar_threshold / portfolio_cvar
+
+        if (
+            portfolio_evar is not None
+            and evar_threshold is not None
+            and portfolio_evar > evar_threshold
+        ):
+            scale *= evar_threshold / portfolio_evar
 
         if correlation is not None:
             corr = max(-1.0, min(1.0, correlation))

@@ -4,12 +4,14 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
+
 @dataclass
 class Position:
     token: str
     amount: float
     entry_price: float
     high_price: float = 0.0
+
 
 @dataclass
 class Portfolio:
@@ -129,7 +131,9 @@ class Portfolio:
                 pos.high_price = price
         self.save()
 
-    def trailing_stop_triggered(self, token: str, price: float, trailing: float) -> bool:
+    def trailing_stop_triggered(
+        self, token: str, price: float, trailing: float
+    ) -> bool:
         """Return ``True`` if ``price`` hits the trailing stop for ``token``."""
         pos = self.balances.get(token)
         if pos is None:
@@ -140,7 +144,9 @@ class Portfolio:
             return False
         return price <= pos.high_price * (1 - trailing)
 
-    def percent_allocated(self, token: str, prices: Dict[str, float] | None = None) -> float:
+    def percent_allocated(
+        self, token: str, prices: Dict[str, float] | None = None
+    ) -> float:
         """Return the fraction of portfolio value allocated to ``token``."""
         prices = prices or {}
         total = self.total_value(prices)
@@ -166,6 +172,23 @@ class Portfolio:
         return weights
 
 
+def hedge_allocation(
+    weights: Dict[str, float], correlations: Mapping[tuple[str, str], float]
+) -> Dict[str, float]:
+    """Return hedged weights using ``correlations`` between tokens."""
+
+    hedged = dict(weights)
+    for (a, b), corr in correlations.items():
+        if a not in hedged or b not in hedged:
+            continue
+        c = max(-1.0, min(1.0, corr))
+        if c > 0:
+            adjustment = hedged[a] * c
+            hedged[a] -= adjustment
+            hedged[b] += adjustment
+    return hedged
+
+
 def calculate_order_size(
     balance: float,
     expected_roi: float,
@@ -180,6 +203,7 @@ def calculate_order_size(
     gas_cost: float | None = None,
     current_allocation: float = 0.0,
     min_portfolio_value: float = 0.0,
+    correlation: float | None = None,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -200,9 +224,14 @@ def calculate_order_size(
     if drawdown >= max_drawdown:
         return 0.0
 
-    adj_risk = risk_tolerance * (1 - drawdown / max_drawdown) / (
-        1 + volatility * volatility_factor
+    adj_risk = (
+        risk_tolerance
+        * (1 - drawdown / max_drawdown)
+        / (1 + volatility * volatility_factor)
     )
+    if correlation is not None:
+        corr = max(-1.0, min(1.0, correlation))
+        adj_risk *= max(0.0, 1 - corr)
     fraction = expected_roi * adj_risk
     remaining = max_allocation - current_allocation
     max_fraction = min(max_risk_per_token, remaining)
@@ -214,6 +243,7 @@ def calculate_order_size(
     if gas_cost is None:
         try:
             from .gas import get_current_fee
+
             gas_cost = get_current_fee()
         except Exception:
             gas_cost = 0.0
