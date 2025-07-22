@@ -18,6 +18,12 @@ All optional agents are enabled by default and wallet selection is always manual
 - SSD
 - dedicated GPU
 
+### High Risk Preset
+For an aggressive starting point, load the `config.highrisk.toml` preset. It
+turns on all built-in agents with dynamic weighting so risky trades are scaled
+up automatically. Select this file from the UI or set
+`SOLHUNTER_CONFIG=config.highrisk.toml` before running the bot.
+
 ## Quick Start
 
 1. **Install Python 3.11+**

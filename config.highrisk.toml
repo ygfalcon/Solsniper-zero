@@ -4,3 +4,47 @@ risk_multiplier = 1.0
 min_portfolio_value = 20.0
 dex_priorities = "orca,raydium,jupiter"
 dex_fees = "{}"
+
+# Enable every built-in agent for maximum exposure
+agents = [
+    "simulation",
+    "conviction",
+    "arbitrage",
+    "exit",
+    "execution",
+    "memory",
+    "discovery",
+    "reinforcement",
+    "portfolio",
+    "portfolio_manager",
+    "hedging",
+    "dqn",
+    "ppo",
+    "opportunity_cost",
+    "meta_conviction",
+    "ramanujan",
+    "emotion",
+]
+
+# Dynamically adjust weights based on agent ROI
+dynamic_weights = true
+weight_step = 0.05
+
+[agent_weights]
+simulation = 1.0
+conviction = 1.0
+arbitrage = 1.0
+exit = 1.0
+execution = 1.0
+memory = 1.0
+discovery = 1.0
+reinforcement = 1.0
+portfolio = 1.0
+portfolio_manager = 1.0
+hedging = 1.0
+dqn = 1.0
+ppo = 1.0
+opportunity_cost = 1.0
+meta_conviction = 1.0
+ramanujan = 1.0
+emotion = 1.0
