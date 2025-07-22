@@ -3,24 +3,23 @@ set -e
 
 check_deps() {
 python - <<'PY'
-import pkgutil, re, sys
-missing=False
-with open('requirements.txt') as f:
-    for line in f:
-        pkg=line.strip()
-        if not pkg or pkg.startswith('#'):
-            continue
-        mod=re.split('[<=>]', pkg)[0].replace('-', '_')
-        if pkgutil.find_loader(mod) is None:
-            missing=True
-            break
+import pkgutil, re, sys, tomllib
+with open('pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+deps = data.get('project', {}).get('dependencies', [])
+missing = False
+for dep in deps:
+    mod = re.split('[<=>]', dep)[0].replace('-', '_')
+    if pkgutil.find_loader(mod) is None:
+        missing = True
+        break
 sys.exit(1 if missing else 0)
 PY
 }
 
 if ! check_deps; then
     echo "Installing dependencies..."
-    pip install -r requirements.txt
+    pip install .
 fi
 
 if [ "$1" = "--auto" ]; then
