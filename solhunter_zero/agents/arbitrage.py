@@ -77,6 +77,8 @@ class ArbitrageAgent(BaseAgent):
         depth: float | None = None,
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
+        if depth is not None and depth <= 0:
+            return []
         token_cache = self.price_cache.setdefault(token, {})
 
         # Fetch prices from main feeds

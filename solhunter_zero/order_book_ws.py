@@ -42,7 +42,8 @@ def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
                 depth = bids + asks
                 imb = (bids - asks) / depth if depth else 0.0
                 return depth, imb, rate
-    except Exception:
+    except Exception as exc:
+        logger.exception("Failed to read depth snapshot", exc_info=exc)
         return 0.0, 0.0, 0.0
 
 
@@ -96,8 +97,8 @@ async def stream_order_book(
                     _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
                     depth, imb, txr = snapshot(token)
                     yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.error("Failed to parse IPC depth update: %s", exc)
                 count += 1
                 if max_updates is not None and count >= max_updates:
                     return
@@ -117,7 +118,8 @@ async def stream_order_book(
                                 continue
                             try:
                                 data = json.loads(msg.data)
-                            except Exception:
+                            except Exception as exc:
+                                logger.error("Failed to parse depth message: %s", exc)
                                 continue
                             token = data.get("token")
                             if not token:

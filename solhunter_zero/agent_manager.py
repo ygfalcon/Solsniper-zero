@@ -10,7 +10,10 @@ from .backtester import backtest_weighted, DEFAULT_STRATEGIES
 from .backtest_cli import bayesian_optimize_weights
 from .advanced_memory import AdvancedMemory
 
+import logging
 import tomllib
+
+logger = logging.getLogger(__name__)
 
 from .agents import BaseAgent, load_agent
 from .agents.execution import ExecutionAgent
@@ -290,8 +293,8 @@ class AgentManager:
                 opt = bayesian_optimize_weights(prices, keys, DEFAULT_STRATEGIES, iterations=10)
                 self.weights.update(opt)
                 self.coordinator.base_weights = self.weights
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("bayesian_optimize_weights failed", exc_info=exc)
 
         self.prune_underperforming(threshold)
         if self.mutation_path:

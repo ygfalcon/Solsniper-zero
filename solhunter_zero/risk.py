@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
+import logging
 import numpy as np
 
 from .memory import Memory
+
+logger = logging.getLogger(__name__)
 
 
 def value_at_risk(
@@ -32,8 +35,8 @@ def value_at_risk(
     if memory is not None:
         try:  # pragma: no cover - logging failures are non-critical
             memory.log_var(var)
-        except Exception:
-            pass
+        except Exception as exc:  # pragma: no cover - log failure
+            logger.exception("Failed to log VaR", exc_info=exc)
 
     return var
 
