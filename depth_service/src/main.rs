@@ -85,6 +85,10 @@ impl ExecContext {
         let sig = self.client.send_transaction(&tx).await?;
         Ok(sig.to_string())
     }
+
+    async fn submit_signed_tx(&self, tx_b64: &str) -> Result<String> {
+        self.send_raw_tx(tx_b64).await
+    }
 }
 
 async fn update_mmap(dex_map: &DexMap, mem: &MempoolMap, mmap: &SharedMmap) -> Result<()> {
@@ -190,6 +194,21 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                                 entry.tx_rate = *rate;
                             }
                             let _ = stream.write_all(serde_json::to_string(&entry).unwrap().as_bytes()).await;
+                        }
+                    } else if val.get("cmd") == Some(&Value::String("signed_tx".into())) {
+                        if let Some(tx) = val.get("tx").and_then(|v| v.as_str()) {
+                            match exec.submit_signed_tx(tx).await {
+                                Ok(sig) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"signature\":\"{}\"}}", sig).as_bytes())
+                                        .await;
+                                }
+                                Err(e) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"error\":\"{}\"}}", e).as_bytes())
+                                        .await;
+                                }
+                            }
                         }
                     } else if val.get("cmd") == Some(&Value::String("submit".into())) {
                         if let Some(tx) = val.get("tx").and_then(|v| v.as_str()) {

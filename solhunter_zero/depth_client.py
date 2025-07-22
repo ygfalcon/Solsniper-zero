@@ -1,6 +1,7 @@
 import os
 import json
 import mmap
+import asyncio
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 from . import order_book_ws
@@ -47,3 +48,30 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
                 return venues, rate
     except Exception:
         return {}, 0.0
+
+
+async def submit_signed_tx(
+    tx_b64: str,
+    *,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+) -> Optional[str]:
+    """Forward a pre-signed transaction to the Rust service."""
+
+    reader, writer = await asyncio.open_unix_connection(socket_path)
+    payload = {"cmd": "signed_tx", "tx": tx_b64}
+    writer.write(json.dumps(payload).encode())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    if not data:
+        return None
+    try:
+        resp = json.loads(data.decode())
+    except Exception:
+        return None
+    return resp.get("signature")
