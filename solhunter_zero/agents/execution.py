@@ -17,7 +17,7 @@ from ..exchange import (
     _sign_transaction,
 )
 from ..execution import EventExecutor
-from ..depth_client import submit_signed_tx
+from ..depth_client import submit_raw_tx
 from ..portfolio import Portfolio
 
 
@@ -36,6 +36,7 @@ class ExecutionAgent(BaseAgent):
         keypair=None,
         retries: int = 1,
         depth_service: bool = False,
+        priority_rpc: list[str] | None = None,
     ):
         self.rate_limit = rate_limit
         self.testnet = testnet
@@ -47,6 +48,7 @@ class ExecutionAgent(BaseAgent):
         self._last = 0.0
         self.depth_service = depth_service
         self._executors: Dict[str, EventExecutor] = {}
+        self.priority_rpc = list(priority_rpc) if priority_rpc else None
 
     async def _create_signed_tx(
         self,
@@ -124,7 +126,10 @@ class ExecutionAgent(BaseAgent):
                         if execer:
                             await execer.enqueue(tx)
                         else:
-                            await submit_signed_tx(tx)
+                            await submit_raw_tx(
+                                tx,
+                                priority_rpc=self.priority_rpc,
+                            )
                         return {"queued": True}
                 return None
 

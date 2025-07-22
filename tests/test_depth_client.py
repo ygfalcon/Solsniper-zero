@@ -124,3 +124,34 @@ def test_submit_tx_batch(monkeypatch):
     assert captured["socket"] == "sock"
     assert payload == {"cmd": "batch", "txs": ["t1", "t2"]}
     assert sigs == ["a", "b"]
+
+
+def test_submit_raw_tx(monkeypatch):
+    captured = {}
+
+    async def fake_conn(path):
+        captured["socket"] = path
+        writer = FakeWriter()
+        reader = FakeReader(json.dumps({"signature": "sig"}).encode())
+        captured["writer"] = writer
+        return reader, writer
+
+    monkeypatch.setattr(asyncio, "open_unix_connection", fake_conn)
+
+    async def run():
+        return await depth_client.submit_raw_tx(
+            "TX",
+            socket_path="sock",
+            priority_rpc=["u1", "u2"],
+        )
+
+    sig = asyncio.run(run())
+    payload = json.loads(captured["writer"].data.decode())
+
+    assert captured["socket"] == "sock"
+    assert payload == {
+        "cmd": "raw_tx",
+        "tx": "TX",
+        "priority_rpc": ["u1", "u2"],
+    }
+    assert sig == "sig"

@@ -103,9 +103,13 @@ class AgentManager:
         vote_threshold: float = 0.0,
         mutation_path: str | os.PathLike | None = "mutation_state.json",
         depth_service: bool = False,
+        priority_rpc: list[str] | None = None,
     ):
         self.agents = list(agents)
-        self.executor = executor or ExecutionAgent(depth_service=depth_service)
+        self.executor = executor or ExecutionAgent(
+            depth_service=depth_service,
+            priority_rpc=priority_rpc,
+        )
         self.weights_path = (
             str(weights_path) if weights_path is not None else "weights.json"
         )
@@ -157,7 +161,10 @@ class AgentManager:
         actions = await self.evaluate(token, portfolio)
         results = []
         if self.depth_service and token not in self._event_executors:
-            execer = EventExecutor(token)
+            execer = EventExecutor(
+                token,
+                priority_rpc=getattr(self.executor, "priority_rpc", None),
+            )
             self._event_executors[token] = execer
             self.executor.add_executor(token, execer)
             self._event_tasks[token] = asyncio.create_task(execer.run())
@@ -394,6 +401,11 @@ class AgentManager:
         strategy_selection = bool(cfg.get("strategy_selection", False))
         vote_threshold = float(cfg.get("vote_threshold", 0.0) or 0.0)
         depth_service = bool(cfg.get("depth_service", False))
+        priority_rpc = cfg.get("priority_rpc")
+        if isinstance(priority_rpc, str):
+            priority_rpc = [u.strip() for u in priority_rpc.split(",") if u.strip()]
+        elif not isinstance(priority_rpc, list):
+            priority_rpc = None
         if not agents:
             return None
         return cls(
@@ -405,5 +417,6 @@ class AgentManager:
             strategy_selection=strategy_selection,
             vote_threshold=vote_threshold,
             depth_service=depth_service,
+            priority_rpc=priority_rpc,
         )
 

@@ -134,3 +134,33 @@ async def submit_tx_batch(
     if isinstance(resp, list):
         return [str(s) for s in resp]
     return None
+
+
+async def submit_raw_tx(
+    tx_b64: str,
+    *,
+    priority_rpc: list[str] | None = None,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+) -> Optional[str]:
+    """Submit a transaction with optional priority RPC endpoints."""
+
+    reader, writer = await asyncio.open_unix_connection(socket_path)
+    payload: Dict[str, Any] = {"cmd": "raw_tx", "tx": tx_b64}
+    if priority_rpc:
+        payload["priority_rpc"] = list(priority_rpc)
+    writer.write(json.dumps(payload).encode())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    if not data:
+        return None
+    try:
+        resp = json.loads(data.decode())
+    except Exception:
+        return None
+    return resp.get("signature")
