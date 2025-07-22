@@ -30,6 +30,8 @@ from .simulation import run_simulations
 from .decision import should_buy, should_sell
 from .prices import fetch_token_prices_async
 
+from . import order_book_ws
+
 from .memory import Memory
 from .portfolio import Portfolio
 from .exchange import place_order_async
@@ -464,7 +466,6 @@ def main(
         keypair = wallet.load_selected_keypair()
 
     async def loop() -> None:
-        nonlocal loop_delay
         ws_task = None
         book_task = None
         arb_task = None

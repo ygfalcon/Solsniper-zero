@@ -86,7 +86,8 @@ def test_agents_use_depth(monkeypatch):
         "solhunter_zero.agents.conviction.run_simulations", fake_run
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.conviction.predict_price_movement", lambda t: 0.0
+        "solhunter_zero.agents.conviction.predict_price_movement",
+        lambda t, model_path=None: 0.0,
     )
 
     pf = DummyPortfolio()
@@ -123,7 +124,8 @@ def test_swarm_integration(monkeypatch):
         "solhunter_zero.agents.conviction.run_simulations", fake_run
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.conviction.predict_price_movement", lambda t: 0.0
+        "solhunter_zero.agents.conviction.predict_price_movement",
+        lambda t, model_path=None: 0.0,
     )
 
     pf = DummyPortfolio()

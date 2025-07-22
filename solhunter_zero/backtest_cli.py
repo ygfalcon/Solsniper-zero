@@ -12,6 +12,7 @@ from .trade_analyzer import analyze_trades
 from .backtester import (
     backtest_strategies,
     backtest_configs,
+    backtest_weighted,
     DEFAULT_STRATEGIES,
 )
 

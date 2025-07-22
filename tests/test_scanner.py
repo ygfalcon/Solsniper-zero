@@ -1,6 +1,8 @@
 from solhunter_zero import scanner
 from solhunter_zero import scanner_common
 
+data = {"data": [{"address": "abcbonk"}, {"address": "otherbonk"}]}
+
 class FakeResponse:
     def __init__(self, data, status_code=200):
         self._data = data
