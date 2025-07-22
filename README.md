@@ -372,3 +372,22 @@ very small.
 - **Alerts and position sizing** — no Telegram or other alerting is built in.
   `RiskManager.adjusted()` factors whale liquidity share, mempool transaction
   rate and `min_portfolio_value` into position sizing.
+
+## Backtesting and Datasets
+
+The repository includes a simple backtesting framework. Tick level depth
+data can be exported from `offline_data.db` using `scripts/build_tick_dataset.py`:
+
+```bash
+python scripts/build_tick_dataset.py --db offline_data.db --out datasets/tick_history.json
+```
+
+`solhunter_zero.backtest_cli` now supports Bayesian optimisation of agent
+weights. Optimisation runs the backtester repeatedly while a Gaussian process
+searches the weight space:
+
+```bash
+python -m solhunter_zero.backtest_cli prices.json -c config.toml --optimize --iterations 30
+```
+
+The best weight configuration found is printed as JSON.

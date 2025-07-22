@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from argparse import ArgumentParser
+from typing import Dict, List
 from datetime import datetime
 import tomllib
 
@@ -13,6 +14,43 @@ from .backtester import (
     backtest_configs,
     DEFAULT_STRATEGIES,
 )
+
+
+def bayesian_optimize_weights(
+    prices: List[float],
+    keys: List[str],
+    strategies: List[tuple[str, callable]],
+    iterations: int = 20,
+) -> Dict[str, float]:
+    """Search for the best agent weights using Bayesian optimisation."""
+    from sklearn.gaussian_process import GaussianProcessRegressor
+    from sklearn.gaussian_process.kernels import Matern
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    X: List[List[float]] = []
+    y: List[float] = []
+    gp = GaussianProcessRegressor(kernel=Matern(nu=2.5), alpha=1e-6, normalize_y=True)
+
+    def evaluate(point: List[float]) -> float:
+        weights = {k: point[i] for i, k in enumerate(keys)}
+        res = backtest_weighted(prices, weights, strategies=strategies)
+        return res.roi
+
+    for _ in range(iterations):
+        if len(X) >= 3:
+            gp.fit(np.array(X), np.array(y))
+            cand = rng.uniform(0.0, 2.0, size=(100, len(keys)))
+            preds = gp.predict(cand)
+            x = cand[int(np.argmax(preds))]
+        else:
+            x = rng.uniform(0.0, 2.0, size=len(keys))
+        score = evaluate(x.tolist())
+        X.append(x.tolist())
+        y.append(score)
+
+    best = X[int(np.argmax(y))]
+    return {k: float(best[i]) for i, k in enumerate(keys)}
 
 
 def _load_history(path: str | None, start: str | None, end: str | None) -> list[float]:
@@ -82,6 +120,17 @@ def main(argv: list[str] | None = None) -> int:
         dest="weights_out",
         help="Write updated weights to FILE",
     )
+    parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help="Run Bayesian optimisation for agent weights",
+    )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=20,
+        help="Number of optimisation iterations",
+    )
     args = parser.parse_args(argv)
 
     if args.analyze_trades:
@@ -108,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         strategies = DEFAULT_STRATEGIES
 
     if not args.configs:
-        results = backtest_strategies(prices, strategies)
+        results = backtest_strategies(prices, strategies=strategies)
     else:
         cfgs = []
         for path in args.configs:
@@ -117,7 +166,13 @@ def main(argv: list[str] | None = None) -> int:
             weights = cfg.get("agent_weights", {})
             name = os.path.basename(path)
             cfgs.append((name, {str(k): float(v) for k, v in weights.items()}))
-        results = backtest_configs(prices, cfgs, strategies)
+        if args.optimize:
+            base = cfgs[0][1] if cfgs else {}
+            keys = list(base.keys())
+            best = bayesian_optimize_weights(prices, keys, strategies, args.iterations)
+            print(json.dumps(best))
+            return 0
+        results = backtest_configs(prices, cfgs, strategies=strategies)
 
     for res in results:
         print(f"{res.name}\tROI={res.roi:.4f}\tSharpe={res.sharpe:.2f}")
