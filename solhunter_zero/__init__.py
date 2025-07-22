@@ -23,6 +23,7 @@ __all__ = [
     "entropic_value_at_risk",
     "rolling_backtest",
     "bayesian_optimize_parameters",
+    "PopulationRL",
 ]
 
 
@@ -79,4 +80,8 @@ def __getattr__(name: str):
         from .backtest_pipeline import bayesian_optimize_parameters as func
 
         return func
+    if name == "PopulationRL":
+        from .multi_rl import PopulationRL as cls
+
+        return cls
     raise AttributeError(name)
