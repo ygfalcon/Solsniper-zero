@@ -130,8 +130,11 @@ def start() -> dict:
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
 
-    # auto-select the only available keypair if none is active
-    if wallet.get_active_keypair_name() is None:
+    # optionally auto-select the only available keypair if none is active
+    if (
+        os.getenv("AUTO_SELECT_KEYPAIR", "false").lower() in {"1", "true", "yes"}
+        and wallet.get_active_keypair_name() is None
+    ):
         keys = wallet.list_keypairs()
         if len(keys) == 1:
             wallet.select_keypair(keys[0])
