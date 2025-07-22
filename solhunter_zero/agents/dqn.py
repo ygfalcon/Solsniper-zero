@@ -3,6 +3,9 @@ from __future__ import annotations
 import random
 from typing import List, Dict, Any
 
+import asyncio
+import logging
+
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +40,8 @@ class DQNAgent(BaseAgent):
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
         self._seen_ids: set[int] = set()
+        self._task: asyncio.Task | None = None
+        self._logger = logging.getLogger(__name__)
 
         self.model = nn.Sequential(
             nn.Linear(1, hidden_size),
@@ -108,6 +113,21 @@ class DQNAgent(BaseAgent):
                 self.model_path,
             )
 
+    async def _online_loop(self, interval: float = 60.0) -> None:
+        """Continuously train the agent from new replay data."""
+        portfolio = Portfolio()
+        while True:
+            try:
+                self.train(portfolio)
+            except Exception as exc:  # pragma: no cover - logging
+                self._logger.error("online train failed: %s", exc)
+            await asyncio.sleep(interval)
+
+    def start_online_learning(self, interval: float = 60.0) -> None:
+        """Start background task that updates the model periodically."""
+        if self._task is None:
+            self._task = asyncio.create_task(self._online_loop(interval))
+
     # ------------------------------------------------------------------
     async def propose_trade(
         self,
@@ -117,6 +137,7 @@ class DQNAgent(BaseAgent):
         depth: float | None = None,
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
+        self.start_online_learning()
         self.train(portfolio)
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
         if self._fitted:

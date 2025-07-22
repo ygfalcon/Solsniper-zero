@@ -1,5 +1,5 @@
 import os
-from typing import Iterable, Sequence, Tuple
+from typing import Iterable, Sequence, Tuple, Any
 
 import torch
 import torch.nn as nn
@@ -46,6 +46,38 @@ class TransformerModel(nn.Module):
             pred = self(t)
             return float(pred.item())
 
+
+class DeepLSTMModel(nn.Module):
+    """Deeper LSTM network for price prediction."""
+
+    def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 4) -> None:
+        super().__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out, _ = self.lstm(x)
+        out = out[:, -1]
+        return self.fc(out).squeeze(-1)
+
+
+class DeepTransformerModel(nn.Module):
+    """Transformer with additional layers."""
+
+    def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 4) -> None:
+        super().__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        layer = nn.TransformerEncoderLayer(input_dim, nhead=8, dim_feedforward=hidden_dim)
+        self.encoder = nn.TransformerEncoder(layer, num_layers)
+        self.fc = nn.Linear(input_dim, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        t = self.encoder(x)
+        out = t[:, -1]
+        return self.fc(out).squeeze(-1)
+
     def predict(self, seq: Sequence[Sequence[float]]) -> float:
         self.eval()
         with torch.no_grad():
@@ -70,6 +102,20 @@ def save_model(model: nn.Module, path: str) -> None:
             "hidden_dim": model.hidden_dim,
             "num_layers": model.num_layers,
         }
+    elif isinstance(model, DeepLSTMModel):
+        cfg = {
+            "cls": "DeepLSTMModel",
+            "input_dim": model.lstm.input_size,
+            "hidden_dim": model.lstm.hidden_size,
+            "num_layers": model.lstm.num_layers,
+        }
+    elif isinstance(model, DeepTransformerModel):
+        cfg = {
+            "cls": "DeepTransformerModel",
+            "input_dim": model.input_dim,
+            "hidden_dim": model.hidden_dim,
+            "num_layers": model.num_layers,
+        }
     else:
         cfg = {"cls": type(model).__name__}
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
@@ -78,13 +124,22 @@ def save_model(model: nn.Module, path: str) -> None:
 def load_model(path: str) -> nn.Module:
     """Load a saved ML model from ``path``."""
     obj = torch.load(path, map_location="cpu")
-    if isinstance(obj, (PriceModel, TransformerModel)):
+    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel)):
         obj.eval()
         return obj
     if isinstance(obj, dict) and "state" in obj:
         cfg = obj.get("cfg", {})
         cls_name = cfg.pop("cls", "PriceModel")
-        model_cls = PriceModel if cls_name == "PriceModel" else TransformerModel
+        if cls_name == "PriceModel":
+            model_cls = PriceModel
+        elif cls_name == "TransformerModel":
+            model_cls = TransformerModel
+        elif cls_name == "DeepLSTMModel":
+            model_cls = DeepLSTMModel
+        elif cls_name == "DeepTransformerModel":
+            model_cls = DeepTransformerModel
+        else:
+            model_cls = PriceModel
         model = model_cls(**cfg)
         model.load_state_dict(obj["state"])
         model.eval()
@@ -199,6 +254,80 @@ def train_transformer_model(
 
     X, y = make_training_data(prices, liquidity, depth, tx_counts, seq_len)
     model = TransformerModel(4, hidden_dim=hidden_dim, num_layers=num_layers)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        opt.step()
+    model.eval()
+    return model
+
+
+def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Construct dataset tensors from :class:`OfflineData` snapshots."""
+    prices = torch.tensor([float(s.price) for s in snaps], dtype=torch.float32)
+    depth = torch.tensor([float(s.depth) for s in snaps], dtype=torch.float32)
+    imb = torch.tensor([float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=torch.float32)
+    rate = torch.tensor([float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=torch.float32)
+
+    n = len(prices) - seq_len
+    if n <= 0:
+        raise ValueError("not enough history for seq_len")
+
+    seqs = []
+    targets = []
+    for i in range(n):
+        seq = torch.stack([
+            prices[i:i+seq_len],
+            depth[i:i+seq_len],
+            imb[i:i+seq_len],
+            rate[i:i+seq_len],
+        ], dim=1)
+        seqs.append(seq)
+        p0 = prices[i + seq_len - 1]
+        p1 = prices[i + seq_len]
+        targets.append((p1 - p0) / p0)
+
+    X = torch.stack(seqs)
+    y = torch.tensor(targets, dtype=torch.float32)
+    return X, y
+
+
+def train_deep_lstm(
+    snaps: Sequence[Any],
+    *,
+    seq_len: int = 30,
+    epochs: int = 10,
+    lr: float = 1e-3,
+) -> DeepLSTMModel:
+    """Train :class:`DeepLSTMModel` using stored snapshots."""
+    X, y = make_snapshot_training_data(snaps, seq_len)
+    model = DeepLSTMModel(X.size(-1))
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        opt.step()
+    model.eval()
+    return model
+
+
+def train_deep_transformer(
+    snaps: Sequence[Any],
+    *,
+    seq_len: int = 30,
+    epochs: int = 10,
+    lr: float = 1e-3,
+) -> DeepTransformerModel:
+    """Train :class:`DeepTransformerModel` using stored snapshots."""
+    X, y = make_snapshot_training_data(snaps, seq_len)
+    model = DeepTransformerModel(X.size(-1))
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
