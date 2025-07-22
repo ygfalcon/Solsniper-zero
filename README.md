@@ -359,9 +359,10 @@ very small.
   on this dataset and saved to disk for inference. `MemoryAgent` also records
   trades in `memory.db` for ROI tracking.
 - **Advanced forecasting** — transformer and LSTM models can be trained on the
-  collected snapshots using `scripts/train_transformer_model.py` and
-  `scripts/train_price_model.py`. Set `PRICE_MODEL_PATH` to the resulting model
-  file and `predict_price_movement()` will load it automatically.
+  collected snapshots using `scripts/train_transformer_model.py`,
+  `scripts/train_price_model.py` or the offline
+  `scripts/train_transformer_agent.py`. Set `PRICE_MODEL_PATH` to the resulting
+  model file and `predict_price_movement()` will load it automatically.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
@@ -386,6 +387,15 @@ data can be exported from `offline_data.db` using `scripts/build_tick_dataset.py
 ```bash
 python scripts/build_tick_dataset.py --db offline_data.db --out datasets/tick_history.json
 ```
+
+Offline snapshots can also be used to train a transformer-based price model:
+
+```bash
+python scripts/train_transformer_agent.py --db sqlite:///offline_data.db --out models/price.pt
+```
+
+Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
+`predict_price_movement()` can load it automatically.
 
 `solhunter_zero.backtest_cli` now supports Bayesian optimisation of agent
 weights. Optimisation runs the backtester repeatedly while a Gaussian process
