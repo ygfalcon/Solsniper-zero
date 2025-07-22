@@ -8,6 +8,7 @@ from collections import deque
 from flask import Flask, jsonify, request
 import sqlalchemy as sa
 from pathlib import Path
+import numpy as np
 
 from .config import load_config, apply_env_overrides, set_env_from_config
 from . import config as config_module
@@ -84,6 +85,7 @@ def _missing_required() -> list[str]:
         missing.append("BIRDEYE_API_KEY or SOLANA_RPC_URL")
     return missing
 
+
 def trading_loop() -> None:
     global current_portfolio, current_keypair
 
@@ -118,12 +120,12 @@ def trading_loop() -> None:
                 break
             time.sleep(1)
 
+
 @app.route("/start", methods=["POST"])
 def start() -> dict:
     global trading_thread
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
-
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
@@ -139,11 +141,11 @@ def start() -> dict:
         msg = "Missing required configuration: " + ", ".join(missing)
         return jsonify({"status": "error", "message": msg}), 400
 
-
     stop_event.clear()
     trading_thread = threading.Thread(target=trading_loop, daemon=True)
     trading_thread.start()
     return jsonify({"status": "started"})
+
 
 @app.route("/stop", methods=["POST"])
 def stop() -> dict:
@@ -315,9 +317,36 @@ def roi() -> dict:
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     entry = sum(p.amount * p.entry_price for p in pf.balances.values())
-    value = sum(p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items())
+    value = sum(
+        p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items()
+    )
     roi = (value - entry) / entry if entry else 0.0
     return jsonify({"roi": roi})
+
+
+@app.route("/exposure")
+def exposure() -> dict:
+    """Return current portfolio weights."""
+    pf = current_portfolio or Portfolio()
+    tokens = list(pf.balances.keys())
+    prices = fetch_token_prices(tokens)
+    weights = pf.weights(prices)
+    return jsonify(weights)
+
+
+@app.route("/sharpe")
+def sharpe_ratio() -> dict:
+    """Return rolling Sharpe ratio from PnL history."""
+    if len(pnl_history) < 2:
+        return jsonify({"sharpe": 0.0})
+    arr = np.array(pnl_history, dtype=float)
+    returns = np.diff(arr)
+    if returns.size == 0:
+        return jsonify({"sharpe": 0.0})
+    mean = float(returns.mean())
+    std = float(returns.std())
+    sharpe = mean / std if std > 0 else 0.0
+    return jsonify({"sharpe": sharpe})
 
 
 @app.route("/pnl")
@@ -326,7 +355,9 @@ def pnl() -> dict:
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     entry = sum(p.amount * p.entry_price for p in pf.balances.values())
-    value = sum(p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items())
+    value = sum(
+        p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items()
+    )
     pnl = value - entry
     pnl_history.append(pnl)
     return jsonify({"pnl": pnl, "history": pnl_history})
@@ -350,7 +381,6 @@ def token_history() -> dict:
             "allocation_history": allocation_history[token],
         }
     return jsonify(result)
-
 
 
 @app.route("/balances")
@@ -451,6 +481,11 @@ HTML_PAGE = """
     <h3>VaR History</h3>
     <pre id='var_values'></pre>
     <canvas id='var_chart' width='400' height='100'></canvas>
+
+    <h3>Exposure</h3>
+    <pre id='exposure'></pre>
+
+    <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
 
     <h3>Risk Parameters</h3>
     <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
@@ -614,6 +649,12 @@ HTML_PAGE = """
             varChart.data.datasets[0].data = data.map(v=>v.value);
             varChart.update();
         });
+        fetch('/exposure').then(r => r.json()).then(data => {
+            document.getElementById('exposure').textContent = JSON.stringify(data, null, 2);
+        });
+        fetch('/sharpe').then(r => r.json()).then(data => {
+            document.getElementById('sharpe_val').textContent = data.sharpe.toFixed(4);
+        });
         loadWeights();
     }
 
@@ -627,9 +668,11 @@ HTML_PAGE = """
 </html>
 """
 
+
 @app.route("/")
 def index() -> str:
     return HTML_PAGE
+
 
 if __name__ == "__main__":
     app.run()

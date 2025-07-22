@@ -16,7 +16,11 @@ __all__ = [
     "RiskManager",
     "covariance_matrix",
     "portfolio_cvar",
+    "portfolio_evar",
     "portfolio_variance",
+    "entropic_value_at_risk",
+    "rolling_backtest",
+    "bayesian_optimize_parameters",
 ]
 
 
@@ -45,8 +49,24 @@ def __getattr__(name: str):
         from .risk import portfolio_cvar as func
 
         return func
+    if name == "portfolio_evar":
+        from .risk import portfolio_evar as func
+
+        return func
     if name == "portfolio_variance":
         from .risk import portfolio_variance as func
+
+        return func
+    if name == "entropic_value_at_risk":
+        from .risk import entropic_value_at_risk as func
+
+        return func
+    if name == "rolling_backtest":
+        from .backtest_pipeline import rolling_backtest as func
+
+        return func
+    if name == "bayesian_optimize_parameters":
+        from .backtest_pipeline import bayesian_optimize_parameters as func
 
         return func
     raise AttributeError(name)
