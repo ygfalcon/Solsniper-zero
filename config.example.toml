@@ -37,6 +37,8 @@ arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
 dex_priorities = "orca,raydium,jupiter"
 dex_fees = "{}"
+dex_gas = "{}"
+dex_latency = "{}"
 weights_path = "weights.json"
 
 token_suffix = "bonk"
