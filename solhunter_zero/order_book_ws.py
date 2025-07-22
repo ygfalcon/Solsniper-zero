@@ -28,9 +28,17 @@ def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
                 entry = data.get(token)
                 if not entry:
                     return 0.0, 0.0, 0.0
-                bids = float(entry.get("bids", 0.0))
-                asks = float(entry.get("asks", 0.0))
+                total_bids = 0.0
+                total_asks = 0.0
                 rate = float(entry.get("tx_rate", 0.0))
+                for k, v in entry.items():
+                    if k == "tx_rate":
+                        continue
+                    if isinstance(v, dict):
+                        total_bids += float(v.get("bids", 0.0))
+                        total_asks += float(v.get("asks", 0.0))
+                bids = total_bids
+                asks = total_asks
                 depth = bids + asks
                 imb = (bids - asks) / depth if depth else 0.0
                 return depth, imb, rate
@@ -73,9 +81,18 @@ async def stream_order_book(
                 await writer.wait_closed()
                 try:
                     info = json.loads(data.decode())
-                    bids = float(info.get("bids", 0.0))
-                    asks = float(info.get("asks", 0.0))
-                    rate = float(info.get("tx_rate", 0.0))
+                    if "bids" in info and "asks" in info:
+                        bids = float(info.get("bids", 0.0))
+                        asks = float(info.get("asks", 0.0))
+                        rate = float(info.get("tx_rate", 0.0))
+                    else:
+                        bids = 0.0
+                        asks = 0.0
+                        rate = float(info.get("tx_rate", 0.0))
+                        for v in info.values():
+                            if isinstance(v, dict):
+                                bids += float(v.get("bids", 0.0))
+                                asks += float(v.get("asks", 0.0))
                     _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
                     depth, imb, txr = snapshot(token)
                     yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}
@@ -103,11 +120,20 @@ async def stream_order_book(
                             except Exception:
                                 continue
                             token = data.get("token")
-                            bids = float(data.get("bids", 0.0))
-                            asks = float(data.get("asks", 0.0))
-                            rate = float(data.get("tx_rate", 0.0))
                             if not token:
                                 continue
+                            if "bids" in data and "asks" in data:
+                                bids = float(data.get("bids", 0.0))
+                                asks = float(data.get("asks", 0.0))
+                                rate = float(data.get("tx_rate", 0.0))
+                            else:
+                                bids = 0.0
+                                asks = 0.0
+                                rate = float(data.get("tx_rate", 0.0))
+                                for v in data.values():
+                                    if isinstance(v, dict):
+                                        bids += float(v.get("bids", 0.0))
+                                        asks += float(v.get("asks", 0.0))
                             _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
                             depth, imb, txr = snapshot(token)
                             yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}

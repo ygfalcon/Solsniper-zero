@@ -4,6 +4,8 @@ import asyncio
 import os
 from typing import List, Dict, Any, Sequence, Callable, Awaitable, Mapping
 
+from ..depth_client import snapshot as depth_snapshot
+
 from . import BaseAgent
 from .. import arbitrage
 from ..portfolio import Portfolio
@@ -101,22 +103,50 @@ class ArbitrageAgent(BaseAgent):
 
         names = list(valid.keys())
         prices = list(valid.values())
-        min_price = min(prices)
-        max_price = max(prices)
-        if min_price <= 0:
-            return []
-        diff = (max_price - min_price) / min_price
-        if imbalance is not None:
-            diff *= 1 + imbalance
-        if depth is not None and depth < 0:
-            return []
-        if diff < self.threshold:
+
+        book, _ = depth_snapshot(token)
+
+        best_pair = None
+        best_diff = float("-inf")
+        best_vol = 0.0
+        best_latency = float("inf")
+
+        for buy_name, buy_price in valid.items():
+            for sell_name, sell_price in valid.items():
+                if buy_name == sell_name:
+                    continue
+                if buy_price <= 0:
+                    continue
+                diff = (sell_price - buy_price) / buy_price
+                if imbalance is not None:
+                    diff *= 1 + imbalance
+                if diff < self.threshold:
+                    continue
+                if depth is not None and depth < 0:
+                    continue
+                if book:
+                    ask_vol = book.get(buy_name, {}).get("asks", 0.0)
+                    bid_vol = book.get(sell_name, {}).get("bids", 0.0)
+                    if ask_vol < self.amount or bid_vol < self.amount:
+                        continue
+                    volume = min(ask_vol, bid_vol)
+                else:
+                    volume = float("inf")
+                latency = self.latency.get(buy_name, 0.0) + self.latency.get(sell_name, 0.0)
+                if (
+                    diff > best_diff
+                    or (abs(diff - best_diff) <= 1e-12 and volume > best_vol)
+                    or (abs(diff - best_diff) <= 1e-12 and volume == best_vol and latency < best_latency)
+                ):
+                    best_diff = diff
+                    best_vol = volume
+                    best_latency = latency
+                    best_pair = (buy_name, buy_price, sell_name, sell_price)
+
+        if not best_pair:
             return []
 
-        buy_idx = prices.index(min_price)
-        sell_idx = prices.index(max_price)
-        buy_name = names[buy_idx]
-        sell_name = names[sell_idx]
+        buy_name, min_price, sell_name, max_price = best_pair
 
         fee_cost = (
             min_price * self.amount * self.fees.get(buy_name, 0.0)
