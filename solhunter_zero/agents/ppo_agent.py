@@ -45,6 +45,7 @@ class PPOAgent(BaseAgent):
         model_path: str | Path = "ppo_model.pt",
         replay_url: str = "sqlite:///replay.db",
         price_model_path: str | None = None,
+        device: str = "cpu",
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.offline_data = OfflineData(data_url)
@@ -54,6 +55,8 @@ class PPOAgent(BaseAgent):
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
         self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
+        self.device = torch.device(device)
+        self._last_mtime = 0.0
         self._seen_ids: set[int] = set()
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
@@ -68,6 +71,8 @@ class PPOAgent(BaseAgent):
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
+        self.actor.to(self.device)
+        self.critic.to(self.device)
         self.optimizer = optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()),
             lr=learning_rate,
@@ -75,13 +80,25 @@ class PPOAgent(BaseAgent):
         self._fitted = False
 
         if self.model_path.exists():
-            data = torch.load(self.model_path)
-            self.actor.load_state_dict(data.get("actor_state", {}))
-            self.critic.load_state_dict(data.get("critic_state", {}))
-            opt_state = data.get("optim_state")
-            if opt_state:
-                self.optimizer.load_state_dict(opt_state)
-            self._fitted = True
+            self._load_weights()
+
+    # ------------------------------------------------------------------
+    def _load_weights(self) -> None:
+        data = torch.load(self.model_path, map_location=self.device)
+        self.actor.load_state_dict(data.get("actor_state", {}))
+        self.critic.load_state_dict(data.get("critic_state", {}))
+        opt_state = data.get("optim_state")
+        if opt_state:
+            self.optimizer.load_state_dict(opt_state)
+        self._last_mtime = os.path.getmtime(self.model_path)
+        self._fitted = True
+
+    def _maybe_reload(self) -> None:
+        if not self.model_path.exists():
+            return
+        mtime = os.path.getmtime(self.model_path)
+        if mtime > self._last_mtime:
+            self._load_weights()
 
     # ------------------------------------------------------------------
     def _state(self, token: str, portfolio: Portfolio) -> List[float]:
@@ -113,9 +130,9 @@ class PPOAgent(BaseAgent):
         if not batch:
             return
 
-        states = torch.tensor([b[0] for b in batch], dtype=torch.float32)
-        actions = torch.tensor([0 if b[1] == "buy" else 1 for b in batch])
-        rewards = torch.tensor([b[2] for b in batch], dtype=torch.float32)
+        states = torch.tensor([b[0] for b in batch], dtype=torch.float32, device=self.device)
+        actions = torch.tensor([0 if b[1] == "buy" else 1 for b in batch], device=self.device)
+        rewards = torch.tensor([b[2] for b in batch], dtype=torch.float32, device=self.device)
 
         with torch.no_grad():
             old_log_probs = (
@@ -146,12 +163,15 @@ class PPOAgent(BaseAgent):
         self._fitted = True
         torch.save(
             {
-                "actor_state": self.actor.state_dict(),
-                "critic_state": self.critic.state_dict(),
+                "actor_state": self.actor.cpu().state_dict(),
+                "critic_state": self.critic.cpu().state_dict(),
                 "optim_state": self.optimizer.state_dict(),
             },
             self.model_path,
         )
+        self.actor.to(self.device)
+        self.critic.to(self.device)
+        self._last_mtime = os.path.getmtime(self.model_path)
 
     async def _online_loop(self, interval: float = 60.0) -> None:
         """Continuously train the agent from new replay data."""
@@ -177,12 +197,13 @@ class PPOAgent(BaseAgent):
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
         self.start_online_learning()
+        self._maybe_reload()
         self.train()
-        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
+        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
         with torch.no_grad():
             logits = self.actor(state)[0]
         pred = self._predict_return(token)
-        logits = logits + torch.tensor([pred, -pred])
+        logits = logits + torch.tensor([pred, -pred], device=self.device)
         action = "buy" if logits[0] >= logits[1] else "sell"
         if action == "buy":
             return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0, "agent": self.name}]

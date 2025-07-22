@@ -42,6 +42,7 @@ class DQNAgent(BaseAgent):
         model_path: str | Path = "dqn_model.pt",
         replay_url: str = "sqlite:///replay.db",
         price_model_path: str | None = None,
+        device: str = "cpu",
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.epsilon = epsilon
@@ -49,6 +50,8 @@ class DQNAgent(BaseAgent):
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
         self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
+        self.device = torch.device(device)
+        self._last_mtime = 0.0
         self._seen_ids: set[int] = set()
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
@@ -58,17 +61,30 @@ class DQNAgent(BaseAgent):
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
+        self.model.to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
         self.loss_fn = nn.MSELoss()
         self._fitted = False
 
         if self.model_path.exists():
-            data = torch.load(self.model_path)
-            self.model.load_state_dict(data.get("model_state", {}))
-            opt_state = data.get("optimizer_state")
-            if opt_state:
-                self.optimizer.load_state_dict(opt_state)
-            self._fitted = True
+            self._load_weights()
+
+    # ------------------------------------------------------------------
+    def _load_weights(self) -> None:
+        data = torch.load(self.model_path, map_location=self.device)
+        self.model.load_state_dict(data.get("model_state", {}))
+        opt_state = data.get("optimizer_state")
+        if opt_state:
+            self.optimizer.load_state_dict(opt_state)
+        self._last_mtime = os.path.getmtime(self.model_path)
+        self._fitted = True
+
+    def _maybe_reload(self) -> None:
+        if not self.model_path.exists():
+            return
+        mtime = os.path.getmtime(self.model_path)
+        if mtime > self._last_mtime:
+            self._load_weights()
 
     # ------------------------------------------------------------------
     def _state(self, token: str, portfolio: Portfolio) -> List[float]:
@@ -105,8 +121,8 @@ class DQNAgent(BaseAgent):
             X.append(list(state))
             y.append([reward, -reward])
 
-        X_arr = torch.tensor(np.array(X), dtype=torch.float32)
-        y_arr = torch.tensor(np.array(y), dtype=torch.float32)
+        X_arr = torch.tensor(np.array(X), dtype=torch.float32, device=self.device)
+        y_arr = torch.tensor(np.array(y), dtype=torch.float32, device=self.device)
 
         self.model.train()
         for _ in range(100):
@@ -120,11 +136,13 @@ class DQNAgent(BaseAgent):
         if self.model_path:
             torch.save(
                 {
-                    "model_state": self.model.state_dict(),
+                    "model_state": self.model.cpu().state_dict(),
                     "optimizer_state": self.optimizer.state_dict(),
                 },
                 self.model_path,
             )
+            self.model.to(self.device)
+            self._last_mtime = os.path.getmtime(self.model_path)
 
     async def _online_loop(self, interval: float = 60.0) -> None:
         """Continuously train the agent from new replay data."""
@@ -151,11 +169,12 @@ class DQNAgent(BaseAgent):
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
         self.start_online_learning()
+        self._maybe_reload()
         self.train(portfolio)
-        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
+        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
         if self._fitted:
             with torch.no_grad():
-                q = self.model(state)[0].numpy()
+                q = self.model(state)[0].cpu().numpy()
         else:
             q = [0.0, 0.0]
         pred = self._predict_return(token)
