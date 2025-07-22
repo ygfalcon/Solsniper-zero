@@ -24,6 +24,7 @@ __all__ = [
     "rolling_backtest",
     "bayesian_optimize_parameters",
     "PopulationRL",
+    "RLTraining",
 ]
 
 
@@ -82,6 +83,10 @@ def __getattr__(name: str):
         return func
     if name == "PopulationRL":
         from .multi_rl import PopulationRL as cls
+
+        return cls
+    if name == "RLTraining":
+        from .rl_training import RLTraining as cls
 
         return cls
     raise AttributeError(name)
