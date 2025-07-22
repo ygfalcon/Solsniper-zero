@@ -17,11 +17,11 @@ def test_event_executor_run(monkeypatch):
 
     calls = []
 
-    async def fake_submit(tx, *, socket_path=None):
+    async def fake_submit(tx, *, socket_path=None, priority_rpc=None):
         calls.append(tx)
 
     monkeypatch.setattr("solhunter_zero.execution.stream_depth", fake_stream_depth)
-    monkeypatch.setattr("solhunter_zero.execution.submit_signed_tx", fake_submit)
+    monkeypatch.setattr("solhunter_zero.execution.submit_raw_tx", fake_submit)
 
     execer = EventExecutor("TOK")
 

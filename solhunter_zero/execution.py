@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from .depth_client import stream_depth, submit_signed_tx, DEPTH_SERVICE_SOCKET
+from .depth_client import stream_depth, submit_raw_tx, DEPTH_SERVICE_SOCKET
 
 
 class EventExecutor:
@@ -17,11 +17,13 @@ class EventExecutor:
         rate_limit: float = 0.05,
         threshold: float = 0.0,
         socket_path: str = DEPTH_SERVICE_SOCKET,
+        priority_rpc: list[str] | None = None,
     ) -> None:
         self.token = token
         self.rate_limit = rate_limit
         self.threshold = threshold
         self.socket_path = socket_path
+        self.priority_rpc = list(priority_rpc) if priority_rpc else None
         self._queue: asyncio.Queue[str] = asyncio.Queue()
 
     async def enqueue(self, tx_b64: str) -> None:
@@ -42,7 +44,11 @@ class EventExecutor:
                 tx = self._queue.get_nowait()
             except asyncio.QueueEmpty:
                 continue
-            await submit_signed_tx(tx, socket_path=self.socket_path)
+            await submit_raw_tx(
+                tx,
+                socket_path=self.socket_path,
+                priority_rpc=self.priority_rpc,
+            )
             self._queue.task_done()
 
 
@@ -53,6 +59,7 @@ async def run_event_loop(
     rate_limit: float = 0.05,
     threshold: float = 0.0,
     socket_path: str = DEPTH_SERVICE_SOCKET,
+    priority_rpc: list[str] | None = None,
 ) -> None:
     """Convenience wrapper around :class:`EventExecutor`."""
 
@@ -61,6 +68,7 @@ async def run_event_loop(
         rate_limit=rate_limit,
         threshold=threshold,
         socket_path=socket_path,
+        priority_rpc=priority_rpc,
     )
 
     async def _feed() -> None:

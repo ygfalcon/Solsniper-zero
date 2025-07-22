@@ -217,7 +217,7 @@ def test_agent_manager_event_executor(monkeypatch):
     )
 
     class DummyExec:
-        def __init__(self, token):
+        def __init__(self, token, **_k):
             self.token = token
             self.txs = []
 
