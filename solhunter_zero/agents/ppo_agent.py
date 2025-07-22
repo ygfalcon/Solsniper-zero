@@ -8,6 +8,9 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 
+import asyncio
+import logging
+
 from . import BaseAgent
 from .memory import MemoryAgent
 from ..offline_data import OfflineData
@@ -42,6 +45,8 @@ class PPOAgent(BaseAgent):
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
         self._seen_ids: set[int] = set()
+        self._task: asyncio.Task | None = None
+        self._logger = logging.getLogger(__name__)
 
         self.actor = nn.Sequential(
             nn.Linear(3, hidden_size),
@@ -135,6 +140,20 @@ class PPOAgent(BaseAgent):
             self.model_path,
         )
 
+    async def _online_loop(self, interval: float = 60.0) -> None:
+        """Continuously train the agent from new replay data."""
+        while True:
+            try:
+                self.train()
+            except Exception as exc:  # pragma: no cover - logging
+                self._logger.error("online train failed: %s", exc)
+            await asyncio.sleep(interval)
+
+    def start_online_learning(self, interval: float = 60.0) -> None:
+        """Start background task that updates the model periodically."""
+        if self._task is None:
+            self._task = asyncio.create_task(self._online_loop(interval))
+
     # ------------------------------------------------------------------
     async def propose_trade(
         self,
@@ -144,6 +163,7 @@ class PPOAgent(BaseAgent):
         depth: float | None = None,
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
+        self.start_online_learning()
         self.train()
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
         with torch.no_grad():
