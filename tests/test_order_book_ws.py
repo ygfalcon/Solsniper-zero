@@ -70,6 +70,7 @@ def test_stream_order_book(monkeypatch):
     res = asyncio.run(run())
     assert res["depth"] == 100
     assert res["imbalance"] == pytest.approx(0.2)
+    assert "tx_rate" in res
 
 
 def test_agents_use_depth(monkeypatch):

@@ -17,6 +17,7 @@ from .scanner_common import JUPITER_WS_URL
 
 from .exchange import place_order_async
 from . import order_book_ws
+from .depth_client import stream_depth
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,8 @@ DEX_PRIORITIES = [
     .split(",")
     if n.strip()
 ]
+
+USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "0").lower() in {"1", "true", "yes"}
 
 def _parse_fee_env() -> dict:
     val = os.getenv("DEX_FEES")
@@ -376,6 +379,20 @@ async def detect_and_execute_arbitrage(
         return await asyncio.gather(*tasks)
 
     s, names = _streams_for(tokens)
+    if USE_DEPTH_STREAM:
+        async for _ in stream_depth(tokens, max_updates=kwargs.get("max_updates")):
+            res = await _detect_for_token(
+                tokens,
+                feeds=feeds,
+                streams=s,
+                stream_names=names,
+                fees=fees or DEX_FEES,
+                **kwargs,
+            )
+            if res:
+                return res
+        return None
+
     return await _detect_for_token(
         tokens,
         feeds=feeds,

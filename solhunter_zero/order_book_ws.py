@@ -11,42 +11,44 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
-# Cache of latest bid/ask per token
+# Cache of latest bid/ask and tx rate per token
 _DEPTH_CACHE: Dict[str, Dict[str, float]] = {}
 
 _MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
 
 
-def _snapshot_from_mmap(token: str) -> tuple[float, float]:
+def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
     try:
         with open(_MMAP_PATH, "rb") as f:
             with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
                 raw = bytes(m).rstrip(b"\x00")
                 if not raw:
-                    return 0.0, 0.0
+                    return 0.0, 0.0, 0.0
                 data = json.loads(raw.decode())
                 entry = data.get(token)
                 if not entry:
-                    return 0.0, 0.0
+                    return 0.0, 0.0, 0.0
                 bids = float(entry.get("bids", 0.0))
                 asks = float(entry.get("asks", 0.0))
+                rate = float(entry.get("tx_rate", 0.0))
                 depth = bids + asks
                 imb = (bids - asks) / depth if depth else 0.0
-                return depth, imb
+                return depth, imb, rate
     except Exception:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0
 
 
-def snapshot(token: str) -> tuple[float, float]:
-    """Return current depth and imbalance for ``token``."""
+def snapshot(token: str) -> tuple[float, float, float]:
+    """Return current depth, imbalance and mempool rate for ``token``."""
     data = _DEPTH_CACHE.get(token)
     if not data:
         return _snapshot_from_mmap(token)
     bids = float(data.get("bids", 0.0))
     asks = float(data.get("asks", 0.0))
+    rate = float(data.get("tx_rate", 0.0))
     depth = bids + asks
     imbalance = (bids - asks) / depth if depth else 0.0
-    return depth, imbalance
+    return depth, imbalance, rate
 
 
 async def stream_order_book(
@@ -73,9 +75,10 @@ async def stream_order_book(
                     info = json.loads(data.decode())
                     bids = float(info.get("bids", 0.0))
                     asks = float(info.get("asks", 0.0))
-                    _DEPTH_CACHE[token] = {"bids": bids, "asks": asks}
-                    depth, imb = snapshot(token)
-                    yield {"token": token, "depth": depth, "imbalance": imb}
+                    rate = float(info.get("tx_rate", 0.0))
+                    _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
+                    depth, imb, txr = snapshot(token)
+                    yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}
                 except Exception:
                     pass
                 count += 1
@@ -102,11 +105,12 @@ async def stream_order_book(
                             token = data.get("token")
                             bids = float(data.get("bids", 0.0))
                             asks = float(data.get("asks", 0.0))
+                            rate = float(data.get("tx_rate", 0.0))
                             if not token:
                                 continue
-                            _DEPTH_CACHE[token] = {"bids": bids, "asks": asks}
-                            depth, imb = snapshot(token)
-                            yield {"token": token, "depth": depth, "imbalance": imb}
+                            _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
+                            depth, imb, txr = snapshot(token)
+                            yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}
                             count += 1
                             if max_updates is not None and count >= max_updates:
                                 return

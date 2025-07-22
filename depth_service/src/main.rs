@@ -19,12 +19,14 @@ use solana_sdk::{
 };
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
-struct Depth {
+struct TokenInfo {
     bids: f64,
     asks: f64,
+    tx_rate: f64,
 }
 
-type DepthMap = Arc<Mutex<HashMap<String, Depth>>>;
+type DexMap = Arc<Mutex<HashMap<String, HashMap<String, TokenInfo>>>>;
+type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 
 type SharedMmap = Arc<Mutex<MmapMut>>;
 
@@ -69,9 +71,22 @@ impl ExecContext {
     }
 }
 
-async fn update_mmap(map: &DepthMap, mmap: &SharedMmap) -> Result<()> {
-    let map = map.lock().await.clone();
-    let mut json = serde_json::to_vec(&map)?;
+async fn update_mmap(dex_map: &DexMap, mem: &MempoolMap, mmap: &SharedMmap) -> Result<()> {
+    let dexes = dex_map.lock().await;
+    let mem = mem.lock().await;
+    let mut agg: HashMap<String, TokenInfo> = HashMap::new();
+    for dex in dexes.values() {
+        for (tok, info) in dex {
+            let e = agg.entry(tok.clone()).or_default();
+            e.bids += info.bids;
+            e.asks += info.asks;
+        }
+    }
+    for (tok, rate) in mem.iter() {
+        let e = agg.entry(tok.clone()).or_default();
+        e.tx_rate = *rate;
+    }
+    let mut json = serde_json::to_vec(&agg)?;
     let mut mmap = mmap.lock().await;
     if json.len() > mmap.len() {
         json.truncate(mmap.len());
@@ -84,7 +99,7 @@ async fn update_mmap(map: &DepthMap, mmap: &SharedMmap) -> Result<()> {
     Ok(())
 }
 
-async fn connect_feed(url: &str, map: DepthMap, mmap: SharedMmap) -> Result<()> {
+async fn connect_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolMap, mmap: SharedMmap) -> Result<()> {
     let (ws, _) = connect_async(url).await?;
     let (_write, mut read) = ws.split();
     while let Some(Ok(msg)) = read.next().await {
@@ -100,24 +115,47 @@ async fn connect_feed(url: &str, map: DepthMap, mmap: SharedMmap) -> Result<()> 
                 let token = token.as_str().unwrap_or("").to_string();
                 let bids = bids.as_f64().unwrap_or(0.0);
                 let asks = asks.as_f64().unwrap_or(0.0);
-                let mut map_lock = map.lock().await;
-                map_lock.insert(token, Depth { bids, asks });
-                drop(map_lock);
-                let _ = update_mmap(&map, &mmap).await;
+                let mut dexes = dex_map.lock().await;
+                let entry = dexes.entry(dex.to_string()).or_default();
+                entry.insert(token.clone(), TokenInfo { bids, asks, tx_rate: 0.0 });
+                drop(dexes);
+                let _ = update_mmap(&dex_map, &mem, &mmap).await;
             }
         }
     }
     Ok(())
 }
 
-async fn ipc_server(socket: &Path, map: DepthMap, exec: Arc<ExecContext>) -> Result<()> {
+async fn connect_mempool(url: &str, mem: MempoolMap, dex_map: DexMap, mmap: SharedMmap) -> Result<()> {
+    let (ws, _) = connect_async(url).await?;
+    let (_write, mut read) = ws.split();
+    while let Some(Ok(msg)) = read.next().await {
+        if !msg.is_text() {
+            continue;
+        }
+        if let Ok(val) = serde_json::from_str::<Value>(&msg.to_string()) {
+            if let (Some(token), Some(rate)) = (val.get("token"), val.get("tx_rate")) {
+                let token = token.as_str().unwrap_or("").to_string();
+                let rate = rate.as_f64().unwrap_or(0.0);
+                let mut mem_lock = mem.lock().await;
+                mem_lock.insert(token, rate);
+                drop(mem_lock);
+                let _ = update_mmap(&dex_map, &mem, &mmap).await;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<ExecContext>) -> Result<()> {
     if socket.exists() {
         let _ = std::fs::remove_file(socket);
     }
     let listener = UnixListener::bind(socket)?;
     loop {
         let (mut stream, _) = listener.accept().await?;
-        let map = map.clone();
+        let dex_map = dex_map.clone();
+        let mem = mem.clone();
         let exec = exec.clone();
         tokio::spawn(async move {
             let mut buf = Vec::new();
@@ -125,11 +163,22 @@ async fn ipc_server(socket: &Path, map: DepthMap, exec: Arc<ExecContext>) -> Res
                 if let Ok(val) = serde_json::from_slice::<Value>(&buf) {
                     if val.get("cmd") == Some(&Value::String("snapshot".into())) {
                         if let Some(token) = val.get("token").and_then(|v| v.as_str()) {
-                            let data = map.lock().await;
-                            if let Some(d) = data.get(token) {
-                                let _ = stream
-                                    .write_all(serde_json::to_string(d).unwrap().as_bytes())
-                                    .await;
+                            let dexes = dex_map.lock().await;
+                            let mem = mem.lock().await;
+                            let mut agg: HashMap<String, TokenInfo> = HashMap::new();
+                            for dex in dexes.values() {
+                                if let Some(info) = dex.get(token) {
+                                    let e = agg.entry(token.to_string()).or_default();
+                                    e.bids += info.bids;
+                                    e.asks += info.asks;
+                                }
+                            }
+                            if let Some(rate) = mem.get(token) {
+                                let e = agg.entry(token.to_string()).or_default();
+                                e.tx_rate = *rate;
+                            }
+                            if let Some(d) = agg.get(token) {
+                                let _ = stream.write_all(serde_json::to_string(d).unwrap().as_bytes()).await;
                             }
                         }
                     } else if val.get("cmd") == Some(&Value::String("order".into())) {
@@ -156,6 +205,7 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mut serum = None;
     let mut raydium = None;
+    let mut mempool = None;
     let mut rpc = std::env::var("SOLANA_RPC_URL").unwrap_or_default();
     let mut keypair_path = std::env::var("SOLANA_KEYPAIR").unwrap_or_default();
     for w in args.windows(2) {
@@ -164,6 +214,7 @@ async fn main() -> Result<()> {
             "--raydium" => raydium = Some(w[1].clone()),
             "--rpc" => rpc = w[1].clone(),
             "--keypair" => keypair_path = w[1].clone(),
+            "--mempool" => mempool = Some(w[1].clone()),
             _ => {}
         }
     }
@@ -175,20 +226,31 @@ async fn main() -> Result<()> {
     file.set_len(65536)?;
     let mmap = unsafe { MmapOptions::new().map_mut(&file)? };
     let mmap = Arc::new(Mutex::new(mmap));
-    let map: DepthMap = Arc::new(Mutex::new(HashMap::new()));
+    let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
+    let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
 
-    let m1 = map.clone();
-    let mm1 = mmap.clone();
     if let Some(url) = serum {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
         tokio::spawn(async move {
-            let _ = connect_feed(&url, m1, mm1).await;
+            let _ = connect_feed("serum", &url, d, m, mm).await;
         });
     }
-    let m2 = map.clone();
-    let mm2 = mmap.clone();
     if let Some(url) = raydium {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
         tokio::spawn(async move {
-            let _ = connect_feed(&url, m2, mm2).await;
+            let _ = connect_feed("raydium", &url, d, m, mm).await;
+        });
+    }
+    if let Some(url) = mempool {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
+        tokio::spawn(async move {
+            let _ = connect_mempool(&url, m, d, mm).await;
         });
     }
 
@@ -202,6 +264,6 @@ async fn main() -> Result<()> {
     }
     let exec = Arc::new(ExecContext::new(&rpc, kp).await);
 
-    ipc_server(Path::new("/tmp/depth_service.sock"), map, exec).await?;
+    ipc_server(Path::new("/tmp/depth_service.sock"), dex_map, mem_map, exec).await?;
     Ok(())
 }
