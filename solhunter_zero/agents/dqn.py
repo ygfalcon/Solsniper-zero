@@ -17,6 +17,7 @@ from . import BaseAgent
 from .memory import MemoryAgent
 from ..portfolio import Portfolio
 from ..replay import ReplayBuffer
+from ..regime import detect_regime
 from .. import models
 from ..simulation import predict_price_movement as _predict_price_movement
 
@@ -95,8 +96,9 @@ class DQNAgent(BaseAgent):
     def _predict_return(self, token: str) -> float:
         return predict_price_movement(token, model_path=self.price_model_path)
 
-    def train(self, portfolio: Portfolio) -> None:
+    def train(self, portfolio: Portfolio, regime: str | None = None) -> None:
         trades = self.memory_agent.memory.list_trades()
+        prices: dict[str, list[float]] = {}
         for t in trades:
             tid = getattr(t, "id", None)
             if tid is not None and tid in self._seen_ids:
@@ -109,15 +111,24 @@ class DQNAgent(BaseAgent):
             emotion = getattr(t, "emotion", "")
             if emotion == "regret":
                 continue
-            self.replay.add([float(t.amount)], t.direction, reward, emotion)
+            seq = prices.setdefault(t.token, [])
+            regime_label = detect_regime(seq)
+            self.replay.add(
+                [float(t.amount)],
+                t.direction,
+                reward,
+                emotion,
+                regime_label,
+            )
+            seq.append(float(t.price))
 
-        batch = self.replay.sample(32)
+        batch = self.replay.sample(32, regime=regime)
         if not batch:
             return
 
         X: List[List[float]] = []
         y: List[List[float]] = []
-        for state, action, reward, _ in batch:
+        for state, action, reward, _, _ in batch:
             X.append(list(state))
             y.append([reward, -reward])
 
@@ -170,7 +181,8 @@ class DQNAgent(BaseAgent):
     ) -> List[Dict[str, Any]]:
         self.start_online_learning()
         self._maybe_reload()
-        self.train(portfolio)
+        regime = detect_regime(portfolio.price_history.get(token, []))
+        self.train(portfolio, regime)
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
         if self._fitted:
             with torch.no_grad():

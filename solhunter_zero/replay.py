@@ -5,7 +5,14 @@ import random
 from argparse import ArgumentParser
 from typing import Iterable, Tuple, List
 
-from sqlalchemy import create_engine, Column, Integer, Float, String, LargeBinary
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    Float,
+    String,
+    LargeBinary,
+)
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -19,6 +26,7 @@ class Experience(Base):
     action = Column(String, nullable=False)
     reward = Column(Float, nullable=False)
     emotion = Column(String)
+    regime = Column(String)
 
 
 class ReplayBuffer:
@@ -30,17 +38,39 @@ class ReplayBuffer:
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     # ------------------------------------------------------------------
-    def add(self, state: Iterable[float], action: str, reward: float, emotion: str = "") -> None:
+    def add(
+        self,
+        state: Iterable[float],
+        action: str,
+        reward: float,
+        emotion: str = "",
+        regime: str = "",
+    ) -> None:
         data = pickle.dumps(list(state))
         with self.Session() as session:
-            exp = Experience(state=data, action=action, reward=reward, emotion=emotion)
+            exp = Experience(
+                state=data,
+                action=action,
+                reward=reward,
+                emotion=emotion,
+                regime=regime,
+            )
             session.add(exp)
             session.commit()
 
     # ------------------------------------------------------------------
-    def sample(self, batch_size: int, *, positive_weight: float = 2.0) -> List[Tuple[List[float], str, float, str]]:
+    def sample(
+        self,
+        batch_size: int,
+        *,
+        positive_weight: float = 2.0,
+        regime: str | None = None,
+    ) -> List[Tuple[List[float], str, float, str, str]]:
         with self.Session() as session:
-            exps: List[Experience] = session.query(Experience).all()
+            q = session.query(Experience)
+            if regime is not None:
+                q = q.filter_by(regime=regime)
+            exps: List[Experience] = q.all()
         filtered = [e for e in exps if e.emotion != "regret"]
         if not filtered:
             return []
@@ -53,7 +83,7 @@ class ReplayBuffer:
         for idx in chosen:
             e = filtered[idx]
             state = pickle.loads(e.state)
-            result.append((state, e.action, float(e.reward), e.emotion))
+            result.append((state, e.action, float(e.reward), e.emotion, e.regime or ""))
         return result
 
     # ------------------------------------------------------------------
@@ -75,7 +105,9 @@ def main(argv: List[str] | None = None) -> int:
     buf = ReplayBuffer(args.db)
     for e in buf.list_entries():
         state = pickle.loads(e.state)
-        print(f"{e.id}\t{state}\t{e.action}\t{e.reward}\t{e.emotion}")
+        print(
+            f"{e.id}\t{state}\t{e.action}\t{e.reward}\t{e.emotion}\t{e.regime}"
+        )
     return 0
 
 

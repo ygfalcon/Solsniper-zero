@@ -69,7 +69,7 @@ def test_replay_sampling_bias(tmp_path):
 
     counts = {"confident": 0, "anxious": 0}
     for _ in range(50):
-        state, action, reward, emo = buf.sample(1)[0]
+        state, action, reward, emo, reg = buf.sample(1)[0]
         assert emo != "regret"
         counts[emo] += 1
 
