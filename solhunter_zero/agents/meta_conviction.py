@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import List, Dict, Any
+
+import numpy as np
+
+from .. import models
+from ..simulation import fetch_token_metrics
 
 from . import BaseAgent
 from .simulation import SimulationAgent
@@ -15,15 +21,37 @@ class MetaConvictionAgent(BaseAgent):
 
     name = "meta_conviction"
 
-    def __init__(self, weights: Dict[str, float] | None = None) -> None:
+    def __init__(self, weights: Dict[str, float] | None = None, *, model_path: str | None = None) -> None:
         self.sim_agent = SimulationAgent()
-        self.conv_agent = ConvictionAgent()
+        self.conv_agent = ConvictionAgent(model_path=model_path)
         self.ram_agent = RamanujanAgent()
+        self.model_path = model_path or os.getenv("PRICE_MODEL_PATH")
         self.weights = weights or {
             "simulation": 1.0,
             "conviction": 1.0,
             "ramanujan": 1.0,
+            "prediction": 1.0,
         }
+
+    def _predict_return(self, token: str) -> float:
+        if not self.model_path:
+            return 0.0
+        model = models.get_model(self.model_path, reload=True)
+        if not model:
+            return 0.0
+        metrics = fetch_token_metrics(token)
+        ph = metrics.get("price_history") or []
+        lh = metrics.get("liquidity_history") or []
+        dh = metrics.get("depth_history") or []
+        th = metrics.get("tx_count_history") or []
+        n = min(len(ph), len(lh), len(dh), len(th or ph))
+        if n < 30:
+            return 0.0
+        seq = np.column_stack([ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]])
+        try:
+            return float(model.predict(seq))
+        except Exception:
+            return 0.0
 
     async def propose_trade(
         self,
@@ -50,6 +78,12 @@ class MetaConvictionAgent(BaseAgent):
                 conviction += weight
             elif side == "sell":
                 conviction -= weight
+
+        pred = self._predict_return(token)
+        if pred > self.conv_agent.threshold:
+            conviction += self.weights.get("prediction", 1.0)
+        elif pred < -self.conv_agent.threshold:
+            conviction -= self.weights.get("prediction", 1.0)
 
         if conviction > 0:
             return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0}]
