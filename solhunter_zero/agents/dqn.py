@@ -18,7 +18,12 @@ from .memory import MemoryAgent
 from ..portfolio import Portfolio
 from ..replay import ReplayBuffer
 from .. import models
-from ..simulation import fetch_token_metrics
+from ..simulation import predict_price_movement as _predict_price_movement
+
+
+def predict_price_movement(token: str, *, model_path: str | None = None) -> float:
+    """Wrapper around :func:`simulation.predict_price_movement`."""
+    return _predict_price_movement(token, model_path=model_path)
 
 
 class DQNAgent(BaseAgent):
@@ -72,24 +77,7 @@ class DQNAgent(BaseAgent):
         return [amt]
 
     def _predict_return(self, token: str) -> float:
-        if not self.price_model_path:
-            return 0.0
-        model = models.get_model(self.price_model_path, reload=True)
-        if not model:
-            return 0.0
-        metrics = fetch_token_metrics(token)
-        ph = metrics.get("price_history") or []
-        lh = metrics.get("liquidity_history") or []
-        dh = metrics.get("depth_history") or []
-        th = metrics.get("tx_count_history") or []
-        n = min(len(ph), len(lh), len(dh), len(th or ph))
-        if n < 30:
-            return 0.0
-        seq = np.column_stack([ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]])
-        try:
-            return float(model.predict(seq))
-        except Exception:
-            return 0.0
+        return predict_price_movement(token, model_path=self.price_model_path)
 
     def train(self, portfolio: Portfolio) -> None:
         trades = self.memory_agent.memory.list_trades()
