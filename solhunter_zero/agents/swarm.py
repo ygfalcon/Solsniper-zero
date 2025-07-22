@@ -69,7 +69,7 @@ class AgentSwarm:
             amounts returned by that agent. Defaults to ``1.0`` for all agents.
         """
 
-        depth, imbalance = order_book_ws.snapshot(token)
+        depth, imbalance, _ = order_book_ws.snapshot(token)
 
         async def run(agent: BaseAgent):
             if hasattr(agent, "last_outcome"):

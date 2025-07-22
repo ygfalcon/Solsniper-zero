@@ -72,7 +72,7 @@ class PPOAgent(BaseAgent):
     def _state(self, token: str, portfolio: Portfolio) -> List[float]:
         pos = portfolio.balances.get(token)
         amt = float(pos.amount) if pos else 0.0
-        depth, imb = snapshot(token)
+        depth, imb, _ = snapshot(token)
         return [amt, depth, imb]
 
     def _log_trades(self) -> None:
