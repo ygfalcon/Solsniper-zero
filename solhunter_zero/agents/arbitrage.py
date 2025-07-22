@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Sequence, Callable, Awaitable, Mapping
 
 from . import BaseAgent
 from .. import arbitrage
-from ..arbitrage import _best_route, DEX_FEES, DEX_GAS, DEX_LATENCY
+from ..arbitrage import _best_route, refresh_costs
 from ..portfolio import Portfolio
 
 PriceFeed = Callable[[str], Awaitable[float]]
@@ -43,9 +43,16 @@ class ArbitrageAgent(BaseAgent):
             self.feeds = {
                 getattr(f, "__name__", f"feed{i}"): f for i, f in enumerate(feeds)
             }
-        self.fees = dict(fees or DEX_FEES)
-        self.gas = dict(gas or DEX_GAS)
-        self.latency = dict(latency or DEX_LATENCY)
+        env_fees, env_gas, env_lat = refresh_costs()
+        self.fees = dict(env_fees)
+        if fees:
+            self.fees.update(fees)
+        self.gas = dict(env_gas)
+        if gas:
+            self.gas.update(gas)
+        self.latency = dict(env_lat)
+        if latency:
+            self.latency.update(latency)
         if gas_multiplier is not None:
             self.gas_multiplier = float(gas_multiplier)
         else:
@@ -100,6 +107,11 @@ class ArbitrageAgent(BaseAgent):
         # If still not enough data, give up
         if len(valid) < 2:
             return []
+
+        env_fees, env_gas, env_lat = refresh_costs()
+        self.fees.update(env_fees)
+        self.gas.update(env_gas)
+        self.latency.update(env_lat)
 
         gas_costs = {k: v * self.gas_multiplier for k, v in self.gas.items()}
         path, profit = _best_route(

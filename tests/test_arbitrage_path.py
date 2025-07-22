@@ -51,3 +51,28 @@ def test_concurrent_execution(monkeypatch):
     )
     duration = time.perf_counter() - start
     assert duration < 0.1
+
+
+def test_multi_hop(monkeypatch):
+    calls = []
+
+    async def fake_place(token, side, amount, price, **_):
+        calls.append((side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            [dex1, dex2, dex3],
+            threshold=0.0,
+            amount=1.0,
+            fees={"dex1": 0.0, "dex2": 0.0, "dex3": 0.0},
+            gas={"dex1": 0.0, "dex2": 0.0, "dex3": 0.0},
+            latencies={"dex1": 0.0, "dex2": -0.2, "dex3": 0.0},
+        )
+    )
+
+    assert result == (0, 2)
+    assert len(calls) == 4
