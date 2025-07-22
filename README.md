@@ -461,6 +461,18 @@ python scripts/train_transformer_agent.py --db sqlite:///offline_data.db --out m
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
 `predict_price_movement()` can load it automatically.
 
+### Continuous Training
+
+Running `online_train_transformer.py` keeps the transformer model up to date by
+periodically fitting new snapshots on GPU and saving checkpoints. Start it with:
+
+```bash
+python scripts/online_train_transformer.py --db sqlite:///offline_data.db --model models/price.pt --device cuda
+```
+
+Agents will automatically reload the updated model when `PRICE_MODEL_PATH`
+points to this file.
+
 `solhunter_zero.backtest_cli` now supports Bayesian optimisation of agent
 weights. Optimisation runs the backtester repeatedly while a Gaussian process
 searches the weight space:
