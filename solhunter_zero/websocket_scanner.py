@@ -29,16 +29,12 @@ logger = logging.getLogger(__name__)
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
-POOL_TOKEN_RE = re.compile(r"pool_token:\s*(\S+)", re.IGNORECASE)
 
 # Regex used to capture token mints from liquidity pool creation logs
 POOL_TOKEN_RE = re.compile(r"token[AB]:\s*([A-Za-z0-9]{32,44})", re.IGNORECASE)
 
 # Whether to subscribe to pool creation logs as well as mint events
 include_pools = False
-
-# Program ID for the Serum/Raydium DEX used when scanning pool events
-DEX_PROGRAM_ID = PublicKey("9xQeWvG816bUx9EPB8YVJprFLaDpbZc81FNtdVUL5J7")
 
 
 async def stream_new_tokens(
@@ -76,6 +72,10 @@ async def stream_new_tokens(
         await ws.logs_subscribe(
             RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key)
         )
+        if include_pools:
+            await ws.logs_subscribe(
+                RpcTransactionLogsFilterMentions(PublicKey(str(DEX_PROGRAM_ID))._key)
+            )
 
         while True:
             try:
@@ -95,10 +95,10 @@ async def stream_new_tokens(
                         continue
 
                 tokens = set()
+                name = None
+                mint = None
 
                 if any("InitializeMint" in l for l in logs):
-                    name = None
-                    mint = None
                     for log_line in logs:
                         if name is None:
                             m = NAME_RE.search(log_line)
@@ -109,8 +109,18 @@ async def stream_new_tokens(
                             if m:
                                 mint = m.group(1)
 
-                    if name and mint and name.lower().endswith(suffix):
+                    if name and mint and token_matches(
+                        mint, name, suffix=suffix, keywords=keywords
+                    ):
                         tokens.add(mint)
+
+                if include_pools:
+                    for line in logs:
+                        m = POOL_TOKEN_RE.search(line)
+                        if m:
+                            tok = m.group(1)
+                            if token_matches(tok, None, suffix=suffix, keywords=keywords):
+                                tokens.add(tok)
 
 
 
@@ -118,10 +128,6 @@ async def stream_new_tokens(
 
                 for token in tokens:
                     yield token
-
-
-                if name and mint and token_matches(mint, name, suffix=suffix, keywords=keywords):
-                    yield mint
 
 
 async def stream_jupiter_tokens(
