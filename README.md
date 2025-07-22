@@ -268,6 +268,28 @@ picked up automatically:
 pip install -e .
 ```
 
+### Apple Silicon (ARM64)
+
+Install the ARM64 wheels for PyTorch on Apple M1/M2 machines:
+
+```bash
+pip install torch==2.1.0 torchvision==0.16.0 \
+  --extra-index-url https://download.pytorch.org/whl/metal
+```
+
+Enable the Metal backend for GPU acceleration:
+
+```bash
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+python - <<'EOF'
+import torch
+torch.set_default_device('mps')
+EOF
+```
+
+Heavy features such as reinforcement learning will automatically use the MPS
+backend when available.
+
 ## Usage
 Run the bot with:
 ```bash
