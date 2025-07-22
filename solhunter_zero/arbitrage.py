@@ -16,9 +16,17 @@ from typing import (
 import aiohttp
 from .scanner_common import JUPITER_WS_URL
 
-from .exchange import place_order_async
+from .exchange import (
+    place_order_async,
+    ORCA_DEX_URL,
+    RAYDIUM_DEX_URL,
+    DEX_BASE_URL,
+    VENUE_URLS,
+    SWAP_PATH,
+)
 from . import order_book_ws
-from .depth_client import stream_depth
+from .depth_client import stream_depth, prepare_signed_tx
+from .execution import EventExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +49,7 @@ DEX_PRIORITIES = [
 ]
 
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "0").lower() in {"1", "true", "yes"}
+USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "0").lower() in {"1", "true", "yes"}
 
 
 def _parse_mapping_env(env: str) -> dict:
@@ -75,6 +84,34 @@ def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float
     gas = {str(k): float(v) for k, v in _parse_mapping_env("DEX_GAS").items()}
     latency = {str(k): float(v) for k, v in _parse_mapping_env("DEX_LATENCY").items()}
     return fees, gas, latency
+
+
+async def _prepare_service_tx(
+    token: str,
+    side: str,
+    amount: float,
+    price: float,
+    base_url: str,
+) -> str | None:
+    payload = {
+        "token": token,
+        "side": side,
+        "amount": amount,
+        "price": price,
+        "cluster": "mainnet-beta",
+    }
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(f"{base_url}{SWAP_PATH}", json=payload, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError:
+            return None
+
+    tx_b64 = data.get("swapTransaction")
+    if not tx_b64:
+        return None
+    return await prepare_signed_tx(tx_b64)
 
 
 async def fetch_orca_price_async(token: str) -> float:
@@ -302,6 +339,8 @@ async def _detect_for_token(
     gas: Mapping[str, float] | None = None,
     latencies: Mapping[str, float] | None = None,
     stream_names: Sequence[str] | None = None,
+    executor: "EventExecutor | None" = None,
+    use_service: bool = False,
 ) -> Optional[Tuple[int, int]]:
     """Check for price discrepancies and place arbitrage orders.
 
@@ -384,29 +423,52 @@ async def _detect_for_token(
             for i in range(len(path) - 1):
                 buy_v = path[i]
                 sell_v = path[i + 1]
-                tasks.append(
-                    place_order_async(
+                if executor and use_service:
+                    base_buy = VENUE_URLS.get(buy_v, buy_v)
+                    base_sell = VENUE_URLS.get(sell_v, sell_v)
+                    tx1 = await _prepare_service_tx(
                         token,
                         "buy",
                         amount,
                         price_map[buy_v],
-                        testnet=testnet,
-                        dry_run=dry_run,
-                        keypair=keypair,
+                        base_buy,
                     )
-                )
-                tasks.append(
-                    place_order_async(
+                    if tx1:
+                        await executor.enqueue(tx1)
+                    tx2 = await _prepare_service_tx(
                         token,
                         "sell",
                         amount,
                         price_map[sell_v],
-                        testnet=testnet,
-                        dry_run=dry_run,
-                        keypair=keypair,
+                        base_sell,
                     )
-                )
-            await asyncio.gather(*tasks)
+                    if tx2:
+                        await executor.enqueue(tx2)
+                else:
+                    tasks.append(
+                        place_order_async(
+                            token,
+                            "buy",
+                            amount,
+                            price_map[buy_v],
+                            testnet=testnet,
+                            dry_run=dry_run,
+                            keypair=keypair,
+                        )
+                    )
+                    tasks.append(
+                        place_order_async(
+                            token,
+                            "sell",
+                            amount,
+                            price_map[sell_v],
+                            testnet=testnet,
+                            dry_run=dry_run,
+                            keypair=keypair,
+                        )
+                    )
+            if tasks:
+                await asyncio.gather(*tasks)
             return buy_index, sell_index
 
         async def consume(idx: int, gen: AsyncGenerator[float, None]):
@@ -474,29 +536,52 @@ async def _detect_for_token(
     for i in range(len(path) - 1):
         buy_v = path[i]
         sell_v = path[i + 1]
-        tasks.append(
-            place_order_async(
+        if executor and use_service:
+            base_buy = VENUE_URLS.get(buy_v, buy_v)
+            base_sell = VENUE_URLS.get(sell_v, sell_v)
+            tx1 = await _prepare_service_tx(
                 token,
                 "buy",
                 amount,
                 price_map[buy_v],
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
+                base_buy,
             )
-        )
-        tasks.append(
-            place_order_async(
+            if tx1:
+                await executor.enqueue(tx1)
+            tx2 = await _prepare_service_tx(
                 token,
                 "sell",
                 amount,
                 price_map[sell_v],
-                testnet=testnet,
-                dry_run=dry_run,
-                keypair=keypair,
+                base_sell,
             )
-        )
-    await asyncio.gather(*tasks)
+            if tx2:
+                await executor.enqueue(tx2)
+        else:
+            tasks.append(
+                place_order_async(
+                    token,
+                    "buy",
+                    amount,
+                    price_map[buy_v],
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+            )
+            tasks.append(
+                place_order_async(
+                    token,
+                    "sell",
+                    amount,
+                    price_map[sell_v],
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    keypair=keypair,
+                )
+            )
+    if tasks:
+        await asyncio.gather(*tasks)
 
     buy_index = names.index(buy_name)
     sell_index = names.index(sell_name)
@@ -509,6 +594,8 @@ async def detect_and_execute_arbitrage(
     streams: Sequence[AsyncGenerator[float, None]] | None = None,
     *,
     fees: Mapping[str, float] | None = None,
+    executor: EventExecutor | None = None,
+    use_service: bool | None = None,
     **kwargs,
 ) -> Optional[Tuple[int, int]] | list[Optional[Tuple[int, int]]]:
     """Run arbitrage detection for one or multiple tokens.
@@ -519,6 +606,9 @@ async def detect_and_execute_arbitrage(
 
     user_gas = kwargs.pop("gas", None)
     user_lat = kwargs.pop("latencies", None)
+
+    if use_service is None:
+        use_service = USE_SERVICE_EXEC
 
     def _streams_for(token: str):
         if streams is not None:
@@ -564,6 +654,8 @@ async def detect_and_execute_arbitrage(
                     fees=fees or DEX_FEES,
                     gas=user_gas or DEX_GAS,
                     latencies=user_lat or DEX_LATENCY,
+                    executor=executor,
+                    use_service=use_service,
                     **kwargs,
                 )
             )
@@ -581,6 +673,8 @@ async def detect_and_execute_arbitrage(
                 fees=fees or DEX_FEES,
                 gas=user_gas or DEX_GAS,
                 latencies=user_lat or DEX_LATENCY,
+                executor=executor,
+                use_service=use_service,
                 **kwargs,
             )
             if res:
@@ -595,5 +689,7 @@ async def detect_and_execute_arbitrage(
         fees=fees or DEX_FEES,
         gas=user_gas or DEX_GAS,
         latencies=user_lat or DEX_LATENCY,
+        executor=executor,
+        use_service=use_service,
         **kwargs,
     )

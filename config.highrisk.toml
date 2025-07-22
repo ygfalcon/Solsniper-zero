@@ -4,6 +4,10 @@ risk_multiplier = 1.0
 min_portfolio_value = 20.0
 dex_priorities = "orca,raydium,jupiter"
 dex_fees = "{}"
+depth_service = false
+use_depth_stream = false
+use_rust_exec = false
+use_service_exec = false
 
 # Enable every built-in agent for maximum exposure
 agents = [

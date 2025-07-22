@@ -81,7 +81,15 @@ class ExecutionAgent(BaseAgent):
                 return None
 
         tx_b64 = data.get("swapTransaction")
-        if not tx_b64 or self.keypair is None:
+        if not tx_b64:
+            return None
+
+        if self.depth_service:
+            from ..depth_client import prepare_signed_tx
+
+            return await prepare_signed_tx(tx_b64)
+
+        if self.keypair is None:
             return None
 
         tx = _sign_transaction(tx_b64, self.keypair)

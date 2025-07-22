@@ -217,6 +217,28 @@ async fn connect_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolMap, mm
     Ok(())
 }
 
+async fn connect_price_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolMap, mmap: SharedMmap) -> Result<()> {
+    let (ws, _) = connect_async(url).await?;
+    let (_write, mut read) = ws.split();
+    while let Some(Ok(msg)) = read.next().await {
+        if !msg.is_text() {
+            continue;
+        }
+        if let Ok(val) = serde_json::from_str::<Value>(&msg.to_string()) {
+            if let (Some(token), Some(price)) = (val.get("token"), val.get("price")) {
+                let token = token.as_str().unwrap_or("").to_string();
+                let price = price.as_f64().unwrap_or(0.0);
+                let mut dexes = dex_map.lock().await;
+                let entry = dexes.entry(dex.to_string()).or_default();
+                entry.insert(token.clone(), TokenInfo { bids: price, asks: price, tx_rate: 0.0 });
+                drop(dexes);
+                let _ = update_mmap(&dex_map, &mem, &mmap).await;
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn connect_mempool(url: &str, mem: MempoolMap, dex_map: DexMap, mmap: SharedMmap) -> Result<()> {
     let (ws, _) = connect_async(url).await?;
     let (_write, mut read) = ws.split();
@@ -417,7 +439,7 @@ async fn main() -> Result<()> {
         let m = mem_map.clone();
         let mm = mmap.clone();
         tokio::spawn(async move {
-            let _ = connect_feed("raydium", &url, d, m, mm).await;
+            let _ = connect_price_feed("raydium", &url, d, m, mm).await;
         });
     }
     if let Some(url) = orca {
@@ -425,7 +447,7 @@ async fn main() -> Result<()> {
         let m = mem_map.clone();
         let mm = mmap.clone();
         tokio::spawn(async move {
-            let _ = connect_feed("orca", &url, d, m, mm).await;
+            let _ = connect_price_feed("orca", &url, d, m, mm).await;
         });
     }
     if let Some(url) = jupiter {
@@ -433,7 +455,7 @@ async fn main() -> Result<()> {
         let m = mem_map.clone();
         let mm = mmap.clone();
         tokio::spawn(async move {
-            let _ = connect_feed("jupiter", &url, d, m, mm).await;
+            let _ = connect_price_feed("jupiter", &url, d, m, mm).await;
         });
     }
     if let Some(url) = mempool {
