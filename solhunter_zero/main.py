@@ -626,6 +626,12 @@ def run_auto(**kwargs) -> None:
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
 
+    try:
+        from . import data_sync
+        asyncio.run(data_sync.sync_recent())
+    except Exception as exc:  # pragma: no cover - ignore sync errors
+        logging.getLogger(__name__).warning("data sync failed: %s", exc)
+
     if wallet.get_active_keypair_name() is None:
         keys = wallet.list_keypairs()
         if len(keys) == 1:
