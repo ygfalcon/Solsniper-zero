@@ -17,6 +17,10 @@ SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain.
    [PyYAML](https://pyyaml.org/) and
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
+   Heavy packages such as `faiss`, `sentence-transformers` and `torch` are only
+   needed for features like semantic trade search and reinforcement learning.
+   If you are just running the lightweight test suite or core trading loop they
+   can be safely skipped.  The tests stub them automatically when missing.
 
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with
@@ -222,6 +226,13 @@ iterations, while positive emotions encourage larger allocations.
 - [Poetry](https://python-poetry.org/) (optional but recommended)
 - [PyYAML](https://pyyaml.org/) for YAML configuration files
 - [solders](https://pypi.org/project/solders/) for Solana keypair operations
+- Optional: `faiss`, `sentence-transformers` and `torch` for advanced features
+  like semantic memory search, transformer-based models and deep reinforcement
+  learning. These packages are not required for the lightweight tests or
+  baseline trading functionality. Install them manually with:
+  ```bash
+  pip install faiss-cpu sentence-transformers torch pytorch-lightning
+  ```
 
 Install Python dependencies:
 ```bash
