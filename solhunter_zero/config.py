@@ -34,18 +34,14 @@ ENV_VARS = {
     "volatility_factor": "VOLATILITY_FACTOR",
     "arbitrage_threshold": "ARBITRAGE_THRESHOLD",
     "arbitrage_amount": "ARBITRAGE_AMOUNT",
-
     "min_portfolio_value": "MIN_PORTFOLIO_VALUE",
     "min_delay": "MIN_DELAY",
     "max_delay": "MAX_DELAY",
     "offline_data_limit_gb": "OFFLINE_DATA_LIMIT_GB",
-
     "strategies": "STRATEGIES",
-
     "token_suffix": "TOKEN_SUFFIX",
     "token_keywords": "TOKEN_KEYWORDS",
     "volume_threshold": "VOLUME_THRESHOLD",
-
     "agents": "AGENTS",
     "agent_weights": "AGENT_WEIGHTS",
     "weights_path": "WEIGHTS_PATH",
@@ -53,8 +49,9 @@ ENV_VARS = {
     "dex_fees": "DEX_FEES",
     "dex_gas": "DEX_GAS",
     "dex_latency": "DEX_LATENCY",
+    "priority_fees": "PRIORITY_FEES",
+    "priority_rpc": "PRIORITY_RPC",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
-
 }
 
 
@@ -119,8 +116,7 @@ def list_configs() -> list[str]:
     return [
         f
         for f in os.listdir(CONFIG_DIR)
-        if os.path.isfile(os.path.join(CONFIG_DIR, f))
-        and not f.startswith(".")
+        if os.path.isfile(os.path.join(CONFIG_DIR, f)) and not f.startswith(".")
     ]
 
 
@@ -129,7 +125,11 @@ def save_config(name: str, data: bytes) -> None:
 
     The name must not contain path traversal components.
     """
-    if os.path.sep in name or (os.path.altsep and os.path.altsep in name) or ".." in name:
+    if (
+        os.path.sep in name
+        or (os.path.altsep and os.path.altsep in name)
+        or ".." in name
+    ):
         raise ValueError("invalid config name")
     path = os.path.join(CONFIG_DIR, name)
     with open(path, "wb") as fh:

@@ -16,7 +16,9 @@ def _extract_lamports(resp: object) -> int:
         value = getattr(resp, "value", {})
     if isinstance(value, dict):
         calc = value.get("feeCalculator") or value.get("fee_calculator") or {}
-        lamports = calc.get("lamportsPerSignature") or calc.get("lamports_per_signature")
+        lamports = calc.get("lamportsPerSignature") or calc.get(
+            "lamports_per_signature"
+        )
         if isinstance(lamports, (int, float)):
             return int(lamports)
     try:
@@ -39,3 +41,28 @@ async def get_current_fee_async(testnet: bool = False) -> float:
         resp = await client.get_fees()
     lamports = _extract_lamports(resp)
     return lamports / LAMPORTS_PER_SOL
+
+
+async def get_priority_fee_async(rpc_url: str) -> float:
+    """Return prioritization fee in SOL from ``rpc_url``."""
+
+    async with AsyncClient(rpc_url) as client:
+        try:
+            resp = await client._provider.make_request(
+                "getRecentPrioritizationFees",
+                [],
+            )
+            lamports = int(resp["result"][0].get("prioritizationFee", 0))
+        except Exception:
+            lamports = 0
+    return lamports / LAMPORTS_PER_SOL
+
+
+async def get_priority_fee_estimate(rpc_urls: list[str]) -> float:
+    """Return first non-zero prioritization fee from ``rpc_urls``."""
+
+    for url in rpc_urls:
+        fee = await get_priority_fee_async(url)
+        if fee > 0:
+            return fee
+    return 0.0

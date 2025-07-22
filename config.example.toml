@@ -40,6 +40,8 @@ dex_priorities = "orca,raydium,jupiter"
 dex_fees = "{}"
 dex_gas = "{}"
 dex_latency = "{}"
+priority_fees = "0,1,2"
+priority_rpc = "https://rpc.example"
 weights_path = "weights.json"
 
 token_suffix = "bonk"
@@ -57,4 +59,3 @@ conviction = 1.0
 arbitrage = 1.0
 exit = 1.0
 trend = 1.0
-
