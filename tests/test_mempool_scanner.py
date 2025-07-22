@@ -113,3 +113,31 @@ def test_stream_mempool_tokens_with_metrics(monkeypatch):
 
     data = asyncio.run(run())
     assert data == {"address": "tok1", "volume": 1.0, "liquidity": 2.0}
+
+
+def test_stream_ranked_mempool_tokens(monkeypatch):
+    msgs = [
+        {"result": {"value": {"logs": ["InitializeMint", "name: tok1", "mint: tok1"]}}},
+        {"result": {"value": {"logs": ["InitializeMint", "name: tok2", "mint: tok2"]}}},
+    ]
+
+    def fake_connect(url):
+        return FakeConnect(url, msgs)
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    import solhunter_zero.onchain_metrics as om
+
+    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 10.0 if t == "tok1" else 1.0)
+    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 5.0 if t == "tok1" else 0.5)
+    monkeypatch.setattr(om, "collect_onchain_insights", lambda t, u: {"tx_rate": 2.0 if t == "tok1" else 0.1, "whale_activity": 0.0})
+
+    async def run():
+        gen = mp_scanner.stream_ranked_mempool_tokens("ws://node", suffix=None, threshold=10.0)
+        data = await asyncio.wait_for(anext(gen), timeout=0.1)
+        await gen.aclose()
+        return data
+
+    data = asyncio.run(run())
+    assert data["address"] == "tok1"
+    assert data["score"] >= 10.0

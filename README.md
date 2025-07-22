@@ -391,6 +391,8 @@ model:
 - **Mempool transaction rate** — approximate number of transactions per second
   seen in the mempool for each token.
 - **Whale wallet activity** — share of liquidity held by very large accounts.
+- **Mempool ranking** — tokens are scored by volume spikes, liquidity and known
+  wallet activity to surface high-potential listings.
 
 These metrics are gathered automatically by the on-chain scanners and fed into
 `run_simulations`.  `RiskManager.adjusted()` now factors them directly into the
