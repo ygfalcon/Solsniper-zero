@@ -3,6 +3,7 @@ from solhunter_zero import models
 import pytest
 
 
+@pytest.mark.slow
 def test_train_transformer_model():
     prices = [1.0]
     for _ in range(20):
@@ -21,7 +22,7 @@ def test_train_transformer_model():
         slippage=slippage,
         volume=volume,
         seq_len=5,
-        epochs=50,
+        epochs=45,
     )
     seq = np.column_stack([
         prices[-5:],

@@ -31,7 +31,7 @@ def test_start_and_stop(monkeypatch):
     resp = client.post("/start")
     assert resp.get_json()["status"] == "started"
 
-    for _ in range(500):
+    for _ in range(100):
         time.sleep(0.01)
         if calls:
             break
