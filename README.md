@@ -46,6 +46,10 @@ risk_multiplier: 1.0
 arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
 learning_rate: 0.1
+dex_priorities: "orca,raydium,jupiter"
+dex_fees: "{}"
+dex_gas: "{}"
+dex_latency: "{}"
 epsilon: 0.1
 discount: 0.95
 agents:
@@ -176,6 +180,10 @@ The trading logic is implemented by a swarm of small agents:
 - **ConvictionAgent** — rates tokens based on expected ROI.
 - **MetaConvictionAgent** — aggregates multiple conviction signals.
 - **ArbitrageAgent** — detects DEX price discrepancies.
+-   The agent polls multiple venues simultaneously and chooses
+    the most profitable route accounting for per‑DEX fees, gas and
+    latency.  Custom costs can be configured with `dex_fees`,
+    `dex_gas` and `dex_latency`.
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
 - **MemoryAgent** — records past trades for analysis. Trade context and emotion
