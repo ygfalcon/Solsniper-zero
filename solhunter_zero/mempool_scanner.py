@@ -12,6 +12,7 @@ from .scanner_onchain import TOKEN_PROGRAM_ID
 from .dex_scanner import DEX_PROGRAM_ID
 from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
 from . import onchain_metrics
+from . import scanner_onchain
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +106,51 @@ async def stream_mempool_tokens(
                         yield {"address": tok, "volume": volume, "liquidity": liquidity}
                     else:
                         yield tok
+
+
+async def rank_token(token: str, rpc_url: str) -> tuple[float, Dict[str, float]]:
+    """Return ranking score and metrics for ``token``."""
+
+    volume = await asyncio.to_thread(
+        onchain_metrics.fetch_volume_onchain, token, rpc_url
+    )
+    liquidity = await asyncio.to_thread(
+        onchain_metrics.fetch_liquidity_onchain, token, rpc_url
+    )
+    insights = await asyncio.to_thread(
+        onchain_metrics.collect_onchain_insights, token, rpc_url
+    )
+    tx_rate = insights.get("tx_rate", 0.0)
+    whale_activity = insights.get("whale_activity", 0.0)
+
+    score = float(volume) + float(liquidity) + float(tx_rate) - float(whale_activity)
+    metrics = {
+        "volume": float(volume),
+        "liquidity": float(liquidity),
+        "tx_rate": float(tx_rate),
+        "whale_activity": float(whale_activity),
+        "score": score,
+    }
+    return score, metrics
+
+
+async def stream_ranked_mempool_tokens(
+    rpc_url: str,
+    *,
+    suffix: str | None = None,
+    keywords: Iterable[str] | None = None,
+    include_pools: bool = True,
+    threshold: float = 0.0,
+) -> AsyncGenerator[Dict[str, float], None]:
+    """Yield ranked token events from the mempool."""
+
+    async for tok in stream_mempool_tokens(
+        rpc_url,
+        suffix=suffix,
+        keywords=keywords,
+        include_pools=include_pools,
+    ):
+        address = tok["address"] if isinstance(tok, dict) else tok
+        score, data = await rank_token(address, rpc_url)
+        if score >= threshold:
+            yield {"address": address, **data}
