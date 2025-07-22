@@ -97,6 +97,31 @@ class DeepTransformerModel(nn.Module):
             return float(pred.item())
 
 
+class XLTransformerModel(nn.Module):
+    """Very deep transformer encoder for complex patterns."""
+
+    def __init__(self, input_dim: int, hidden_dim: int = 128, num_layers: int = 8) -> None:
+        super().__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        layer = nn.TransformerEncoderLayer(input_dim, nhead=8, dim_feedforward=hidden_dim)
+        self.encoder = nn.TransformerEncoder(layer, num_layers)
+        self.fc = nn.Linear(input_dim, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        t = self.encoder(x)
+        out = t[:, -1]
+        return self.fc(out).squeeze(-1)
+
+    def predict(self, seq: Sequence[Sequence[float]]) -> float:
+        self.eval()
+        with torch.no_grad():
+            t = torch.tensor(seq, dtype=torch.float32).unsqueeze(0)
+            pred = self(t)
+            return float(pred.item())
+
+
 def save_model(model: nn.Module, path: str) -> None:
     """Save ``model`` to ``path`` using a portable format."""
     if isinstance(model, PriceModel):
@@ -127,6 +152,13 @@ def save_model(model: nn.Module, path: str) -> None:
             "hidden_dim": model.hidden_dim,
             "num_layers": model.num_layers,
         }
+    elif isinstance(model, XLTransformerModel):
+        cfg = {
+            "cls": "XLTransformerModel",
+            "input_dim": model.input_dim,
+            "hidden_dim": model.hidden_dim,
+            "num_layers": model.num_layers,
+        }
     else:
         cfg = {"cls": type(model).__name__}
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
@@ -135,7 +167,7 @@ def save_model(model: nn.Module, path: str) -> None:
 def load_model(path: str) -> nn.Module:
     """Load a saved ML model from ``path``."""
     obj = torch.load(path, map_location="cpu")
-    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel)):
+    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel)):
         obj.eval()
         return obj
     if isinstance(obj, dict) and "state" in obj:
@@ -149,6 +181,8 @@ def load_model(path: str) -> nn.Module:
             model_cls = DeepLSTMModel
         elif cls_name == "DeepTransformerModel":
             model_cls = DeepTransformerModel
+        elif cls_name == "XLTransformerModel":
+            model_cls = XLTransformerModel
         else:
             model_cls = PriceModel
         model = model_cls(**cfg)
@@ -362,6 +396,30 @@ def train_deep_transformer(
     """Train :class:`DeepTransformerModel` using stored snapshots."""
     X, y = make_snapshot_training_data(snaps, seq_len)
     model = DeepTransformerModel(X.size(-1))
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        opt.step()
+    model.eval()
+    return model
+
+
+def train_xl_transformer(
+    snaps: Sequence[Any],
+    *,
+    seq_len: int = 30,
+    epochs: int = 10,
+    lr: float = 1e-3,
+    hidden_dim: int = 128,
+    num_layers: int = 8,
+) -> XLTransformerModel:
+    """Train :class:`XLTransformerModel` using stored snapshots."""
+    X, y = make_snapshot_training_data(snaps, seq_len)
+    model = XLTransformerModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):

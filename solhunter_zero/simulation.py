@@ -205,10 +205,11 @@ def predict_price_movement(
     recent_slippage: float | None = None,
     sentiment: float | None = None,
     order_book_strength: float | None = None,
+    model_path: str | None = None,
 ) -> float:
     """Predict short term price change using ML models when available."""
 
-    model_path = os.getenv("PRICE_MODEL_PATH")
+    model_path = model_path or os.getenv("PRICE_MODEL_PATH")
     model = models.get_model(model_path, reload=True)
     if model:
         metrics = fetch_token_metrics(token)
