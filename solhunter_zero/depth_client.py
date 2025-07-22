@@ -75,3 +75,62 @@ async def submit_signed_tx(
     except Exception:
         return None
     return resp.get("signature")
+
+
+async def prepare_signed_tx(
+    msg_b64: str,
+    *,
+    priority_fee: int | None = None,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+) -> Optional[str]:
+    """Request a signed transaction from a template message."""
+
+    reader, writer = await asyncio.open_unix_connection(socket_path)
+    payload: Dict[str, Any] = {"cmd": "prepare", "msg": msg_b64}
+    if priority_fee is not None:
+        payload["priority_fee"] = int(priority_fee)
+    writer.write(json.dumps(payload).encode())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    if not data:
+        return None
+    try:
+        resp = json.loads(data.decode())
+    except Exception:
+        return None
+    return resp.get("tx")
+
+
+async def submit_tx_batch(
+    txs: list[str],
+    *,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+) -> list[str] | None:
+    """Submit multiple pre-signed transactions at once."""
+
+    reader, writer = await asyncio.open_unix_connection(socket_path)
+    payload = {"cmd": "batch", "txs": txs}
+    writer.write(json.dumps(payload).encode())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    if not data:
+        return None
+    try:
+        resp = json.loads(data.decode())
+    except Exception:
+        return None
+    if isinstance(resp, list):
+        return [str(s) for s in resp]
+    return None
