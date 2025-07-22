@@ -68,6 +68,15 @@ EXTRA_API_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_API_URLS").
 EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").items()}
 
 
+def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    """Return updated fee, gas and latency mappings from the environment."""
+
+    fees = {str(k): float(v) for k, v in _parse_mapping_env("DEX_FEES").items()}
+    gas = {str(k): float(v) for k, v in _parse_mapping_env("DEX_GAS").items()}
+    latency = {str(k): float(v) for k, v in _parse_mapping_env("DEX_LATENCY").items()}
+    return fees, gas, latency
+
+
 async def fetch_orca_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Orca API."""
 
@@ -265,7 +274,7 @@ def _best_route(
             + latency.get(b, 0.0)
         )
 
-    for length in range(2, min(3, len(venues)) + 1):
+    for length in range(2, len(venues) + 1):
         for path in permutations(venues, length):
             profit = 0.0
             for i in range(len(path) - 1):
@@ -314,6 +323,23 @@ async def _detect_for_token(
         executed. ``None`` when no profitable opportunity is found.
     """
 
+    if fees is None or gas is None or latencies is None:
+        env_fees, env_gas, env_lat = refresh_costs()
+        if fees is None:
+            fees = env_fees
+        else:
+            for k, v in env_fees.items():
+                fees.setdefault(k, v)
+        if gas is None:
+            gas = env_gas
+        else:
+            for k, v in env_gas.items():
+                gas.setdefault(k, v)
+        if latencies is None:
+            latencies = env_lat
+        else:
+            for k, v in env_lat.items():
+                latencies.setdefault(k, v)
     if streams:
         prices: list[Optional[float]] = [None] * len(streams)
         result: Optional[Tuple[int, int]] = None
@@ -355,30 +381,31 @@ async def _detect_for_token(
                 profit,
             )
             tasks = []
-            first = path[0]
-            last = path[-1]
-            tasks.append(
-                place_order_async(
-                    token,
-                    "buy",
-                    amount,
-                    price_map[first],
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
+            for i in range(len(path) - 1):
+                buy_v = path[i]
+                sell_v = path[i + 1]
+                tasks.append(
+                    place_order_async(
+                        token,
+                        "buy",
+                        amount,
+                        price_map[buy_v],
+                        testnet=testnet,
+                        dry_run=dry_run,
+                        keypair=keypair,
+                    )
                 )
-            )
-            tasks.append(
-                place_order_async(
-                    token,
-                    "sell",
-                    amount,
-                    price_map[last],
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
+                tasks.append(
+                    place_order_async(
+                        token,
+                        "sell",
+                        amount,
+                        price_map[sell_v],
+                        testnet=testnet,
+                        dry_run=dry_run,
+                        keypair=keypair,
+                    )
                 )
-            )
             await asyncio.gather(*tasks)
             return buy_index, sell_index
 
@@ -443,26 +470,32 @@ async def _detect_for_token(
         "Arbitrage detected on %s via %s: profit %.6f", token, "->".join(path), profit
     )
 
-    tasks = [
-        place_order_async(
-            token,
-            "buy",
-            amount,
-            price_map[buy_name],
-            testnet=testnet,
-            dry_run=dry_run,
-            keypair=keypair,
-        ),
-        place_order_async(
-            token,
-            "sell",
-            amount,
-            price_map[sell_name],
-            testnet=testnet,
-            dry_run=dry_run,
-            keypair=keypair,
-        ),
-    ]
+    tasks = []
+    for i in range(len(path) - 1):
+        buy_v = path[i]
+        sell_v = path[i + 1]
+        tasks.append(
+            place_order_async(
+                token,
+                "buy",
+                amount,
+                price_map[buy_v],
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+        )
+        tasks.append(
+            place_order_async(
+                token,
+                "sell",
+                amount,
+                price_map[sell_v],
+                testnet=testnet,
+                dry_run=dry_run,
+                keypair=keypair,
+            )
+        )
     await asyncio.gather(*tasks)
 
     buy_index = names.index(buy_name)
