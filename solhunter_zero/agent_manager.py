@@ -10,6 +10,7 @@ import tomllib
 
 from .agents import BaseAgent, load_agent
 from .agents.execution import ExecutionAgent
+from .execution import EventExecutor
 from .agents.swarm import AgentSwarm
 from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
@@ -94,9 +95,10 @@ class AgentManager:
         strategy_selection: bool = False,
         vote_threshold: float = 0.0,
         mutation_path: str | os.PathLike | None = "mutation_state.json",
+        depth_service: bool = False,
     ):
         self.agents = list(agents)
-        self.executor = executor or ExecutionAgent()
+        self.executor = executor or ExecutionAgent(depth_service=depth_service)
         self.weights_path = (
             str(weights_path) if weights_path is not None else "weights.json"
         )
@@ -131,6 +133,10 @@ class AgentManager:
                 self.memory_agent, vote_threshold=self.vote_threshold
             )
 
+        self.depth_service = depth_service
+        self._event_executors: Dict[str, EventExecutor] = {}
+        self._event_tasks: Dict[str, asyncio.Task] = {}
+
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         agents = list(self.agents)
         weights = self.coordinator.compute_weights(agents)
@@ -143,6 +149,11 @@ class AgentManager:
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
         results = []
+        if self.depth_service and token not in self._event_executors:
+            execer = EventExecutor(token)
+            self._event_executors[token] = execer
+            self.executor.add_executor(token, execer)
+            self._event_tasks[token] = asyncio.create_task(execer.run())
         for action in actions:
             result = await self.executor.execute(action)
             if self.emotion_agent:
@@ -332,6 +343,7 @@ class AgentManager:
         )
         strategy_selection = bool(cfg.get("strategy_selection", False))
         vote_threshold = float(cfg.get("vote_threshold", 0.0) or 0.0)
+        depth_service = bool(cfg.get("depth_service", False))
         if not agents:
             return None
         return cls(
@@ -342,5 +354,6 @@ class AgentManager:
             weights_path=weights_path,
             strategy_selection=strategy_selection,
             vote_threshold=vote_threshold,
+            depth_service=depth_service,
         )
 
