@@ -19,6 +19,8 @@ dependencies = [
     "pyyaml",
     "torch",
     "pytorch-lightning",
+    "faiss-cpu",
+    "sentence-transformers",
 ]
 
 [project.scripts]
