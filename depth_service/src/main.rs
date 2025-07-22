@@ -28,6 +28,12 @@ struct TokenInfo {
     tx_rate: f64,
 }
 
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+struct TokenAgg {
+    dex: HashMap<String, TokenInfo>,
+    tx_rate: f64,
+}
+
 type DexMap = Arc<Mutex<HashMap<String, HashMap<String, TokenInfo>>>>;
 type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 
@@ -84,17 +90,16 @@ impl ExecContext {
 async fn update_mmap(dex_map: &DexMap, mem: &MempoolMap, mmap: &SharedMmap) -> Result<()> {
     let dexes = dex_map.lock().await;
     let mem = mem.lock().await;
-    let mut agg: HashMap<String, TokenInfo> = HashMap::new();
-    for dex in dexes.values() {
+    let mut agg: HashMap<String, TokenAgg> = HashMap::new();
+    for (dex_name, dex) in dexes.iter() {
         for (tok, info) in dex {
-            let e = agg.entry(tok.clone()).or_default();
-            e.bids += info.bids;
-            e.asks += info.asks;
+            let entry = agg.entry(tok.clone()).or_default();
+            entry.dex.insert(dex_name.clone(), info.clone());
         }
     }
     for (tok, rate) in mem.iter() {
-        let e = agg.entry(tok.clone()).or_default();
-        e.tx_rate = *rate;
+        let entry = agg.entry(tok.clone()).or_default();
+        entry.tx_rate = *rate;
     }
     let mut json = serde_json::to_vec(&agg)?;
     let mut mmap = mmap.lock().await;
@@ -175,21 +180,16 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                         if let Some(token) = val.get("token").and_then(|v| v.as_str()) {
                             let dexes = dex_map.lock().await;
                             let mem = mem.lock().await;
-                            let mut agg: HashMap<String, TokenInfo> = HashMap::new();
-                            for dex in dexes.values() {
+                            let mut entry = TokenAgg::default();
+                            for (dex_name, dex) in dexes.iter() {
                                 if let Some(info) = dex.get(token) {
-                                    let e = agg.entry(token.to_string()).or_default();
-                                    e.bids += info.bids;
-                                    e.asks += info.asks;
+                                    entry.dex.insert(dex_name.clone(), info.clone());
                                 }
                             }
                             if let Some(rate) = mem.get(token) {
-                                let e = agg.entry(token.to_string()).or_default();
-                                e.tx_rate = *rate;
+                                entry.tx_rate = *rate;
                             }
-                            if let Some(d) = agg.get(token) {
-                                let _ = stream.write_all(serde_json::to_string(d).unwrap().as_bytes()).await;
-                            }
+                            let _ = stream.write_all(serde_json::to_string(&entry).unwrap().as_bytes()).await;
                         }
                     } else if val.get("cmd") == Some(&Value::String("submit".into())) {
                         if let Some(tx) = val.get("tx").and_then(|v| v.as_str()) {
@@ -230,6 +230,8 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mut serum = None;
     let mut raydium = None;
+    let mut orca = None;
+    let mut jupiter = None;
     let mut mempool = None;
     let mut rpc = std::env::var("SOLANA_RPC_URL").unwrap_or_default();
     let mut keypair_path = std::env::var("SOLANA_KEYPAIR").unwrap_or_default();
@@ -240,6 +242,8 @@ async fn main() -> Result<()> {
             "--rpc" => rpc = w[1].clone(),
             "--keypair" => keypair_path = w[1].clone(),
             "--mempool" => mempool = Some(w[1].clone()),
+            "--orca" => orca = Some(w[1].clone()),
+            "--jupiter" => jupiter = Some(w[1].clone()),
             _ => {}
         }
     }
@@ -268,6 +272,22 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         tokio::spawn(async move {
             let _ = connect_feed("raydium", &url, d, m, mm).await;
+        });
+    }
+    if let Some(url) = orca {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
+        tokio::spawn(async move {
+            let _ = connect_feed("orca", &url, d, m, mm).await;
+        });
+    }
+    if let Some(url) = jupiter {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
+        tokio::spawn(async move {
+            let _ = connect_feed("jupiter", &url, d, m, mm).await;
         });
     }
     if let Some(url) = mempool {
