@@ -13,13 +13,17 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::UnixListener};
 use tokio_tungstenite::connect_async;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
+    instruction::Instruction,
+    message::VersionedMessage,
     signature::{read_keypair_file, Keypair, Signer},
     system_instruction,
-    transaction::Transaction,
+    transaction::{Transaction, VersionedTransaction},
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
-use bincode::deserialize;
-use solana_sdk::transaction::VersionedTransaction;
+use bincode::{deserialize, serialize};
+use solana_client::rpc_config::RpcSendTransactionConfig;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct TokenInfo {
@@ -81,13 +85,50 @@ impl ExecContext {
 
     async fn send_raw_tx(&self, tx_b64: &str) -> Result<String> {
         let data = STANDARD.decode(tx_b64)?;
-        let tx: VersionedTransaction = deserialize(&data)?;
-        let sig = self.client.send_transaction(&tx).await?;
+        let config = RpcSendTransactionConfig {
+            skip_preflight: true,
+            preflight_commitment: Some(CommitmentConfig::processed()),
+            ..RpcSendTransactionConfig::default()
+        };
+        let sig = self
+            .client
+            .send_raw_transaction_with_config(&data, config)
+            .await?;
         Ok(sig.to_string())
     }
 
     async fn submit_signed_tx(&self, tx_b64: &str) -> Result<String> {
         self.send_raw_tx(tx_b64).await
+    }
+
+    async fn sign_template(
+        &self,
+        msg_b64: &str,
+        priority_fee: Option<u64>,
+    ) -> Result<String> {
+        let mut msg: VersionedMessage = deserialize(&STANDARD.decode(msg_b64)?)?;
+        if let Some(fee) = priority_fee {
+            let ix: Instruction = ComputeBudgetInstruction::set_compute_unit_price(fee);
+            match &mut msg {
+                VersionedMessage::Legacy(m) => m.instructions.insert(0, ix.into()),
+                VersionedMessage::V0(m) => m.instructions.insert(0, ix.into()),
+            }
+        }
+        let bh = self.latest_blockhash().await;
+        match &mut msg {
+            VersionedMessage::Legacy(m) => m.recent_blockhash = bh,
+            VersionedMessage::V0(m) => m.recent_blockhash = bh,
+        }
+        let tx = VersionedTransaction::try_new(msg, &[&self.keypair])?;
+        Ok(STANDARD.encode(serialize(&tx)?))
+    }
+
+    async fn send_batch(&self, txs: &[String]) -> Result<Vec<String>> {
+        let mut sigs = Vec::new();
+        for tx in txs {
+            sigs.push(self.send_raw_tx(tx).await?);
+        }
+        Ok(sigs)
     }
 }
 
@@ -201,6 +242,38 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                                 Ok(sig) => {
                                     let _ = stream
                                         .write_all(format!("{{\"signature\":\"{}\"}}", sig).as_bytes())
+                                        .await;
+                                }
+                                Err(e) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"error\":\"{}\"}}", e).as_bytes())
+                                        .await;
+                                }
+                            }
+                        }
+                    } else if val.get("cmd") == Some(&Value::String("prepare".into())) {
+                        if let Some(msg) = val.get("msg").and_then(|v| v.as_str()) {
+                            let pf = val.get("priority_fee").and_then(|v| v.as_u64());
+                            match exec.sign_template(msg, pf).await {
+                                Ok(tx) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"tx\":\"{}\"}}", tx).as_bytes())
+                                        .await;
+                                }
+                                Err(e) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"error\":\"{}\"}}", e).as_bytes())
+                                        .await;
+                                }
+                            }
+                        }
+                    } else if val.get("cmd") == Some(&Value::String("batch".into())) {
+                        if let Some(arr) = val.get("txs").and_then(|v| v.as_array()) {
+                            let txs: Vec<String> = arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                            match exec.send_batch(&txs).await {
+                                Ok(sigs) => {
+                                    let _ = stream
+                                        .write_all(serde_json::to_string(&sigs).unwrap().as_bytes())
                                         .await;
                                 }
                                 Err(e) => {
