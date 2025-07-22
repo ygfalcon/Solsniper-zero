@@ -38,6 +38,7 @@ ENV_VARS = {
     "min_portfolio_value": "MIN_PORTFOLIO_VALUE",
     "min_delay": "MIN_DELAY",
     "max_delay": "MAX_DELAY",
+    "offline_data_limit_gb": "OFFLINE_DATA_LIMIT_GB",
 
     "strategies": "STRATEGIES",
 

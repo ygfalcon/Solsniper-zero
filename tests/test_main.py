@@ -451,6 +451,12 @@ def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
         called["path"] = kwargs.get("config_path")
 
     monkeypatch.setattr(main_module, "main", fake_main)
+    async def fake_sync():
+        called["sync"] = True
+    import sys, types
+    sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=fake_sync)
+    if hasattr(main_module, "data_sync"):
+        main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
 
     main_module.run_auto()
 
@@ -475,6 +481,12 @@ def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
         called["path"] = kwargs.get("config_path")
 
     monkeypatch.setattr(main_module, "main", fake_main)
+    async def fake_sync():
+        called["sync"] = True
+    import sys, types
+    sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=fake_sync)
+    if hasattr(main_module, "data_sync"):
+        main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
 
     main_module.run_auto()
 

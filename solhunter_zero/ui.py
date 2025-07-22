@@ -130,6 +130,12 @@ def start() -> dict:
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
 
+    try:
+        from . import data_sync
+        asyncio.run(data_sync.sync_recent())
+    except Exception as exc:  # pragma: no cover - ignore sync errors
+        logging.getLogger(__name__).warning("data sync failed: %s", exc)
+
     # optionally auto-select the only available keypair if none is active
     if (
         os.getenv("AUTO_SELECT_KEYPAIR", "false").lower() in {"1", "true", "yes"}

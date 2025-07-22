@@ -5,6 +5,7 @@ import json
 import pytest
 from solders.keypair import Keypair
 from solhunter_zero import ui, config
+import solhunter_zero.data_sync as data_sync
 import logging
 from collections import deque
 from solhunter_zero.portfolio import Position
@@ -23,6 +24,9 @@ def test_start_and_stop(monkeypatch):
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    async def fake_sync():
+        calls.append("sync")
+    monkeypatch.setattr(data_sync, "sync_recent", fake_sync)
     monkeypatch.setenv("BIRDEYE_API_KEY", "x")
     monkeypatch.setenv("DEX_BASE_URL", "x")
 
@@ -44,7 +48,7 @@ def test_start_and_stop(monkeypatch):
 
     ui.trading_thread.join(timeout=1)
     assert not ui.trading_thread.is_alive()
-    assert calls
+    assert "sync" in calls
 
 
 

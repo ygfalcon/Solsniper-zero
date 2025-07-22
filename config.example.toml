@@ -32,6 +32,7 @@ max_drawdown = 0.5
 volatility_factor = 1.0
 min_delay = 10
 max_delay = 300
+offline_data_limit_gb = 50
 min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
