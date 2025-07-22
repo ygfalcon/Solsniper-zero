@@ -6,6 +6,10 @@ import os
 import random
 from typing import Iterable, Dict, Any, List
 
+from .backtester import backtest_weighted, DEFAULT_STRATEGIES
+from .backtest_cli import bayesian_optimize_weights
+from .advanced_memory import AdvancedMemory
+
 import tomllib
 
 from .agents import BaseAgent, load_agent
@@ -210,16 +214,24 @@ class AgentManager:
                 rois[name] = (revenue - spent) / spent
         return rois
 
-    def spawn_mutations(self, count: int = 1) -> None:
-        base_agents = [a for a in self.agents if a.name not in self.mutation_state.get("active", []) and not isinstance(a, MemoryAgent)]
+    def spawn_mutations(self, count: int = 1) -> List[BaseAgent]:
+        base_agents = [
+            a
+            for a in self.agents
+            if a.name not in self.mutation_state.get("active", [])
+            and not isinstance(a, MemoryAgent)
+        ]
+        spawned: List[BaseAgent] = []
         if not base_agents:
-            return
+            return spawned
         for _ in range(count):
             base = random.choice(base_agents)
             name = f"{base.name}_m{len(self.mutation_state.get('active', [])) + 1}"
             mutated = mutation.mutate_agent(base, name=name)
             self.agents.append(mutated)
             self.mutation_state.setdefault("active", []).append(mutated.name)
+            spawned.append(mutated)
+        return spawned
 
     def prune_underperforming(self, threshold: float = 0.0) -> None:
         active = list(self.mutation_state.get("active", []))
@@ -244,8 +256,43 @@ class AgentManager:
         if path:
             mutation.save_state(self.mutation_state, str(path))
 
+    def _load_price_history(self) -> List[float]:
+        path = os.path.join(os.path.dirname(__file__), "..", "datasets", "sample_ticks.json")
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if data and isinstance(data[0], dict):
+                return [float(d.get("price", 0.0)) for d in data]
+            return [float(x) for x in data]
+        except Exception:
+            return []
+
     def evolve(self, spawn_count: int = 1, threshold: float = 0.0) -> None:
-        self.spawn_mutations(spawn_count)
+        new_agents = self.spawn_mutations(spawn_count)
+        prices = self._load_price_history()
+        if prices:
+            baseline = backtest_weighted(prices, self.weights, strategies=DEFAULT_STRATEGIES).roi
+            for agent in list(new_agents):
+                test_weights = dict(self.weights)
+                test_weights[agent.name] = 1.0
+                roi = backtest_weighted(prices, test_weights, strategies=DEFAULT_STRATEGIES).roi
+                if roi < baseline:
+                    self.agents.remove(agent)
+                    self.mutation_state.get("active", []).remove(agent.name)
+                else:
+                    if self.memory_agent and isinstance(self.memory_agent.memory, AdvancedMemory):
+                        sim_id = self.memory_agent.memory.log_simulation("MUT", expected_roi=roi, success_prob=1.0 if roi > 0 else 0.0)
+                        self.memory_agent.memory.log_trade(token="MUT", direction="buy", amount=1.0, price=1.0, reason=agent.name, simulation_id=sim_id)
+                        self.memory_agent.memory.log_trade(token="MUT", direction="sell", amount=1.0, price=1.0 + roi, reason=agent.name, simulation_id=sim_id)
+
+            keys = [name for name, _ in DEFAULT_STRATEGIES]
+            try:
+                opt = bayesian_optimize_weights(prices, keys, DEFAULT_STRATEGIES, iterations=10)
+                self.weights.update(opt)
+                self.coordinator.base_weights = self.weights
+            except Exception:
+                pass
+
         self.prune_underperforming(threshold)
         if self.mutation_path:
             self.save_mutation_state()
