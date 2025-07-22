@@ -17,6 +17,9 @@ use solana_sdk::{
     system_instruction,
     transaction::Transaction,
 };
+use base64::{engine::general_purpose::STANDARD, Engine};
+use bincode::deserialize;
+use solana_sdk::transaction::VersionedTransaction;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct TokenInfo {
@@ -66,6 +69,13 @@ impl ExecContext {
             &[&self.keypair],
             bh,
         );
+        let sig = self.client.send_transaction(&tx).await?;
+        Ok(sig.to_string())
+    }
+
+    async fn send_raw_tx(&self, tx_b64: &str) -> Result<String> {
+        let data = STANDARD.decode(tx_b64)?;
+        let tx: VersionedTransaction = deserialize(&data)?;
         let sig = self.client.send_transaction(&tx).await?;
         Ok(sig.to_string())
     }
@@ -179,6 +189,21 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             }
                             if let Some(d) = agg.get(token) {
                                 let _ = stream.write_all(serde_json::to_string(d).unwrap().as_bytes()).await;
+                            }
+                        }
+                    } else if val.get("cmd") == Some(&Value::String("submit".into())) {
+                        if let Some(tx) = val.get("tx").and_then(|v| v.as_str()) {
+                            match exec.send_raw_tx(tx).await {
+                                Ok(sig) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"signature\":\"{}\"}}", sig).as_bytes())
+                                        .await;
+                                }
+                                Err(e) => {
+                                    let _ = stream
+                                        .write_all(format!("{{\"error\":\"{}\"}}", e).as_bytes())
+                                        .await;
+                                }
                             }
                         }
                     } else if val.get("cmd") == Some(&Value::String("order".into())) {

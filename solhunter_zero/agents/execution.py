@@ -26,11 +26,13 @@ class ExecutionAgent(BaseAgent):
         testnet: bool = False,
         dry_run: bool = False,
         keypair=None,
+        retries: int = 1,
     ):
         self.rate_limit = rate_limit
         self.testnet = testnet
         self.dry_run = dry_run
         self.keypair = keypair
+        self.retries = retries
         self._sem = asyncio.Semaphore(concurrency)
         self._rate_lock = asyncio.Lock()
         self._last = 0.0
@@ -44,12 +46,16 @@ class ExecutionAgent(BaseAgent):
                     await asyncio.sleep(delay)
                 self._last = asyncio.get_event_loop().time()
             venue = str(action.get("venue", "")).lower()
-            if venue == "orca":
-                base_url = ORCA_DEX_URL
-            elif venue == "raydium":
-                base_url = RAYDIUM_DEX_URL
+            venues = action.get("venues")
+            if venues and isinstance(venues, list):
+                base_url = None
             else:
-                base_url = DEX_BASE_URL
+                if venue == "orca":
+                    base_url = ORCA_DEX_URL
+                elif venue == "raydium":
+                    base_url = RAYDIUM_DEX_URL
+                else:
+                    base_url = DEX_BASE_URL
             return await place_order_async(
                 action["token"],
                 action["side"],
@@ -59,6 +65,9 @@ class ExecutionAgent(BaseAgent):
                 dry_run=self.dry_run,
                 keypair=self.keypair,
                 base_url=base_url,
+                venues=venues,
+                max_retries=action.get("retries", self.retries),
+                timeout=action.get("timeout"),
             )
 
     async def propose_trade(
