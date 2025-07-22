@@ -5,8 +5,8 @@ from solhunter_zero.offline_data import OfflineData
 def test_rl_training_runs(tmp_path):
     db = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db)
-    data.log_snapshot("tok", 1.0, 1.0, 0.0)
-    data.log_snapshot("tok", 1.1, 1.0, 0.0)
+    data.log_snapshot("tok", 1.0, 1.0, 0.0, 0.0, 0.0)
+    data.log_snapshot("tok", 1.1, 1.0, 0.0, 0.0, 0.0)
     data.log_trade("tok", "buy", 1.0, 1.0)
     data.log_trade("tok", "sell", 1.0, 1.1)
 

@@ -16,6 +16,8 @@ def build_tick_dataset(db: str, out: str, token: str | None = None) -> None:
             "timestamp": s.timestamp.isoformat(),
             "price": float(s.price),
             "depth": float(s.depth),
+            "slippage": float(getattr(s, "slippage", 0.0)),
+            "volume": float(getattr(s, "volume", 0.0)),
             "imbalance": float(s.imbalance),
         }
         for s in snaps

@@ -18,6 +18,14 @@ class PriceModel(nn.Module):
         out = out[:, -1]
         return self.fc(out).squeeze(-1)
 
+    def predict(self, seq: Sequence[Sequence[float]]) -> float:
+        """Return model prediction for a single sequence."""
+        self.eval()
+        with torch.no_grad():
+            t = torch.tensor(seq, dtype=torch.float32).unsqueeze(0)
+            pred = self(t)
+            return float(pred.item())
+
 
 class TransformerModel(nn.Module):
     """Simple transformer encoder based predictor."""
@@ -27,8 +35,11 @@ class TransformerModel(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        nhead = max(1, min(4, input_dim))
+        if input_dim % nhead != 0:
+            nhead = 1
         encoder_layer = nn.TransformerEncoderLayer(
-            input_dim, nhead=4, dim_feedforward=hidden_dim
+            input_dim, nhead=nhead, dim_feedforward=hidden_dim
         )
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
         self.fc = nn.Linear(input_dim, 1)
@@ -177,6 +188,8 @@ def make_training_data(
     liquidity: Iterable[float],
     depth: Iterable[float],
     tx_counts: Iterable[float] | None = None,
+    slippage: Iterable[float] | None = None,
+    volume: Iterable[float] | None = None,
     seq_len: int = 30,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Create model inputs from historical metrics."""
@@ -184,6 +197,8 @@ def make_training_data(
     p = torch.tensor(list(prices), dtype=torch.float32)
     l = torch.tensor(list(liquidity), dtype=torch.float32)
     d = torch.tensor(list(depth), dtype=torch.float32)
+    s = torch.tensor(list(slippage), dtype=torch.float32) if slippage is not None else torch.zeros_like(p)
+    v = torch.tensor(list(volume), dtype=torch.float32) if volume is not None else torch.zeros_like(p)
     if tx_counts is None:
         t = torch.zeros_like(p)
     else:
@@ -197,7 +212,14 @@ def make_training_data(
     targets = []
     for i in range(n):
         seq = torch.stack(
-            [p[i : i + seq_len], l[i : i + seq_len], d[i : i + seq_len], t[i : i + seq_len]],
+            [
+                p[i : i + seq_len],
+                l[i : i + seq_len],
+                d[i : i + seq_len],
+                s[i : i + seq_len],
+                v[i : i + seq_len],
+                t[i : i + seq_len],
+            ],
             dim=1,
         )
         seqs.append(seq)
@@ -215,6 +237,8 @@ def train_price_model(
     liquidity: Iterable[float],
     depth: Iterable[float],
     tx_counts: Iterable[float] | None = None,
+    slippage: Iterable[float] | None = None,
+    volume: Iterable[float] | None = None,
     *,
     seq_len: int = 30,
     epochs: int = 10,
@@ -224,8 +248,10 @@ def train_price_model(
 ) -> PriceModel:
     """Train a :class:`PriceModel` on historical data."""
 
-    X, y = make_training_data(prices, liquidity, depth, tx_counts, seq_len)
-    model = PriceModel(4, hidden_dim=hidden_dim, num_layers=num_layers)
+    X, y = make_training_data(
+        prices, liquidity, depth, tx_counts, slippage, volume, seq_len
+    )
+    model = PriceModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
@@ -243,6 +269,8 @@ def train_transformer_model(
     liquidity: Iterable[float],
     depth: Iterable[float],
     tx_counts: Iterable[float] | None = None,
+    slippage: Iterable[float] | None = None,
+    volume: Iterable[float] | None = None,
     *,
     seq_len: int = 30,
     epochs: int = 10,
@@ -252,8 +280,10 @@ def train_transformer_model(
 ) -> TransformerModel:
     """Train a :class:`TransformerModel` on historical data."""
 
-    X, y = make_training_data(prices, liquidity, depth, tx_counts, seq_len)
-    model = TransformerModel(4, hidden_dim=hidden_dim, num_layers=num_layers)
+    X, y = make_training_data(
+        prices, liquidity, depth, tx_counts, slippage, volume, seq_len
+    )
+    model = TransformerModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
@@ -270,6 +300,8 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
     """Construct dataset tensors from :class:`OfflineData` snapshots."""
     prices = torch.tensor([float(s.price) for s in snaps], dtype=torch.float32)
     depth = torch.tensor([float(s.depth) for s in snaps], dtype=torch.float32)
+    slip = torch.tensor([float(getattr(s, "slippage", 0.0)) for s in snaps], dtype=torch.float32)
+    vol = torch.tensor([float(getattr(s, "volume", 0.0)) for s in snaps], dtype=torch.float32)
     imb = torch.tensor([float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=torch.float32)
     rate = torch.tensor([float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=torch.float32)
 
@@ -283,6 +315,8 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
         seq = torch.stack([
             prices[i:i+seq_len],
             depth[i:i+seq_len],
+            slip[i:i+seq_len],
+            vol[i:i+seq_len],
             imb[i:i+seq_len],
             rate[i:i+seq_len],
         ], dim=1)

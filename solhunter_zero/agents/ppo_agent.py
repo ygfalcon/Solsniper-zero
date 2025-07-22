@@ -95,11 +95,20 @@ class PPOAgent(BaseAgent):
         ph = metrics.get("price_history") or []
         lh = metrics.get("liquidity_history") or []
         dh = metrics.get("depth_history") or []
+        sh = metrics.get("slippage_history") or []
+        vh = metrics.get("volume_history") or []
         th = metrics.get("tx_count_history") or []
-        n = min(len(ph), len(lh), len(dh), len(th or ph))
+        n = min(len(ph), len(lh), len(dh), len(sh or ph), len(vh or ph), len(th or ph))
         if n < 30:
             return 0.0
-        seq = np.column_stack([ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]])
+        seq = np.column_stack([
+            ph[-30:],
+            lh[-30:],
+            dh[-30:],
+            (sh or [0] * n)[-30:],
+            (vh or [0] * n)[-30:],
+            (th or [0] * n)[-30:],
+        ])
         try:
             return float(model.predict(seq))
         except Exception:
