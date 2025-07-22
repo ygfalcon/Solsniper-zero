@@ -66,6 +66,7 @@ def _ensure_agents_loaded() -> None:
     from .hedging_agent import HedgingAgent
     from .emotion_agent import EmotionAgent
     from .opportunity_cost import OpportunityCostAgent
+    from .trend import TrendAgent
 
     from .dqn import DQNAgent
     from .ramanujan_agent import RamanujanAgent
@@ -86,6 +87,7 @@ def _ensure_agents_loaded() -> None:
         "dqn": DQNAgent,
         "ppo": PPOAgent,
         "opportunity_cost": OpportunityCostAgent,
+        "trend": TrendAgent,
 
         "meta_conviction": MetaConvictionAgent,
 
