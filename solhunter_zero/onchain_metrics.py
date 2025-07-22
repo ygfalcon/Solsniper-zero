@@ -167,6 +167,28 @@ def fetch_volume_onchain(token: str, rpc_url: str) -> float:
         return 0.0
 
 
+def fetch_token_age(token: str, rpc_url: str, *, limit: int = 20) -> float:
+    """Return approximate age of ``token`` in seconds."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_signatures_for_address(PublicKey(token), limit=limit)
+        entries = resp.get("result", [])
+        times = [e.get("blockTime") for e in entries if e.get("blockTime")]
+        if times:
+            first = min(times)
+            import time as _time
+
+            return max(_time.time() - float(first), 0.0)
+        return 0.0
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch token age for %s: %s", token, exc)
+        return 0.0
+
+
 def fetch_slippage_onchain(token: str, rpc_url: str) -> float:
     """Estimate slippage based on token account distribution."""
 
