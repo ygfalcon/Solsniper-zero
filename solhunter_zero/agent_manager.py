@@ -23,6 +23,7 @@ from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
+from .regime import detect_regime
 from . import mutation
 
 
@@ -104,6 +105,7 @@ class AgentManager:
         mutation_path: str | os.PathLike | None = "mutation_state.json",
         depth_service: bool = False,
         priority_rpc: list[str] | None = None,
+        regime_weights: Dict[str, Dict[str, float]] | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
@@ -120,6 +122,7 @@ class AgentManager:
 
         init_weights = weights or {}
         self.weights = {**file_weights, **init_weights}
+        self.regime_weights = regime_weights or {}
 
         self.memory_agent = memory_agent or next(
             (a for a in self.agents if isinstance(a, MemoryAgent)),
@@ -131,7 +134,9 @@ class AgentManager:
             None,
         )
 
-        self.coordinator = SwarmCoordinator(self.memory_agent, self.weights)
+        self.coordinator = SwarmCoordinator(
+            self.memory_agent, self.weights, self.regime_weights
+        )
 
         self.mutation_path = str(mutation_path) if mutation_path is not None else "mutation_state.json"
         self.mutation_state = mutation.load_state(self.mutation_path)
@@ -150,7 +155,8 @@ class AgentManager:
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         agents = list(self.agents)
-        weights = self.coordinator.compute_weights(agents)
+        regime = detect_regime(portfolio.price_history.get(token, []))
+        weights = self.coordinator.compute_weights(agents, regime=regime)
         if self.selector:
             agents, weights = self.selector.weight_agents(agents, weights)
         swarm = AgentSwarm(agents)
@@ -406,6 +412,18 @@ class AgentManager:
             priority_rpc = [u.strip() for u in priority_rpc.split(",") if u.strip()]
         elif not isinstance(priority_rpc, list):
             priority_rpc = None
+        regime_weights = cfg.get("regime_weights") or {}
+        if isinstance(regime_weights, str):
+            try:
+                import ast
+
+                parsed_r = ast.literal_eval(regime_weights)
+                if isinstance(parsed_r, dict):
+                    regime_weights = parsed_r
+                else:
+                    regime_weights = {}
+            except Exception:
+                regime_weights = {}
         if not agents:
             return None
         return cls(
@@ -418,5 +436,6 @@ class AgentManager:
             vote_threshold=vote_threshold,
             depth_service=depth_service,
             priority_rpc=priority_rpc,
+            regime_weights=regime_weights,
         )
 

@@ -18,6 +18,7 @@ from ..offline_data import OfflineData
 from ..order_book_ws import snapshot
 from ..portfolio import Portfolio
 from ..replay import ReplayBuffer
+from ..regime import detect_regime
 from .. import models
 from ..simulation import predict_price_movement as _predict_price_movement
 
@@ -112,6 +113,7 @@ class PPOAgent(BaseAgent):
 
     def _log_trades(self) -> None:
         trades = self.memory_agent.memory.list_trades()
+        prices: dict[str, list[float]] = {}
         for t in trades:
             tid = getattr(t, "id", None)
             if tid is not None and tid in self._seen_ids:
@@ -121,12 +123,21 @@ class PPOAgent(BaseAgent):
             reward = float(t.amount) * float(t.price)
             if t.direction == "buy":
                 reward = -reward
+            seq = prices.setdefault(t.token, [])
+            regime_label = detect_regime(seq)
             state = [float(t.amount), float(t.price), 0.0]
-            self.replay.add(state, t.direction, reward, getattr(t, "emotion", ""))
+            self.replay.add(
+                state,
+                t.direction,
+                reward,
+                getattr(t, "emotion", ""),
+                regime_label,
+            )
+            seq.append(float(t.price))
 
-    def train(self) -> None:
+    def train(self, regime: str | None = None) -> None:
         self._log_trades()
-        batch = self.replay.sample(64)
+        batch = self.replay.sample(64, regime=regime)
         if not batch:
             return
 
@@ -198,7 +209,8 @@ class PPOAgent(BaseAgent):
     ) -> List[Dict[str, Any]]:
         self.start_online_learning()
         self._maybe_reload()
-        self.train()
+        regime = detect_regime(portfolio.price_history.get(token, []))
+        self.train(regime)
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
         with torch.no_grad():
             logits = self.actor(state)[0]

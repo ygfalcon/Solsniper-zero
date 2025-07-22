@@ -9,9 +9,15 @@ from .agents.memory import MemoryAgent
 class SwarmCoordinator:
     """Compute dynamic agent weights based on historical ROI."""
 
-    def __init__(self, memory_agent: MemoryAgent | None = None, base_weights: Dict[str, float] | None = None):
+    def __init__(
+        self,
+        memory_agent: MemoryAgent | None = None,
+        base_weights: Dict[str, float] | None = None,
+        regime_weights: Dict[str, Dict[str, float]] | None = None,
+    ):
         self.memory_agent = memory_agent
         self.base_weights = base_weights or {}
+        self.regime_weights = regime_weights or {}
 
     def _roi_by_agent(self, agent_names: Iterable[str]) -> Dict[str, float]:
         rois = {name: 0.0 for name in agent_names}
@@ -34,18 +40,23 @@ class SwarmCoordinator:
                 rois[name] = (revenue - spent) / spent
         return rois
 
-    def compute_weights(self, agents: Iterable[BaseAgent]) -> Dict[str, float]:
+    def compute_weights(
+        self, agents: Iterable[BaseAgent], *, regime: str | None = None
+    ) -> Dict[str, float]:
         names = [a.name for a in agents]
         rois = self._roi_by_agent(names)
+        base = dict(self.base_weights)
+        if regime and regime in self.regime_weights:
+            base.update(self.regime_weights[regime])
         if not rois:
-            return {name: self.base_weights.get(name, 1.0) for name in names}
+            return {name: base.get(name, 1.0) for name in names}
         min_roi = min(rois.values())
         max_roi = max(rois.values())
         if max_roi == min_roi:
-            return {name: self.base_weights.get(name, 1.0) for name in names}
+            return {name: base.get(name, 1.0) for name in names}
         weights = {}
         for name in names:
             roi = rois.get(name, 0.0)
             norm = (roi - min_roi) / (max_roi - min_roi)
-            weights[name] = self.base_weights.get(name, 1.0) * norm
+            weights[name] = base.get(name, 1.0) * norm
         return weights
