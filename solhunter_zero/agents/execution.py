@@ -36,6 +36,7 @@ class ExecutionAgent(BaseAgent):
         keypair=None,
         retries: int = 1,
         depth_service: bool = False,
+        priority_fees: list[float] | None = None,
         priority_rpc: list[str] | None = None,
     ):
         self.rate_limit = rate_limit
@@ -48,6 +49,7 @@ class ExecutionAgent(BaseAgent):
         self._last = 0.0
         self.depth_service = depth_service
         self._executors: Dict[str, EventExecutor] = {}
+        self.priority_fees = list(priority_fees) if priority_fees else None
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
 
     async def _create_signed_tx(
@@ -133,10 +135,22 @@ class ExecutionAgent(BaseAgent):
                         return {"queued": True}
                 return None
 
+            amount = action.get("amount", 0.0)
+            pri_idx = int(action.get("priority", 0))
+            if (
+                self.priority_fees
+                and 0 <= pri_idx < len(self.priority_fees)
+                and self.priority_rpc
+            ):
+                from ..gas import get_priority_fee_estimate
+
+                fee = await get_priority_fee_estimate(self.priority_rpc)
+                amount = max(0.0, amount - fee * self.priority_fees[pri_idx])
+
             return await place_order_async(
                 action["token"],
                 action["side"],
-                action.get("amount", 0.0),
+                amount,
                 action.get("price", 0.0),
                 testnet=self.testnet,
                 dry_run=self.dry_run,
