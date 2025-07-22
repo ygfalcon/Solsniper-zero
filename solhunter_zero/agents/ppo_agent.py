@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import random
 from pathlib import Path
 from typing import Any, Dict, List
@@ -17,6 +18,8 @@ from ..offline_data import OfflineData
 from ..order_book_ws import snapshot
 from ..portfolio import Portfolio
 from ..replay import ReplayBuffer
+from .. import models
+from ..simulation import fetch_token_metrics
 
 
 class PPOAgent(BaseAgent):
@@ -36,6 +39,7 @@ class PPOAgent(BaseAgent):
         epochs: int = 5,
         model_path: str | Path = "ppo_model.pt",
         replay_url: str = "sqlite:///replay.db",
+        price_model_path: str | None = None,
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.offline_data = OfflineData(data_url)
@@ -44,6 +48,7 @@ class PPOAgent(BaseAgent):
         self.epochs = int(epochs)
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
+        self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
         self._seen_ids: set[int] = set()
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
@@ -79,6 +84,26 @@ class PPOAgent(BaseAgent):
         amt = float(pos.amount) if pos else 0.0
         depth, imb, _ = snapshot(token)
         return [amt, depth, imb]
+
+    def _predict_return(self, token: str) -> float:
+        if not self.price_model_path:
+            return 0.0
+        model = models.get_model(self.price_model_path, reload=True)
+        if not model:
+            return 0.0
+        metrics = fetch_token_metrics(token)
+        ph = metrics.get("price_history") or []
+        lh = metrics.get("liquidity_history") or []
+        dh = metrics.get("depth_history") or []
+        th = metrics.get("tx_count_history") or []
+        n = min(len(ph), len(lh), len(dh), len(th or ph))
+        if n < 30:
+            return 0.0
+        seq = np.column_stack([ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]])
+        try:
+            return float(model.predict(seq))
+        except Exception:
+            return 0.0
 
     def _log_trades(self) -> None:
         trades = self.memory_agent.memory.list_trades()
@@ -168,6 +193,8 @@ class PPOAgent(BaseAgent):
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32)
         with torch.no_grad():
             logits = self.actor(state)[0]
+        pred = self._predict_return(token)
+        logits = logits + torch.tensor([pred, -pred])
         action = "buy" if logits[0] >= logits[1] else "sell"
         if action == "buy":
             return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0, "agent": self.name}]

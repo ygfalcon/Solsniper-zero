@@ -18,6 +18,7 @@ dependencies = [
     "aiohttp",
     "pyyaml",
     "torch",
+    "pytorch-lightning",
 ]
 
 [project.scripts]

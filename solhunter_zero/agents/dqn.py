@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import random
 from typing import List, Dict, Any
 
@@ -16,6 +17,8 @@ from . import BaseAgent
 from .memory import MemoryAgent
 from ..portfolio import Portfolio
 from ..replay import ReplayBuffer
+from .. import models
+from ..simulation import fetch_token_metrics
 
 
 class DQNAgent(BaseAgent):
@@ -33,12 +36,14 @@ class DQNAgent(BaseAgent):
         discount: float = 0.95,
         model_path: str | Path = "dqn_model.pt",
         replay_url: str = "sqlite:///replay.db",
+        price_model_path: str | None = None,
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.epsilon = epsilon
         self.discount = discount
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
+        self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
         self._seen_ids: set[int] = set()
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
@@ -65,6 +70,26 @@ class DQNAgent(BaseAgent):
         pos = portfolio.balances.get(token)
         amt = float(pos.amount) if pos else 0.0
         return [amt]
+
+    def _predict_return(self, token: str) -> float:
+        if not self.price_model_path:
+            return 0.0
+        model = models.get_model(self.price_model_path, reload=True)
+        if not model:
+            return 0.0
+        metrics = fetch_token_metrics(token)
+        ph = metrics.get("price_history") or []
+        lh = metrics.get("liquidity_history") or []
+        dh = metrics.get("depth_history") or []
+        th = metrics.get("tx_count_history") or []
+        n = min(len(ph), len(lh), len(dh), len(th or ph))
+        if n < 30:
+            return 0.0
+        seq = np.column_stack([ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]])
+        try:
+            return float(model.predict(seq))
+        except Exception:
+            return 0.0
 
     def train(self, portfolio: Portfolio) -> None:
         trades = self.memory_agent.memory.list_trades()
@@ -145,6 +170,9 @@ class DQNAgent(BaseAgent):
                 q = self.model(state)[0].numpy()
         else:
             q = [0.0, 0.0]
+        pred = self._predict_return(token)
+        q[0] += pred
+        q[1] -= pred
         if random.random() < self.epsilon:
             action = random.choice(["buy", "sell"])
         else:
