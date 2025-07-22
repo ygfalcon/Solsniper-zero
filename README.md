@@ -70,14 +70,19 @@ weight_step: 0.05
 ## Rust Depth Service
 
 The `depth_service` crate provides low‑latency order book snapshots and
-direct transaction submission to the Solana RPC. Start the service with
+direct transaction submission to the Solana RPC.  The service exposes a
+`signed_tx` IPC command that forwards pre‑signed transactions via
+`send_raw_tx` for minimal latency. Start the service with
 
 ```bash
 cargo run --manifest-path depth_service/Cargo.toml -- --serum wss://serum/ws --raydium wss://raydium/ws
 ```
 
 It writes depth data to `/tmp/depth_service.mmap` and exposes an IPC socket at
-`/tmp/depth_service.sock` used by the Python modules.
+`/tmp/depth_service.sock` used by the Python modules.  Python callers can send
+pre-signed transactions with ``depth_client.submit_signed_tx`` or run an
+``EventExecutor`` from ``solhunter_zero.execution`` for event-driven order
+submission.
 
    The `AgentManager` loads the agents listed under `agents` and applies any
    weights defined in the `agent_weights` table.  When `dynamic_weights` is set
