@@ -182,6 +182,68 @@ def test_agent_manager_execute(monkeypatch):
     assert captured == []
 
 
+def test_execution_agent_event_enqueue(monkeypatch):
+    async def fake_tx(self, *a, **k):
+        return "TX"
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.execution.ExecutionAgent._create_signed_tx",
+        fake_tx,
+    )
+
+    class DummyExec:
+        def __init__(self):
+            self.txs = []
+
+        async def enqueue(self, tx):
+            self.txs.append(tx)
+
+    exec_agent = ExecutionAgent(rate_limit=0, depth_service=True, keypair=None)
+    dummy = DummyExec()
+    exec_agent.add_executor("tok", dummy)
+    asyncio.run(
+        exec_agent.execute({"token": "tok", "side": "buy", "amount": 1.0, "price": 1.0})
+    )
+    assert dummy.txs == ["TX"]
+
+
+def test_agent_manager_event_executor(monkeypatch):
+    async def fake_tx(self, *a, **k):
+        return "TX"
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.execution.ExecutionAgent._create_signed_tx",
+        fake_tx,
+    )
+
+    class DummyExec:
+        def __init__(self, token):
+            self.token = token
+            self.txs = []
+
+        async def enqueue(self, tx):
+            self.txs.append(tx)
+
+        async def run(self):
+            pass
+
+    monkeypatch.setattr("solhunter_zero.agent_manager.EventExecutor", DummyExec)
+
+    async def buy(token, pf, *, depth=None, imbalance=None):
+        return [{"token": token, "side": "buy", "amount": 1.0, "price": 1.0}]
+
+    mgr = AgentManager(
+        [types.SimpleNamespace(propose_trade=buy, name="b")],
+        executor=ExecutionAgent(rate_limit=0, depth_service=True, keypair=None),
+        memory_agent=None,
+        depth_service=True,
+    )
+
+    pf = DummyPortfolio()
+    asyncio.run(mgr.execute("tok", pf))
+    assert mgr._event_executors["tok"].txs == ["TX"]
+
+
 def test_agent_swarm_weighted(monkeypatch):
     async def buy_one(token, pf, *, depth=None, imbalance=None):
         return [{'token': token, 'side': 'buy', 'amount': 1.0, 'price': 1.0}]
