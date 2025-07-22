@@ -1,12 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Tuple, Dict
+from typing import Callable, Iterable, List, Tuple, Dict, Optional
+
+FEE_RATE = 0.001  # 0.1% per trade
 
 import numpy as np
 
 
-StrategyFunc = Callable[[List[float]], List[float]]
+# Strategies now optionally accept historical liquidity/depth data to
+# simulate slippage and execution costs.
+StrategyFunc = Callable[[List[float], Optional[List[float]]], List[float]]
+
+
+def _net_return(p0: float, p1: float, liquidity: Optional[float] = None) -> float:
+    """Return the realised return after fees and slippage."""
+    if p0 <= 0:
+        return 0.0
+    raw = (p1 - p0) / p0
+    slip = 0.0
+    if liquidity:
+        slip = min(0.05, 1.0 / max(liquidity, 1e-9))
+    return raw - FEE_RATE - slip
 
 
 @dataclass
@@ -18,24 +33,25 @@ class StrategyResult:
     sharpe: float
 
 
-def buy_and_hold(prices: List[float]) -> List[float]:
-    """Return daily returns for a buy and hold approach."""
+def buy_and_hold(prices: List[float], liquidity: Optional[List[float]] = None) -> List[float]:
+    """Return daily returns for a buy and hold approach including costs."""
 
-    return [
-        (prices[i] - prices[i - 1]) / prices[i - 1]
-        for i in range(1, len(prices))
-        if prices[i - 1] > 0
-    ]
+    rets: List[float] = []
+    for i in range(1, len(prices)):
+        liq = liquidity[i] if liquidity and i < len(liquidity) else None
+        rets.append(_net_return(prices[i - 1], prices[i], liq))
+    return rets
 
 
-def momentum(prices: List[float]) -> List[float]:
+def momentum(prices: List[float], liquidity: Optional[List[float]] = None) -> List[float]:
     """Return returns when buying only on positive momentum."""
 
     returns: List[float] = []
     for i in range(1, len(prices)):
         r = (prices[i] - prices[i - 1]) / prices[i - 1]
         if r > 0:
-            returns.append(r)
+            liq = liquidity[i] if liquidity and i < len(liquidity) else None
+            returns.append(_net_return(prices[i - 1], prices[i], liq))
     return returns
 
 
@@ -47,6 +63,7 @@ DEFAULT_STRATEGIES: List[Tuple[str, StrategyFunc]] = [
 
 def backtest_strategies(
     prices: List[float],
+    liquidity: Optional[List[float]] = None,
     strategies: Iterable[Tuple[str, StrategyFunc]] | None = None,
 ) -> List[StrategyResult]:
     """Backtest ``strategies`` on ``prices`` and return ranked results."""
@@ -56,7 +73,7 @@ def backtest_strategies(
 
     results: List[StrategyResult] = []
     for name, strat in strategies:
-        rets = strat(prices)
+        rets = strat(prices, liquidity)
         if not rets:
             roi = 0.0
             sharpe = 0.0
@@ -75,6 +92,7 @@ def backtest_strategies(
 def backtest_weighted(
     prices: List[float],
     weights: Dict[str, float],
+    liquidity: Optional[List[float]] = None,
     strategies: Iterable[Tuple[str, StrategyFunc]] | None = None,
 ) -> StrategyResult:
     """Backtest combined strategies using ``weights``."""
@@ -88,7 +106,7 @@ def backtest_weighted(
 
     arrs = []
     for name, strat in strategies:
-        rets = strat(prices)
+        rets = strat(prices, liquidity)
         if rets:
             arrs.append((np.array(rets, dtype=float), float(weights.get(name, 1.0))))
 
@@ -112,12 +130,13 @@ def backtest_configs(
     prices: List[float],
     configs: Iterable[Tuple[str, Dict[str, float]]],
     strategies: Iterable[Tuple[str, StrategyFunc]] | None = None,
+    liquidity: Optional[List[float]] = None,
 ) -> List[StrategyResult]:
     """Backtest multiple configs and return sorted results."""
 
     results = []
     for name, weights in configs:
-        res = backtest_weighted(prices, weights, strategies)
+        res = backtest_weighted(prices, weights, liquidity=liquidity, strategies=strategies)
         results.append(StrategyResult(name=name, roi=res.roi, sharpe=res.sharpe))
 
     results.sort(key=lambda r: (r.roi, r.sharpe), reverse=True)
