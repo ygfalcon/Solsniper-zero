@@ -20,6 +20,7 @@ class Portfolio:
     max_value: float = 0.0
     price_history: Dict[str, list[float]] = field(default_factory=dict)
     history_window: int = 50
+    risk_metrics: Dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.load()
@@ -166,6 +167,44 @@ class Portfolio:
                     c = float(np.corrcoef(arr_a, arr_b)[0, 1])
                 corr[(a, b)] = c
         return corr
+
+    def update_risk_metrics(self) -> None:
+        """Compute and store portfolio-wide risk metrics."""
+
+        if not self.price_history or not self.balances:
+            self.risk_metrics = {}
+            return
+
+        from .risk import (
+            compute_live_covariance,
+            compute_live_correlation,
+            portfolio_variance,
+            portfolio_cvar,
+            portfolio_evar,
+            average_correlation,
+        )
+
+        weights = self.weights()
+        if not weights:
+            self.risk_metrics = {}
+            return
+
+        hist = {t: self.price_history.get(t, []) for t in weights}
+        cov_matrix = compute_live_covariance(hist)
+        corr_matrix = compute_live_correlation(hist)
+        cov = portfolio_variance(cov_matrix, weights.values())
+        cvar = portfolio_cvar(hist, weights)
+        evar = portfolio_evar(hist, weights)
+        corr = average_correlation(hist)
+
+        self.risk_metrics = {
+            "covariance": cov,
+            "portfolio_cvar": cvar,
+            "portfolio_evar": evar,
+            "correlation": corr,
+            "cov_matrix": cov_matrix,
+            "corr_matrix": corr_matrix,
+        }
 
     def hedged_weights(self, prices: Dict[str, float]) -> Dict[str, float]:
         """Return allocation weights adjusted for correlations."""

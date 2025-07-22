@@ -127,7 +127,11 @@ async def _run_iteration(
         if not offline:
             price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
         portfolio.update_drawdown(price_lookup)
+        if price_lookup:
+            portfolio.record_prices(price_lookup)
+            portfolio.update_risk_metrics()
     drawdown = portfolio.current_drawdown(price_lookup)
+    risk_metrics = portfolio.risk_metrics
 
     if agent_manager is not None:
         for token in tokens:
@@ -179,6 +183,12 @@ async def _run_iteration(
             )
 
                 first_sim = sims[0] if sims else None
+                from .risk import hedge_ratio, leverage_scaling
+                hedge = hedge_ratio(
+                    portfolio.price_history.get(token, []),
+                    portfolio.price_history.get("USDC", []),
+                )
+                lev = leverage_scaling(1.0, 1.0 / (1 + abs(hedge)))
                 params = rm.adjusted(
                     drawdown,
                     0.0,
@@ -187,6 +197,9 @@ async def _run_iteration(
                     whale_activity=getattr(first_sim, "whale_activity", 0.0),
 
                     portfolio_value=balance,
+                    portfolio_metrics=risk_metrics,
+                    leverage=lev,
+                    correlation=risk_metrics.get("correlation"),
 
                 )
 
@@ -201,9 +214,8 @@ async def _run_iteration(
                     max_drawdown=max_drawdown,
                     volatility_factor=volatility_factor,
                     current_allocation=alloc,
-
                     min_portfolio_value=params.min_portfolio_value,
-
+                    correlation=risk_metrics.get("correlation"),
                 )
                 await place_order_async(
                     token,
@@ -223,6 +235,9 @@ async def _run_iteration(
         if stop_loss is not None or take_profit is not None or trailing_stop is not None:
             price_lookup_sell = await fetch_token_prices_async(portfolio.balances.keys())
             portfolio.update_highs(price_lookup_sell)
+            if price_lookup_sell:
+                portfolio.record_prices(price_lookup_sell)
+                portfolio.update_risk_metrics()
 
         for token, pos in list(portfolio.balances.items()):
             sims = run_simulations(token, count=100)

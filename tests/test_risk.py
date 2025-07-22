@@ -6,9 +6,10 @@ from solhunter_zero.risk import (
     covariance_matrix,
     portfolio_cvar,
     portfolio_variance,
+    hedge_ratio,
 )
 from solhunter_zero.memory import Memory
-from solhunter_zero.portfolio import calculate_order_size
+from solhunter_zero.portfolio import calculate_order_size, Portfolio
 
 
 @pytest.fixture(autouse=True)
@@ -211,3 +212,22 @@ def test_leverage_and_correlation_scaling():
     rm = RiskManager()
     hedged = rm.adjusted(leverage=2.0, correlation=-0.5)
     assert hedged.risk_tolerance > rm.risk_tolerance
+
+
+def test_hedge_ratio_and_portfolio_metrics():
+    pf = Portfolio(path=None)
+    pf.add("a", 1, 1.0)
+    pf.add("b", 1, 2.0)
+    seq = [
+        {"a": 1.0, "b": 2.0},
+        {"a": 2.0, "b": 4.0},
+        {"a": 3.0, "b": 6.0},
+    ]
+    for p in seq:
+        pf.record_prices(p)
+    pf.update_risk_metrics()
+    hr = hedge_ratio(pf.price_history["a"], pf.price_history["b"])
+    assert hr == pytest.approx(1.0)
+    rm = RiskManager()
+    adj = rm.adjusted(portfolio_metrics=pf.risk_metrics)
+    assert adj.risk_tolerance < rm.risk_tolerance
