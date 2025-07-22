@@ -14,9 +14,9 @@ All optional agents are enabled by default and wallet selection is always manual
 
 **Suggested hardware upgrades for future expansion**
 
-- extra RAM
-- SSD
-- dedicated GPU
+- Increase RAM to 32 GB or more.
+- Use an external SSD for larger datasets.
+- Consider a workstation-grade GPU for model training.
 
 ### High Risk Preset
 For an aggressive starting point, load the `config.highrisk.toml` preset. It
