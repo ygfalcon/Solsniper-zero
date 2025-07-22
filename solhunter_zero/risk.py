@@ -11,6 +11,45 @@ from .memory import Memory
 logger = logging.getLogger(__name__)
 
 
+def compute_live_covariance(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
+    """Return covariance matrix for ``prices`` recorded in real time."""
+
+    return covariance_matrix(prices)
+
+
+def compute_live_correlation(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
+    """Return correlation matrix for ``prices`` recorded in real time."""
+
+    return correlation_matrix(prices)
+
+
+def hedge_ratio(a: Sequence[float], b: Sequence[float]) -> float:
+    """Return hedge ratio between two price series using returns."""
+
+    if len(a) < 2 or len(b) < 2:
+        return 0.0
+    n = min(len(a), len(b))
+    arr_a = np.asarray(a[-n:], dtype=float)
+    arr_b = np.asarray(b[-n:], dtype=float)
+    ret_a = arr_a[1:] / arr_a[:-1] - 1
+    ret_b = arr_b[1:] / arr_b[:-1] - 1
+    var_b = np.var(ret_b)
+    if var_b == 0:
+        return 0.0
+    cov = float(np.cov(ret_a, ret_b, ddof=0)[0, 1])
+    return cov / var_b
+
+
+def leverage_scaling(current: float, target: float) -> float:
+    """Return scaling factor to adjust from ``current`` to ``target`` leverage."""
+
+    if current <= 0:
+        return 1.0
+    if target <= 0:
+        return 0.0
+    return target / current
+
+
 def value_at_risk(
     prices: Sequence[float], confidence: float = 0.95, memory: Memory | None = None
 ) -> float:
@@ -257,6 +296,7 @@ class RiskManager:
         correlation: float | None = None,
         price_history: Mapping[str, Sequence[float]] | None = None,
         weights: Mapping[str, float] | None = None,
+        portfolio_metrics: Mapping[str, float] | None = None,
         regime: str | None = None,
         memory: Memory | None = None,
     ) -> "RiskManager":
@@ -294,6 +334,9 @@ class RiskManager:
         price_history:
             Mapping of token to historical price sequence used for covariance
             and risk calculations when ``weights`` are provided.
+        portfolio_metrics:
+            Optional mapping containing precomputed portfolio risk metrics such
+            as ``covariance`` and ``correlation``.
         weights:
             Allocation weights matching ``price_history`` tokens.
         regime:
@@ -314,6 +357,15 @@ class RiskManager:
             cvar_val = PORTFOLIO_CVAR_FUNC(price_history, weights, confidence=var_confidence)
             evar_val = PORTFOLIO_EVAR_FUNC(price_history, weights, confidence=var_confidence)
             corr_val = average_correlation(price_history)
+        if portfolio_metrics:
+            if covariance is None:
+                covariance = portfolio_metrics.get("covariance")
+            if portfolio_cvar is None:
+                portfolio_cvar = portfolio_metrics.get("portfolio_cvar")
+            if portfolio_evar is None:
+                portfolio_evar = portfolio_metrics.get("portfolio_evar")
+            if correlation is None:
+                correlation = portfolio_metrics.get("correlation")
         if volume_spike > 1:
             scale *= min(volume_spike, 2.0)
         if tx_rate > 1:
