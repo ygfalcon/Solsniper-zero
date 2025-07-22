@@ -18,6 +18,8 @@ class Portfolio:
     path: Optional[str] = "portfolio.json"
     balances: Dict[str, Position] = field(default_factory=dict)
     max_value: float = 0.0
+    price_history: Dict[str, list[float]] = field(default_factory=dict)
+    history_window: int = 50
 
     def __post_init__(self) -> None:
         self.load()
@@ -130,6 +132,49 @@ class Portfolio:
             if price is not None and price > pos.high_price:
                 pos.high_price = price
         self.save()
+
+    # ------------------------------------------------------------------
+    def record_prices(self, prices: Dict[str, float], *, window: int | None = None) -> None:
+        """Record latest prices for correlation tracking."""
+
+        limit = window or self.history_window
+        for token, price in prices.items():
+            hist = self.price_history.setdefault(token, [])
+            hist.append(float(price))
+            if len(hist) > limit:
+                del hist[0]
+
+    def correlations(self) -> Dict[tuple[str, str], float]:
+        """Return pairwise correlations between tracked tokens."""
+
+        import numpy as np
+
+        tokens = list(self.price_history.keys())
+        corr: Dict[tuple[str, str], float] = {}
+        for i, a in enumerate(tokens):
+            seq_a = self.price_history[a]
+            for b in tokens[i + 1 :]:
+                seq_b = self.price_history[b]
+                if len(seq_a) < 2 or len(seq_b) < 2:
+                    continue
+                n = min(len(seq_a), len(seq_b))
+                arr_a = np.asarray(seq_a[-n:], dtype=float)
+                arr_b = np.asarray(seq_b[-n:], dtype=float)
+                if np.std(arr_a) == 0 or np.std(arr_b) == 0:
+                    c = 0.0
+                else:
+                    c = float(np.corrcoef(arr_a, arr_b)[0, 1])
+                corr[(a, b)] = c
+        return corr
+
+    def hedged_weights(self, prices: Dict[str, float]) -> Dict[str, float]:
+        """Return allocation weights adjusted for correlations."""
+
+        weights = self.weights(prices)
+        if not weights:
+            return {}
+        corrs = self.correlations()
+        return hedge_allocation(weights, corrs)
 
     def trailing_stop_triggered(
         self, token: str, price: float, trailing: float

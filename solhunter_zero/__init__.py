@@ -15,6 +15,8 @@ __all__ = [
     "fetch_token_prices_async",
     "RiskManager",
     "covariance_matrix",
+    "correlation_matrix",
+    "average_correlation",
     "portfolio_cvar",
     "portfolio_evar",
     "portfolio_variance",
@@ -55,6 +57,14 @@ def __getattr__(name: str):
         return func
     if name == "portfolio_variance":
         from .risk import portfolio_variance as func
+
+        return func
+    if name == "correlation_matrix":
+        from .risk import correlation_matrix as func
+
+        return func
+    if name == "average_correlation":
+        from .risk import average_correlation as func
 
         return func
     if name == "entropic_value_at_risk":

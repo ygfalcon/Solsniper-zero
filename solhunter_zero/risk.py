@@ -152,6 +152,10 @@ def portfolio_evar(
     return entropic_value_at_risk(port_rets, confidence, steps=steps)
 
 
+PORTFOLIO_CVAR_FUNC = portfolio_cvar
+PORTFOLIO_EVAR_FUNC = portfolio_evar
+
+
 def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
     """Return portfolio variance given covariance ``cov`` and ``weights``."""
 
@@ -161,6 +165,36 @@ def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
     if cov.shape[0] != w.size:
         return 0.0
     return float(w @ cov @ w.T)
+
+
+def correlation_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
+    """Return correlation matrix of token returns."""
+
+    series = []
+    for seq in prices.values():
+        arr = np.asarray(seq, dtype=float)
+        if len(arr) < 2:
+            continue
+        rets = arr[1:] / arr[:-1] - 1
+        series.append(rets)
+    if not series:
+        return np.empty((0, 0))
+    min_len = min(len(s) for s in series)
+    mat = np.vstack([s[:min_len] for s in series])
+    return np.corrcoef(mat)
+
+
+def average_correlation(prices: Mapping[str, Sequence[float]]) -> float:
+    """Return average pairwise correlation for ``prices``."""
+
+    corr = correlation_matrix(prices)
+    if corr.size == 0:
+        return 0.0
+    n = corr.shape[0]
+    if n <= 1:
+        return 0.0
+    off = corr - np.eye(n)
+    return float(off.sum() / (n * (n - 1)))
 
 
 @dataclass
@@ -218,6 +252,8 @@ class RiskManager:
         evar_threshold: float | None = None,
         leverage: float | None = None,
         correlation: float | None = None,
+        price_history: Mapping[str, Sequence[float]] | None = None,
+        weights: Mapping[str, float] | None = None,
         regime: str | None = None,
         memory: Memory | None = None,
     ) -> "RiskManager":
@@ -252,6 +288,11 @@ class RiskManager:
             Target leverage factor for dynamic scaling.
         correlation:
             Average correlation across held assets used for hedging.
+        price_history:
+            Mapping of token to historical price sequence used for covariance
+            and risk calculations when ``weights`` are provided.
+        weights:
+            Allocation weights matching ``price_history`` tokens.
         regime:
             Optional market regime label (``"bull"``, ``"bear"`` or ``"sideways"``)
             that influences scaling.
@@ -259,6 +300,17 @@ class RiskManager:
 
         factor = max(0.0, 1 - drawdown / self.max_drawdown)
         scale = factor / (1 + volatility * self.volatility_factor)
+
+        cov_val = None
+        cvar_val = None
+        evar_val = None
+        corr_val = None
+        if price_history is not None and weights is not None and price_history:
+            cov_matrix = covariance_matrix(price_history)
+            cov_val = portfolio_variance(cov_matrix, weights.values())
+            cvar_val = PORTFOLIO_CVAR_FUNC(price_history, weights, confidence=var_confidence)
+            evar_val = PORTFOLIO_EVAR_FUNC(price_history, weights, confidence=var_confidence)
+            corr_val = average_correlation(price_history)
         if volume_spike > 1:
             scale *= min(volume_spike, 2.0)
         if tx_rate > 1:
@@ -289,6 +341,8 @@ class RiskManager:
             if var > var_threshold and var > 0:
                 scale *= var_threshold / var
 
+        if covariance is None and cov_val is not None:
+            covariance = cov_val
         if (
             covariance is not None
             and covar_threshold is not None
@@ -296,6 +350,8 @@ class RiskManager:
         ):
             scale *= covar_threshold / covariance
 
+        if portfolio_cvar is None and cvar_val is not None:
+            portfolio_cvar = cvar_val
         if (
             portfolio_cvar is not None
             and cvar_threshold is not None
@@ -303,6 +359,8 @@ class RiskManager:
         ):
             scale *= cvar_threshold / portfolio_cvar
 
+        if portfolio_evar is None and evar_val is not None:
+            portfolio_evar = evar_val
         if (
             portfolio_evar is not None
             and evar_threshold is not None
@@ -310,6 +368,8 @@ class RiskManager:
         ):
             scale *= evar_threshold / portfolio_evar
 
+        if correlation is None and corr_val is not None:
+            correlation = corr_val
         if correlation is not None:
             corr = max(-1.0, min(1.0, correlation))
             scale *= max(0.0, 1 - corr)
