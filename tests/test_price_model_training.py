@@ -10,8 +10,19 @@ def test_train_price_model_converges():
     liquidity = np.linspace(100, 120, len(prices)).tolist()
     depth = np.linspace(1, 2, len(prices)).tolist()
     tx = np.linspace(10, 30, len(prices)).tolist()
+    slippage = np.linspace(0.1, 0.2, len(prices)).tolist()
+    volume = np.linspace(50, 100, len(prices)).tolist()
 
-    model = models.train_price_model(prices, liquidity, depth, tx, seq_len=5, epochs=100)
-    seq = np.column_stack([prices[-5:], liquidity[-5:], depth[-5:], tx[-5:]])
+    model = models.train_price_model(
+        prices, liquidity, depth, tx, slippage=slippage, volume=volume, seq_len=5, epochs=100
+    )
+    seq = np.column_stack([
+        prices[-5:],
+        liquidity[-5:],
+        depth[-5:],
+        slippage[-5:],
+        volume[-5:],
+        tx[-5:],
+    ])
     pred = model.predict(seq)
     assert pred == pytest.approx(0.1, abs=0.02)

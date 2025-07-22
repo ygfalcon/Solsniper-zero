@@ -25,6 +25,8 @@ class MarketSnapshot(Base):
     token = Column(String, nullable=False)
     price = Column(Float, nullable=False)
     depth = Column(Float, nullable=False)
+    slippage = Column(Float, nullable=False, default=0.0)
+    volume = Column(Float, nullable=False, default=0.0)
     imbalance = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=utcnow)
 
@@ -49,13 +51,21 @@ class OfflineData:
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     def log_snapshot(
-        self, token: str, price: float, depth: float, imbalance: float
+        self,
+        token: str,
+        price: float,
+        depth: float,
+        imbalance: float,
+        slippage: float = 0.0,
+        volume: float = 0.0,
     ) -> None:
         with self.Session() as session:
             snap = MarketSnapshot(
                 token=token,
                 price=price,
                 depth=depth,
+                slippage=slippage,
+                volume=volume,
                 imbalance=imbalance,
             )
             session.add(snap)

@@ -97,6 +97,7 @@ def fetch_token_metrics(token: str) -> dict:
             "liquidity_history": data.get("liquidity_history", []),
             "depth_history": data.get("depth_history", []),
             "slippage_history": data.get("slippage_history", []),
+            "volume_history": data.get("volume_history", []),
             "token_age": float(data.get("token_age", 0.0)),
             "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
             "tx_count_history": data.get("tx_count_history", []),
@@ -114,6 +115,7 @@ def fetch_token_metrics(token: str) -> dict:
             "liquidity_history": [],
             "depth_history": [],
             "slippage_history": [],
+            "volume_history": [],
             "token_age": 0.0,
             "initial_liquidity": 0.0,
             "tx_count_history": [],
@@ -175,6 +177,7 @@ async def async_fetch_token_metrics(token: str) -> dict:
                 "liquidity": 0.0,
                 "slippage": 0.0,
                 "slippage_history": [],
+                "volume_history": [],
                 "token_age": 0.0,
                 "initial_liquidity": 0.0,
                 "tx_count_history": [],
@@ -187,6 +190,7 @@ async def async_fetch_token_metrics(token: str) -> dict:
         "liquidity": float(data.get("liquidity", 0.0)),
         "slippage": float(data.get("slippage", 0.0)),
         "slippage_history": data.get("slippage_history", []),
+        "volume_history": data.get("volume_history", []),
         "token_age": float(data.get("token_age", 0.0)),
         "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
         "tx_count_history": data.get("tx_count_history", []),
@@ -211,11 +215,20 @@ def predict_price_movement(
         ph = metrics.get("price_history") or []
         lh = metrics.get("liquidity_history") or []
         dh = metrics.get("depth_history") or []
+        sh = metrics.get("slippage_history") or []
+        vh = metrics.get("volume_history") or []
         th = metrics.get("tx_count_history") or []
-        n = min(len(ph), len(lh), len(dh), len(th or ph))
+        n = min(len(ph), len(lh), len(dh), len(sh or ph), len(vh or ph), len(th or ph))
         if n >= 30:
             seq = np.column_stack(
-                [ph[-30:], lh[-30:], dh[-30:], (th or [0] * n)[-30:]]
+                [
+                    ph[-30:],
+                    lh[-30:],
+                    dh[-30:],
+                    (sh or [0] * n)[-30:],
+                    (vh or [0] * n)[-30:],
+                    (th or [0] * n)[-30:],
+                ]
             )
             try:
                 return float(model.predict(seq))
