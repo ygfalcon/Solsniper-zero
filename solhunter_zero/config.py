@@ -52,6 +52,10 @@ ENV_VARS = {
     "priority_fees": "PRIORITY_FEES",
     "priority_rpc": "PRIORITY_RPC",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
+    "depth_service": "DEPTH_SERVICE",
+    "use_depth_stream": "USE_DEPTH_STREAM",
+    "use_rust_exec": "USE_RUST_EXEC",
+    "use_service_exec": "USE_SERVICE_EXEC",
 }
 
 
