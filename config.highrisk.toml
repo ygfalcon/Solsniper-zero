@@ -28,6 +28,7 @@ agents = [
     "meta_conviction",
     "ramanujan",
     "emotion",
+    "vanta",
 ]
 
 # Dynamically adjust weights based on agent ROI
@@ -52,3 +53,4 @@ opportunity_cost = 1.0
 meta_conviction = 1.0
 ramanujan = 1.0
 emotion = 1.0
+vanta = 1.0

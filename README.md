@@ -245,6 +245,9 @@ The trading logic is implemented by a swarm of small agents:
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
 - **PPOAgent** — actor-critic model trained on offline order book history.
 - **RamanujanAgent** — proposes deterministic buys or sells from a hashed conviction score.
+- **StrangeAttractorAgent** — chaotic Lorenz model seeded with order-book depth,
+  mempool entropy and conviction velocity. Trades when divergence aligns with a
+  known profitable manifold.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 
 Agents can be enabled or disabled in the configuration and their impact
