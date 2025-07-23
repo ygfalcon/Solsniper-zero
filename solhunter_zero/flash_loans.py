@@ -1,13 +1,16 @@
 import os
+import base64
 import logging
 from typing import Optional, Sequence, Mapping
 
-from solders.instruction import Instruction
+from solders.instruction import Instruction, AccountMeta
 from solders.pubkey import Pubkey
 from solders.keypair import Keypair
+from solders.message import MessageV0
 from solders.transaction import VersionedTransaction
-from solders.signature import Signature
 from solana.rpc.async_api import AsyncClient
+
+from . import depth_client
 
 RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
@@ -38,27 +41,28 @@ async def borrow_flash(
     rpc = rpc_url or RPC_URL
     program_accounts = program_accounts or {}
 
-    borrow_ix = Instruction(
-        Pubkey.from_string(SOLEND_PROGRAM_ID),
-        b"borrow",
-        list(program_accounts.values()),
-    )
-    repay_ix = Instruction(
-        Pubkey.from_string(SOLEND_PROGRAM_ID),
-        b"repay",
-        list(program_accounts.values()),
-    )
+    program_id = Pubkey.from_string(SOLEND_PROGRAM_ID)
+    metas = [AccountMeta(payer.pubkey(), True, True)] + [
+        AccountMeta(pk, False, True) for pk in program_accounts.values()
+    ]
 
-    tx_instructions = [borrow_ix] + list(instructions) + [repay_ix]
-    msg = b"|".join(ix.data for ix in tx_instructions)
-    tx = VersionedTransaction.populate(msg, [Signature.default()])
+    borrow_ix = Instruction(program_id, b"flash_borrow", metas)
+    repay_ix = Instruction(program_id, b"flash_repay", metas)
+
+    tx_instructions = [borrow_ix, *instructions, repay_ix]
 
     async with AsyncClient(rpc) as client:
         try:
-            resp = await client.send_raw_transaction(bytes(tx))
-            sig = str(resp.value)
+            latest = await client.get_latest_blockhash()
+            msg = MessageV0.try_compile(
+                payer.pubkey(), tx_instructions, [], latest.value.blockhash
+            )
+            sig = payer.sign_message(bytes(msg))
+            tx = VersionedTransaction.populate(msg, [sig])
+            tx_b64 = base64.b64encode(bytes(tx)).decode()
+            sig_str = await depth_client.submit_raw_tx(tx_b64)
             logger.info("Borrowed %s %s via flash loan", amount, token)
-            return sig
+            return sig_str
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("Flash loan borrow failed: %s", exc)
             return None
