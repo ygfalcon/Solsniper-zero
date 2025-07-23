@@ -59,7 +59,11 @@ class Trade(Base):
 class AdvancedMemory:
     """Store trades with semantic search on context text."""
 
-    def __init__(self, url: str = "sqlite:///memory.db", index_path: str = "trade.index") -> None:
+    def __init__(
+        self,
+        url: str = "sqlite:///memory.db",
+        index_path: str = "trade.index",
+    ) -> None:
         self.engine = create_engine(url, echo=False, future=True)
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
@@ -87,10 +91,16 @@ class AdvancedMemory:
         faiss.write_index(self.index, self.index_path)
 
     # ------------------------------------------------------------------
-    def log_simulation(self, token: str, expected_roi: float, success_prob: float) -> int:
+    def log_simulation(
+        self, token: str, expected_roi: float, success_prob: float
+    ) -> int:
         """Insert a simulation summary and return its id."""
         with self.Session() as session:
-            sim = SimulationSummary(token=token, expected_roi=expected_roi, success_prob=success_prob)
+            sim = SimulationSummary(
+                token=token,
+                expected_roi=expected_roi,
+                success_prob=success_prob,
+            )
             session.add(sim)
             session.commit()
             return sim.id
@@ -134,7 +144,11 @@ class AdvancedMemory:
     def simulation_success_rate(self, token: str) -> float:
         """Return the average success probability for recorded simulations."""
         with self.Session() as session:
-            sims = session.query(SimulationSummary).filter_by(token=token).all()
+            sims = (
+                session.query(SimulationSummary)
+                .filter_by(token=token)
+                .all()
+            )
             if not sims:
                 return 0.0
             return float(sum(s.success_prob for s in sims) / len(sims))
@@ -145,8 +159,8 @@ class AdvancedMemory:
             if self.index.ntotal == 0:
                 return []
             vec = self.model.encode([query])[0].astype("float32")
-            _D, I = self.index.search(np.array([vec]), k)
-            ids = [int(i) for i in I[0] if i != -1]
+            _distances, indices = self.index.search(np.array([vec]), k)
+            ids = [int(idx) for idx in indices[0] if idx != -1]
             if not ids:
                 return []
             with self.Session() as session:
