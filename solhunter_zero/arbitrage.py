@@ -27,6 +27,7 @@ from .exchange import (
 from . import order_book_ws
 from .depth_client import stream_depth, prepare_signed_tx
 from .execution import EventExecutor
+from .flash_loans import borrow_flash, repay_flash
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,10 @@ DEX_GAS = {str(k): float(v) for k, v in _parse_mapping_env("DEX_GAS").items()}
 DEX_LATENCY = {str(k): float(v) for k, v in _parse_mapping_env("DEX_LATENCY").items()}
 EXTRA_API_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_API_URLS").items()}
 EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").items()}
+
+# Flash loan configuration
+USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
+MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
 
 
 def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
@@ -341,6 +346,8 @@ async def _detect_for_token(
     stream_names: Sequence[str] | None = None,
     executor: "EventExecutor | None" = None,
     use_service: bool = False,
+    use_flash_loans: bool | None = None,
+    max_flash_amount: float | None = None,
 ) -> Optional[Tuple[int, int]]:
     """Check for price discrepancies and place arbitrage orders.
 
@@ -354,6 +361,10 @@ async def _detect_for_token(
         Minimum fractional price difference required to trigger arbitrage.
     amount:
         Trade size to use for buy/sell orders.
+    use_flash_loans:
+        Borrow funds via a flash-loan program before executing the swap chain.
+    max_flash_amount:
+        Maximum amount to borrow when flash loans are enabled.
 
     Returns
     -------
@@ -361,6 +372,11 @@ async def _detect_for_token(
         Indices of the feeds used for buy and sell orders when an opportunity is
         executed. ``None`` when no profitable opportunity is found.
     """
+
+    if use_flash_loans is None:
+        use_flash_loans = USE_FLASH_LOANS
+    if max_flash_amount is None:
+        max_flash_amount = MAX_FLASH_AMOUNT
 
     if fees is None or gas is None or latencies is None:
         env_fees, env_gas, env_lat = refresh_costs()
@@ -419,6 +435,13 @@ async def _detect_for_token(
                 "->".join(path),
                 profit,
             )
+            trade_amount = amount
+            if use_flash_loans:
+                flash_amt = max_flash_amount or amount
+                trade_amount = min(flash_amt, amount)
+                sig = await borrow_flash(trade_amount, token)
+            else:
+                sig = None
             tasks = []
             for i in range(len(path) - 1):
                 buy_v = path[i]
@@ -449,7 +472,7 @@ async def _detect_for_token(
                         place_order_async(
                             token,
                             "buy",
-                            amount,
+                            trade_amount,
                             price_map[buy_v],
                             testnet=testnet,
                             dry_run=dry_run,
@@ -460,7 +483,7 @@ async def _detect_for_token(
                         place_order_async(
                             token,
                             "sell",
-                            amount,
+                            trade_amount,
                             price_map[sell_v],
                             testnet=testnet,
                             dry_run=dry_run,
@@ -469,6 +492,8 @@ async def _detect_for_token(
                     )
             if tasks:
                 await asyncio.gather(*tasks)
+            if sig:
+                await repay_flash(sig)
             return buy_index, sell_index
 
         async def consume(idx: int, gen: AsyncGenerator[float, None]):
@@ -532,6 +557,13 @@ async def _detect_for_token(
         "Arbitrage detected on %s via %s: profit %.6f", token, "->".join(path), profit
     )
 
+    trade_amount = amount
+    sig = None
+    if use_flash_loans:
+        flash_amt = max_flash_amount or amount
+        trade_amount = min(flash_amt, amount)
+        sig = await borrow_flash(trade_amount, token)
+
     tasks = []
     for i in range(len(path) - 1):
         buy_v = path[i]
@@ -542,7 +574,7 @@ async def _detect_for_token(
             tx1 = await _prepare_service_tx(
                 token,
                 "buy",
-                amount,
+                trade_amount,
                 price_map[buy_v],
                 base_buy,
             )
@@ -551,7 +583,7 @@ async def _detect_for_token(
             tx2 = await _prepare_service_tx(
                 token,
                 "sell",
-                amount,
+                trade_amount,
                 price_map[sell_v],
                 base_sell,
             )
@@ -562,7 +594,7 @@ async def _detect_for_token(
                 place_order_async(
                     token,
                     "buy",
-                    amount,
+                    trade_amount,
                     price_map[buy_v],
                     testnet=testnet,
                     dry_run=dry_run,
@@ -573,7 +605,7 @@ async def _detect_for_token(
                 place_order_async(
                     token,
                     "sell",
-                    amount,
+                    trade_amount,
                     price_map[sell_v],
                     testnet=testnet,
                     dry_run=dry_run,
@@ -582,6 +614,8 @@ async def _detect_for_token(
             )
     if tasks:
         await asyncio.gather(*tasks)
+    if sig:
+        await repay_flash(sig)
 
     buy_index = names.index(buy_name)
     sell_index = names.index(sell_name)
@@ -596,6 +630,8 @@ async def detect_and_execute_arbitrage(
     fees: Mapping[str, float] | None = None,
     executor: EventExecutor | None = None,
     use_service: bool | None = None,
+    use_flash_loans: bool | None = None,
+    max_flash_amount: float | None = None,
     **kwargs,
 ) -> Optional[Tuple[int, int]] | list[Optional[Tuple[int, int]]]:
     """Run arbitrage detection for one or multiple tokens.
@@ -606,6 +642,11 @@ async def detect_and_execute_arbitrage(
 
     user_gas = kwargs.pop("gas", None)
     user_lat = kwargs.pop("latencies", None)
+
+    if use_flash_loans is None:
+        use_flash_loans = USE_FLASH_LOANS
+    if max_flash_amount is None:
+        max_flash_amount = MAX_FLASH_AMOUNT
 
     if use_service is None:
         use_service = USE_SERVICE_EXEC
@@ -656,6 +697,8 @@ async def detect_and_execute_arbitrage(
                     latencies=user_lat or DEX_LATENCY,
                     executor=executor,
                     use_service=use_service,
+                    use_flash_loans=use_flash_loans,
+                    max_flash_amount=max_flash_amount,
                     **kwargs,
                 )
             )
@@ -675,6 +718,8 @@ async def detect_and_execute_arbitrage(
                 latencies=user_lat or DEX_LATENCY,
                 executor=executor,
                 use_service=use_service,
+                use_flash_loans=use_flash_loans,
+                max_flash_amount=max_flash_amount,
                 **kwargs,
             )
             if res:
@@ -691,5 +736,7 @@ async def detect_and_execute_arbitrage(
         latencies=user_lat or DEX_LATENCY,
         executor=executor,
         use_service=use_service,
+        use_flash_loans=use_flash_loans,
+        max_flash_amount=max_flash_amount,
         **kwargs,
     )
