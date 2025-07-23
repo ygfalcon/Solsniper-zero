@@ -26,7 +26,7 @@ def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog):
 
     model_path = tmp_path / 'model.pt'
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=model_path, algo='dqn')
-    monkeypatch.setattr(DQNAgent, "_load_weights", _no_load)
+    monkeypatch.setattr(DQNAgent, "reload_weights", _no_load)
     agent = DQNAgent(memory_agent=MemoryAgent(mem), epsilon=0.0, model_path=model_path)
     daemon.register_agent(agent)
     first = agent._last_mtime
