@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import random
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
@@ -33,6 +34,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 from .offline_data import OfflineData
 from .simulation import run_simulations, predict_price_movement
+from .news import fetch_sentiment
 
 
 class _TradeDataset(Dataset):
@@ -41,33 +43,68 @@ class _TradeDataset(Dataset):
     def __init__(
         self,
         trades: Iterable[Any],
-        tokens: Iterable[str],
+        snaps: Iterable[Any],
         sims_per_token: int = 10,
         price_model_path: str | None = None,
     ) -> None:
         self.samples: List[Tuple[List[float], int, float]] = []
         self.price_model_path = price_model_path
+
+        snap_map: dict[str, List[Any]] = {}
+        for s in snaps:
+            snap_map.setdefault(s.token, []).append(s)
+        for seq in snap_map.values():
+            seq.sort(key=lambda x: x.timestamp)
+
+        feeds = [u for u in os.getenv("NEWS_FEEDS", "").split(",") if u]
+        twitter = [u for u in os.getenv("TWITTER_FEEDS", "").split(",") if u]
+        discord = [u for u in os.getenv("DISCORD_FEEDS", "").split(",") if u]
+        sentiment = 0.0
+        if feeds or twitter or discord:
+            try:
+                sentiment = fetch_sentiment(
+                    feeds,
+                    twitter_urls=twitter,
+                    discord_urls=discord,
+                )
+            except Exception:
+                sentiment = 0.0
+
         for t in trades:
             try:
                 pred = predict_price_movement(t.token, model_path=price_model_path)
             except Exception:
                 pred = 0.0
-            state = [float(t.price), float(getattr(t, "amount", 0.0)), 0.0, pred]
+            depth = slippage = imbalance = tx_rate = 0.0
+            seq = snap_map.get(t.token)
+            if seq:
+                idx = 0
+                ts = getattr(t, "timestamp", None)
+                for i, s in enumerate(seq):
+                    if ts is None or s.timestamp <= ts:
+                        idx = i
+                    else:
+                        break
+                snap = seq[idx]
+                depth = float(getattr(snap, "depth", 0.0))
+                slippage = float(getattr(snap, "slippage", 0.0))
+                imbalance = float(getattr(snap, "imbalance", 0.0))
+                tx_rate = float(getattr(snap, "tx_rate", 0.0))
+            state = [
+                float(t.price),
+                float(getattr(t, "amount", 0.0)),
+                depth,
+                slippage,
+                tx_rate,
+                sentiment,
+                imbalance,
+                pred,
+            ]
             reward = float(t.amount) * float(t.price)
             action = 0 if t.side == "buy" else 1
             if t.side == "buy":
                 reward = -reward
             self.samples.append((state, action, reward))
-        for tok in set(tokens):
-            sims = []
-            for s in sims:
-                try:
-                    pred = predict_price_movement(tok, model_path=price_model_path)
-                except Exception:
-                    pred = 0.0
-                state = [s.liquidity, s.slippage, s.volatility, pred]
-                action = 0 if s.expected_roi >= 0 else 1
-                self.samples.append((state, action, s.expected_roi))
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -95,10 +132,8 @@ class TradeDataModule(pl.LightningDataModule):
     def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
         data = OfflineData(self.db_url)
         trades = data.list_trades()
-        tokens = {t.token for t in trades}
         snaps = data.list_snapshots()
-        tokens.update(s.token for s in snaps)
-        self.dataset = _TradeDataset(trades, tokens, self.sims_per_token, price_model_path=self.price_model_path)
+        self.dataset = _TradeDataset(trades, snaps, self.sims_per_token, price_model_path=self.price_model_path)
 
     def train_dataloader(self) -> DataLoader:
         if self.dataset is None:
@@ -113,12 +148,12 @@ class LightningPPO(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.actor = nn.Sequential(
-            nn.Linear(4, hidden_size),
+            nn.Linear(8, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
         self.critic = nn.Sequential(
-            nn.Linear(4, hidden_size),
+            nn.Linear(8, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
@@ -155,7 +190,7 @@ class LightningDQN(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = nn.Sequential(
-            nn.Linear(4, hidden_size),
+            nn.Linear(8, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
