@@ -197,13 +197,18 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
    ```
-9. **Auto-execution**
+9. **Priority fee multipliers**
+   Configure compute unit price multipliers used when the mempool is busy:
+   ```bash
+   export PRIORITY_FEES="0,1,2"
+   ```
+10. **Auto-execution**
    Register tokens and pre-signed transactions so the depth service
    dispatches them when thresholds are crossed:
    ```bash
    export AUTO_EXEC='{"TOKEN":{"threshold":1.0,"txs":["BASE64"]}}'
    ```
-10. **Run the bot**
+11. **Run the bot**
    ```bash
    ./run.sh --auto
    ```
@@ -238,6 +243,9 @@ The trading logic is implemented by a swarm of small agents:
     `dex_gas` and `dex_latency`.
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
+  When `PRIORITY_FEES` is set the agent scales the compute-unit price
+  based on mempool transaction rate so high-priority submits use a
+  larger fee.
 - **MemoryAgent** — records past trades for analysis. Trade context and emotion
   tags are saved to `memory.db` and a FAISS index (`trade.index`) for semantic
   search.

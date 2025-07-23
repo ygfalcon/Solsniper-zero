@@ -143,6 +143,7 @@ def test_submit_raw_tx(monkeypatch):
             "TX",
             socket_path="sock",
             priority_rpc=["u1", "u2"],
+            priority_fee=7,
         )
 
     sig = asyncio.run(run())
@@ -153,6 +154,7 @@ def test_submit_raw_tx(monkeypatch):
         "cmd": "raw_tx",
         "tx": "TX",
         "priority_rpc": ["u1", "u2"],
+        "priority_fee": 7,
     }
     assert sig == "sig"
 
