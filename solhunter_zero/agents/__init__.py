@@ -73,6 +73,7 @@ def _ensure_agents_loaded() -> None:
     from .ramanujan_agent import RamanujanAgent
     from .strange_attractor import StrangeAttractorAgent
     from .meta_conviction import MetaConvictionAgent
+    from .fractal_agent import FractalAgent
 
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -95,6 +96,7 @@ def _ensure_agents_loaded() -> None:
 
         "ramanujan": RamanujanAgent,
         "vanta": StrangeAttractorAgent,
+        "inferna": FractalAgent,
 
         "emotion": EmotionAgent,
 
