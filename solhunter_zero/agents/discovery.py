@@ -29,8 +29,21 @@ class DiscoveryAgent(BaseAgent):
         if method is None:
             method = os.getenv("DISCOVERY_METHOD", "websocket")
         if not offline and token_file is None and method == "websocket":
-            data = await merge_sources(SOLANA_RPC_URL)
-            self.metrics = {d["address"]: {"volume": d.get("volume", 0.0), "liquidity": d.get("liquidity", 0.0)} for d in data}
+            th = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0)
+            data = await merge_sources(SOLANA_RPC_URL, mempool_threshold=th)
+            fields = [
+                "volume",
+                "liquidity",
+                "score",
+                "momentum",
+                "anomaly",
+                "wallet_concentration",
+                "avg_swap_size",
+            ]
+            self.metrics = {
+                d["address"]: {k: float(d.get(k, 0.0)) for k in fields}
+                for d in data
+            }
             return [d["address"] for d in data]
 
         tokens = await scan_tokens_async(

@@ -99,3 +99,17 @@ def test_whale_wallet_activity(monkeypatch):
     )
     assert activity == pytest.approx(2000.0 / 2050.0)
 
+
+def test_average_swap_size(monkeypatch):
+    class Client:
+        def __init__(self, url):
+            self.url = url
+
+        def get_signatures_for_address(self, addr, limit=20):
+            return {"result": [{"amount": 2.0}, {"amount": 4.0}]}
+
+    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
+    size = scanner_onchain.fetch_average_swap_size("tok", "http://node")
+    assert size == pytest.approx(3.0)
+

@@ -168,6 +168,12 @@ def test_collect_onchain_insights(monkeypatch):
     monkeypatch.setattr(onchain_metrics, "order_book_depth_change", lambda t, base_url=None: 0.5)
     monkeypatch.setattr(onchain_metrics, "fetch_mempool_tx_rate", lambda t, u: 2.0)
     monkeypatch.setattr(onchain_metrics, "fetch_whale_wallet_activity", lambda t, u: 0.1)
+    monkeypatch.setattr(onchain_metrics, "fetch_average_swap_size", lambda t, u: 1.5)
 
     data = onchain_metrics.collect_onchain_insights("tok", "http://node")
-    assert data == {"depth_change": 0.5, "tx_rate": 2.0, "whale_activity": 0.1}
+    assert data == {
+        "depth_change": 0.5,
+        "tx_rate": 2.0,
+        "whale_activity": 0.1,
+        "avg_swap_size": 1.5,
+    }

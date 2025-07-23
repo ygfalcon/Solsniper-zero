@@ -27,6 +27,7 @@ from .scanner_onchain import (
     scan_tokens_onchain,
     fetch_mempool_tx_rate,
     fetch_whale_wallet_activity,
+    fetch_average_swap_size,
 )
 from .exchange import DEX_BASE_URL
 
@@ -235,5 +236,6 @@ def collect_onchain_insights(
         "depth_change": order_book_depth_change(token, base_url),
         "tx_rate": fetch_mempool_tx_rate(token, rpc_url),
         "whale_activity": fetch_whale_wallet_activity(token, rpc_url),
+        "avg_swap_size": fetch_average_swap_size(token, rpc_url),
     }
 
