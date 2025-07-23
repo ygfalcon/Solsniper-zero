@@ -130,12 +130,7 @@ class ExecutionAgent(BaseAgent):
             if venues and isinstance(venues, list):
                 base_urls = [VENUE_URLS.get(v, v) for v in venues]
             else:
-                if venue == "orca":
-                    base_urls = [ORCA_DEX_URL]
-                elif venue == "raydium":
-                    base_urls = [RAYDIUM_DEX_URL]
-                else:
-                    base_urls = [DEX_BASE_URL]
+                base_urls = [VENUE_URLS.get(venue, DEX_BASE_URL)]
 
             if self.depth_service:
                 for url in base_urls:
