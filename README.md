@@ -72,7 +72,7 @@ volatility_factor: 1.0
 risk_multiplier: 1.0
 arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
-use_flash_loans: false
+use_flash_loans: true
 max_flash_amount: 0.0
 learning_rate: 0.1
 dex_priorities: "orca,raydium,jupiter"
@@ -121,8 +121,9 @@ submission.
 
 ## Flash-Loan Arbitrage
 
-Enable flash loans by setting `use_flash_loans` to `true` in your
-configuration.  The bot will borrow up to `max_flash_amount` of the trading
+Flash loans are enabled by default. Disable them by setting
+`use_flash_loans` to `false` in your configuration. The bot will borrow up
+to `max_flash_amount` of the trading
 token using supported protocols (e.g. Solend), execute the swap chain and repay
 the loan within the same transaction.  You must supply the required protocol
 accounts and understand that failed repayment reverts the entire transaction.

@@ -82,3 +82,21 @@ def test_set_env_from_config(monkeypatch):
     assert os.getenv("TOKEN_SUFFIX") == "xyz"
     assert os.getenv("AGENTS") == "['sim']"
     assert os.getenv("AGENT_WEIGHTS") == "{'sim': 1.0}"
+
+
+def test_set_env_from_config_booleans(monkeypatch):
+    cfg = {
+        "use_flash_loans": True,
+        "use_depth_stream": True,
+        "use_rust_exec": True,
+        "use_service_exec": True,
+    }
+    monkeypatch.delenv("USE_FLASH_LOANS", raising=False)
+    monkeypatch.delenv("USE_DEPTH_STREAM", raising=False)
+    monkeypatch.delenv("USE_RUST_EXEC", raising=False)
+    monkeypatch.delenv("USE_SERVICE_EXEC", raising=False)
+    set_env_from_config(cfg)
+    assert os.getenv("USE_FLASH_LOANS") == "True"
+    assert os.getenv("USE_DEPTH_STREAM") == "True"
+    assert os.getenv("USE_RUST_EXEC") == "True"
+    assert os.getenv("USE_SERVICE_EXEC") == "True"
