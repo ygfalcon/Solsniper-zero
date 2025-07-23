@@ -64,6 +64,7 @@ def _ensure_agents_loaded() -> None:
     from .reinforcement import ReinforcementAgent
     from .portfolio_agent import PortfolioAgent
     from .portfolio_manager import PortfolioManager
+    from .portfolio_optimizer import PortfolioOptimizer
     from .hedging_agent import HedgingAgent
     from .emotion_agent import EmotionAgent
     from .opportunity_cost import OpportunityCostAgent
@@ -86,6 +87,7 @@ def _ensure_agents_loaded() -> None:
         "reinforcement": ReinforcementAgent,
         "portfolio": PortfolioAgent,
         "portfolio_manager": PortfolioManager,
+        "portfolio_optimizer": PortfolioOptimizer,
         "hedging": HedgingAgent,
         "dqn": DQNAgent,
         "ppo": PPOAgent,
