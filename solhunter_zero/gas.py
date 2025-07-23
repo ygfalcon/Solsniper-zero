@@ -66,3 +66,14 @@ async def get_priority_fee_estimate(rpc_urls: list[str]) -> float:
         if fee > 0:
             return fee
     return 0.0
+
+
+def adjust_priority_fee(tx_rate: float) -> int:
+    """Return compute-unit price in lamports based on ``tx_rate``."""
+
+    if tx_rate <= 0:
+        return 0
+
+    # Linear scaling - 1000 lamports per tx/s with an upper cap
+    price = int(tx_rate * 1000)
+    return min(price, 10_000)

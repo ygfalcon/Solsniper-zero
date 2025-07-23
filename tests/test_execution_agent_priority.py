@@ -18,6 +18,11 @@ def test_execution_agent_priority_fee(monkeypatch):
         fake_place,
     )
 
+    monkeypatch.setattr(
+        "solhunter_zero.depth_client.snapshot",
+        lambda tok: ({}, 5.0),
+    )
+
     async def fake_fee(urls):
         return 0.1
 

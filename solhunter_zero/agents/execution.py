@@ -59,6 +59,8 @@ class ExecutionAgent(BaseAgent):
         amount: float,
         price: float,
         base_url: str,
+        *,
+        priority_fee: int | None = None,
     ) -> str | None:
         """Return a signed transaction for ``token`` using ``base_url``."""
 
@@ -87,7 +89,7 @@ class ExecutionAgent(BaseAgent):
         if self.depth_service:
             from ..depth_client import prepare_signed_tx
 
-            return await prepare_signed_tx(tx_b64)
+            return await prepare_signed_tx(tx_b64, priority_fee=priority_fee)
 
         if self.keypair is None:
             return None
@@ -108,6 +110,19 @@ class ExecutionAgent(BaseAgent):
                 if delay > 0:
                     await asyncio.sleep(delay)
                 self._last = asyncio.get_event_loop().time()
+
+            # Read current mempool transaction rate
+            from ..depth_client import snapshot
+            _depth, tx_rate = snapshot(action["token"])
+
+            priority_fee: int | None = None
+            pri_idx = int(action.get("priority", 0))
+            if self.priority_fees and 0 <= pri_idx < len(self.priority_fees):
+                from ..gas import adjust_priority_fee
+
+                priority_fee = int(
+                    adjust_priority_fee(tx_rate) * self.priority_fees[pri_idx]
+                )
 
             venue = str(action.get("venue", "")).lower()
             venues = action.get("venues")
@@ -130,6 +145,7 @@ class ExecutionAgent(BaseAgent):
                         action.get("amount", 0.0),
                         action.get("price", 0.0),
                         url,
+                        priority_fee=priority_fee,
                     )
                     if tx:
                         execer = self._executors.get(action["token"])
@@ -139,6 +155,7 @@ class ExecutionAgent(BaseAgent):
                             await submit_raw_tx(
                                 tx,
                                 priority_rpc=self.priority_rpc,
+                                priority_fee=priority_fee,
                             )
                         return {"queued": True}
                 return None

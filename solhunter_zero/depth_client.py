@@ -140,6 +140,7 @@ async def submit_raw_tx(
     tx_b64: str,
     *,
     priority_rpc: list[str] | None = None,
+    priority_fee: int | None = None,
     socket_path: str = DEPTH_SERVICE_SOCKET,
     timeout: float | None = None,
 ) -> Optional[str]:
@@ -149,6 +150,8 @@ async def submit_raw_tx(
     payload: Dict[str, Any] = {"cmd": "raw_tx", "tx": tx_b64}
     if priority_rpc:
         payload["priority_rpc"] = list(priority_rpc)
+    if priority_fee is not None:
+        payload["priority_fee"] = int(priority_fee)
     writer.write(json.dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
