@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Any
 
 import torch
 from torch import nn
@@ -158,6 +158,8 @@ class RLDaemon:
         model_path: str | Path = "ppo_model.pt",
         algo: str = "ppo",
         device: str | None = None,
+        *,
+        agents: Iterable[Any] | None = None,
     ) -> None:
         self.memory = Memory(memory_path)
         self.data = OfflineData(f"sqlite:///{data_path}")
@@ -174,7 +176,12 @@ class RLDaemon:
             except Exception:  # pragma: no cover - corrupt file
                 pass
         self.model.to(self.device)
+        self.agents: List[Any] = list(agents) if agents else []
         self._task: asyncio.Task | None = None
+
+    def register_agent(self, agent: Any) -> None:
+        """Register an agent to reload checkpoints after training."""
+        self.agents.append(agent)
 
     def train(self) -> None:
         trades = self.memory.list_trades()
@@ -188,6 +195,12 @@ class RLDaemon:
         else:
             _train_ppo(self.model, dataset, self.device)
         torch.save(self.model.state_dict(), self.model_path)
+        for ag in self.agents:
+            try:
+                ag._load_weights()
+            except Exception:  # pragma: no cover - ignore bad agents
+                logger.error("failed to reload agent")
+        logger.info("saved checkpoint to %s", self.model_path)
 
     async def _loop(self, interval: float) -> None:
         while True:

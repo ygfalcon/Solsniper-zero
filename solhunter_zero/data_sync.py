@@ -60,6 +60,7 @@ def sync_snapshots(
                         token=token,
                         price=float(snap.get("price", 0.0)),
                         depth=float(snap.get("depth", 0.0)),
+                        total_depth=float(snap.get("total_depth", 0.0)),
                         imbalance=float(snap.get("imbalance", 0.0)),
                         slippage=float(snap.get("slippage", 0.0)),
                         volume=float(snap.get("volume", 0.0)),

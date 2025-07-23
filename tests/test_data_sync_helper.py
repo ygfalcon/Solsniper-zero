@@ -19,8 +19,8 @@ def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
                 pass
             def json(self):
                 return {"snapshots": [
-                    {"price": 1.0, "depth": 2.0, "imbalance": 0.1},
-                    {"price": 1.1, "depth": 2.1, "imbalance": 0.2},
+                    {"price": 1.0, "depth": 2.0, "total_depth": 3.0, "imbalance": 0.1},
+                    {"price": 1.1, "depth": 2.1, "total_depth": 3.1, "imbalance": 0.2},
                 ]}
         return Resp()
 
