@@ -1,5 +1,7 @@
 import argparse
 import asyncio
+import logging
+import os
 from pathlib import Path
 
 import torch
@@ -52,6 +54,9 @@ async def train_loop(
     batch_size: int,
     interval: float,
     regime: str | None,
+    *,
+    daemon: bool = False,
+    log_progress: bool = False,
 ) -> None:
     data = OfflineData(db_url)
     loader, input_dim = build_loader(data, seq_len, batch_size, regime)
@@ -75,6 +80,11 @@ async def train_loop(
                 opt.step()
             models.save_model(model.to("cpu"), str(model_path))
             model.to(device)
+            os.environ["PRICE_MODEL_PATH"] = str(model_path)
+            if log_progress:
+                logging.info("Saved checkpoint to %s", model_path)
+        if not daemon:
+            break
         await asyncio.sleep(interval)
 
 
@@ -87,12 +97,17 @@ async def main() -> None:
     p.add_argument("--seq-len", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--regime", default=None)
+    p.add_argument("--daemon", action="store_true", help="keep training in a loop")
+    p.add_argument("--log-progress", action="store_true", help="log checkpoint saves")
     args = p.parse_args()
 
     if args.device != "cpu" and not torch.cuda.is_available():
         device = torch.device("cpu")
     else:
         device = torch.device(args.device)
+
+    if args.log_progress:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     await train_loop(
         args.db,
@@ -102,6 +117,8 @@ async def main() -> None:
         args.batch_size,
         args.interval,
         args.regime,
+        daemon=args.daemon,
+        log_progress=args.log_progress,
     )
 
 

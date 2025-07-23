@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 import numpy as np
 
 from .. import models
+from .. import simulation
 from ..simulation import fetch_token_metrics
 
 from . import BaseAgent
@@ -36,7 +37,7 @@ class MetaConvictionAgent(BaseAgent):
     def _predict_return(self, token: str) -> float:
         if not self.model_path:
             return 0.0
-        model = models.get_model(self.model_path, reload=True)
+        model = simulation.get_price_model(self.model_path)
         if not model:
             return 0.0
         metrics = fetch_token_metrics(token)

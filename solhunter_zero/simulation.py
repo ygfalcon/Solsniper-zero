@@ -31,6 +31,28 @@ _TRADE_ROIS: list[float] = []
 # Stored bias values updated via :func:`bias_correction`
 _BIAS: dict[str, float] = {"mean": 0.0, "volatility": 0.0}
 
+# Cached price model and modification time for fast reloads
+_PRICE_MODEL = None
+_PRICE_MTIME = 0.0
+
+
+def get_price_model(model_path: str | None = None):
+    """Return cached price model reloading when the file changes."""
+    global _PRICE_MODEL, _PRICE_MTIME
+    model_path = model_path or os.getenv("PRICE_MODEL_PATH")
+    if not model_path or not os.path.exists(model_path):
+        _PRICE_MODEL = None
+        _PRICE_MTIME = 0.0
+        return None
+    try:
+        mtime = os.path.getmtime(model_path)
+    except OSError:
+        return None
+    if _PRICE_MODEL is None or mtime > _PRICE_MTIME:
+        _PRICE_MODEL = models.get_model(model_path, reload=True)
+        _PRICE_MTIME = mtime
+    return _PRICE_MODEL
+
 
 def log_trade_outcome(roi: float) -> None:
     """Record a realized trade ROI for later bias correction."""
@@ -209,8 +231,7 @@ def predict_price_movement(
 ) -> float:
     """Predict short term price change using ML models when available."""
 
-    model_path = model_path or os.getenv("PRICE_MODEL_PATH")
-    model = models.get_model(model_path, reload=True)
+    model = get_price_model(model_path)
     if model:
         metrics = fetch_token_metrics(token)
         ph = metrics.get("price_history") or []
@@ -359,17 +380,14 @@ def run_simulations(
     predicted_mean = mu
     used_ml = False
 
-    model_path = os.getenv("PRICE_MODEL_PATH")
-    if model_path:
+    model = get_price_model()
+    if model and price_hist and liq_hist and depth_hist and tx_hist:
         try:
-            from . import models
-            model = models.get_model(model_path)
-            if model and price_hist and liq_hist and depth_hist and tx_hist:
-                seq = np.column_stack(
-                    [price_hist, liq_hist, depth_hist, tx_hist]
-                )[-30:]
-                predicted_mean = float(model.predict(seq))
-                used_ml = True
+            seq = np.column_stack(
+                [price_hist, liq_hist, depth_hist, tx_hist]
+            )[-30:]
+            predicted_mean = float(model.predict(seq))
+            used_ml = True
         except Exception as exc:  # pragma: no cover - model errors
             logger.warning("Failed to load ML model: %s", exc)
 
