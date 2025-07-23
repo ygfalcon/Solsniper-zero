@@ -105,19 +105,22 @@ mutation_threshold: 0.0
 ## Rust Depth Service
 
 The `depth_service` crate provides low‑latency order book snapshots and
-direct transaction submission to the Solana RPC.  The service exposes a
-`signed_tx` IPC command that forwards pre‑signed transactions via
-`send_raw_tx` for minimal latency. Start the service with
+direct transaction submission to the Solana RPC.
 
-```bash
-cargo run --manifest-path depth_service/Cargo.toml -- --serum wss://serum/ws --raydium wss://raydium/ws
-```
-
-It writes depth data to `/tmp/depth_service.mmap` and exposes an IPC socket at
-`/tmp/depth_service.sock` used by the Python modules.  Python callers can send
-pre-signed transactions with ``depth_client.submit_signed_tx`` or run an
-``EventExecutor`` from ``solhunter_zero.execution`` for event-driven order
-submission.
+1. **Build and run the service**
+   ```bash
+   cargo run --manifest-path depth_service/Cargo.toml --release -- \
+     --serum wss://serum/ws --raydium wss://raydium/ws
+   ```
+2. **Set environment variables**
+   Ensure `DEPTH_SERVICE_SOCKET` and `DEPTH_MMAP_PATH` are exported before
+   launching the Python modules. They default to
+   `/tmp/depth_service.sock` and `/tmp/depth_service.mmap` respectively.
+3. **Route transactions through the service**
+   Python code signs transactions locally and forwards them via
+   ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
+   ``solhunter_zero.execution``. The service relays them using
+   ``send_raw_tx`` for minimal latency.
 
 ## Flash-Loan Arbitrage
 
@@ -546,3 +549,16 @@ python -m solhunter_zero.backtest_cli prices.json -c config.toml --optimize --it
 ```
 
 The best weight configuration found is printed as JSON.
+
+## Troubleshooting
+
+- **Permission denied when connecting to the socket** — check that
+  `DEPTH_SERVICE_SOCKET` points to a writable location and that the Rust
+  service owns the file. Delete any stale socket file and restart the
+  service.
+- **Missing keypair** — ensure a valid Solana keypair file is available and
+  loaded in the UI or specified via environment variables before submitting
+  transactions.
+- **Service not running** — verify `depth_service` is running and that
+  `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to
+  `True`.

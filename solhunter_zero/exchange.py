@@ -9,7 +9,7 @@ import requests
 import aiohttp
 
 IPC_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
-USE_RUST_EXEC = os.getenv("USE_RUST_EXEC", "1").lower() in {"1", "true", "yes"}
+USE_RUST_EXEC = os.getenv("USE_RUST_EXEC", "True").lower() in {"1", "true", "yes"}
 
 from solders.keypair import Keypair
 from solders.transaction import VersionedTransaction
