@@ -60,7 +60,7 @@ DEX_PRIORITIES = [
 ]
 
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "0").lower() in {"1", "true", "yes"}
-USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "0").lower() in {"1", "true", "yes"}
+USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "1").lower() in {"1", "true", "yes"}
 
 
 def _parse_mapping_env(env: str) -> dict:

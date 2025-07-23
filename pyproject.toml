@@ -11,8 +11,8 @@ dependencies = [
     "pandas",
     "scikit-learn",
 
-    "solana",
-    "solders",
+    "solana>=0.36",
+    "solders>=0.26",
     "flask",
 
     "aiohttp",

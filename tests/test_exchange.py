@@ -132,6 +132,7 @@ def test_place_order_async(monkeypatch):
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
     monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", _no_fee_async)
+    monkeypatch.setattr("solhunter_zero.exchange.USE_RUST_EXEC", False)
     result = asyncio.run(place_order_async("tok", "buy", 1.0, 0.0, keypair=kp, testnet=True))
     assert result["signature"] == "sig"
     assert sent["len"] > 0
@@ -189,6 +190,7 @@ def test_place_order_async_deducts_gas(monkeypatch):
     async def fake_fee(*a, **k):
         return 1.0
     monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", fake_fee)
+    monkeypatch.setattr("solhunter_zero.exchange.USE_RUST_EXEC", False)
 
     asyncio.run(place_order_async("tok", "buy", 2.0, 0.0, keypair=kp))
     assert sent["payload"]["amount"] == pytest.approx(1.0)
