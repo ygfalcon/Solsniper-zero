@@ -164,3 +164,37 @@ async def submit_raw_tx(
     except Exception:
         return None
     return resp.get("signature")
+
+
+async def auto_exec(
+    token: str,
+    threshold: float,
+    txs: list[str],
+    *,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+) -> bool:
+    """Register auto-execution triggers with the Rust service."""
+
+    reader, writer = await asyncio.open_unix_connection(socket_path)
+    payload: Dict[str, Any] = {
+        "cmd": "auto_exec",
+        "token": token,
+        "threshold": threshold,
+        "txs": list(txs),
+    }
+    writer.write(json.dumps(payload).encode())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    if not data:
+        return False
+    try:
+        resp = json.loads(data.decode())
+    except Exception:
+        return False
+    return bool(resp.get("ok"))

@@ -178,7 +178,18 @@ submission.
    ```bash
    export KEYPAIR_PATH=/path/to/your/keypair.json
    ```
-8. **Run the bot**
+8. **Priority RPC endpoints**
+   Specify one or more RPC URLs used for high-priority submission:
+   ```bash
+   export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+   ```
+9. **Auto-execution**
+   Register tokens and pre-signed transactions so the depth service
+   dispatches them when thresholds are crossed:
+   ```bash
+   export AUTO_EXEC='{"TOKEN":{"threshold":1.0,"txs":["BASE64"]}}'
+   ```
+10. **Run the bot**
    ```bash
    ./run.sh --auto
    ```
