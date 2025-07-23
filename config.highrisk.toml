@@ -35,6 +35,8 @@ agents = [
 # Dynamically adjust weights based on agent ROI
 dynamic_weights = true
 weight_step = 0.05
+evolve_interval = 1
+mutation_threshold = 0.0
 
 [agent_weights]
 simulation = 1.0
