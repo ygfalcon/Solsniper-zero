@@ -43,6 +43,14 @@ type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 
 type SharedMmap = Arc<Mutex<MmapMut>>;
 
+#[derive(Default, Clone)]
+struct AutoExecEntry {
+    threshold: f64,
+    txs: Vec<String>,
+}
+
+type AutoExecMap = Arc<Mutex<HashMap<String, AutoExecEntry>>>;
+
 struct ExecContext {
     client: RpcClient,
     keypair: Keypair,
@@ -137,10 +145,53 @@ impl ExecContext {
         msg_b64: &str,
         priority_fee: Option<u64>,
     ) -> Result<String> {
+        use solana_sdk::{
+            compute_budget::ComputeBudgetInstruction,
+            message::MessageHeader,
+        };
+
         let mut msg: VersionedMessage = deserialize(&STANDARD.decode(msg_b64)?)?;
-        if let Some(_fee) = priority_fee {
-            // priority fee handling omitted for compatibility
+
+        if let Some(fee) = priority_fee {
+            fn insert_budget(
+                header: &mut MessageHeader,
+                keys: &mut Vec<solana_sdk::pubkey::Pubkey>,
+                ixs: &mut Vec<solana_sdk::instruction::CompiledInstruction>,
+                fee: u64,
+            ) {
+                use solana_sdk::{
+                    compute_budget,
+                    message::account_keys::AccountKeys,
+                    message::v0::LoadedAddresses,
+                };
+                let pid = compute_budget::id();
+                if keys.iter().position(|k| *k == pid).is_none() {
+                    keys.push(pid);
+                    header.num_readonly_unsigned_accounts = header
+                        .num_readonly_unsigned_accounts
+                        .saturating_add(1);
+                };
+                let accounts = AccountKeys::new(keys, None::<&LoadedAddresses>);
+                let mut add_ix = |ix: solana_sdk::instruction::Instruction| {
+                    let mut c = accounts.compile_instructions(&[ix]);
+                    if let Some(ci) = c.pop() {
+                        ixs.insert(0, ci);
+                    }
+                };
+                add_ix(ComputeBudgetInstruction::set_compute_unit_price(fee));
+                add_ix(ComputeBudgetInstruction::set_compute_unit_limit(1_400_000));
+            }
+
+            match &mut msg {
+                VersionedMessage::Legacy(m) => {
+                    insert_budget(&mut m.header, &mut m.account_keys, &mut m.instructions, fee);
+                }
+                VersionedMessage::V0(m) => {
+                    insert_budget(&mut m.header, &mut m.account_keys, &mut m.instructions, fee);
+                }
+            }
         }
+
         let bh = self.latest_blockhash().await;
         match &mut msg {
             VersionedMessage::Legacy(m) => m.recent_blockhash = bh,
@@ -265,11 +316,51 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
         let _ = std::fs::remove_file(socket);
     }
     let listener = UnixListener::bind(socket)?;
+    let auto_map: AutoExecMap = Arc::new(Mutex::new(HashMap::new()));
+
+    {
+        let d = dex_map.clone();
+        let m = mem.clone();
+        let exec = exec.clone();
+        let a = auto_map.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                let entries = { a.lock().await.clone() };
+                if entries.is_empty() {
+                    continue;
+                }
+                let rates = { m.lock().await.clone() };
+                let dexes = { d.lock().await.clone() };
+                let mut remove = Vec::new();
+                for (tok, cfg) in entries.iter() {
+                    let rate = rates.get(tok).copied().unwrap_or(0.0);
+                    let mut liq = 0.0;
+                    for dex in dexes.values() {
+                        if let Some(info) = dex.get(tok) {
+                            liq += info.bids + info.asks;
+                        }
+                    }
+                    if rate >= cfg.threshold || liq >= cfg.threshold {
+                        for tx in &cfg.txs {
+                            let _ = exec.submit_signed_tx(tx).await;
+                        }
+                        remove.push(tok.clone());
+                    }
+                }
+                if !remove.is_empty() {
+                    let mut lock = a.lock().await;
+                    for t in remove { lock.remove(&t); }
+                }
+            }
+        });
+    }
     loop {
         let (mut stream, _) = listener.accept().await?;
         let dex_map = dex_map.clone();
         let mem = mem.clone();
         let exec = exec.clone();
+        let auto_map = auto_map.clone();
         tokio::spawn(async move {
             let mut buf = Vec::new();
             if stream.read_to_end(&mut buf).await.is_ok() {
@@ -384,6 +475,22 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             Err(_) => {
                                 let _ = stream.write_all(b"{\"ok\":false}").await;
                             }
+                        }
+                    } else if val.get("cmd") == Some(&Value::String("auto_exec".into())) {
+                        if let (Some(token), Some(th), Some(arr)) = (
+                            val.get("token").and_then(|v| v.as_str()),
+                            val.get("threshold").and_then(|v| v.as_f64()),
+                            val.get("txs").and_then(|v| v.as_array()),
+                        ) {
+                            let txs: Vec<String> = arr
+                                .iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect();
+                            auto_map.lock().await.insert(
+                                token.to_string(),
+                                AutoExecEntry { threshold: th, txs },
+                            );
+                            let _ = stream.write_all(b"{\"ok\":true}").await;
                         }
                     }
                 }
