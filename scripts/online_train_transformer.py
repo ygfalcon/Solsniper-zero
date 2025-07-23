@@ -15,10 +15,11 @@ def build_loader(
     seq_len: int,
     batch_size: int,
     regime: str | None = None,
-) -> DataLoader | None:
+):
+    """Return DataLoader and feature dimension."""
     snaps = data.list_snapshots()
     if len(snaps) <= seq_len:
-        return None
+        return None, 0
     prices = [float(s.price) for s in snaps]
     X_full, y_full = models.make_snapshot_training_data(snaps, seq_len=seq_len)
     regimes = [
@@ -27,17 +28,18 @@ def build_loader(
     if regime is not None:
         idx = [i for i, r in enumerate(regimes) if r == regime]
         if not idx:
-            return None
+            return None, 0
         X_full = X_full[idx]
         y_full = y_full[idx]
     dataset = TensorDataset(X_full, y_full)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return loader, X_full.size(-1)
 
 
-def load_or_create_model(path: Path, device: torch.device) -> torch.nn.Module:
+def load_or_create_model(path: Path, device: torch.device, input_dim: int) -> torch.nn.Module:
     model = models.get_model(str(path))
-    if model is None:
-        model = models.DeepTransformerModel(6)
+    if model is None or getattr(model, "input_dim", input_dim) != input_dim:
+        model = models.DeepTransformerModel(input_dim)
     model.to(device)
     return model
 
@@ -52,12 +54,15 @@ async def train_loop(
     regime: str | None,
 ) -> None:
     data = OfflineData(db_url)
-    model = load_or_create_model(model_path, device)
+    loader, input_dim = build_loader(data, seq_len, batch_size, regime)
+    if loader is None:
+        return
+    model = load_or_create_model(model_path, device, input_dim)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = torch.nn.MSELoss()
 
     while True:
-        loader = build_loader(data, seq_len, batch_size, regime)
+        loader, _ = build_loader(data, seq_len, batch_size, regime)
         if loader is not None:
             model.train()
             for X_b, y_b in loader:

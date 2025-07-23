@@ -28,6 +28,9 @@ class MarketSnapshot(Base):
     slippage = Column(Float, nullable=False, default=0.0)
     volume = Column(Float, nullable=False, default=0.0)
     imbalance = Column(Float, nullable=False)
+    tx_rate = Column(Float, nullable=False, default=0.0)
+    whale_share = Column(Float, nullable=False, default=0.0)
+    spread = Column(Float, nullable=False, default=0.0)
     timestamp = Column(DateTime, default=utcnow)
 
 
@@ -58,6 +61,9 @@ class OfflineData:
         imbalance: float,
         slippage: float = 0.0,
         volume: float = 0.0,
+        tx_rate: float = 0.0,
+        whale_share: float = 0.0,
+        spread: float = 0.0,
     ) -> None:
         with self.Session() as session:
             snap = MarketSnapshot(
@@ -67,6 +73,9 @@ class OfflineData:
                 slippage=slippage,
                 volume=volume,
                 imbalance=imbalance,
+                tx_rate=tx_rate,
+                whale_share=whale_share,
+                spread=spread,
             )
             session.add(snap)
             session.commit()
