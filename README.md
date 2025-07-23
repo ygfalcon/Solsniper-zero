@@ -277,6 +277,8 @@ The trading logic is implemented by a swarm of small agents:
   known profitable manifold.
 - **FractalAgent** — matches ROI fractal patterns using wavelet fingerprints.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
+- **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
+- **CrossDEXRebalancer** — splits trades across venues based on order-book liquidity and slippage.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,

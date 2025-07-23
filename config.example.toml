@@ -58,6 +58,9 @@ dex_fees = "{}"
 dex_gas = "{}"
 dex_latency = "{}"
 use_mev_bundles = false # submit swap bundles via MEVExecutor when true
+# CrossDEXRebalancer options
+rebalance_interval = 30     # seconds between venue rebalances
+slippage_threshold = 0.05   # ignore venues with higher expected slippage
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
@@ -77,7 +80,7 @@ trend_volume_threshold = 0
 trend_sentiment_threshold = 0.0
 
 # Enable built-in agents for trading
-agents = ["simulation", "conviction", "arbitrage", "exit", "trend", "momentum", "vanta", "inferna", "portfolio_optimizer"]
+agents = ["simulation", "conviction", "arbitrage", "exit", "trend", "momentum", "vanta", "inferna", "portfolio_optimizer", "crossdex_rebalancer"]
 
 [agent_weights]
 simulation = 1.0
@@ -89,3 +92,4 @@ momentum = 1.0
 vanta = 1.0
 inferna = 1.0
 portfolio_optimizer = 1.0
+crossdex_rebalancer = 1.0

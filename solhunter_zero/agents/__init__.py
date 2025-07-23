@@ -67,6 +67,7 @@ def _ensure_agents_loaded() -> None:
     from .portfolio_agent import PortfolioAgent
     from .portfolio_manager import PortfolioManager
     from .portfolio_optimizer import PortfolioOptimizer
+    from .crossdex_rebalancer import CrossDEXRebalancer
     from .hedging_agent import HedgingAgent
     from .emotion_agent import EmotionAgent
     from .opportunity_cost import OpportunityCostAgent
@@ -91,6 +92,7 @@ def _ensure_agents_loaded() -> None:
         "portfolio_manager": PortfolioManager,
         "portfolio_optimizer": PortfolioOptimizer,
         "hedging": HedgingAgent,
+        "crossdex_rebalancer": CrossDEXRebalancer,
         "dqn": DQNAgent,
         "ppo": PPOAgent,
         "opportunity_cost": OpportunityCostAgent,
