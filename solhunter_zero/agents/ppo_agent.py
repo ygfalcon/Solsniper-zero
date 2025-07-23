@@ -94,6 +94,10 @@ class PPOAgent(BaseAgent):
         self._last_mtime = os.path.getmtime(self.model_path)
         self._fitted = True
 
+    def reload_weights(self) -> None:
+        """Public method for reloading weights from disk."""
+        self._load_weights()
+
     def _maybe_reload(self) -> None:
         if not self.model_path.exists():
             return

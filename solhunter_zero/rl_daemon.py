@@ -17,13 +17,47 @@ logger = logging.getLogger(__name__)
 
 
 class _TradeDataset(Dataset):
-    """Dataset wrapping trade history with risk metrics."""
+    """Dataset wrapping trade history with risk and market metrics."""
 
-    def __init__(self, trades: Iterable, metrics: Tuple[float, float, float]) -> None:
+    def __init__(self, trades: Iterable, snaps: Iterable, metrics: Tuple[float, float, float]) -> None:
         self.samples: List[Tuple[List[float], int, float]] = []
+        snap_map: dict[str, List[Any]] = {}
+        for s in snaps:
+            snap_map.setdefault(s.token, []).append(s)
+        for seq in snap_map.values():
+            seq.sort(key=lambda x: x.timestamp)
+
         drawdown, volatility, corr = metrics
         for t in trades:
-            state = [float(t.price), float(getattr(t, "amount", 0.0)), drawdown, volatility, corr]
+            mempool = trend = depth = 0.0
+            seq = snap_map.get(t.token)
+            if seq:
+                idx = 0
+                ts = getattr(t, "timestamp", None)
+                for i, s in enumerate(seq):
+                    if ts is None or s.timestamp <= ts:
+                        idx = i
+                    else:
+                        break
+                snap = seq[idx]
+                mempool = float(getattr(snap, "tx_rate", 0.0))
+                depth = float(getattr(snap, "depth", 0.0))
+                if idx > 0:
+                    prev = seq[idx - 1]
+                    p0 = float(prev.price)
+                    if p0:
+                        trend = (float(snap.price) - p0) / p0
+
+            state = [
+                float(t.price),
+                float(getattr(t, "amount", 0.0)),
+                drawdown,
+                volatility,
+                corr,
+                mempool,
+                trend,
+                depth,
+            ]
             reward = float(t.amount) * float(t.price)
             action = 0 if t.direction == "buy" else 1
             if t.direction == "buy":
@@ -43,7 +77,7 @@ class _TradeDataset(Dataset):
 
 
 class _DQN(nn.Module):
-    def __init__(self, input_size: int = 5, hidden_size: int = 32) -> None:
+    def __init__(self, input_size: int = 8, hidden_size: int = 32) -> None:
         super().__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -56,7 +90,7 @@ class _DQN(nn.Module):
 
 
 class _PPO(nn.Module):
-    def __init__(self, input_size: int = 5, hidden_size: int = 32, clip_epsilon: float = 0.2) -> None:
+    def __init__(self, input_size: int = 8, hidden_size: int = 32, clip_epsilon: float = 0.2) -> None:
         super().__init__()
         self.actor = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -187,8 +221,8 @@ class RLDaemon:
         trades = self.memory.list_trades()
         snaps = self.data.list_snapshots()
         metrics = _metrics(trades, snaps)
-        dataset = _TradeDataset(trades, metrics)
-        if not dataset:
+        dataset = _TradeDataset(trades, snaps, metrics)
+        if len(dataset) == 0:
             return
         if self.algo == "dqn":
             _train_dqn(self.model, dataset, self.device)
@@ -197,7 +231,10 @@ class RLDaemon:
         torch.save(self.model.state_dict(), self.model_path)
         for ag in self.agents:
             try:
-                ag._load_weights()
+                if hasattr(ag, "reload_weights"):
+                    ag.reload_weights()
+                else:
+                    ag._load_weights()
             except Exception:  # pragma: no cover - ignore bad agents
                 logger.error("failed to reload agent")
         logger.info("saved checkpoint to %s", self.model_path)
