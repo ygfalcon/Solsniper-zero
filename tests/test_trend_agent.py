@@ -1,4 +1,18 @@
 import asyncio
+import sys
+import types
+
+dummy_torch = types.ModuleType("torch")
+dummy_nn = types.ModuleType("torch.nn")
+class DummyModule:  # minimal stand-in for torch.nn.Module
+    pass
+dummy_nn.Module = DummyModule
+dummy_torch.nn = dummy_nn
+class DummyTensor:
+    pass
+dummy_torch.Tensor = DummyTensor
+sys.modules.setdefault("torch", dummy_torch)
+sys.modules.setdefault("torch.nn", dummy_nn)
 
 from solhunter_zero.agents.trend import TrendAgent
 from solhunter_zero.agents.execution import ExecutionAgent
@@ -26,7 +40,7 @@ def test_trend_agent_buy(monkeypatch):
         "solhunter_zero.agents.trend.async_fetch_token_metrics", fake_metrics
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.trend.fetch_sentiment", lambda feeds: 0.5
+        "solhunter_zero.agents.trend.fetch_sentiment", lambda *a, **k: 0.5
     )
 
     agent = TrendAgent(volume_threshold=100.0, sentiment_threshold=0.1, feeds=["f"])
@@ -48,7 +62,7 @@ def test_agent_manager_trend_integration(monkeypatch):
         "solhunter_zero.agents.trend.async_fetch_token_metrics", fake_metrics
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.trend.fetch_sentiment", lambda feeds: 0.5
+        "solhunter_zero.agents.trend.fetch_sentiment", lambda *a, **k: 0.5
     )
 
     captured = {}
