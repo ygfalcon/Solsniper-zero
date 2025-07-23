@@ -106,6 +106,8 @@ class AgentManager:
         depth_service: bool = False,
         priority_rpc: list[str] | None = None,
         regime_weights: Dict[str, Dict[str, float]] | None = None,
+        evolve_interval: int = 1,
+        mutation_threshold: float = 0.0,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
@@ -148,6 +150,9 @@ class AgentManager:
             self.selector = StrategySelector(
                 self.memory_agent, vote_threshold=self.vote_threshold
             )
+
+        self.evolve_interval = int(evolve_interval)
+        self.mutation_threshold = float(mutation_threshold)
 
         self.depth_service = depth_service
         self._event_executors: Dict[str, EventExecutor] = {}
@@ -424,6 +429,9 @@ class AgentManager:
                     regime_weights = {}
             except Exception:
                 regime_weights = {}
+        evolve_interval = int(cfg.get("evolve_interval", 1))
+        mutation_threshold = float(cfg.get("mutation_threshold", 0.0))
+
         if not agents:
             return None
         return cls(
@@ -437,5 +445,7 @@ class AgentManager:
             depth_service=depth_service,
             priority_rpc=priority_rpc,
             regime_weights=regime_weights,
+            evolve_interval=evolve_interval,
+            mutation_threshold=mutation_threshold,
         )
 

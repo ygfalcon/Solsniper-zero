@@ -485,6 +485,7 @@ def main(
         book_task = None
         arb_task = None
         prev_activity = 0.0
+        iteration_idx = 0
 
         def adjust_delay(metrics: dict) -> None:
             nonlocal loop_delay, prev_activity
@@ -569,6 +570,9 @@ def main(
                         _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
                     )
                     adjust_delay(metrics)
+                iteration_idx += 1
+                if agent_manager and iteration_idx % getattr(agent_manager, "evolve_interval", 1) == 0:
+                    agent_manager.evolve(threshold=getattr(agent_manager, "mutation_threshold", 0.0))
                 await asyncio.sleep(loop_delay)
         else:
             for i in range(iterations):
@@ -597,6 +601,9 @@ def main(
                         _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
                     )
                     adjust_delay(metrics)
+                iteration_idx += 1
+                if agent_manager and iteration_idx % getattr(agent_manager, "evolve_interval", 1) == 0:
+                    agent_manager.evolve(threshold=getattr(agent_manager, "mutation_threshold", 0.0))
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
 

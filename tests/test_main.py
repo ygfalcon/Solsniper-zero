@@ -593,3 +593,56 @@ def test_scheduler_adjusts_delay(monkeypatch):
 
     assert sleeps == [4, 2, 4]
 
+
+def test_agent_manager_evolves(monkeypatch, tmp_path):
+    cfg_file = tmp_path / "cfg.toml"
+    cfg_file.write_text('agents=["dummy"]')
+
+    calls = []
+
+    class DummyManager:
+        evolve_interval = 2
+        mutation_threshold = 0.0
+
+        def __init__(self):
+            pass
+
+        @classmethod
+        def from_config(cls, cfg):
+            return cls()
+
+        async def execute(self, token, portfolio):
+            pass
+
+        def update_weights(self):
+            pass
+
+        def save_weights(self):
+            pass
+
+        def evolve(self, *_, **__):
+            calls.append(True)
+
+    async def fake_run_iteration(*_a, **_k):
+        main_module._LAST_TOKENS = []
+
+    monkeypatch.setattr(main_module, "AgentManager", DummyManager)
+    monkeypatch.setattr(main_module, "StrategyManager", lambda *a, **k: None)
+    monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
+    monkeypatch.setattr(main_module, "fetch_dex_metrics", lambda *a, **k: {})
+
+    async def fake_sleep(_):
+        pass
+
+    monkeypatch.setattr(main_module.asyncio, "sleep", fake_sleep)
+
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=0,
+        iterations=4,
+        config_path=str(cfg_file),
+        dry_run=True,
+    )
+
+    assert len(calls) == 2
+

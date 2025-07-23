@@ -92,6 +92,8 @@ agent_weights:
   arbitrage: 1.0
 dynamic_weights: true
 weight_step: 0.05
+evolve_interval: 1
+mutation_threshold: 0.0
 ```
 
    An example configuration file named `config.example.toml` is included in
@@ -260,6 +262,9 @@ The `AgentManager` periodically adjusts these weights using the
 `update_weights()` method.  It reviews trade history recorded by the
 `MemoryAgent` and slightly increases the weight of agents with a positive ROI
 while decreasing the weight of those with losses.
+Every ``evolve_interval`` iterations the manager also calls ``evolve()`` to
+spawn new agent mutations and prune those with an ROI below
+``mutation_threshold``.
 Each trade outcome is also logged to the advanced memory. Agents look up
 previous success rates when deciding whether to accept new simulation results.
 
