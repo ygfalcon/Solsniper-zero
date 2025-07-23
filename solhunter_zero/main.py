@@ -2,6 +2,8 @@ import logging
 import os
 import asyncio
 import contextlib
+import subprocess
+import time
 from argparse import ArgumentParser
 from typing import Sequence
 
@@ -16,6 +18,50 @@ from .config import (
     CONFIG_DIR,
 )
 from . import wallet
+
+_SERVICE_MANIFEST = (
+    Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
+)
+
+
+def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
+    """Launch the Rust depth_service if enabled."""
+
+    if not cfg.get("depth_service"):
+        return None
+
+    args = [
+        "cargo",
+        "run",
+        "--manifest-path",
+        str(_SERVICE_MANIFEST),
+        "--release",
+        "--",
+    ]
+
+    def add(flag: str, key: str) -> None:
+        val = os.getenv(key.upper()) or cfg.get(key)
+        if val:
+            args.extend([flag, str(val)])
+
+    add("--raydium", "raydium_ws_url")
+    add("--orca", "orca_ws_url")
+    add("--phoenix", "phoenix_ws_url")
+    add("--meteora", "meteora_ws_url")
+    add("--jupiter", "jupiter_ws_url")
+    add("--serum", "serum_ws_url")
+
+    rpc = os.getenv("SOLANA_RPC_URL") or cfg.get("solana_rpc_url")
+    if rpc:
+        args.extend(["--rpc", rpc])
+    keypair = os.getenv("SOLANA_KEYPAIR") or os.getenv("KEYPAIR_PATH")
+    if keypair:
+        args.extend(["--keypair", keypair])
+
+    proc = subprocess.Popen(args)
+    time.sleep(2.0)
+    return proc
+
 
 # Load configuration at startup so modules relying on environment variables
 # pick up the values from config files or environment.
@@ -58,10 +104,8 @@ async def _run_iteration(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
-
     token_file: str | None = None,
     discovery_method: str = "websocket",
-
     keypair=None,
     stop_loss: float | None = None,
     take_profit: float | None = None,
@@ -80,15 +124,11 @@ async def _run_iteration(
     if arbitrage_amount is None:
         arbitrage_amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
 
-
-    
     scan_kwargs = {
         "offline": offline,
         "token_file": token_file,
         "method": discovery_method,
     }
-
-
 
     if agent_manager is not None:
         if hasattr(agent_manager, "discover_tokens"):
@@ -106,7 +146,6 @@ async def _run_iteration(
     global _LAST_TOKENS
     _LAST_TOKENS = list(tokens)
 
-
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
 
@@ -116,11 +155,12 @@ async def _run_iteration(
 
             ranked = top_volume_tokens(rpc_url, limit=len(tokens))
             ranked_set = set(ranked)
-            tokens = [t for t in ranked if t in tokens] + [t for t in tokens if t not in ranked_set]
+            tokens = [t for t in ranked if t in tokens] + [
+                t for t in tokens if t not in ranked_set
+            ]
 
         except Exception as exc:  # pragma: no cover - network errors
             logging.warning("Volume ranking failed: %s", exc)
-
 
     price_lookup = {}
     if portfolio.balances:
@@ -141,7 +181,10 @@ async def _run_iteration(
                 logging.warning("Agent execution failed for %s: %s", token, exc)
         return
 
-    use_old = strategy_manager is None and run_simulations.__module__ != "solhunter_zero.simulation"
+    use_old = (
+        strategy_manager is None
+        and run_simulations.__module__ != "solhunter_zero.simulation"
+    )
     if use_old:
         for token in tokens:
             sims = run_simulations(token, count=100)
@@ -176,14 +219,14 @@ async def _run_iteration(
                         "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
                         "max_drawdown": max_drawdown,
                         "volatility_factor": volatility_factor,
-
-                    "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
-                    "min_portfolio_value": os.getenv("MIN_PORTFOLIO_VALUE", "20"),
-                }
-            )
+                        "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
+                        "min_portfolio_value": os.getenv("MIN_PORTFOLIO_VALUE", "20"),
+                    }
+                )
 
                 first_sim = sims[0] if sims else None
                 from .risk import hedge_ratio, leverage_scaling
+
                 hedge = hedge_ratio(
                     portfolio.price_history.get(token, []),
                     portfolio.price_history.get("USDC", []),
@@ -195,12 +238,10 @@ async def _run_iteration(
                     volume_spike=getattr(first_sim, "volume_spike", 1.0),
                     depth_change=getattr(first_sim, "depth_change", 0.0),
                     whale_activity=getattr(first_sim, "whale_activity", 0.0),
-
                     portfolio_value=balance,
                     portfolio_metrics=risk_metrics,
                     leverage=lev,
                     correlation=risk_metrics.get("correlation"),
-
                 )
 
                 amount = calculate_order_size(
@@ -228,12 +269,20 @@ async def _run_iteration(
                 )
 
                 if not dry_run:
-                    memory.log_trade(token=token, direction="buy", amount=amount, price=0)
+                    memory.log_trade(
+                        token=token, direction="buy", amount=amount, price=0
+                    )
                     portfolio.update(token, amount, 0)
 
         price_lookup_sell = {}
-        if stop_loss is not None or take_profit is not None or trailing_stop is not None:
-            price_lookup_sell = await fetch_token_prices_async(portfolio.balances.keys())
+        if (
+            stop_loss is not None
+            or take_profit is not None
+            or trailing_stop is not None
+        ):
+            price_lookup_sell = await fetch_token_prices_async(
+                portfolio.balances.keys()
+            )
             portfolio.update_highs(price_lookup_sell)
             if price_lookup_sell:
                 portfolio.record_prices(price_lookup_sell)
@@ -250,7 +299,9 @@ async def _run_iteration(
                     roi_trigger = True
                 if take_profit is not None and roi >= take_profit:
                     roi_trigger = True
-                if trailing_stop is not None and portfolio.trailing_stop_triggered(token, price, trailing_stop):
+                if trailing_stop is not None and portfolio.trailing_stop_triggered(
+                    token, price, trailing_stop
+                ):
                     roi_trigger = True
 
             if roi_trigger or should_sell(
@@ -271,7 +322,9 @@ async def _run_iteration(
                 )
 
                 if not dry_run:
-                    memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
+                    memory.log_trade(
+                        token=token, direction="sell", amount=pos.amount, price=0
+                    )
                     portfolio.update(token, -pos.amount, 0)
     else:
         if strategy_manager is None:
@@ -313,7 +366,9 @@ async def _run_iteration(
                 )
 
                 if not dry_run:
-                    memory.log_trade(token=token, direction=side, amount=amount, price=price)
+                    memory.log_trade(
+                        token=token, direction=side, amount=amount, price=price
+                    )
                     portfolio.update(token, amount if side == "buy" else -amount, price)
 
         if agent_manager is not None:
@@ -348,10 +403,6 @@ async def _init_rl_training(
     return daemon.start(rl_interval)
 
 
-
-
-
-
 def main(
     memory_path: str = "sqlite:///memory.db",
     loop_delay: int = 60,
@@ -362,12 +413,8 @@ def main(
     testnet: bool = False,
     dry_run: bool = False,
     offline: bool = False,
-
-
     token_file: str | None = None,
     discovery_method: str | None = None,
-
-
     keypair_path: str | None = None,
     portfolio_path: str = "portfolio.json",
     config_path: str | None = None,
@@ -387,7 +434,6 @@ def main(
     strategies: list[str] | None = None,
     rl_daemon: bool = False,
     rl_interval: float = 3600.0,
-
 ) -> None:
     """Run the trading loop.
 
@@ -430,6 +476,8 @@ def main(
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
+
+    proc = _start_depth_service(cfg)
 
     if risk_tolerance is not None:
         os.environ["RISK_TOLERANCE"] = str(risk_tolerance)
@@ -490,7 +538,6 @@ def main(
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
 
-
     agent_manager: AgentManager | None = None
 
     if cfg.get("agents"):
@@ -503,7 +550,6 @@ def main(
     else:
         strategy_manager = StrategyManager(strategies)
 
-
     if keypair_path:
         keypair = load_keypair(keypair_path)
     else:
@@ -513,7 +559,9 @@ def main(
         ws_task = None
         book_task = None
         arb_task = None
-        rl_task = await _init_rl_training(cfg, rl_daemon=rl_daemon, rl_interval=rl_interval)
+        rl_task = await _init_rl_training(
+            cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
+        )
         prev_activity = 0.0
         iteration_idx = 0
 
@@ -526,7 +574,9 @@ def main(
                 elif activity < prev_activity * 0.5:
                     loop_delay = min(max_delay, loop_delay * 2)
             prev_activity = activity
+
         if market_ws_url:
+
             async def run_market_ws() -> None:
                 while True:
                     try:
@@ -545,10 +595,13 @@ def main(
             ws_task = asyncio.create_task(run_market_ws())
 
         if order_book_ws_url:
+
             async def run_order_book() -> None:
                 while True:
                     try:
-                        async for _ in order_book_ws.stream_order_book(order_book_ws_url):
+                        async for _ in order_book_ws.stream_order_book(
+                            order_book_ws_url
+                        ):
                             pass
                     except Exception as exc:  # pragma: no cover - network errors
                         logging.error("Order book stream failed: %s", exc)
@@ -557,6 +610,7 @@ def main(
             book_task = asyncio.create_task(run_order_book())
 
         if arbitrage_tokens:
+
             async def monitor_arbitrage() -> None:
                 while True:
                     try:
@@ -601,8 +655,14 @@ def main(
                     )
                     adjust_delay(metrics)
                 iteration_idx += 1
-                if agent_manager and iteration_idx % getattr(agent_manager, "evolve_interval", 1) == 0:
-                    agent_manager.evolve(threshold=getattr(agent_manager, "mutation_threshold", 0.0))
+                if (
+                    agent_manager
+                    and iteration_idx % getattr(agent_manager, "evolve_interval", 1)
+                    == 0
+                ):
+                    agent_manager.evolve(
+                        threshold=getattr(agent_manager, "mutation_threshold", 0.0)
+                    )
                 await asyncio.sleep(loop_delay)
         else:
             for i in range(iterations):
@@ -614,7 +674,6 @@ def main(
                     offline=offline,
                     token_file=token_file,
                     discovery_method=discovery_method,
-
                     keypair=keypair,
                     stop_loss=stop_loss,
                     take_profit=take_profit,
@@ -632,8 +691,14 @@ def main(
                     )
                     adjust_delay(metrics)
                 iteration_idx += 1
-                if agent_manager and iteration_idx % getattr(agent_manager, "evolve_interval", 1) == 0:
-                    agent_manager.evolve(threshold=getattr(agent_manager, "mutation_threshold", 0.0))
+                if (
+                    agent_manager
+                    and iteration_idx % getattr(agent_manager, "evolve_interval", 1)
+                    == 0
+                ):
+                    agent_manager.evolve(
+                        threshold=getattr(agent_manager, "mutation_threshold", 0.0)
+                    )
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
 
@@ -684,6 +749,7 @@ def run_auto(**kwargs) -> None:
 
     try:
         from . import data_sync
+
         asyncio.run(data_sync.sync_recent())
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
@@ -704,9 +770,10 @@ def run_auto(**kwargs) -> None:
             os.environ.pop("AGENT_WEIGHTS", None)
         else:
             os.environ["AGENT_WEIGHTS"] = prev_weights
-
-
-
+        if proc:
+            proc.terminate()
+            with contextlib.suppress(Exception):
+                proc.wait(timeout=5)
 
 
 if __name__ == "__main__":
@@ -750,7 +817,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--discovery-method",
-
         default=None,
         choices=["websocket", "onchain", "mempool", "pools", "file"],
         help="Token discovery method",
@@ -844,9 +910,15 @@ if __name__ == "__main__":
         "--strategies",
         default=None,
         help="Comma-separated list of strategy modules",
-    parser.add_argument("--rl-daemon", action="store_true", help="Start RL training daemon")
-    parser.add_argument("--rl-interval", type=float, default=3600.0, help="Seconds between RL training cycles")
-
+    )
+    parser.add_argument(
+        "--rl-daemon", action="store_true", help="Start RL training daemon"
+    )
+    parser.add_argument(
+        "--rl-interval",
+        type=float,
+        default=3600.0,
+        help="Seconds between RL training cycles",
     )
     parser.add_argument(
         "--auto",
@@ -861,12 +933,8 @@ if __name__ == "__main__":
         testnet=args.testnet,
         dry_run=args.dry_run,
         offline=args.offline,
-
-
         token_file=args.token_file,
-
         discovery_method=args.discovery_method,
-
         keypair_path=args.keypair,
         portfolio_path=args.portfolio_path,
         config_path=args.config,
@@ -883,7 +951,9 @@ if __name__ == "__main__":
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
         arbitrage_tokens=None,
-        strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
+        strategies=(
+            [s.strip() for s in args.strategies.split(",")] if args.strategies else None
+        ),
         min_delay=None,
         max_delay=None,
         rl_daemon=args.rl_daemon,
