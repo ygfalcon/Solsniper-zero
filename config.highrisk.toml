@@ -22,6 +22,7 @@ agents = [
     "reinforcement",
     "portfolio",
     "portfolio_manager",
+    "portfolio_optimizer",
     "hedging",
     "dqn",
     "ppo",
@@ -59,3 +60,4 @@ ramanujan = 1.0
 emotion = 1.0
 vanta = 1.0
 inferna = 1.0
+portfolio_optimizer = 1.0

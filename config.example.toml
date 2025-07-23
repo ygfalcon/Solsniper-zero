@@ -66,7 +66,7 @@ trend_volume_threshold = 0
 trend_sentiment_threshold = 0.0
 
 # Enable built-in agents for trading
-agents = ["simulation", "conviction", "arbitrage", "exit", "trend", "vanta", "inferna"]
+agents = ["simulation", "conviction", "arbitrage", "exit", "trend", "vanta", "inferna", "portfolio_optimizer"]
 
 [agent_weights]
 simulation = 1.0
@@ -76,3 +76,4 @@ exit = 1.0
 trend = 1.0
 vanta = 1.0
 inferna = 1.0
+portfolio_optimizer = 1.0
