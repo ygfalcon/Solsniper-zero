@@ -150,6 +150,8 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
     data = asyncio.run(run())
     assert data["address"] == "tok1"
     assert data["score"] >= 10.0
+    expected = data["momentum"] * (1.0 - data["whale_activity"])
+    assert data["combined_score"] == expected
 
 
 def test_rank_token_momentum(monkeypatch):
