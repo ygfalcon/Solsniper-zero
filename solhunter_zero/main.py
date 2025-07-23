@@ -321,6 +321,25 @@ async def _run_iteration(
             agent_manager.save_weights()
 
 
+async def _init_rl_training(cfg: dict) -> asyncio.Task | None:
+    """Set up :class:`RLTraining` using paths from ``cfg``.
+
+    Returns the periodic retraining task or ``None`` if training is disabled.
+    """
+    from .rl_training import RLTraining
+
+    db_url = cfg.get("rl_db_url", "sqlite:///offline_data.db")
+    model_path = cfg.get("rl_model_path", "ppo_model.pt")
+    price_model_path = cfg.get("price_model_path") or os.getenv("PRICE_MODEL_PATH")
+
+    trainer = RLTraining(
+        db_url=db_url,
+        model_path=model_path,
+        price_model_path=price_model_path,
+    )
+    return trainer.start_periodic_retraining()
+
+
 
 
 
@@ -484,6 +503,7 @@ def main(
         ws_task = None
         book_task = None
         arb_task = None
+        rl_task = await _init_rl_training(cfg)
         prev_activity = 0.0
         iteration_idx = 0
 
@@ -619,6 +639,10 @@ def main(
             arb_task.cancel()
             with contextlib.suppress(Exception):
                 await arb_task
+        if rl_task:
+            rl_task.cancel()
+            with contextlib.suppress(Exception):
+                await rl_task
 
     try:
         asyncio.run(loop())
