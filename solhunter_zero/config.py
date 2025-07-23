@@ -60,6 +60,7 @@ ENV_VARS = {
     "mempool_stats_window": "MEMPOOL_STATS_WINDOW",
     "use_flash_loans": "USE_FLASH_LOANS",
     "max_flash_amount": "MAX_FLASH_AMOUNT",
+    "use_mev_bundles": "USE_MEV_BUNDLES",
 }
 
 

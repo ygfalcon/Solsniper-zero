@@ -83,6 +83,7 @@ EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").it
 # Flash loan configuration
 USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
 MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
+USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "yes"}
 
 
 def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
@@ -357,6 +358,7 @@ async def _detect_for_token(
     executor: "EventExecutor | None" = None,
     use_service: bool = False,
     use_flash_loans: bool | None = None,
+    use_mev_bundles: bool | None = None,
     max_flash_amount: float | None = None,
 ) -> Optional[Tuple[int, int]]:
     """Check for price discrepancies and place arbitrage orders.
@@ -476,8 +478,6 @@ async def _detect_for_token(
                             price_map[buy_v],
                             base_buy,
                         )
-                        if tx1:
-                            await executor.enqueue(tx1)
                         tx2 = await _prepare_service_tx(
                             token,
                             "sell",
@@ -485,8 +485,19 @@ async def _detect_for_token(
                             price_map[sell_v],
                             base_sell,
                         )
-                        if tx2:
-                            await executor.enqueue(tx2)
+                        if use_mev_bundles and tx1 and tx2:
+                            from .mev_executor import MEVExecutor
+
+                            mev = MEVExecutor(
+                                token,
+                                priority_rpc=getattr(executor, "priority_rpc", None),
+                            )
+                            await mev.submit_bundle([tx1, tx2])
+                        else:
+                            if tx1:
+                                await executor.enqueue(tx1)
+                            if tx2:
+                                await executor.enqueue(tx2)
                     else:
                         tasks.append(
                             place_order_async(
@@ -607,8 +618,6 @@ async def _detect_for_token(
                     price_map[buy_v],
                     base_buy,
                 )
-                if tx1:
-                    await executor.enqueue(tx1)
                 tx2 = await _prepare_service_tx(
                     token,
                     "sell",
@@ -616,8 +625,19 @@ async def _detect_for_token(
                     price_map[sell_v],
                     base_sell,
                 )
-                if tx2:
-                    await executor.enqueue(tx2)
+                if use_mev_bundles and tx1 and tx2:
+                    from .mev_executor import MEVExecutor
+
+                    mev = MEVExecutor(
+                        token,
+                        priority_rpc=getattr(executor, "priority_rpc", None),
+                    )
+                    await mev.submit_bundle([tx1, tx2])
+                else:
+                    if tx1:
+                        await executor.enqueue(tx1)
+                    if tx2:
+                        await executor.enqueue(tx2)
             else:
                 tasks.append(
                     place_order_async(
@@ -660,6 +680,7 @@ async def detect_and_execute_arbitrage(
     executor: EventExecutor | None = None,
     use_service: bool | None = None,
     use_flash_loans: bool | None = None,
+    use_mev_bundles: bool | None = None,
     max_flash_amount: float | None = None,
     **kwargs,
 ) -> Optional[Tuple[int, int]] | list[Optional[Tuple[int, int]]]:
@@ -727,6 +748,7 @@ async def detect_and_execute_arbitrage(
                     executor=executor,
                     use_service=use_service,
                     use_flash_loans=use_flash_loans,
+                    use_mev_bundles=use_mev_bundles,
                     max_flash_amount=max_flash_amount,
                     **kwargs,
                 )
@@ -748,6 +770,7 @@ async def detect_and_execute_arbitrage(
                 executor=executor,
                 use_service=use_service,
                 use_flash_loans=use_flash_loans,
+                use_mev_bundles=use_mev_bundles,
                 max_flash_amount=max_flash_amount,
                 **kwargs,
             )
@@ -766,6 +789,7 @@ async def detect_and_execute_arbitrage(
         executor=executor,
         use_service=use_service,
         use_flash_loans=use_flash_loans,
+        use_mev_bundles=use_mev_bundles,
         max_flash_amount=max_flash_amount,
         **kwargs,
     )

@@ -90,13 +90,16 @@ def test_set_env_from_config_booleans(monkeypatch):
         "use_depth_stream": True,
         "use_rust_exec": True,
         "use_service_exec": True,
+        "use_mev_bundles": True,
     }
     monkeypatch.delenv("USE_FLASH_LOANS", raising=False)
     monkeypatch.delenv("USE_DEPTH_STREAM", raising=False)
     monkeypatch.delenv("USE_RUST_EXEC", raising=False)
     monkeypatch.delenv("USE_SERVICE_EXEC", raising=False)
+    monkeypatch.delenv("USE_MEV_BUNDLES", raising=False)
     set_env_from_config(cfg)
     assert os.getenv("USE_FLASH_LOANS") == "True"
     assert os.getenv("USE_DEPTH_STREAM") == "True"
     assert os.getenv("USE_RUST_EXEC") == "True"
     assert os.getenv("USE_SERVICE_EXEC") == "True"
+    assert os.getenv("USE_MEV_BUNDLES") == "True"
