@@ -1,5 +1,6 @@
 import asyncio
 import pytest
+from solders.keypair import Keypair
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 
@@ -40,24 +41,31 @@ def test_flash_loan_arbitrage(monkeypatch):
     async def feed2(token):
         return 1.2
 
-    placed = []
+    kp = Keypair()
+    sent = {}
 
-    async def fake_place(token, side, amount, price, **_):
-        placed.append((side, amount, price))
-        return {"ok": True}
+    class FakeClient:
+        def __init__(self, url):
+            self.url = url
 
-    async def fake_borrow(amount, token):
-        return "sig"
+        async def send_raw_transaction(self, data, opts=None):
+            sent["tx"] = data
 
-    repaid = {}
+            class Resp:
+                value = "sig"
 
-    async def fake_repay(sig):
-        repaid["sig"] = sig
-        return True
+            return Resp()
 
-    monkeypatch.setattr(arb, "place_order_async", fake_place)
-    monkeypatch.setattr(arb, "borrow_flash", fake_borrow)
-    monkeypatch.setattr(arb, "repay_flash", fake_repay)
+        async def confirm_transaction(self, sig):
+            sent["confirm"] = sig
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr("solhunter_zero.flash_loans.AsyncClient", FakeClient)
 
     result = asyncio.run(
         detect_and_execute_arbitrage(
@@ -66,13 +74,17 @@ def test_flash_loan_arbitrage(monkeypatch):
             threshold=0.1,
             amount=5,
             use_flash_loans=True,
+            keypair=kp,
             max_flash_amount=10,
         )
     )
 
     assert result == (0, 1)
-    assert repaid["sig"] == "sig"
-    assert any(side == "sell" for side, *_ in placed)
+    assert sent["confirm"] == "sig"
+    parts = sent["tx"][2:].split(b"|")
+    assert parts[0] == b"borrow"
+    assert parts[-1] == b"repay"
+    assert b"swap" in parts[1]
 
 
 def test_no_arbitrage(monkeypatch):

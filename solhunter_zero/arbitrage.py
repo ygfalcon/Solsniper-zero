@@ -28,6 +28,9 @@ from . import order_book_ws
 from .depth_client import stream_depth, prepare_signed_tx
 from .execution import EventExecutor
 from .flash_loans import borrow_flash, repay_flash
+from solders.instruction import Instruction
+from solders.pubkey import Pubkey
+from solders.keypair import Keypair
 
 logger = logging.getLogger(__name__)
 
@@ -449,59 +452,66 @@ async def _detect_for_token(
             if use_flash_loans:
                 flash_amt = max_flash_amount or amount
                 trade_amount = min(flash_amt, amount)
-                sig = await borrow_flash(trade_amount, token)
+                swap_ix = [Instruction(Pubkey.default(), b"swap", []) for _ in range(len(path) - 1)]
+                sig = await borrow_flash(
+                    trade_amount,
+                    token,
+                    swap_ix,
+                    payer=keypair or Keypair(),
+                )
+                tasks = []
             else:
                 sig = None
-            tasks = []
-            for i in range(len(path) - 1):
-                buy_v = path[i]
-                sell_v = path[i + 1]
-                if executor and use_service:
-                    base_buy = VENUE_URLS.get(buy_v, buy_v)
-                    base_sell = VENUE_URLS.get(sell_v, sell_v)
-                    tx1 = await _prepare_service_tx(
-                        token,
-                        "buy",
-                        trade_amount,
-                        price_map[buy_v],
-                        base_buy,
-                    )
-                    if tx1:
-                        await executor.enqueue(tx1)
-                    tx2 = await _prepare_service_tx(
-                        token,
-                        "sell",
-                        trade_amount,
-                        price_map[sell_v],
-                        base_sell,
-                    )
-                    if tx2:
-                        await executor.enqueue(tx2)
-                else:
-                    tasks.append(
-                        place_order_async(
+                tasks = []
+                for i in range(len(path) - 1):
+                    buy_v = path[i]
+                    sell_v = path[i + 1]
+                    if executor and use_service:
+                        base_buy = VENUE_URLS.get(buy_v, buy_v)
+                        base_sell = VENUE_URLS.get(sell_v, sell_v)
+                        tx1 = await _prepare_service_tx(
                             token,
                             "buy",
                             trade_amount,
                             price_map[buy_v],
-                            testnet=testnet,
-                            dry_run=dry_run,
-                            keypair=keypair,
+                            base_buy,
                         )
-                    )
-                    tasks.append(
-                        place_order_async(
+                        if tx1:
+                            await executor.enqueue(tx1)
+                        tx2 = await _prepare_service_tx(
                             token,
                             "sell",
                             trade_amount,
                             price_map[sell_v],
-                            testnet=testnet,
-                            dry_run=dry_run,
-                            keypair=keypair,
+                            base_sell,
                         )
-                    )
-            if tasks:
-                await asyncio.gather(*tasks)
+                        if tx2:
+                            await executor.enqueue(tx2)
+                    else:
+                        tasks.append(
+                            place_order_async(
+                                token,
+                                "buy",
+                                trade_amount,
+                                price_map[buy_v],
+                                testnet=testnet,
+                                dry_run=dry_run,
+                                keypair=keypair,
+                            )
+                        )
+                        tasks.append(
+                            place_order_async(
+                                token,
+                                "sell",
+                                trade_amount,
+                                price_map[sell_v],
+                                testnet=testnet,
+                                dry_run=dry_run,
+                                keypair=keypair,
+                            )
+                        )
+                if tasks:
+                    await asyncio.gather(*tasks)
             if sig:
                 await repay_flash(sig)
             return buy_index, sell_index
@@ -572,61 +582,67 @@ async def _detect_for_token(
 
     trade_amount = amount
     sig = None
+    tasks = []
     if use_flash_loans:
         flash_amt = max_flash_amount or amount
         trade_amount = min(flash_amt, amount)
-        sig = await borrow_flash(trade_amount, token)
-
-    tasks = []
-    for i in range(len(path) - 1):
-        buy_v = path[i]
-        sell_v = path[i + 1]
-        if executor and use_service:
-            base_buy = VENUE_URLS.get(buy_v, buy_v)
-            base_sell = VENUE_URLS.get(sell_v, sell_v)
-            tx1 = await _prepare_service_tx(
-                token,
-                "buy",
-                trade_amount,
-                price_map[buy_v],
-                base_buy,
-            )
-            if tx1:
-                await executor.enqueue(tx1)
-            tx2 = await _prepare_service_tx(
-                token,
-                "sell",
-                trade_amount,
-                price_map[sell_v],
-                base_sell,
-            )
-            if tx2:
-                await executor.enqueue(tx2)
-        else:
-            tasks.append(
-                place_order_async(
+        swap_ix = [Instruction(Pubkey.default(), b"swap", []) for _ in range(len(path) - 1)]
+        sig = await borrow_flash(
+            trade_amount,
+            token,
+            swap_ix,
+            payer=keypair or Keypair(),
+        )
+    else:
+        for i in range(len(path) - 1):
+            buy_v = path[i]
+            sell_v = path[i + 1]
+            if executor and use_service:
+                base_buy = VENUE_URLS.get(buy_v, buy_v)
+                base_sell = VENUE_URLS.get(sell_v, sell_v)
+                tx1 = await _prepare_service_tx(
                     token,
                     "buy",
                     trade_amount,
                     price_map[buy_v],
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
+                    base_buy,
                 )
-            )
-            tasks.append(
-                place_order_async(
+                if tx1:
+                    await executor.enqueue(tx1)
+                tx2 = await _prepare_service_tx(
                     token,
                     "sell",
                     trade_amount,
                     price_map[sell_v],
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
+                    base_sell,
                 )
-            )
-    if tasks:
-        await asyncio.gather(*tasks)
+                if tx2:
+                    await executor.enqueue(tx2)
+            else:
+                tasks.append(
+                    place_order_async(
+                        token,
+                        "buy",
+                        trade_amount,
+                        price_map[buy_v],
+                        testnet=testnet,
+                        dry_run=dry_run,
+                        keypair=keypair,
+                    )
+                )
+                tasks.append(
+                    place_order_async(
+                        token,
+                        "sell",
+                        trade_amount,
+                        price_map[sell_v],
+                        testnet=testnet,
+                        dry_run=dry_run,
+                        keypair=keypair,
+                    )
+                )
+        if tasks:
+            await asyncio.gather(*tasks)
     if sig:
         await repay_flash(sig)
 

@@ -1,7 +1,12 @@
 import os
 import logging
-from typing import Optional
+from typing import Optional, Sequence, Mapping
 
+from solders.instruction import Instruction
+from solders.pubkey import Pubkey
+from solders.keypair import Keypair
+from solders.transaction import VersionedTransaction
+from solders.signature import Signature
 from solana.rpc.async_api import AsyncClient
 
 RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
@@ -14,22 +19,44 @@ SOLEND_PROGRAM_ID = os.getenv(
 logger = logging.getLogger(__name__)
 
 
-async def borrow_flash(amount: float, token: str, *, rpc_url: str | None = None) -> Optional[str]:
-    """Borrow ``amount`` of ``token`` via a flash loan program.
+async def borrow_flash(
+    amount: float,
+    token: str,
+    instructions: Sequence[Instruction],
+    *,
+    payer: Keypair,
+    program_accounts: Mapping[str, Pubkey] | None = None,
+    rpc_url: str | None = None,
+) -> Optional[str]:
+    """Borrow ``amount`` of ``token`` via a flash loan and execute ``instructions``.
 
-    Returns the transaction signature or ``None`` when the request fails.
-    This helper wraps Solend's flash loan endpoint but does not expose all
-    parameters.  It simply simulates a borrow request via the RPC interface.
+    The transaction uses :data:`SOLEND_PROGRAM_ID` for the borrow and repay
+    instructions and appends the provided swap ``instructions`` in between.  The
+    entire sequence is broadcast atomically.
     """
 
     rpc = rpc_url or RPC_URL
+    program_accounts = program_accounts or {}
+
+    borrow_ix = Instruction(
+        Pubkey.from_string(SOLEND_PROGRAM_ID),
+        b"borrow",
+        list(program_accounts.values()),
+    )
+    repay_ix = Instruction(
+        Pubkey.from_string(SOLEND_PROGRAM_ID),
+        b"repay",
+        list(program_accounts.values()),
+    )
+
+    tx_instructions = [borrow_ix] + list(instructions) + [repay_ix]
+    msg = b"|".join(ix.data for ix in tx_instructions)
+    tx = VersionedTransaction.populate(msg, [Signature.default()])
+
     async with AsyncClient(rpc) as client:
         try:
-            # Placeholder call -- in a real implementation the transaction would
-            # include instructions to the flash loan program.  We simulate a
-            # borrow by fetching a blockhash which represents the tx signature.
-            resp = await client.get_latest_blockhash()
-            sig = str(resp.value.blockhash)
+            resp = await client.send_raw_transaction(bytes(tx))
+            sig = str(resp.value)
             logger.info("Borrowed %s %s via flash loan", amount, token)
             return sig
         except Exception as exc:  # pragma: no cover - network errors
