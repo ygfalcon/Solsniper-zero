@@ -330,6 +330,21 @@ EOF
 Heavy features such as reinforcement learning will automatically use the MPS
 backend when available.
 
+### CUDA GPUs
+
+Install PyTorch with CUDA support and switch the default device:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+python - <<'EOF'
+import torch
+torch.set_default_device('cuda')
+EOF
+```
+
+Any training script, including `scripts/online_train_transformer.py`, will then
+use the GPU automatically.
+
 ## Usage
 Run the bot with:
 ```bash

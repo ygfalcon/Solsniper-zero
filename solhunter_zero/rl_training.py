@@ -225,7 +225,8 @@ class RLTraining:
                 self._logger.error("periodic training failed: %s", exc)
             await asyncio.sleep(interval)
 
-    def start_periodic_retraining(self, interval: float = 3600.0) -> None:
+    def start_periodic_retraining(self, interval: float = 3600.0) -> asyncio.Task:
         """Begin background task that periodically retrains the model."""
         if self._task is None:
             self._task = asyncio.create_task(self._loop(interval))
+        return self._task
