@@ -25,6 +25,7 @@ __all__ = [
     "bayesian_optimize_parameters",
     "PopulationRL",
     "RLTraining",
+    "RLDaemon",
 ]
 
 
@@ -87,6 +88,10 @@ def __getattr__(name: str):
         return cls
     if name == "RLTraining":
         from .rl_training import RLTraining as cls
+
+        return cls
+    if name == "RLDaemon":
+        from .rl_daemon import RLDaemon as cls
 
         return cls
     raise AttributeError(name)

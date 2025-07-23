@@ -321,23 +321,31 @@ async def _run_iteration(
             agent_manager.save_weights()
 
 
-async def _init_rl_training(cfg: dict) -> asyncio.Task | None:
-    """Set up :class:`RLTraining` using paths from ``cfg``.
+async def _init_rl_training(
+    cfg: dict,
+    *,
+    rl_daemon: bool = False,
+    rl_interval: float = 3600.0,
+) -> asyncio.Task | None:
+    """Set up RL background training if enabled."""
 
-    Returns the periodic retraining task or ``None`` if training is disabled.
-    """
-    from .rl_training import RLTraining
+    if not rl_daemon:
+        return None
 
-    db_url = cfg.get("rl_db_url", "sqlite:///offline_data.db")
+    from .rl_daemon import RLDaemon
+
+    mem_db = cfg.get("memory_path", "sqlite:///memory.db")
+    data_path = cfg.get("rl_db_path", "offline_data.db")
     model_path = cfg.get("rl_model_path", "ppo_model.pt")
-    price_model_path = cfg.get("price_model_path") or os.getenv("PRICE_MODEL_PATH")
+    algo = cfg.get("rl_algo", "ppo")
 
-    trainer = RLTraining(
-        db_url=db_url,
+    daemon = RLDaemon(
+        memory_path=mem_db,
+        data_path=data_path,
         model_path=model_path,
-        price_model_path=price_model_path,
+        algo=algo,
     )
-    return trainer.start_periodic_retraining()
+    return daemon.start(rl_interval)
 
 
 
@@ -377,6 +385,8 @@ def main(
     arbitrage_amount: float | None = None,
     arbitrage_tokens: list[str] | None = None,
     strategies: list[str] | None = None,
+    rl_daemon: bool = False,
+    rl_interval: float = 3600.0,
 
 ) -> None:
     """Run the trading loop.
@@ -503,7 +513,7 @@ def main(
         ws_task = None
         book_task = None
         arb_task = None
-        rl_task = await _init_rl_training(cfg)
+        rl_task = await _init_rl_training(cfg, rl_daemon=rl_daemon, rl_interval=rl_interval)
         prev_activity = 0.0
         iteration_idx = 0
 
@@ -834,6 +844,8 @@ if __name__ == "__main__":
         "--strategies",
         default=None,
         help="Comma-separated list of strategy modules",
+    parser.add_argument("--rl-daemon", action="store_true", help="Start RL training daemon")
+    parser.add_argument("--rl-interval", type=float, default=3600.0, help="Seconds between RL training cycles")
 
     )
     parser.add_argument(
@@ -874,6 +886,8 @@ if __name__ == "__main__":
         strategies=[s.strip() for s in args.strategies.split(',')] if args.strategies else None,
         min_delay=None,
         max_delay=None,
+        rl_daemon=args.rl_daemon,
+        rl_interval=args.rl_interval,
     )
 
     if args.auto:
