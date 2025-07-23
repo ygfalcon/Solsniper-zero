@@ -13,6 +13,9 @@ def test_train_transformer_model():
     tx = np.linspace(5, 15, len(prices)).tolist()
     slippage = np.linspace(0.05, 0.1, len(prices)).tolist()
     volume = np.linspace(20, 40, len(prices)).tolist()
+    mem = np.linspace(0.1, 1.0, len(prices)).tolist()
+    whales = np.linspace(0.0, 0.5, len(prices)).tolist()
+    spread = np.linspace(0.01, 0.02, len(prices)).tolist()
 
     model = models.train_transformer_model(
         prices,
@@ -21,6 +24,9 @@ def test_train_transformer_model():
         tx,
         slippage=slippage,
         volume=volume,
+        mempool_rates=mem,
+        whale_shares=whales,
+        spreads=spread,
         seq_len=5,
         epochs=45,
     )
@@ -31,6 +37,9 @@ def test_train_transformer_model():
         slippage[-5:],
         volume[-5:],
         tx[-5:],
+        mem[-5:],
+        whales[-5:],
+        spread[-5:],
     ])
     pred = model.predict(seq)
     assert pred == pytest.approx(0.05, abs=0.03)

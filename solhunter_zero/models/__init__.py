@@ -224,6 +224,9 @@ def make_training_data(
     tx_counts: Iterable[float] | None = None,
     slippage: Iterable[float] | None = None,
     volume: Iterable[float] | None = None,
+    mempool_rates: Iterable[float] | None = None,
+    whale_shares: Iterable[float] | None = None,
+    spreads: Iterable[float] | None = None,
     seq_len: int = 30,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Create model inputs from historical metrics."""
@@ -237,6 +240,9 @@ def make_training_data(
         t = torch.zeros_like(p)
     else:
         t = torch.tensor(list(tx_counts), dtype=torch.float32)
+    m = torch.tensor(list(mempool_rates), dtype=torch.float32) if mempool_rates is not None else torch.zeros_like(p)
+    w = torch.tensor(list(whale_shares), dtype=torch.float32) if whale_shares is not None else torch.zeros_like(p)
+    sp = torch.tensor(list(spreads), dtype=torch.float32) if spreads is not None else torch.zeros_like(p)
 
     n = len(p) - seq_len
     if n <= 0:
@@ -253,6 +259,9 @@ def make_training_data(
                 s[i : i + seq_len],
                 v[i : i + seq_len],
                 t[i : i + seq_len],
+                m[i : i + seq_len],
+                w[i : i + seq_len],
+                sp[i : i + seq_len],
             ],
             dim=1,
         )
@@ -273,6 +282,9 @@ def train_price_model(
     tx_counts: Iterable[float] | None = None,
     slippage: Iterable[float] | None = None,
     volume: Iterable[float] | None = None,
+    mempool_rates: Iterable[float] | None = None,
+    whale_shares: Iterable[float] | None = None,
+    spreads: Iterable[float] | None = None,
     *,
     seq_len: int = 30,
     epochs: int = 10,
@@ -283,7 +295,16 @@ def train_price_model(
     """Train a :class:`PriceModel` on historical data."""
 
     X, y = make_training_data(
-        prices, liquidity, depth, tx_counts, slippage, volume, seq_len
+        prices,
+        liquidity,
+        depth,
+        tx_counts,
+        slippage,
+        volume,
+        mempool_rates,
+        whale_shares,
+        spreads,
+        seq_len,
     )
     model = PriceModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
@@ -305,6 +326,9 @@ def train_transformer_model(
     tx_counts: Iterable[float] | None = None,
     slippage: Iterable[float] | None = None,
     volume: Iterable[float] | None = None,
+    mempool_rates: Iterable[float] | None = None,
+    whale_shares: Iterable[float] | None = None,
+    spreads: Iterable[float] | None = None,
     *,
     seq_len: int = 30,
     epochs: int = 10,
@@ -315,7 +339,16 @@ def train_transformer_model(
     """Train a :class:`TransformerModel` on historical data."""
 
     X, y = make_training_data(
-        prices, liquidity, depth, tx_counts, slippage, volume, seq_len
+        prices,
+        liquidity,
+        depth,
+        tx_counts,
+        slippage,
+        volume,
+        mempool_rates,
+        whale_shares,
+        spreads,
+        seq_len,
     )
     model = TransformerModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
@@ -338,6 +371,8 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
     vol = torch.tensor([float(getattr(s, "volume", 0.0)) for s in snaps], dtype=torch.float32)
     imb = torch.tensor([float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=torch.float32)
     rate = torch.tensor([float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=torch.float32)
+    whales = torch.tensor([float(getattr(s, "whale_share", getattr(s, "whale_activity", 0.0))) for s in snaps], dtype=torch.float32)
+    spread = torch.tensor([float(getattr(s, "spread", 0.0)) for s in snaps], dtype=torch.float32)
 
     n = len(prices) - seq_len
     if n <= 0:
@@ -353,6 +388,8 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
             vol[i:i+seq_len],
             imb[i:i+seq_len],
             rate[i:i+seq_len],
+            whales[i:i+seq_len],
+            spread[i:i+seq_len],
         ], dim=1)
         seqs.append(seq)
         p0 = prices[i + seq_len - 1]
