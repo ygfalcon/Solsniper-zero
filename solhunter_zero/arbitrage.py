@@ -296,20 +296,27 @@ def _best_route(
     fees: Mapping[str, float] | None = None,
     gas: Mapping[str, float] | None = None,
     latency: Mapping[str, float] | None = None,
+    use_flash_loans: bool | None = None,
+    max_flash_amount: float | None = None,
 ) -> tuple[list[str], float]:
     """Return path with maximum profit and the expected profit."""
 
     fees = fees or {}
     gas = gas or {}
     latency = latency or {}
+    if use_flash_loans is None:
+        use_flash_loans = USE_FLASH_LOANS
+    if max_flash_amount is None:
+        max_flash_amount = MAX_FLASH_AMOUNT
+    trade_amount = min(max_flash_amount or amount, amount) if use_flash_loans else amount
     venues = list(prices.keys())
     best: list[str] | None = None
     best_profit = float("-inf")
 
     def step_cost(a: str, b: str) -> float:
         return (
-            prices[a] * amount * fees.get(a, 0.0)
-            + prices[b] * amount * fees.get(b, 0.0)
+            prices[a] * trade_amount * fees.get(a, 0.0)
+            + prices[b] * trade_amount * fees.get(b, 0.0)
             + gas.get(a, 0.0)
             + gas.get(b, 0.0)
             + latency.get(a, 0.0)
@@ -322,7 +329,7 @@ def _best_route(
             for i in range(len(path) - 1):
                 a = path[i]
                 b = path[i + 1]
-                profit += (prices[b] - prices[a]) * amount - step_cost(a, b)
+                profit += (prices[b] - prices[a]) * trade_amount - step_cost(a, b)
             if profit > best_profit:
                 best_profit = profit
                 best = list(path)
@@ -417,13 +424,16 @@ async def _detect_for_token(
                 fees=fees,
                 gas=gas,
                 latency=latencies,
+                use_flash_loans=use_flash_loans,
+                max_flash_amount=max_flash_amount,
             )
             if not path:
                 return None
             buy_name, sell_name = path[0], path[-1]
             buy_index = names.index(buy_name)
             sell_index = names.index(sell_name)
-            diff_base = price_map[buy_name] * amount
+            trade_base = min(max_flash_amount or amount, amount) if use_flash_loans else amount
+            diff_base = price_map[buy_name] * trade_base
             if diff_base <= 0:
                 return None
             diff = profit / diff_base
@@ -452,7 +462,7 @@ async def _detect_for_token(
                     tx1 = await _prepare_service_tx(
                         token,
                         "buy",
-                        amount,
+                        trade_amount,
                         price_map[buy_v],
                         base_buy,
                     )
@@ -461,7 +471,7 @@ async def _detect_for_token(
                     tx2 = await _prepare_service_tx(
                         token,
                         "sell",
-                        amount,
+                        trade_amount,
                         price_map[sell_v],
                         base_sell,
                     )
@@ -541,11 +551,14 @@ async def _detect_for_token(
         fees=fees,
         gas=gas,
         latency=latencies,
+        use_flash_loans=use_flash_loans,
+        max_flash_amount=max_flash_amount,
     )
     if not path:
         return None
     buy_name, sell_name = path[0], path[-1]
-    diff_base = price_map[buy_name] * amount
+    trade_base = min(max_flash_amount or amount, amount) if use_flash_loans else amount
+    diff_base = price_map[buy_name] * trade_base
     if diff_base <= 0:
         return None
     diff = profit / diff_base
