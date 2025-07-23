@@ -74,6 +74,8 @@ arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
 use_flash_loans: true
 max_flash_amount: 0.0
+mempool_threshold: 0.0
+bundle_size: 1
 learning_rate: 0.1
 dex_priorities: "orca,raydium,jupiter"
 dex_fees: "{}"
@@ -250,6 +252,8 @@ The trading logic is implemented by a swarm of small agents:
   When `PRIORITY_FEES` is set the agent scales the compute-unit price
   based on mempool transaction rate so high-priority submits use a
   larger fee.
+- **MempoolSniperAgent** — bundles buys when liquidity appears or a mempool
+  event exceeds `mempool_threshold` and submits them with `MEVExecutor`.
 - **MemoryAgent** — records past trades for analysis. Trade context and emotion
   tags are saved to `memory.db` and a FAISS index (`trade.index`) for semantic
   search.
