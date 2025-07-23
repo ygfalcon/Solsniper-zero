@@ -56,6 +56,8 @@ ENV_VARS = {
     "use_depth_stream": "USE_DEPTH_STREAM",
     "use_rust_exec": "USE_RUST_EXEC",
     "use_service_exec": "USE_SERVICE_EXEC",
+    "use_flash_loans": "USE_FLASH_LOANS",
+    "max_flash_amount": "MAX_FLASH_AMOUNT",
 }
 
 

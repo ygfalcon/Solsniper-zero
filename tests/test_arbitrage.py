@@ -33,6 +33,48 @@ def test_arbitrage_executes_orders(monkeypatch):
     assert ('sell', 1.2) in called
 
 
+def test_flash_loan_arbitrage(monkeypatch):
+    async def feed1(token):
+        return 1.0
+
+    async def feed2(token):
+        return 1.2
+
+    placed = []
+
+    async def fake_place(token, side, amount, price, **_):
+        placed.append((side, amount, price))
+        return {"ok": True}
+
+    async def fake_borrow(amount, token):
+        return "sig"
+
+    repaid = {}
+
+    async def fake_repay(sig):
+        repaid["sig"] = sig
+        return True
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+    monkeypatch.setattr(arb, "borrow_flash", fake_borrow)
+    monkeypatch.setattr(arb, "repay_flash", fake_repay)
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            [feed1, feed2],
+            threshold=0.1,
+            amount=5,
+            use_flash_loans=True,
+            max_flash_amount=10,
+        )
+    )
+
+    assert result == (0, 1)
+    assert repaid["sig"] == "sig"
+    assert any(side == "sell" for side, *_ in placed)
+
+
 def test_no_arbitrage(monkeypatch):
     async def feed1(token):
         return 1.0
