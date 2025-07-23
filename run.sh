@@ -22,8 +22,10 @@ if ! check_deps; then
     pip install .
 fi
 
-if [ "$1" = "--auto" ]; then
-    shift
+if [ "$#" -eq 0 ] || [ "$1" = "--auto" ]; then
+    if [ "$1" = "--auto" ]; then
+        shift
+    fi
     python -m solhunter_zero.main --auto "$@"
 else
     python -m solhunter_zero.main "$@"

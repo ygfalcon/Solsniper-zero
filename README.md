@@ -210,15 +210,15 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
 11. **Run the bot**
    ```bash
-   ./run.sh --auto
+   ./run.sh
    ```
    This automatically loads the selected configuration (or the `config.highrisk.toml`
    preset when none is selected), selects the only available keypair if there is
    just one, and begins trading with the default strategies.
 
-   You can still run the bot manually with:
+   You can still run the bot manually with explicit options:
    ```bash
-   ./run.sh
+   ./run.sh --dry-run
    # or
    python -m solhunter_zero.main
 
@@ -358,12 +358,12 @@ python -m solhunter_zero.main --config config.toml
 ```
 Or simply use the helper script which installs any missing dependencies:
 ```bash
-./run.sh --auto
-```
-The `--auto` flag performs the automatic configuration and keypair selection
-described above. To run manually without automation use:
-```bash
 ./run.sh
+```
+This performs the automatic configuration and keypair selection described above.
+Pass any additional CLI options to control the run manually, for example:
+```bash
+./run.sh --dry-run
 ```
 You can customize the database path and the delay between iterations.  The bot
 also saves a FAISS index named `trade.index` next to the database.  The bot can
