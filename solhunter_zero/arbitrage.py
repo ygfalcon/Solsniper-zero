@@ -73,6 +73,7 @@ def _parse_mapping_env(env: str) -> dict:
     except Exception:
         try:
             import ast
+
             data = ast.literal_eval(val)
         except Exception:
             return {}
@@ -118,7 +119,9 @@ async def _prepare_service_tx(
     }
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(f"{base_url}{SWAP_PATH}", json=payload, timeout=10) as resp:
+            async with session.post(
+                f"{base_url}{SWAP_PATH}", json=payload, timeout=10
+            ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
         except aiohttp.ClientError:
@@ -234,7 +237,9 @@ def make_api_price_fetch(url: str) -> PriceFeed:
     return _fetch
 
 
-async def stream_orca_prices(token: str, url: str = ORCA_WS_URL) -> AsyncGenerator[float, None]:
+async def stream_orca_prices(
+    token: str, url: str = ORCA_WS_URL
+) -> AsyncGenerator[float, None]:
     """Yield live prices for ``token`` from the Orca websocket feed."""
 
     if not url:
@@ -258,7 +263,9 @@ async def stream_orca_prices(token: str, url: str = ORCA_WS_URL) -> AsyncGenerat
                     yield float(price)
 
 
-async def stream_raydium_prices(token: str, url: str = RAYDIUM_WS_URL) -> AsyncGenerator[float, None]:
+async def stream_raydium_prices(
+    token: str, url: str = RAYDIUM_WS_URL
+) -> AsyncGenerator[float, None]:
     """Yield live prices for ``token`` from the Raydium websocket feed."""
 
     if not url:
@@ -282,7 +289,9 @@ async def stream_raydium_prices(token: str, url: str = RAYDIUM_WS_URL) -> AsyncG
                     yield float(price)
 
 
-async def stream_phoenix_prices(token: str, url: str = PHOENIX_WS_URL) -> AsyncGenerator[float, None]:
+async def stream_phoenix_prices(
+    token: str, url: str = PHOENIX_WS_URL
+) -> AsyncGenerator[float, None]:
     """Yield live prices for ``token`` from the Phoenix websocket feed."""
 
     if not url:
@@ -306,7 +315,9 @@ async def stream_phoenix_prices(token: str, url: str = PHOENIX_WS_URL) -> AsyncG
                     yield float(price)
 
 
-async def stream_meteora_prices(token: str, url: str = METEORA_WS_URL) -> AsyncGenerator[float, None]:
+async def stream_meteora_prices(
+    token: str, url: str = METEORA_WS_URL
+) -> AsyncGenerator[float, None]:
     """Yield live prices for ``token`` from the Meteora websocket feed."""
 
     if not url:
@@ -330,7 +341,9 @@ async def stream_meteora_prices(token: str, url: str = METEORA_WS_URL) -> AsyncG
                     yield float(price)
 
 
-async def stream_jupiter_prices(token: str, url: str = JUPITER_WS_URL) -> AsyncGenerator[float, None]:
+async def stream_jupiter_prices(
+    token: str, url: str = JUPITER_WS_URL
+) -> AsyncGenerator[float, None]:
     """Yield live prices for ``token`` from the Jupiter websocket feed."""
 
     if not url:
@@ -406,7 +419,9 @@ def _best_route(
         use_flash_loans = USE_FLASH_LOANS
     if max_flash_amount is None:
         max_flash_amount = MAX_FLASH_AMOUNT
-    trade_amount = min(max_flash_amount or amount, amount) if use_flash_loans else amount
+    trade_amount = (
+        min(max_flash_amount or amount, amount) if use_flash_loans else amount
+    )
     venues = list(prices.keys())
     best: list[str] | None = None
     best_profit = float("-inf")
@@ -512,9 +527,7 @@ async def _detect_for_token(
                 stream_names[i] if stream_names and i < len(stream_names) else str(i)
                 for i in range(len(prices))
             ]
-            price_map = {
-                n: p for n, p in zip(names, prices) if p is not None and p > 0
-            }
+            price_map = {n: p for n, p in zip(names, prices) if p is not None and p > 0}
             if len(price_map) < 2:
                 return None
             path, profit = _best_route(
@@ -531,7 +544,9 @@ async def _detect_for_token(
             buy_name, sell_name = path[0], path[-1]
             buy_index = names.index(buy_name)
             sell_index = names.index(sell_name)
-            trade_base = min(max_flash_amount or amount, amount) if use_flash_loans else amount
+            trade_base = (
+                min(max_flash_amount or amount, amount) if use_flash_loans else amount
+            )
             diff_base = price_map[buy_name] * trade_base
             if diff_base <= 0:
                 return None
@@ -548,7 +563,10 @@ async def _detect_for_token(
             if use_flash_loans:
                 flash_amt = max_flash_amount or amount
                 trade_amount = min(flash_amt, amount)
-                swap_ix = [Instruction(Pubkey.default(), b"swap", []) for _ in range(len(path) - 1)]
+                swap_ix = [
+                    Instruction(Pubkey.default(), b"swap", [])
+                    for _ in range(len(path) - 1)
+                ]
                 sig = await borrow_flash(
                     trade_amount,
                     token,
@@ -558,11 +576,11 @@ async def _detect_for_token(
                 tasks = []
             else:
                 sig = None
-                tasks = []
-                for i in range(len(path) - 1):
-                    buy_v = path[i]
-                    sell_v = path[i + 1]
-                    if executor and use_service:
+                if use_service:
+                    txs: list[str] = []
+                    for i in range(len(path) - 1):
+                        buy_v = path[i]
+                        sell_v = path[i + 1]
                         base_buy = VENUE_URLS.get(buy_v, buy_v)
                         base_sell = VENUE_URLS.get(sell_v, sell_v)
                         tx1 = await _prepare_service_tx(
@@ -579,20 +597,44 @@ async def _detect_for_token(
                             price_map[sell_v],
                             base_sell,
                         )
-                        if use_mev_bundles and tx1 and tx2:
+                        if tx1:
+                            txs.append(tx1)
+                        if tx2:
+                            txs.append(tx2)
+
+                    if txs:
+                        if use_mev_bundles:
                             from .mev_executor import MEVExecutor
 
                             mev = MEVExecutor(
                                 token,
-                                priority_rpc=getattr(executor, "priority_rpc", None),
+                                priority_rpc=(
+                                    getattr(executor, "priority_rpc", None)
+                                    if executor
+                                    else None
+                                ),
                             )
-                            await mev.submit_bundle([tx1, tx2])
+                            await mev.submit_bundle(txs)
+                        elif executor:
+                            for tx in txs:
+                                await executor.enqueue(tx)
                         else:
-                            if tx1:
-                                await executor.enqueue(tx1)
-                            if tx2:
-                                await executor.enqueue(tx2)
-                    else:
+                            from .depth_client import submit_raw_tx
+
+                            for tx in txs:
+                                await submit_raw_tx(
+                                    tx,
+                                    priority_rpc=(
+                                        getattr(executor, "priority_rpc", None)
+                                        if executor
+                                        else None
+                                    ),
+                                )
+                else:
+                    tasks = []
+                    for i in range(len(path) - 1):
+                        buy_v = path[i]
+                        sell_v = path[i + 1]
                         tasks.append(
                             place_order_async(
                                 token,
@@ -615,8 +657,8 @@ async def _detect_for_token(
                                 keypair=keypair,
                             )
                         )
-                if tasks:
-                    await asyncio.gather(*tasks)
+                    if tasks:
+                        await asyncio.gather(*tasks)
             if sig:
                 await repay_flash(sig)
             return buy_index, sell_index
@@ -668,7 +710,9 @@ async def _detect_for_token(
     if not prices:
         return None
 
-    names = [getattr(f, "__name__", str(i)) for i, f in enumerate(feeds)] if feeds else []
+    names = (
+        [getattr(f, "__name__", str(i)) for i, f in enumerate(feeds)] if feeds else []
+    )
     price_map = {n: p for n, p in zip(names, prices) if p > 0}
     if len(price_map) < 2:
         return None
@@ -704,7 +748,9 @@ async def _detect_for_token(
     if use_flash_loans:
         flash_amt = max_flash_amount or amount
         trade_amount = min(flash_amt, amount)
-        swap_ix = [Instruction(Pubkey.default(), b"swap", []) for _ in range(len(path) - 1)]
+        swap_ix = [
+            Instruction(Pubkey.default(), b"swap", []) for _ in range(len(path) - 1)
+        ]
         sig = await borrow_flash(
             trade_amount,
             token,
@@ -712,10 +758,11 @@ async def _detect_for_token(
             payer=keypair or Keypair(),
         )
     else:
-        for i in range(len(path) - 1):
-            buy_v = path[i]
-            sell_v = path[i + 1]
-            if executor and use_service:
+        if use_service:
+            txs: list[str] = []
+            for i in range(len(path) - 1):
+                buy_v = path[i]
+                sell_v = path[i + 1]
                 base_buy = VENUE_URLS.get(buy_v, buy_v)
                 base_sell = VENUE_URLS.get(sell_v, sell_v)
                 tx1 = await _prepare_service_tx(
@@ -732,20 +779,43 @@ async def _detect_for_token(
                     price_map[sell_v],
                     base_sell,
                 )
-                if use_mev_bundles and tx1 and tx2:
+                if tx1:
+                    txs.append(tx1)
+                if tx2:
+                    txs.append(tx2)
+            if txs:
+                if use_mev_bundles:
                     from .mev_executor import MEVExecutor
 
                     mev = MEVExecutor(
                         token,
-                        priority_rpc=getattr(executor, "priority_rpc", None),
+                        priority_rpc=(
+                            getattr(executor, "priority_rpc", None)
+                            if executor
+                            else None
+                        ),
                     )
-                    await mev.submit_bundle([tx1, tx2])
+                    await mev.submit_bundle(txs)
+                elif executor:
+                    for tx in txs:
+                        await executor.enqueue(tx)
                 else:
-                    if tx1:
-                        await executor.enqueue(tx1)
-                    if tx2:
-                        await executor.enqueue(tx2)
-            else:
+                    from .depth_client import submit_raw_tx
+
+                    for tx in txs:
+                        await submit_raw_tx(
+                            tx,
+                            priority_rpc=(
+                                getattr(executor, "priority_rpc", None)
+                                if executor
+                                else None
+                            ),
+                        )
+        else:
+            tasks = []
+            for i in range(len(path) - 1):
+                buy_v = path[i]
+                sell_v = path[i + 1]
                 tasks.append(
                     place_order_async(
                         token,
@@ -768,8 +838,8 @@ async def _detect_for_token(
                         keypair=keypair,
                     )
                 )
-        if tasks:
-            await asyncio.gather(*tasks)
+            if tasks:
+                await asyncio.gather(*tasks)
     if sig:
         await repay_flash(sig)
 
@@ -862,7 +932,7 @@ async def detect_and_execute_arbitrage(
                     **kwargs,
                 )
             )
-        
+
         return await asyncio.gather(*tasks)
 
     s, names = _streams_for(tokens)
