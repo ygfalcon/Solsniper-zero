@@ -10,6 +10,7 @@ def test_train_transformer_model():
         prices.append(prices[-1] * 1.05)
     liquidity = np.linspace(10, 20, len(prices)).tolist()
     depth = np.linspace(1, 2, len(prices)).tolist()
+    depth_total = np.linspace(1.5, 2.5, len(prices)).tolist()
     tx = np.linspace(5, 15, len(prices)).tolist()
     slippage = np.linspace(0.05, 0.1, len(prices)).tolist()
     volume = np.linspace(20, 40, len(prices)).tolist()
@@ -21,6 +22,7 @@ def test_train_transformer_model():
         prices,
         liquidity,
         depth,
+        depth_total,
         tx,
         slippage=slippage,
         volume=volume,
@@ -34,6 +36,7 @@ def test_train_transformer_model():
         prices[-5:],
         liquidity[-5:],
         depth[-5:],
+        depth_total[-5:],
         slippage[-5:],
         volume[-5:],
         tx[-5:],

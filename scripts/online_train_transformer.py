@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+from itertools import product
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -46,6 +47,45 @@ def load_or_create_model(path: Path, device: torch.device, input_dim: int) -> to
     return model
 
 
+def evaluate(model: torch.nn.Module, loader: DataLoader, device: torch.device) -> float:
+    loss_fn = torch.nn.MSELoss()
+    total = 0.0
+    n = 0
+    model.eval()
+    with torch.no_grad():
+        for X_b, y_b in loader:
+            X_b = X_b.to(device)
+            y_b = y_b.to(device)
+            pred = model(X_b)
+            total += loss_fn(pred, y_b).item() * len(y_b)
+            n += len(y_b)
+    return total / max(n, 1)
+
+
+def hyper_search(loader: DataLoader, val_loader: DataLoader, input_dim: int, device: torch.device) -> tuple[float, int]:
+    params = [(lr, h) for lr, h in product([1e-3, 5e-4], [32, 64])]
+    best = (1e-3, 32)
+    best_loss = float("inf")
+    for lr, hid in params:
+        model = models.DeepTransformerModel(input_dim, hidden_dim=hid)
+        model.to(device)
+        opt = torch.optim.Adam(model.parameters(), lr=lr)
+        loss_fn = torch.nn.MSELoss()
+        for X_b, y_b in loader:
+            X_b = X_b.to(device)
+            y_b = y_b.to(device)
+            opt.zero_grad()
+            pred = model(X_b)
+            loss = loss_fn(pred, y_b)
+            loss.backward()
+            opt.step()
+        val_loss = evaluate(model, val_loader, device)
+        if val_loss < best_loss:
+            best_loss = val_loss
+            best = (lr, hid)
+    return best
+
+
 async def train_loop(
     db_url: str,
     model_path: Path,
@@ -57,14 +97,30 @@ async def train_loop(
     *,
     daemon: bool = False,
     log_progress: bool = False,
+    eval_interval: float | None = None,
+    search: bool = False,
 ) -> None:
     data = OfflineData(db_url)
     loader, input_dim = build_loader(data, seq_len, batch_size, regime)
     if loader is None:
         return
-    model = load_or_create_model(model_path, device, input_dim)
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    dataset = loader.dataset
+    n = len(dataset)
+    split = int(n * 0.8)
+    train_ds, val_ds = torch.utils.data.random_split(dataset, [split, n - split])
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size)
+
+    lr = 1e-3
+    hidden = 64
+    if search:
+        lr, hidden = hyper_search(train_loader, val_loader, input_dim, device)
+
+    model = models.DeepTransformerModel(input_dim, hidden_dim=hidden)
+    model.to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = torch.nn.MSELoss()
+    last_eval = 0.0
 
     while True:
         loader, _ = build_loader(data, seq_len, batch_size, regime)
@@ -78,6 +134,9 @@ async def train_loop(
                 loss = loss_fn(pred, y_b)
                 loss.backward()
                 opt.step()
+            if eval_interval is not None:
+                val_loss = evaluate(model, val_loader, device)
+                logging.info("val_loss=%.4f", val_loss)
             models.save_model(model.to("cpu"), str(model_path))
             model.to(device)
             os.environ["PRICE_MODEL_PATH"] = str(model_path)
@@ -99,6 +158,8 @@ async def main() -> None:
     p.add_argument("--regime", default=None)
     p.add_argument("--daemon", action="store_true", help="keep training in a loop")
     p.add_argument("--log-progress", action="store_true", help="log checkpoint saves")
+    p.add_argument("--eval-interval", type=float, default=None, help="evaluate every N seconds")
+    p.add_argument("--search", action="store_true", help="perform simple hyperparameter search")
     args = p.parse_args()
 
     if args.device != "cpu" and not torch.cuda.is_available():
@@ -119,6 +180,8 @@ async def main() -> None:
         args.regime,
         daemon=args.daemon,
         log_progress=args.log_progress,
+        eval_interval=args.eval_interval,
+        search=args.search,
     )
 
 

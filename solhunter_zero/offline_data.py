@@ -25,6 +25,7 @@ class MarketSnapshot(Base):
     token = Column(String, nullable=False)
     price = Column(Float, nullable=False)
     depth = Column(Float, nullable=False)
+    total_depth = Column(Float, nullable=False, default=0.0)
     slippage = Column(Float, nullable=False, default=0.0)
     volume = Column(Float, nullable=False, default=0.0)
     imbalance = Column(Float, nullable=False)
@@ -59,6 +60,7 @@ class OfflineData:
         price: float,
         depth: float,
         imbalance: float,
+        total_depth: float = 0.0,
         slippage: float = 0.0,
         volume: float = 0.0,
         tx_rate: float = 0.0,
@@ -70,6 +72,7 @@ class OfflineData:
                 token=token,
                 price=price,
                 depth=depth,
+                total_depth=total_depth,
                 slippage=slippage,
                 volume=volume,
                 imbalance=imbalance,

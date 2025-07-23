@@ -221,6 +221,7 @@ def make_training_data(
     prices: Iterable[float],
     liquidity: Iterable[float],
     depth: Iterable[float],
+    total_depth: Iterable[float] | None = None,
     tx_counts: Iterable[float] | None = None,
     slippage: Iterable[float] | None = None,
     volume: Iterable[float] | None = None,
@@ -234,6 +235,7 @@ def make_training_data(
     p = torch.tensor(list(prices), dtype=torch.float32)
     l = torch.tensor(list(liquidity), dtype=torch.float32)
     d = torch.tensor(list(depth), dtype=torch.float32)
+    td = torch.tensor(list(total_depth), dtype=torch.float32) if total_depth is not None else torch.zeros_like(p)
     s = torch.tensor(list(slippage), dtype=torch.float32) if slippage is not None else torch.zeros_like(p)
     v = torch.tensor(list(volume), dtype=torch.float32) if volume is not None else torch.zeros_like(p)
     if tx_counts is None:
@@ -256,6 +258,7 @@ def make_training_data(
                 p[i : i + seq_len],
                 l[i : i + seq_len],
                 d[i : i + seq_len],
+                td[i : i + seq_len],
                 s[i : i + seq_len],
                 v[i : i + seq_len],
                 t[i : i + seq_len],
@@ -279,6 +282,7 @@ def train_price_model(
     prices: Iterable[float],
     liquidity: Iterable[float],
     depth: Iterable[float],
+    total_depth: Iterable[float] | None = None,
     tx_counts: Iterable[float] | None = None,
     slippage: Iterable[float] | None = None,
     volume: Iterable[float] | None = None,
@@ -298,6 +302,7 @@ def train_price_model(
         prices,
         liquidity,
         depth,
+        total_depth,
         tx_counts,
         slippage,
         volume,
@@ -323,6 +328,7 @@ def train_transformer_model(
     prices: Iterable[float],
     liquidity: Iterable[float],
     depth: Iterable[float],
+    total_depth: Iterable[float] | None = None,
     tx_counts: Iterable[float] | None = None,
     slippage: Iterable[float] | None = None,
     volume: Iterable[float] | None = None,
@@ -342,6 +348,7 @@ def train_transformer_model(
         prices,
         liquidity,
         depth,
+        total_depth,
         tx_counts,
         slippage,
         volume,
@@ -367,6 +374,7 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
     """Construct dataset tensors from :class:`OfflineData` snapshots."""
     prices = torch.tensor([float(s.price) for s in snaps], dtype=torch.float32)
     depth = torch.tensor([float(s.depth) for s in snaps], dtype=torch.float32)
+    agg_depth = torch.tensor([float(getattr(s, "total_depth", 0.0)) for s in snaps], dtype=torch.float32)
     slip = torch.tensor([float(getattr(s, "slippage", 0.0)) for s in snaps], dtype=torch.float32)
     vol = torch.tensor([float(getattr(s, "volume", 0.0)) for s in snaps], dtype=torch.float32)
     imb = torch.tensor([float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=torch.float32)
@@ -384,6 +392,7 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
         seq = torch.stack([
             prices[i:i+seq_len],
             depth[i:i+seq_len],
+            agg_depth[i:i+seq_len],
             slip[i:i+seq_len],
             vol[i:i+seq_len],
             imb[i:i+seq_len],
