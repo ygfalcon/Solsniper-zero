@@ -19,16 +19,24 @@ class TrendAgent(BaseAgent):
         volume_threshold: float = 0.0,
         sentiment_threshold: float = 0.0,
         feeds: Iterable[str] | None = None,
+        twitter_feeds: Iterable[str] | None = None,
+        discord_feeds: Iterable[str] | None = None,
     ) -> None:
         self.volume_threshold = volume_threshold
         self.sentiment_threshold = sentiment_threshold
         self.feeds = list(feeds) if feeds else []
+        self.twitter_feeds = list(twitter_feeds) if twitter_feeds else []
+        self.discord_feeds = list(discord_feeds) if discord_feeds else []
 
     async def _current_sentiment(self) -> float:
-        if not self.feeds:
+        if not (self.feeds or self.twitter_feeds or self.discord_feeds):
             return 0.0
         try:
-            return fetch_sentiment(self.feeds)
+            return fetch_sentiment(
+                self.feeds,
+                twitter_urls=self.twitter_feeds,
+                discord_urls=self.discord_feeds,
+            )
         except Exception:
             return 0.0
 
@@ -47,6 +55,7 @@ class TrendAgent(BaseAgent):
         volume = float(metrics.get("volume", 0.0))
         sentiment = await self._current_sentiment()
         if volume >= self.volume_threshold and sentiment >= self.sentiment_threshold:
+            strength = sentiment * 2
             return [
                 {
                     "token": token,
@@ -54,7 +63,7 @@ class TrendAgent(BaseAgent):
                     "amount": 1.0,
                     "price": 0.0,
                     "volume": volume,
-                    "sentiment": sentiment,
+                    "sentiment": strength,
                 }
             ]
         return []
