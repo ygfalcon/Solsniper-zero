@@ -56,6 +56,8 @@ mutation_threshold = 0.0
 
 token_suffix = "bonk"
 token_keywords = ""
+mempool_score_threshold = 0.0
+mempool_stats_window = 5
 volume_threshold = 0
 trend_volume_threshold = 0
 trend_sentiment_threshold = 0.0

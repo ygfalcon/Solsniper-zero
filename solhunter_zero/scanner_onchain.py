@@ -131,3 +131,28 @@ def fetch_whale_wallet_activity(
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch whale activity for %s: %s", token, exc)
         return 0.0
+
+
+def fetch_average_swap_size(token: str, rpc_url: str, limit: int = 20) -> float:
+    """Return the average swap size for ``token`` based on recent signatures."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    client = Client(rpc_url)
+    try:
+        resp = client.get_signatures_for_address(PublicKey(token), limit=limit)
+        entries = resp.get("result", [])
+        total = 0.0
+        count = 0
+        for e in entries:
+            amt = e.get("amount", 0.0)
+            try:
+                total += float(amt)
+            except Exception:
+                continue
+            count += 1
+        return total / float(count) if count else 0.0
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch swap size for %s: %s", token, exc)
+        return 0.0

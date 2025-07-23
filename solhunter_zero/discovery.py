@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import List, Dict, Any
 
 from .scanner_common import fetch_trending_tokens_async
@@ -22,15 +23,19 @@ async def merge_sources(
     *,
     mempool_limit: int = 10,
     limit: int | None = None,
+    mempool_threshold: float | None = None,
 ) -> List[Dict[str, Any]]:
     """Return ranked tokens collected from multiple discovery sources."""
+
+    if mempool_threshold is None:
+        mempool_threshold = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0)
 
     trend_task = asyncio.create_task(fetch_trending_tokens_async())
     onchain_task = asyncio.create_task(
         asyncio.to_thread(scan_tokens_onchain, rpc_url, return_metrics=True)
     )
 
-    mp_gen = stream_ranked_mempool_tokens(rpc_url)
+    mp_gen = stream_ranked_mempool_tokens(rpc_url, threshold=mempool_threshold)
     mp_tokens: List[Dict[str, Any]] = []
     try:
         while len(mp_tokens) < mempool_limit:
@@ -58,11 +63,26 @@ async def merge_sources(
             return
         vol = float(entry.get("volume", 0.0))
         liq = float(entry.get("liquidity", 0.0))
-        current = combined.setdefault(addr, {"address": addr, "volume": 0.0, "liquidity": 0.0})
+        score = float(entry.get("score", 0.0))
+        current = combined.setdefault(
+            addr,
+            {
+                "address": addr,
+                "volume": 0.0,
+                "liquidity": 0.0,
+                "score": 0.0,
+            },
+        )
         if vol > current["volume"]:
             current["volume"] = vol
         if liq > current["liquidity"]:
             current["liquidity"] = liq
+        if score > current.get("score", 0.0):
+            current["score"] = score
+        for key in ("momentum", "anomaly", "wallet_concentration", "avg_swap_size"):
+            val = entry.get(key)
+            if val is not None:
+                current[key] = float(val)
 
     for e in onchain_tokens:
         add_entry(e)
@@ -72,7 +92,13 @@ async def merge_sources(
         add_entry(e)
 
     result = list(combined.values())
-    result.sort(key=lambda x: (x.get("volume", 0.0) + x.get("liquidity", 0.0)), reverse=True)
+    result.sort(
+        key=lambda x: (
+            x.get("score", 0.0),
+            x.get("volume", 0.0) + x.get("liquidity", 0.0),
+        ),
+        reverse=True,
+    )
     if limit is not None:
         result = result[:limit]
     return result

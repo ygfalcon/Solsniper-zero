@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import AsyncGenerator, Iterable, Dict, Any
+import os
+import statistics
+from collections import deque
+from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
 from solana.publickey import PublicKey
 from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
@@ -15,6 +18,11 @@ from . import onchain_metrics
 from . import scanner_onchain
 
 logger = logging.getLogger(__name__)
+
+MEMPOOL_STATS_WINDOW = int(os.getenv("MEMPOOL_STATS_WINDOW", "5") or 5)
+MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0)
+
+_ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
@@ -55,6 +63,8 @@ async def stream_mempool_tokens(
         while True:
             try:
                 msgs = await ws.recv()
+            except asyncio.CancelledError:
+                break
             except Exception as exc:  # pragma: no cover - network errors
                 logger.error("Websocket error: %s", exc)
                 await asyncio.sleep(1)
@@ -122,13 +132,48 @@ async def rank_token(token: str, rpc_url: str) -> tuple[float, Dict[str, float]]
     )
     tx_rate = insights.get("tx_rate", 0.0)
     whale_activity = insights.get("whale_activity", 0.0)
+    avg_swap = insights.get("avg_swap_size", 0.0)
 
-    score = float(volume) + float(liquidity) + float(tx_rate) - float(whale_activity)
+    wallet_conc = 1.0 - float(whale_activity)
+
+    def _update(token: str, key: str, value: float) -> Deque[float]:
+        dq = _ROLLING_STATS.setdefault(token, {}).setdefault(
+            key, deque(maxlen=MEMPOOL_STATS_WINDOW)
+        )
+        dq.append(float(value))
+        return dq
+
+    tx_hist = _update(token, "tx", tx_rate)
+    _update(token, "wallet", wallet_conc)
+    _update(token, "swap", avg_swap)
+
+    momentum = 0.0
+    anomaly = 0.0
+    if len(tx_hist) > 1:
+        prev_avg = sum(list(tx_hist)[:-1]) / (len(tx_hist) - 1)
+        momentum = tx_hist[-1] - prev_avg
+        if len(tx_hist) > 2:
+            mean = statistics.mean(list(tx_hist)[:-1])
+            stdev = statistics.stdev(list(tx_hist)[:-1]) or 1.0
+            anomaly = (tx_hist[-1] - mean) / stdev
+
+    score = (
+        float(volume)
+        + float(liquidity)
+        + float(tx_rate)
+        + momentum
+        + anomaly
+        - float(whale_activity)
+    )
     metrics = {
         "volume": float(volume),
         "liquidity": float(liquidity),
         "tx_rate": float(tx_rate),
         "whale_activity": float(whale_activity),
+        "wallet_concentration": wallet_conc,
+        "avg_swap_size": float(avg_swap),
+        "momentum": momentum,
+        "anomaly": anomaly,
         "score": score,
     }
     return score, metrics
@@ -140,9 +185,12 @@ async def stream_ranked_mempool_tokens(
     suffix: str | None = None,
     keywords: Iterable[str] | None = None,
     include_pools: bool = True,
-    threshold: float = 0.0,
+    threshold: float | None = None,
 ) -> AsyncGenerator[Dict[str, float], None]:
     """Yield ranked token events from the mempool."""
+
+    if threshold is None:
+        threshold = MEMPOOL_SCORE_THRESHOLD
 
     async for tok in stream_mempool_tokens(
         rpc_url,

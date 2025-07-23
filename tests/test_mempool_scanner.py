@@ -3,6 +3,7 @@ import asyncio
 import solhunter_zero.mempool_scanner as mp_scanner
 from solhunter_zero import scanner_common
 
+scanner_common.TOKEN_SUFFIX = ""
 
 class FakeWS:
     def __init__(self, messages):
@@ -130,10 +131,18 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
 
     monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 10.0 if t == "tok1" else 1.0)
     monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 5.0 if t == "tok1" else 0.5)
-    monkeypatch.setattr(om, "collect_onchain_insights", lambda t, u: {"tx_rate": 2.0 if t == "tok1" else 0.1, "whale_activity": 0.0})
+    monkeypatch.setattr(
+        om,
+        "collect_onchain_insights",
+        lambda t, u: {
+            "tx_rate": 2.0 if t == "tok1" else 0.1,
+            "whale_activity": 0.0,
+            "avg_swap_size": 1.0,
+        },
+    )
 
     async def run():
-        gen = mp_scanner.stream_ranked_mempool_tokens("ws://node", suffix=None, threshold=10.0)
+        gen = mp_scanner.stream_ranked_mempool_tokens("ws://node", suffix="", threshold=10.0)
         data = await asyncio.wait_for(anext(gen), timeout=0.1)
         await gen.aclose()
         return data
@@ -141,3 +150,25 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
     data = asyncio.run(run())
     assert data["address"] == "tok1"
     assert data["score"] >= 10.0
+
+
+def test_rank_token_momentum(monkeypatch):
+    mp_scanner._ROLLING_STATS.clear()
+    import solhunter_zero.onchain_metrics as om
+
+    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
+    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 1.0)
+    rates = [1.0, 3.0]
+
+    def fake_insights(t, u):
+        return {"tx_rate": rates.pop(0), "whale_activity": 0.0, "avg_swap_size": 1.0}
+
+    monkeypatch.setattr(om, "collect_onchain_insights", fake_insights)
+
+    async def run():
+        first = await mp_scanner.rank_token("tok", "rpc")
+        second = await mp_scanner.rank_token("tok", "rpc")
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert second[1]["momentum"] != 0.0
