@@ -6,6 +6,8 @@ from typing import List, AsyncGenerator, Dict, Any, Iterable
 from . import BaseAgent
 from ..async_scanner import scan_tokens_async
 from ..mempool_scanner import stream_ranked_mempool_tokens
+from ..scanner_common import SOLANA_RPC_URL
+from ..discovery import merge_sources
 from ..portfolio import Portfolio
 
 
@@ -14,10 +16,30 @@ class DiscoveryAgent(BaseAgent):
 
     name = "discovery"
 
-    async def discover_tokens(self, *, offline: bool = False, token_file: str | None = None, method: str | None = None) -> List[str]:
+    def __init__(self) -> None:
+        self.metrics: Dict[str, Dict[str, float]] = {}
+
+    async def discover_tokens(
+        self,
+        *,
+        offline: bool = False,
+        token_file: str | None = None,
+        method: str | None = None,
+    ) -> List[str]:
         if method is None:
             method = os.getenv("DISCOVERY_METHOD", "websocket")
-        return await scan_tokens_async(offline=offline, token_file=token_file, method=method)
+        if not offline and token_file is None and method == "websocket":
+            data = await merge_sources(SOLANA_RPC_URL)
+            self.metrics = {d["address"]: {"volume": d.get("volume", 0.0), "liquidity": d.get("liquidity", 0.0)} for d in data}
+            return [d["address"] for d in data]
+
+        tokens = await scan_tokens_async(
+            offline=offline,
+            token_file=token_file,
+            method=method,
+        )
+        self.metrics = {t: {} for t in tokens}
+        return tokens
 
     async def propose_trade(
         self,

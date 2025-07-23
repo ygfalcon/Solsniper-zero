@@ -126,6 +126,8 @@ configuration.  The bot will borrow up to `max_flash_amount` of the trading
 token using supported protocols (e.g. Solend), execute the swap chain and repay
 the loan within the same transaction.  You must supply the required protocol
 accounts and understand that failed repayment reverts the entire transaction.
+The arbitrage path search now factors this flash-loan amount into the expected
+profit calculation so routes are ranked based on the borrowed size.
 
    The `AgentManager` loads the agents listed under `agents` and applies any
    weights defined in the `agent_weights` table.  When `dynamic_weights` is set
@@ -468,6 +470,8 @@ very small.
 - **Token discovery fallback** — the default `websocket` discovery mode uses
   BirdEye when `BIRDEYE_API_KEY` is set and automatically falls back to
   on-chain scanning if the key is missing.
+- **Discovery ranking** — tokens from trending APIs, mempool events and on-chain
+  scans are combined, deduplicated and sorted by volume and liquidity.
 - **Web UI polling** — the browser polls `/positions`, `/trades`, `/roi`,
   `/risk` and `/weights` every 5&nbsp;s. It assumes a single user and exposes
   JSON endpoints to inspect trades and ROI history.

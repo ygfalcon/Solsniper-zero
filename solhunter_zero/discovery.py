@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+import asyncio
+from typing import List, Dict, Any
+
+from .scanner_common import fetch_trending_tokens_async
+from .mempool_scanner import stream_ranked_mempool_tokens
+from .scanner_onchain import scan_tokens_onchain
+from . import onchain_metrics
+
+
+async def _metrics_for(token: str, rpc_url: str) -> tuple[float, float]:
+    """Return volume and liquidity for ``token`` via on-chain metrics."""
+
+    volume = await asyncio.to_thread(onchain_metrics.fetch_volume_onchain, token, rpc_url)
+    liquidity = await asyncio.to_thread(onchain_metrics.fetch_liquidity_onchain, token, rpc_url)
+    return float(volume), float(liquidity)
+
+
+async def merge_sources(
+    rpc_url: str,
+    *,
+    mempool_limit: int = 10,
+    limit: int | None = None,
+) -> List[Dict[str, Any]]:
+    """Return ranked tokens collected from multiple discovery sources."""
+
+    trend_task = asyncio.create_task(fetch_trending_tokens_async())
+    onchain_task = asyncio.create_task(
+        asyncio.to_thread(scan_tokens_onchain, rpc_url, return_metrics=True)
+    )
+
+    mp_gen = stream_ranked_mempool_tokens(rpc_url)
+    mp_tokens: List[Dict[str, Any]] = []
+    try:
+        while len(mp_tokens) < mempool_limit:
+            tok = await asyncio.wait_for(anext(mp_gen), timeout=0.5)
+            mp_tokens.append(tok)
+    except (StopAsyncIteration, asyncio.TimeoutError):
+        pass
+    finally:
+        await mp_gen.aclose()
+
+    trending = await trend_task
+    onchain_tokens = await onchain_task
+
+    trend_metrics = []
+    if trending:
+        vols_liqs = await asyncio.gather(*(_metrics_for(t, rpc_url) for t in trending))
+        for addr, (vol, liq) in zip(trending, vols_liqs):
+            trend_metrics.append({"address": addr, "volume": vol, "liquidity": liq})
+
+    combined: Dict[str, Dict[str, float]] = {}
+
+    def add_entry(entry: Dict[str, Any]) -> None:
+        addr = entry.get("address")
+        if not addr:
+            return
+        vol = float(entry.get("volume", 0.0))
+        liq = float(entry.get("liquidity", 0.0))
+        current = combined.setdefault(addr, {"address": addr, "volume": 0.0, "liquidity": 0.0})
+        if vol > current["volume"]:
+            current["volume"] = vol
+        if liq > current["liquidity"]:
+            current["liquidity"] = liq
+
+    for e in onchain_tokens:
+        add_entry(e)
+    for e in mp_tokens:
+        add_entry(e)
+    for e in trend_metrics:
+        add_entry(e)
+
+    result = list(combined.values())
+    result.sort(key=lambda x: (x.get("volume", 0.0) + x.get("liquidity", 0.0)), reverse=True)
+    if limit is not None:
+        result = result[:limit]
+    return result
+
