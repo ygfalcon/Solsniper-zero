@@ -201,4 +201,5 @@ async def stream_ranked_mempool_tokens(
         address = tok["address"] if isinstance(tok, dict) else tok
         score, data = await rank_token(address, rpc_url)
         if score >= threshold:
-            yield {"address": address, **data}
+            combined = data["momentum"] * (1.0 - data["whale_activity"])
+            yield {"address": address, **data, "combined_score": combined}
