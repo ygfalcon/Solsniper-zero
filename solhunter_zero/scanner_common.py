@@ -29,7 +29,15 @@ RAYDIUM_LISTINGS_API = os.getenv(
 ORCA_LISTINGS_API = os.getenv(
     "ORCA_LISTINGS_API", "https://api.orca.so/new-listings"
 )
+PHOENIX_LISTINGS_API = os.getenv(
+    "PHOENIX_LISTINGS_API", "https://api.phoenix.trade/new-listings"
+)
+METEORA_LISTINGS_API = os.getenv(
+    "METEORA_LISTINGS_API", "https://api.meteora.ag/new-listings"
+)
 JUPITER_WS_URL = os.getenv("JUPITER_WS_URL", "wss://stats.jup.ag/ws")
+PHOENIX_WS_URL = os.getenv("PHOENIX_WS_URL", "")
+METEORA_WS_URL = os.getenv("METEORA_WS_URL", "")
 DEX_LISTING_WS_URL = os.getenv("DEX_LISTING_WS_URL", "")
 
 # Filtering configuration
@@ -214,6 +222,52 @@ async def fetch_orca_listings_async() -> List[str]:
                 data = await resp.json()
         except aiohttp.ClientError as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch Orca listings: %s", exc)
+            return []
+    return parse_listing_tokens(data)
+
+
+def fetch_phoenix_listings() -> List[str]:
+    try:
+        resp = requests.get(PHOENIX_LISTINGS_API, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Phoenix listings: %s", exc)
+        return []
+    return parse_listing_tokens(data)
+
+
+async def fetch_phoenix_listings_async() -> List[str]:
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(PHOENIX_LISTINGS_API, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch Phoenix listings: %s", exc)
+            return []
+    return parse_listing_tokens(data)
+
+
+def fetch_meteora_listings() -> List[str]:
+    try:
+        resp = requests.get(METEORA_LISTINGS_API, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Meteora listings: %s", exc)
+        return []
+    return parse_listing_tokens(data)
+
+
+async def fetch_meteora_listings_async() -> List[str]:
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(METEORA_LISTINGS_API, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch Meteora listings: %s", exc)
             return []
     return parse_listing_tokens(data)
 

@@ -42,11 +42,18 @@ PriceFeed = Callable[[str], Awaitable[float]]
 # Default API endpoints for direct price queries
 ORCA_API_URL = os.getenv("ORCA_API_URL", "https://api.orca.so")
 RAYDIUM_API_URL = os.getenv("RAYDIUM_API_URL", "https://api.raydium.io")
+PHOENIX_API_URL = os.getenv("PHOENIX_API_URL", "https://api.phoenix.trade")
+METEORA_API_URL = os.getenv("METEORA_API_URL", "https://api.meteora.ag")
 ORCA_WS_URL = os.getenv("ORCA_WS_URL", "")
 RAYDIUM_WS_URL = os.getenv("RAYDIUM_WS_URL", "")
+PHOENIX_WS_URL = os.getenv("PHOENIX_WS_URL", "")
+METEORA_WS_URL = os.getenv("METEORA_WS_URL", "")
 DEX_PRIORITIES = [
     n.strip()
-    for n in os.getenv("DEX_PRIORITIES", "service,orca,raydium,jupiter")
+    for n in os.getenv(
+        "DEX_PRIORITIES",
+        "service,phoenix,meteora,orca,raydium,jupiter",
+    )
     .replace(";", ",")
     .split(",")
     if n.strip()
@@ -155,6 +162,38 @@ async def fetch_raydium_price_async(token: str) -> float:
             return 0.0
 
 
+async def fetch_phoenix_price_async(token: str) -> float:
+    """Return the current price for ``token`` from the Phoenix API."""
+
+    url = f"{PHOENIX_API_URL}/price?token={token}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                price = data.get("price")
+                return float(price) if isinstance(price, (int, float)) else 0.0
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch price from Phoenix: %s", exc)
+            return 0.0
+
+
+async def fetch_meteora_price_async(token: str) -> float:
+    """Return the current price for ``token`` from the Meteora API."""
+
+    url = f"{METEORA_API_URL}/price?token={token}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                price = data.get("price")
+                return float(price) if isinstance(price, (int, float)) else 0.0
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch price from Meteora: %s", exc)
+            return 0.0
+
+
 JUPITER_API_URL = os.getenv("JUPITER_API_URL", "https://price.jup.ag/v4/price")
 
 
@@ -243,6 +282,54 @@ async def stream_raydium_prices(token: str, url: str = RAYDIUM_WS_URL) -> AsyncG
                     yield float(price)
 
 
+async def stream_phoenix_prices(token: str, url: str = PHOENIX_WS_URL) -> AsyncGenerator[float, None]:
+    """Yield live prices for ``token`` from the Phoenix websocket feed."""
+
+    if not url:
+        return
+
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(url) as ws:
+            try:
+                await ws.send_str(json.dumps({"token": token}))
+            except Exception:  # pragma: no cover - send failures
+                pass
+            async for msg in ws:
+                if msg.type != aiohttp.WSMsgType.TEXT:
+                    continue
+                try:
+                    data = json.loads(msg.data)
+                except Exception:  # pragma: no cover - invalid message
+                    continue
+                price = data.get("price")
+                if isinstance(price, (int, float)):
+                    yield float(price)
+
+
+async def stream_meteora_prices(token: str, url: str = METEORA_WS_URL) -> AsyncGenerator[float, None]:
+    """Yield live prices for ``token`` from the Meteora websocket feed."""
+
+    if not url:
+        return
+
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(url) as ws:
+            try:
+                await ws.send_str(json.dumps({"token": token}))
+            except Exception:  # pragma: no cover - send failures
+                pass
+            async for msg in ws:
+                if msg.type != aiohttp.WSMsgType.TEXT:
+                    continue
+                try:
+                    data = json.loads(msg.data)
+                except Exception:  # pragma: no cover - invalid message
+                    continue
+                price = data.get("price")
+                if isinstance(price, (int, float)):
+                    yield float(price)
+
+
 async def stream_jupiter_prices(token: str, url: str = JUPITER_WS_URL) -> AsyncGenerator[float, None]:
     """Yield live prices for ``token`` from the Jupiter websocket feed."""
 
@@ -308,6 +395,13 @@ def _best_route(
     fees = fees or {}
     gas = gas or {}
     latency = latency or {}
+    for v in prices.keys():
+        if v not in fees:
+            fees[v] = DEX_FEES.get(v, 0.0)
+        if v not in gas:
+            gas[v] = DEX_GAS.get(v, 0.0)
+        if v not in latency:
+            latency[v] = DEX_LATENCY.get(v, 0.0)
     if use_flash_loans is None:
         use_flash_loans = USE_FLASH_LOANS
     if max_flash_amount is None:
@@ -547,7 +641,20 @@ async def _detect_for_token(
         return result
 
     if not feeds:
-        feeds = [fetch_orca_price_async, fetch_raydium_price_async, fetch_jupiter_price_async]
+        feeds = [
+            fetch_orca_price_async,
+            fetch_raydium_price_async,
+            fetch_phoenix_price_async,
+            fetch_meteora_price_async,
+            fetch_jupiter_price_async,
+        ]
+        for name in ("orca", "raydium", "phoenix", "meteora", "jupiter"):
+            if fees is not None and name not in fees:
+                fees[name] = DEX_FEES.get(name, 0.0)
+            if gas is not None and name not in gas:
+                gas[name] = DEX_GAS.get(name, 0.0)
+            if latencies is not None and name not in latencies:
+                latencies[name] = DEX_LATENCY.get(name, 0.0)
         for name, url in EXTRA_API_URLS.items():
             feeds.append(make_api_price_fetch(url))
             if fees is not None and name not in fees:
@@ -710,6 +817,8 @@ async def detect_and_execute_arbitrage(
         available = {
             "orca": (ORCA_WS_URL, stream_orca_prices),
             "raydium": (RAYDIUM_WS_URL, stream_raydium_prices),
+            "phoenix": (PHOENIX_WS_URL, stream_phoenix_prices),
+            "meteora": (METEORA_WS_URL, stream_meteora_prices),
             "jupiter": (JUPITER_WS_URL, stream_jupiter_prices),
             "service": (f"ipc://{DEPTH_SERVICE_SOCKET}?{token}", None),
         }

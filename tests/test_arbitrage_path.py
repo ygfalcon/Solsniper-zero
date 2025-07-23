@@ -12,6 +12,12 @@ async def dex2(token):
 async def dex3(token):
     return 1.4
 
+async def phoenix(token):
+    return 0.9
+
+async def meteora(token):
+    return 1.6
+
 
 def test_arbitrage_path_selection(monkeypatch):
     calls = []
@@ -76,3 +82,32 @@ def test_multi_hop(monkeypatch):
 
     assert result == (0, 2)
     assert len(calls) == 4
+
+
+def test_new_venue_path(monkeypatch):
+    calls = []
+
+    async def fake_place(token, side, amount, price, **_):
+        calls.append((side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    feeds = [phoenix, dex1, dex2, meteora]
+    costs = {"phoenix": 0.0, "dex1": 0.0, "dex2": 0.0, "meteora": 0.0}
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            feeds,
+            threshold=0.0,
+            amount=1.0,
+            fees=costs,
+            gas=costs,
+            latencies=costs,
+        )
+    )
+
+    assert result == (0, 3)
+    assert ("buy", 0.9) in calls
+    assert ("sell", 1.6) in calls

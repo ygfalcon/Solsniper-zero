@@ -7,9 +7,17 @@ from typing import AsyncGenerator, Iterable
 
 import aiohttp
 
-from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
+from .scanner_common import (
+    TOKEN_SUFFIX,
+    TOKEN_KEYWORDS,
+    token_matches,
+    PHOENIX_WS_URL,
+    METEORA_WS_URL,
+)
 
 DEX_LISTING_WS_URL = os.getenv("DEX_LISTING_WS_URL", "")
+PHOENIX_DEPTH_WS_URL = os.getenv("PHOENIX_DEPTH_WS_URL", PHOENIX_WS_URL)
+METEORA_DEPTH_WS_URL = os.getenv("METEORA_DEPTH_WS_URL", METEORA_WS_URL)
 
 logger = logging.getLogger(__name__)
 

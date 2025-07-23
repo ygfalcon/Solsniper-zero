@@ -30,6 +30,8 @@ DEX_BASE_URL = os.getenv("DEX_BASE_URL", "https://quote-api.jup.ag")
 DEX_TESTNET_URL = os.getenv("DEX_TESTNET_URL", "https://quote-api.jup.ag")
 ORCA_DEX_URL = os.getenv("ORCA_DEX_URL", DEX_BASE_URL)
 RAYDIUM_DEX_URL = os.getenv("RAYDIUM_DEX_URL", DEX_BASE_URL)
+PHOENIX_DEX_URL = os.getenv("PHOENIX_DEX_URL", DEX_BASE_URL)
+METEORA_DEX_URL = os.getenv("METEORA_DEX_URL", DEX_BASE_URL)
 SWAP_PATH = "/v6/swap"
 
 RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
@@ -41,6 +43,8 @@ VENUE_URLS = {
     "jupiter": DEX_BASE_URL,
     "raydium": RAYDIUM_DEX_URL,
     "orca": ORCA_DEX_URL,
+    "phoenix": PHOENIX_DEX_URL,
+    "meteora": METEORA_DEX_URL,
 }
 
 
