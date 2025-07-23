@@ -29,6 +29,7 @@ agents = [
     "ramanujan",
     "emotion",
     "vanta",
+    "abraxas",
 ]
 
 # Dynamically adjust weights based on agent ROI
@@ -54,3 +55,4 @@ meta_conviction = 1.0
 ramanujan = 1.0
 emotion = 1.0
 vanta = 1.0
+abraxas = 1.0

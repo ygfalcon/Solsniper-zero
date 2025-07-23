@@ -20,6 +20,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
 
     from .ramanujan_agent import RamanujanAgent
     from .strange_attractor import StrangeAttractorAgent
+    from .cardinal_agent import CardinalAgent
     from .meta_conviction import MetaConvictionAgent
     from .ppo_agent import PPOAgent
     from .portfolio_agent import PortfolioAgent
@@ -94,6 +95,7 @@ def _ensure_agents_loaded() -> None:
         "meta_conviction": MetaConvictionAgent,
 
         "ramanujan": RamanujanAgent,
+        "abraxas": CardinalAgent,
         "vanta": StrangeAttractorAgent,
 
         "emotion": EmotionAgent,

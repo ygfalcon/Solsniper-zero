@@ -248,6 +248,9 @@ The trading logic is implemented by a swarm of small agents:
 - **StrangeAttractorAgent** — chaotic Lorenz model seeded with order-book depth,
   mempool entropy and conviction velocity. Trades when divergence aligns with a
   known profitable manifold.
+- **CardinalAgent** — rotates proposals through ordinal positions while tracking
+  regret entropy. When one position builds excessive regret the proposal order
+  is inverted or the secondary signal is negated.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 
 Agents can be enabled or disabled in the configuration and their impact
