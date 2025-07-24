@@ -32,6 +32,7 @@ agents = [
     "emotion",
     "vanta",
     "inferna",
+    "mev_sandwich",
 ]
 
 # Dynamically adjust weights based on agent ROI
