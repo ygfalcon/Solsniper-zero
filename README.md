@@ -33,7 +33,7 @@ up automatically. Select this file from the UI or set
 
 2. **Install dependencies**
    ```bash
-   pip install .
+   pip install .[uvloop]
    ```
    This installs all required Python packages as defined in
    `pyproject.toml`, including
@@ -42,9 +42,10 @@ up automatically. Select this file from the UI or set
    YAML configuration files and Solana keypair functionality.
 
    Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
-   install automatically with `pip install .`. On Apple Silicon machines
-   `./run.sh` automatically installs the Metal PyTorch wheel when it is
-   missing.
+   install automatically with `pip install .[uvloop]`. Running `./run.sh`
+   performs the same installation when dependencies are missing. On Apple
+   Silicon machines the script also installs the Metal PyTorch wheel if
+   it isn't already present.
 
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with

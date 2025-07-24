@@ -29,7 +29,7 @@ EOF
               --extra-index-url https://download.pytorch.org/whl/metal
         fi
     fi
-    pip install .
+    pip install .[uvloop]
 fi
 
 if [ "${DEPTH_SERVICE,,}" = "true" ]; then
