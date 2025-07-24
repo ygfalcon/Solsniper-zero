@@ -189,3 +189,118 @@ def test_paper(monkeypatch):
     assert len(trades) == 1
     assert trades[0].token == 'TOK'
     assert pf.balances['TOK'].amount > 0
+
+
+def test_paper_metrics(monkeypatch):
+    mem = main_module.Memory('sqlite:///:memory:')
+    pf = main_module.Portfolio(path=None)
+
+    async def fake_discover(self, **kwargs):
+        return ['TOK']
+
+    monkeypatch.setattr(main_module.DiscoveryAgent, 'discover_tokens', fake_discover)
+    monkeypatch.setattr(
+        main_module,
+        'run_simulations',
+        lambda token, count=100: [SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)],
+    )
+    monkeypatch.setattr(main_module, 'should_buy', lambda sims: True)
+    monkeypatch.setattr(main_module, 'should_sell', lambda sims, **k: False)
+
+    async def fake_place_order(token, side, amount, price, **_):
+        return {'order_id': '1'}
+
+    monkeypatch.setattr(main_module, 'place_order_async', fake_place_order)
+    import solhunter_zero.gas as gas_mod
+    monkeypatch.setattr(gas_mod, 'get_current_fee', lambda testnet=False: 0.0)
+
+    async def _no_fee_async(*_a, **_k):
+        return 0.0
+
+    monkeypatch.setattr(gas_mod, 'get_current_fee_async', _no_fee_async)
+
+    def patched_log_trade(self, token, direction, amount, price, **kw):
+        price = 1.0 if direction == 'buy' else 2.0
+        kw.setdefault('reason', None)
+        self.trades.append(
+            types.SimpleNamespace(
+                token=token,
+                direction=direction,
+                amount=amount,
+                price=price,
+                **kw,
+            )
+        )
+
+    monkeypatch.setattr(main_module.Memory, 'log_trade', patched_log_trade, raising=False)
+
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=False, offline=True))
+
+    monkeypatch.setattr(main_module, 'should_buy', lambda sims: False)
+    monkeypatch.setattr(main_module, 'should_sell', lambda sims, **k: True)
+
+    asyncio.run(main_module._run_iteration(mem, pf, dry_run=False, offline=True))
+
+    from solhunter_zero.trade_analyzer import TradeAnalyzer
+
+    roi = TradeAnalyzer(mem).roi_by_agent().get('', 0.0)
+    assert roi == 1.0
+
+
+def test_paper_mev_sandwich(monkeypatch):
+    from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
+
+    async def fake_stream(url, **_):
+        yield {"address": "tok", "avg_swap_size": 2.0}
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.mev_sandwich.stream_ranked_mempool_tokens_with_depth',
+        fake_stream,
+    )
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.mev_sandwich.fetch_slippage_onchain',
+        lambda t, u: 0.3,
+    )
+
+    async def fake_fetch(token, side, amount, price, base_url):
+        return f"MSG_{side}"
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.mev_sandwich._fetch_swap_tx_message',
+        fake_fetch,
+    )
+
+    async def fake_prepare(msg):
+        return f"TX_{msg}"
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.mev_sandwich.prepare_signed_tx',
+        fake_prepare,
+    )
+
+    sent = []
+
+    async def fake_submit(self, txs):
+        sent.append(txs)
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.mev_sandwich.MEVExecutor.submit_bundle',
+        fake_submit,
+    )
+
+    stub_mempool = types.ModuleType('solhunter_zero.mempool_scanner')
+    stub_mempool.stream_ranked_mempool_tokens_with_depth = fake_stream
+    monkeypatch.setitem(sys.modules, 'solhunter_zero.mempool_scanner', stub_mempool)
+
+    agent = MEVSandwichAgent(size_threshold=1.0, slippage_threshold=0.2)
+    async def _run(agent):
+        gen = agent.listen('ws://node')
+        token = await asyncio.wait_for(anext(gen), timeout=0.1)
+        await gen.aclose()
+        return token
+
+    token = asyncio.run(_run(agent))
+
+    assert token == 'tok'
+    assert sent == [["TX_MSG_buy", "TX_MSG_sell"]]
