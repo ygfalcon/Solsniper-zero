@@ -73,9 +73,10 @@ risk_multiplier: 1.0
 arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
 use_flash_loans: true
-max_flash_amount: 0.0
+max_flash_amount: 0.02
 mempool_threshold: 0.0
 bundle_size: 1
+use_mev_bundles: true
 learning_rate: 0.1
 dex_priorities: "orca,raydium,jupiter"
 dex_fees: "{}"
@@ -243,9 +244,9 @@ to load token addresses from a file.
 
 ## MEV Bundles
 
-Set `use_mev_bundles = true` in your configuration to route swap
-transactions through the [Jito block-engine](https://jito.network/).
-Provide the endpoint URL and authentication token:
+When `use_mev_bundles` is enabled (the default), swaps are submitted
+through the [Jito block-engine](https://jito.network/). Provide the
+endpoint URL and authentication token:
 
 ```bash
 export JITO_RPC_URL=https://block-engine.example.com
@@ -253,7 +254,8 @@ export JITO_AUTH=your_token
 ```
 
 The sniper and sandwich agents automatically pass these credentials to
-`MEVExecutor` when available.
+`MEVExecutor` when available. A warning is logged if either variable is
+missing while MEV bundles are enabled.
 
 ## Agents
 

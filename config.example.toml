@@ -52,12 +52,12 @@ min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
 use_flash_loans = true   # set to false to disable flash-loan arbitrage
-max_flash_amount = 0.0
+max_flash_amount = 0.02
 dex_priorities = "phoenix,meteora,orca,raydium,jupiter"
 dex_fees = "{}"
 dex_gas = "{}"
 dex_latency = "{}"
-use_mev_bundles = false # submit swap bundles via MEVExecutor when true
+use_mev_bundles = true # submit swap bundles via MEVExecutor when true
 # CrossDEXRebalancer options
 rebalance_interval = 30     # seconds between venue rebalances
 slippage_threshold = 0.05   # ignore venues with higher expected slippage
