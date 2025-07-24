@@ -364,9 +364,9 @@ pip install .
 ```
 
 For development you can also install the package in editable mode so changes are
-picked up automatically:
+picked up automatically and the test suite has all required tools:
 ```bash
-pip install -e .
+pip install -e .[dev]
 ```
 
 ### Apple Silicon (ARM64)
