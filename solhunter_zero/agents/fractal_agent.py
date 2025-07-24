@@ -11,6 +11,9 @@ except Exception:  # pragma: no cover - optional dependency
 
 from . import BaseAgent
 from ..portfolio import Portfolio
+from ..memory import Memory
+from ..advanced_memory import AdvancedMemory
+from ..offline_data import OfflineData
 
 
 class FractalAgent(BaseAgent):
@@ -18,17 +21,40 @@ class FractalAgent(BaseAgent):
 
     name = "inferna"
 
-    def __init__(self, similarity_threshold: float = 0.89) -> None:
+    def __init__(
+        self,
+        similarity_threshold: float = 0.89,
+        *,
+        memory: Memory | AdvancedMemory | None = None,
+        offline_data: OfflineData | None = None,
+    ) -> None:
         self.similarity_threshold = similarity_threshold
+        self.memory = memory
+        self.offline_data = offline_data
 
     # ------------------------------------------------------------------
     def _roi_history(self, token: str) -> List[float]:
-        """Return ROI or price history for ``token``.
-
-        This base implementation returns an empty list and should be
-        overridden or monkeypatched in tests.
-        """
-        return []
+        """Return ROI series for ``token`` from stored trades."""
+        trades = []
+        if self.memory is not None:
+            try:
+                trades = [t for t in self.memory.list_trades() if t.token == token]
+            except Exception:
+                trades = []
+        if not trades and self.offline_data is not None:
+            try:
+                trades = self.offline_data.list_trades(token)
+            except Exception:
+                trades = []
+        trades.sort(key=lambda t: getattr(t, "timestamp", 0))
+        rois: List[float] = []
+        prev_price: float | None = None
+        for t in trades:
+            price = float(t.price)
+            if prev_price is not None and prev_price != 0:
+                rois.append((price - prev_price) / prev_price)
+            prev_price = price
+        return rois
 
     # ------------------------------------------------------------------
     def _hurst(self, series: List[float]) -> float:
@@ -64,7 +90,27 @@ class FractalAgent(BaseAgent):
     # ------------------------------------------------------------------
     def _past_fingerprints(self, exclude: str | None = None) -> List[np.ndarray]:
         """Return fingerprints for previously traded tokens."""
-        return []
+        tokens: set[str] = set()
+        if self.memory is not None:
+            try:
+                for t in self.memory.list_trades():
+                    tokens.add(t.token)
+            except Exception:
+                pass
+        if self.offline_data is not None:
+            try:
+                for t in self.offline_data.list_trades():
+                    tokens.add(t.token)
+            except Exception:
+                pass
+        if exclude is not None:
+            tokens.discard(exclude)
+        fps: List[np.ndarray] = []
+        for tok in tokens:
+            history = self._roi_history(tok)
+            if len(history) >= 2:
+                fps.append(self._fractal_fingerprint(history))
+        return fps
 
     # ------------------------------------------------------------------
     def _hausdorff(self, a: np.ndarray, b: np.ndarray) -> float:
