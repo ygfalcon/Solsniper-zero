@@ -68,7 +68,24 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
         args.extend(["--keypair", keypair])
 
     proc = subprocess.Popen(args)
-    time.sleep(2.0)
+
+    socket_path = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
+
+    async def wait_for_socket() -> None:
+        deadline = time.monotonic() + 5.0
+        while True:
+            try:
+                reader, writer = await asyncio.open_unix_connection(socket_path)
+            except Exception:
+                if time.monotonic() > deadline:
+                    break
+                await asyncio.sleep(0.05)
+            else:
+                writer.close()
+                await writer.wait_closed()
+                return
+
+    asyncio.run(wait_for_socket())
     return proc
 
 
