@@ -781,10 +781,6 @@ def run_auto(**kwargs) -> None:
             os.environ.pop("AGENT_WEIGHTS", None)
         else:
             os.environ["AGENT_WEIGHTS"] = prev_weights
-        if proc:
-            proc.terminate()
-            with contextlib.suppress(Exception):
-                proc.wait(timeout=5)
 
 
 if __name__ == "__main__":
