@@ -20,19 +20,31 @@ class DummyModel:
 
 
 def test_fetch_headlines(monkeypatch):
-    def fake_get(url, timeout=10):
-        return FakeResp(SAMPLE_XML)
-    monkeypatch.setattr(news.requests, "get", fake_get)
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            return FakeResp(SAMPLE_XML)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     headlines = news.fetch_headlines(["http://ok"], allowed=["http://ok"])
     assert headlines == ["Good gains ahead", "Market crash expected"]
 
 
 def test_blocked_feed(monkeypatch):
     called = {}
-    def fake_get(url, timeout=10):
-        called["url"] = url
-        return FakeResp(SAMPLE_XML)
-    monkeypatch.setattr(news.requests, "get", fake_get)
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            called["url"] = url
+            return FakeResp(SAMPLE_XML)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     headlines = news.fetch_headlines(["http://bad"], allowed=["http://ok"])
     assert headlines == []
     assert "url" not in called
@@ -46,9 +58,15 @@ def test_compute_sentiment(monkeypatch):
 
 
 def test_fetch_sentiment(monkeypatch):
-    def fake_get(url, timeout=10):
-        return FakeResp(SAMPLE_XML)
-    monkeypatch.setattr(news.requests, "get", fake_get)
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            return FakeResp(SAMPLE_XML)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     monkeypatch.setattr(news, "get_pipeline", lambda: DummyModel())
     score = news.fetch_sentiment(["http://ok"], allowed=["http://ok"])
     assert isinstance(score, float)

@@ -15,7 +15,6 @@ except Exception:  # pragma: no cover - when xgboost is missing
     XGBRegressor = None
 
 import numpy as np
-import requests
 from . import onchain_metrics, models
 
 logger = logging.getLogger(__name__)
@@ -105,9 +104,13 @@ def fetch_token_metrics(token: str) -> dict:
     base_url = os.getenv("METRICS_BASE_URL", DEFAULT_METRICS_BASE_URL)
     url = f"{base_url.rstrip('/')}/token/{token}/metrics"
     try:
-        resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
+        async def _fetch() -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=5) as resp:
+                    resp.raise_for_status()
+                    return await resp.json()
+
+        data = asyncio.run(_fetch())
         metrics = {
             "mean": float(data.get("mean_return", 0.0)),
             "volatility": float(data.get("volatility", 0.02)),
@@ -149,18 +152,26 @@ def fetch_token_metrics(token: str) -> dict:
     for base in dex_urls:
         d_url = f"{base.rstrip('/')}/v1/depth?token={token}"
         try:
-            resp = requests.get(d_url, timeout=5)
-            resp.raise_for_status()
-            val = resp.json().get("depth")
+            async def _fetch_d() -> dict:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(d_url, timeout=5) as resp:
+                        resp.raise_for_status()
+                        return await resp.json()
+
+            val = asyncio.run(_fetch_d()).get("depth")
             if isinstance(val, (int, float)):
                 depth_vals.append(float(val))
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch depth from %s: %s", base, exc)
         s_url = f"{base.rstrip('/')}/v1/slippage?token={token}"
         try:
-            resp = requests.get(s_url, timeout=5)
-            resp.raise_for_status()
-            val = resp.json().get("slippage")
+            async def _fetch_s() -> dict:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(s_url, timeout=5) as resp:
+                        resp.raise_for_status()
+                        return await resp.json()
+
+            val = asyncio.run(_fetch_s()).get("slippage")
             if isinstance(val, (int, float)):
                 slip_vals.append(float(val))
         except Exception as exc:  # pragma: no cover - network errors

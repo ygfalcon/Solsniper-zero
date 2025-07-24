@@ -1,5 +1,6 @@
 import pytest
 import requests
+import aiohttp
 from solhunter_zero import scanner_onchain
 
 from solhunter_zero import onchain_metrics
@@ -75,10 +76,15 @@ def test_fetch_dex_metrics(monkeypatch):
                 return {"depth": 0.5}
             return {"volume": 20.0}
 
-    def fake_get(url, timeout=5):
-        return FakeResp(url)
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=5):
+            return FakeResp(url)
 
-    monkeypatch.setattr(onchain_metrics.requests, "get", fake_get)
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
 
     metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
 
@@ -87,10 +93,17 @@ def test_fetch_dex_metrics(monkeypatch):
 
 
 def test_fetch_dex_metrics_error(monkeypatch):
-    def fake_get(url, timeout=5):
-        raise requests.RequestException("boom")
+    def fake_session(*args, **kwargs):
+        class S:
+            def get(self, url, timeout=5):
+                raise aiohttp.ClientError("boom")
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, exc_type, exc, tb):
+                pass
+        return S()
 
-    monkeypatch.setattr(onchain_metrics.requests, "get", fake_get)
+    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
 
     metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
 

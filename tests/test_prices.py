@@ -24,11 +24,16 @@ def test_fetch_token_prices(monkeypatch):
     data = {"data": {"tok": {"price": 2.0}, "bad": {"price": "x"}}}
     captured = {}
 
-    def fake_get(url, timeout=10):
-        captured["url"] = url
-        return FakeResponse(data)
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            captured["url"] = url
+            return FakeResponse(data)
 
-    monkeypatch.setattr(prices.requests, "get", fake_get)
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     result = prices.fetch_token_prices(["tok", "bad"])
     assert result == {"tok": 2.0}
     assert "tok,bad" in captured["url"]

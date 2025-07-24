@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Sequence
 
-import requests
+import aiohttp
 
 from .offline_data import OfflineData, MarketSnapshot
 from .scanner import scan_tokens_async
@@ -52,9 +52,14 @@ def sync_snapshots(
     for token in tokens:
         url = f"{base_url.rstrip('/')}/token/{token}/history?days={days}"
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            for snap in resp.json().get("snapshots", []):
+            async def _fetch() -> dict:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=10) as resp:
+                        resp.raise_for_status()
+                        return await resp.json()
+
+            resp_data = asyncio.run(_fetch())
+            for snap in resp_data.get("snapshots", []):
                 try:
                     data.log_snapshot(
                         token=token,

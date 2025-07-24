@@ -32,10 +32,10 @@ def test_scan_new_pools(monkeypatch):
 
 def test_scanner_method_pools(monkeypatch):
     monkeypatch.setattr(dex_scanner, "scan_new_pools", lambda url: ["tokbonk"])
-    monkeypatch.setattr(scanner.requests, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
-    monkeypatch.setattr(scanner, "fetch_trending_tokens", lambda: [])
-    monkeypatch.setattr(scanner, "fetch_raydium_listings", lambda: [])
-    monkeypatch.setattr(scanner, "fetch_orca_listings", lambda: [])
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
+    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", lambda: [])
+    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", lambda: [])
+    monkeypatch.setattr(scanner, "fetch_orca_listings_async", lambda: [])
     scanner_common.SOLANA_RPC_URL = "http://node"
     tokens = asyncio.run(scanner.scan_tokens(method="pools"))
     assert tokens == ["tokbonk"]
@@ -43,7 +43,7 @@ def test_scanner_method_pools(monkeypatch):
 
 def test_scanner_async_method_pools(monkeypatch):
     monkeypatch.setattr(dex_scanner, "scan_new_pools", lambda url: ["tokbonk"])
-    monkeypatch.setattr(scanner.requests, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
     async def fake_trend():
         return []
     monkeypatch.setattr(scanner, "fetch_trending_tokens_async", fake_trend)
