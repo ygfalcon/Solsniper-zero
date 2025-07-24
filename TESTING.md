@@ -1,14 +1,15 @@
 # Testing
 
-Before running the test suite make sure all dependencies are installed. The project
-uses optional heavy packages for advanced features and many tests expect them to
-be available. Install the package in editable mode with the heavy extras:
+Before running the test suite make sure all dependencies are installed.
+Install the package in editable mode:
 
 ```bash
-pip install -e .[heavy]
+pip install -e .
 ```
 
-If extras are unavailable, manually install the common heavy packages first:
+Heavy packages such as `numpy`, `aiohttp`, `solana`, `torch` and
+`faiss-cpu` are included in the default requirements. If you need to
+reinstall them manually, run:
 
 ```bash
 pip install numpy aiohttp solana torch faiss-cpu
