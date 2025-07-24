@@ -65,6 +65,8 @@ slippage_threshold = 0.05   # ignore venues with higher expected slippage
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
 priority_rpc = "https://rpc.example"
+jito_rpc_url = ""       # Jito block-engine endpoint
+jito_auth = ""          # authentication token for Jito
 weights_path = "weights.json"
 evolve_interval = 1
 mutation_threshold = 0.0

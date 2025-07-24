@@ -9,6 +9,8 @@ use_depth_stream = false
 use_rust_exec = false
 use_service_exec = false
 use_mev_bundles = false
+jito_rpc_url = ""
+jito_auth = ""
 
 # Enable every built-in agent for maximum exposure
 agents = [
