@@ -22,7 +22,26 @@ sys.modules['solana.rpc'] = types.ModuleType('rpc')
 sys.modules['solana.rpc.api'] = types.SimpleNamespace(Client=object)
 sys.modules['solana.rpc.commitment'] = types.SimpleNamespace(Confirmed="confirmed")
 sys.modules['solana.rpc.async_api'] = types.SimpleNamespace(AsyncClient=object)
-sys.modules['solana.rpc.websocket_api'] = types.SimpleNamespace(SolanaWsClient=object)
+class _DummyPubkey:
+    def __init__(self, *a, **k):
+        pass
+
+class _DummyWS:
+    async def __aenter__(self):
+        return self
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+    async def logs_subscribe(self, *a, **k):
+        pass
+    async def recv(self):
+        return []
+
+sys.modules['solana.publickey'] = types.SimpleNamespace(PublicKey=_DummyPubkey)
+sys.modules['solana.rpc.websocket_api'] = types.SimpleNamespace(
+    SolanaWsClient=object,
+    RpcTransactionLogsFilterMentions=object,
+    connect=lambda url: _DummyWS(),
+)
 sys.modules.setdefault('numpy', types.ModuleType('numpy'))
 import contextlib
 torch_mod = types.ModuleType('torch')
@@ -189,3 +208,50 @@ def test_paper(monkeypatch):
     assert len(trades) == 1
     assert trades[0].token == 'TOK'
     assert pf.balances['TOK'].amount > 0
+
+from tests.test_mev_sandwich_agent import fake_stream, _run
+from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
+
+
+def test_paper_mev_sandwich(monkeypatch):
+    monkeypatch.setattr(
+        "solhunter_zero.agents.mev_sandwich.stream_ranked_mempool_tokens_with_depth",
+        fake_stream,
+    )
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.mev_sandwich.fetch_slippage_onchain",
+        lambda t, u: 0.3,
+    )
+
+    async def fake_fetch(token, side, amount, price, base_url):
+        return f"MSG_{side}"
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.mev_sandwich._fetch_swap_tx_message",
+        fake_fetch,
+    )
+
+    async def fake_prepare(msg):
+        return f"TX_{msg}"
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.mev_sandwich.prepare_signed_tx",
+        fake_prepare,
+    )
+
+    sent = []
+
+    async def fake_submit(self, txs):
+        sent.append(txs)
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.mev_sandwich.MEVExecutor.submit_bundle",
+        fake_submit,
+    )
+
+    agent = MEVSandwichAgent(size_threshold=1.0, slippage_threshold=0.2)
+    token = asyncio.run(_run(agent))
+
+    assert token == "tok"
+    assert sent == [["TX_MSG_buy", "TX_MSG_sell"]]
