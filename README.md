@@ -226,6 +226,12 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
     Placing the resulting file in `keypairs/` and setting `AUTO_SELECT_KEYPAIR=1`
     lets `run.sh` load it automatically.
+
+    To set up a default wallet non-interactively, export `MNEMONIC` (and
+    optional `PASSPHRASE`) then run:
+    ```bash
+    scripts/setup_default_keypair.sh
+    ```
 9. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
