@@ -1,10 +1,19 @@
-risk_tolerance = 1.0
-max_allocation = 1.0
-risk_multiplier = 1.0
-min_portfolio_value = 20.0
-dex_priorities = "orca,raydium,jupiter"
-dex_fees = "{}"
-max_flash_amount = 0.1
+# Default RPC and API endpoints
+birdeye_api_key = "YOUR_BIRDEYE_KEY"
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
+dex_base_url = "https://dex.example/api"
+dex_testnet_url = "https://dex.testnet/api"
+orca_api_url = "https://api.orca.so"
+raydium_api_url = "https://api.raydium.io"
+phoenix_api_url = "https://api.phoenix.trade"
+meteora_api_url = "https://api.meteora.ag"
+orca_ws_url = ""
+raydium_ws_url = ""
+jupiter_ws_url = ""
+phoenix_ws_url = ""
+meteora_ws_url = ""
+order_book_ws_url = ""
+
 depth_service = true    # start the Rust depth_service automatically when true
 # IPC paths for the depth_service (change if running on another host)
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
@@ -12,6 +21,24 @@ depth_service = true    # start the Rust depth_service automatically when true
 use_depth_stream = true  # set to false to disable depth-stream IPC
 use_rust_exec = true     # set to false to execute swaps in Python
 use_service_exec = true  # set to false to bypass depth_service execution
+orca_dex_url = "https://dex.orca.so"
+raydium_dex_url = "https://dex.raydium.io"
+phoenix_dex_url = "https://dex.phoenix.trade"
+meteora_dex_url = "https://dex.meteora.ag"
+metrics_base_url = "https://api.example.com"
+news_feeds = "https://news.example.com/rss"
+twitter_feeds = ""
+discord_feeds = ""
+dex_listing_ws_url = "wss://dex.example/ws"
+discovery_method = "websocket"
+
+risk_tolerance = 1.0
+max_allocation = 1.0
+risk_multiplier = 1.0
+min_portfolio_value = 20.0
+dex_priorities = "orca,raydium,jupiter"
+dex_fees = "{}"
+max_flash_amount = 0.1
 use_mev_bundles = true
 jito_rpc_url = ""
 jito_auth = ""
