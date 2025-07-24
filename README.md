@@ -214,14 +214,18 @@ profit calculation so routes are ranked based on the borrowed size.
     mkdir -p keypairs
     cp ~/my-keypair.json keypairs/main.json
     ```
-    Set
-    `AUTO_SELECT_KEYPAIR=1` so the Web UI selects the only available keypair
-    on start.
+    Set `AUTO_SELECT_KEYPAIR=1` so the Web UI selects the only available keypair
+    on start. `run.sh` will also pick it automatically whenever there is a single
+    keypair in that directory.
+
     You can also recover a keypair from a BIP‑39 mnemonic using the
-    `solhunter-wallet` utility:
+    `solhunter-wallet` utility and activate it:
     ```bash
     solhunter-wallet derive mywallet "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" --passphrase ""
+    solhunter-wallet select mywallet
     ```
+    Placing the resulting file in `keypairs/` and setting `AUTO_SELECT_KEYPAIR=1`
+    lets `run.sh` load it automatically.
 9. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
