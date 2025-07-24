@@ -5,10 +5,13 @@ min_portfolio_value = 20.0
 dex_priorities = "orca,raydium,jupiter"
 dex_fees = "{}"
 max_flash_amount = 0.1
-depth_service = false
-use_depth_stream = false
-use_rust_exec = false
-use_service_exec = false
+depth_service = true    # start the Rust depth_service automatically when true
+# IPC paths for the depth_service (change if running on another host)
+# DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
+# DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
+use_depth_stream = true  # set to false to disable depth-stream IPC
+use_rust_exec = true     # set to false to execute swaps in Python
+use_service_exec = true  # set to false to bypass depth_service execution
 use_mev_bundles = true
 jito_rpc_url = ""
 jito_auth = ""
