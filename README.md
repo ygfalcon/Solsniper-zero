@@ -241,6 +241,20 @@ Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
 network requests and use a static token list, or `--token-list <file>`
 to load token addresses from a file.
 
+## MEV Bundles
+
+Set `use_mev_bundles = true` in your configuration to route swap
+transactions through the [Jito block-engine](https://jito.network/).
+Provide the endpoint URL and authentication token:
+
+```bash
+export JITO_RPC_URL=https://block-engine.example.com
+export JITO_AUTH=your_token
+```
+
+The sniper and sandwich agents automatically pass these credentials to
+`MEVExecutor` when available.
+
 ## Agents
 
 The trading logic is implemented by a swarm of small agents:

@@ -60,6 +60,15 @@ def test_apply_env_overrides(monkeypatch):
     assert result["agent_weights"] == "{'x': 1}"
 
 
+def test_jito_env_overrides(monkeypatch):
+    cfg = {"jito_rpc_url": "a", "jito_auth": "b"}
+    monkeypatch.setenv("JITO_RPC_URL", "url")
+    monkeypatch.setenv("JITO_AUTH", "tok")
+    result = apply_env_overrides(cfg)
+    assert result["jito_rpc_url"] == "url"
+    assert result["jito_auth"] == "tok"
+
+
 def test_set_env_from_config(monkeypatch):
     cfg = {
         "birdeye_api_key": "A",

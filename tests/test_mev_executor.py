@@ -30,3 +30,53 @@ def test_mev_executor_submit(monkeypatch):
         ("A", 7, ["u"]),
         ("B", 7, ["u"]),
     ]
+
+
+def test_mev_executor_jito(monkeypatch):
+    captured = {}
+
+    class FakeResp:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            return {"result": ["s1", "s2"]}
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        def post(self, url, json=None, headers=None, timeout=10):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return FakeResp()
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr(
+        "solhunter_zero.mev_executor.snapshot", lambda tok: ({}, 5.0)
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.mev_executor.adjust_priority_fee", lambda rate: 7
+    )
+
+    mev = MEVExecutor(
+        "TOK",
+        jito_rpc_url="http://jito",
+        jito_auth="T",
+    )
+    sigs = asyncio.run(_run_exec(mev, ["A", "B"]))
+
+    assert sigs == ["s1", "s2"]
+    assert captured["url"] == "http://jito"
+    assert captured["json"]["params"]["transactions"] == ["A", "B"]
+    assert captured["headers"]["Authorization"] == "T"
