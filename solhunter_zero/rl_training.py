@@ -225,6 +225,7 @@ class RLTraining:
         batch_size: int = 64,
         sims_per_token: int = 10,
         price_model_path: str | None = None,
+        device: str | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         self.data = TradeDataModule(
@@ -242,7 +243,19 @@ class RLTraining:
                 self.model.load_state_dict(torch.load(self.model_path))
             except Exception:  # pragma: no cover - corrupt file
                 pass
-        self.trainer = pl.Trainer(max_epochs=3, accelerator="auto", enable_progress_bar=False)
+        if device is None:
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+        self.device = device
+        acc = "gpu" if device == "cuda" else device
+        kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
+        if acc != "cpu":
+            kwargs["devices"] = 1
+        self.trainer = pl.Trainer(**kwargs)
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
 
