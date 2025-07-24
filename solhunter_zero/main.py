@@ -765,10 +765,17 @@ def run_auto(**kwargs) -> None:
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
-    if wallet.get_active_keypair_name() is None:
+    active_name = wallet.get_active_keypair_name()
+    if active_name is None:
         keys = wallet.list_keypairs()
         if len(keys) == 1:
             wallet.select_keypair(keys[0])
+            active_name = keys[0]
+
+    if active_name and not os.getenv("KEYPAIR_PATH"):
+        os.environ["KEYPAIR_PATH"] = os.path.join(
+            wallet.KEYPAIR_DIR, active_name + ".json"
+        )
 
     try:
         main(config_path=cfg_path, **kwargs)
