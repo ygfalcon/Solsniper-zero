@@ -44,6 +44,8 @@ up automatically. Select this file from the UI or set
    needed for features like semantic trade search and reinforcement learning.
    If you are just running the lightweight test suite or core trading loop they
    can be safely skipped.  The tests stub them automatically when missing.
+   On Apple Silicon machines `./run.sh` automatically installs the Metal
+   PyTorch wheel when it is missing.
 
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with
