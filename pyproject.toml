@@ -23,6 +23,7 @@ dependencies = [
     "faiss-cpu",
     "sentence-transformers",
     "transformers",
+    "tomli-w",
 ]
 
 [project.optional-dependencies]
