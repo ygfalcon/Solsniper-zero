@@ -477,6 +477,17 @@ def main(
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
 
+    use_bundles = str(
+        cfg.get("use_mev_bundles")
+        or os.getenv("USE_MEV_BUNDLES", "false")
+    ).lower() in {"1", "true", "yes"}
+    if use_bundles and (
+        not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")
+    ):
+        logging.warning(
+            "MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing"
+        )
+
     proc = _start_depth_service(cfg)
 
     if risk_tolerance is not None:
