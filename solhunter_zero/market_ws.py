@@ -109,13 +109,17 @@ async def listen_and_trade(
             )
             if not dry_run:
                 memory.log_trade(token=token, direction="buy", amount=amount, price=0)
-                portfolio.update(token, amount, 0)
+                await portfolio.update_async(token, amount, 0)
 
         if should_sell(
             sims,
             trailing_stop=None,
             current_price=None,
-            high_price=portfolio.balances.get(token).high_price if token in portfolio.balances else 0.0,
+            high_price=(
+                portfolio.balances.get(token).high_price
+                if token in portfolio.balances
+                else 0.0
+            ),
         ):
             pos = portfolio.balances.get(token)
             if pos:
@@ -129,10 +133,11 @@ async def listen_and_trade(
                     keypair=keypair,
                 )
                 if not dry_run:
-                    memory.log_trade(token=token, direction="sell", amount=pos.amount, price=0)
-                    portfolio.update(token, -pos.amount, 0)
+                    memory.log_trade(
+                        token=token, direction="sell", amount=pos.amount, price=0
+                    )
+                    await portfolio.update_async(token, -pos.amount, 0)
 
         count += 1
         if max_events is not None and count >= max_events:
             break
-

@@ -97,11 +97,13 @@ async def trading_loop() -> None:
     current_portfolio = portfolio
     set_env_from_config(load_selected_config())
     keypair_path = os.getenv("KEYPAIR_PATH")
-    env_keypair = wallet.load_keypair(keypair_path) if keypair_path else None
+    env_keypair = (
+        await wallet.load_keypair_async(keypair_path) if keypair_path else None
+    )
     current_keypair = env_keypair
 
     while not stop_event.is_set():
-        selected_keypair = wallet.load_selected_keypair()
+        selected_keypair = await wallet.load_selected_keypair_async()
         keypair = selected_keypair if selected_keypair is not None else env_keypair
         current_keypair = keypair
         await main_module._run_iteration(
@@ -129,6 +131,7 @@ def start() -> dict:
 
     try:
         from . import data_sync
+
         asyncio.run(data_sync.sync_recent())
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)

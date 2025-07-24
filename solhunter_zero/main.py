@@ -298,7 +298,7 @@ async def _run_iteration(
                     memory.log_trade(
                         token=token, direction="buy", amount=amount, price=0
                     )
-                    portfolio.update(token, amount, 0)
+                    await portfolio.update_async(token, amount, 0)
 
         price_lookup_sell = {}
         if (
@@ -309,7 +309,7 @@ async def _run_iteration(
             price_lookup_sell = await fetch_token_prices_async(
                 portfolio.balances.keys()
             )
-            portfolio.update_highs(price_lookup_sell)
+            await portfolio.update_highs_async(price_lookup_sell)
             if price_lookup_sell:
                 portfolio.record_prices(price_lookup_sell)
                 portfolio.update_risk_metrics()
@@ -351,7 +351,7 @@ async def _run_iteration(
                     memory.log_trade(
                         token=token, direction="sell", amount=pos.amount, price=0
                     )
-                    portfolio.update(token, -pos.amount, 0)
+                    await portfolio.update_async(token, -pos.amount, 0)
     else:
         if strategy_manager is None:
             strategy_manager = StrategyManager()
@@ -395,7 +395,11 @@ async def _run_iteration(
                     memory.log_trade(
                         token=token, direction=side, amount=amount, price=price
                     )
-                    portfolio.update(token, amount if side == "buy" else -amount, price)
+                    await portfolio.update_async(
+                        token,
+                        amount if side == "buy" else -amount,
+                        price,
+                    )
 
         if agent_manager is not None:
             agent_manager.update_weights()
@@ -504,15 +508,10 @@ def main(
     set_env_from_config(cfg)
 
     use_bundles = str(
-        cfg.get("use_mev_bundles")
-        or os.getenv("USE_MEV_BUNDLES", "false")
+        cfg.get("use_mev_bundles") or os.getenv("USE_MEV_BUNDLES", "false")
     ).lower() in {"1", "true", "yes"}
-    if use_bundles and (
-        not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")
-    ):
-        logging.warning(
-            "MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing"
-        )
+    if use_bundles and (not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")):
+        logging.warning("MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing")
 
     proc = _start_depth_service(cfg)
 

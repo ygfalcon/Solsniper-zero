@@ -3,6 +3,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Mapping
+import aiofiles
 
 
 @dataclass
@@ -58,9 +59,26 @@ class Portfolio:
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(data, f)
 
+    async def save_async(self) -> None:
+        if not self.path:
+            return
+        data = {
+            token: {
+                "amount": pos.amount,
+                "entry_price": pos.entry_price,
+                "high_price": pos.high_price,
+            }
+            for token, pos in self.balances.items()
+        }
+        async with aiofiles.open(self.path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(data))
+
     # position management -------------------------------------------------
     def add(self, token: str, amount: float, price: float) -> None:
         self.update(token, amount, price)
+
+    async def add_async(self, token: str, amount: float, price: float) -> None:
+        await self.update_async(token, amount, price)
 
     def update(self, token: str, amount: float, price: float) -> None:
         pos = self.balances.get(token)
@@ -78,6 +96,23 @@ class Portfolio:
                 if price > pos.high_price:
                     pos.high_price = price
         self.save()
+
+    async def update_async(self, token: str, amount: float, price: float) -> None:
+        pos = self.balances.get(token)
+        if pos is None:
+            self.balances[token] = Position(token, amount, price, price)
+        else:
+            total_cost = pos.amount * pos.entry_price + amount * price
+            new_amount = pos.amount + amount
+            if new_amount <= 0:
+                self.balances.pop(token, None)
+            else:
+                pos.amount = new_amount
+                if amount > 0:
+                    pos.entry_price = total_cost / new_amount
+                if price > pos.high_price:
+                    pos.high_price = price
+        await self.save_async()
 
     def remove(self, token: str) -> None:
         if token in self.balances:
@@ -134,8 +169,17 @@ class Portfolio:
                 pos.high_price = price
         self.save()
 
+    async def update_highs_async(self, prices: Dict[str, float]) -> None:
+        for token, pos in self.balances.items():
+            price = prices.get(token)
+            if price is not None and price > pos.high_price:
+                pos.high_price = price
+        await self.save_async()
+
     # ------------------------------------------------------------------
-    def record_prices(self, prices: Dict[str, float], *, window: int | None = None) -> None:
+    def record_prices(
+        self, prices: Dict[str, float], *, window: int | None = None
+    ) -> None:
         """Record latest prices for correlation tracking."""
 
         limit = window or self.history_window
