@@ -227,7 +227,6 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.setenv("BIRDEYE_API_KEY", "x")
     monkeypatch.setenv("DEX_BASE_URL", "x")
-    monkeypatch.setenv("AUTO_SELECT_KEYPAIR", "1")
 
     client = ui.app.test_client()
     resp = client.post("/start")

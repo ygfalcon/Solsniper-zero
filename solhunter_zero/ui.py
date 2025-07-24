@@ -133,11 +133,8 @@ def start() -> dict:
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
-    # optionally auto-select the only available keypair if none is active
-    if (
-        os.getenv("AUTO_SELECT_KEYPAIR", "false").lower() in {"1", "true", "yes"}
-        and wallet.get_active_keypair_name() is None
-    ):
+    # auto-select the only available keypair if none is active
+    if wallet.get_active_keypair_name() is None:
         keys = wallet.list_keypairs()
         if len(keys) == 1:
             wallet.select_keypair(keys[0])
