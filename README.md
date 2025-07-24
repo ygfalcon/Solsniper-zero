@@ -41,13 +41,10 @@ up automatically. Select this file from the UI or set
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
 
-   To run the full test suite install the heavy extras as well:
-   ```bash
-   pip install .[heavy]
-   ```
-   Common heavy packages include `numpy`, `aiohttp`, `solana`, `torch` and `faiss`.
-   On Apple Silicon machines `./run.sh` automatically installs the Metal
-   PyTorch wheel when it is missing.
+   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
+   install automatically with `pip install .`. On Apple Silicon machines
+   `./run.sh` automatically installs the Metal PyTorch wheel when it is
+   missing.
 
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with
