@@ -445,6 +445,8 @@ def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
     kp = Keypair()
     (keys_dir / "only.json").write_text(json.dumps(list(kp.to_bytes())))
 
+    monkeypatch.delenv("KEYPAIR_PATH", raising=False)
+
     called = {}
 
     def fake_main(**kwargs):
@@ -462,6 +464,7 @@ def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
 
     assert called["path"].endswith("config.highrisk.toml")
     assert (keys_dir / "active").read_text() == "only"
+    assert os.getenv("KEYPAIR_PATH") == str(keys_dir / "only.json")
 
 
 def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
