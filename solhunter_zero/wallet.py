@@ -1,6 +1,7 @@
 import json
 import os
 from solders.keypair import Keypair
+from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
@@ -85,3 +86,32 @@ def load_selected_keypair() -> Keypair | None:
         return None
     path = os.path.join(KEYPAIR_DIR, name + ".json")
     return load_keypair(path)
+
+
+def load_keypair_from_mnemonic(mnemonic: str, passphrase: str = "") -> Keypair:
+    """Derive a Solana ``Keypair`` from a BIP-39 mnemonic.
+
+    The key is derived from the standard path ``m/44'/501'/0'/0'`` which matches
+    the behavior of ``solana-keygen recover``.
+
+    Parameters
+    ----------
+    mnemonic:
+        Space separated seed words.
+    passphrase:
+        Optional passphrase for the seed.
+    """
+
+    seed = Bip39SeedGenerator(mnemonic).Generate(passphrase)
+    secret = (
+        Bip44.FromSeed(seed, Bip44Coins.SOLANA)
+        .Purpose()
+        .Coin()
+        .Account(0)
+        .Change(Bip44Changes.CHAIN_EXT)
+        .AddressIndex(0)
+        .PrivateKey()
+        .Raw()
+        .ToBytes()
+    )
+    return Keypair.from_seed(secret)

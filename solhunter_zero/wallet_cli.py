@@ -12,6 +12,13 @@ def main(argv: list[str] | None = None) -> int:
     save_p.add_argument("name")
     save_p.add_argument("path")
 
+    derive_p = subparsers.add_parser(
+        "derive", help="Derive a keypair from a mnemonic and save it"
+    )
+    derive_p.add_argument("name")
+    derive_p.add_argument("mnemonic")
+    derive_p.add_argument("--passphrase", default="")
+
     select_p = subparsers.add_parser("select", help="Select active keypair")
     select_p.add_argument("name")
 
@@ -22,6 +29,9 @@ def main(argv: list[str] | None = None) -> int:
             print(name)
     elif args.command == "save":
         kp = wallet.load_keypair(args.path)
+        wallet.save_keypair(args.name, list(kp.to_bytes()))
+    elif args.command == "derive":
+        kp = wallet.load_keypair_from_mnemonic(args.mnemonic, args.passphrase)
         wallet.save_keypair(args.name, list(kp.to_bytes()))
     elif args.command == "select":
         wallet.select_keypair(args.name)

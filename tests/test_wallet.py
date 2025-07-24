@@ -49,3 +49,23 @@ def test_select_keypair_missing(tmp_path, monkeypatch):
     setup_wallet(tmp_path, monkeypatch)
     with pytest.raises(FileNotFoundError):
         wallet.select_keypair("missing")
+
+
+MNEMONIC = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+EXPECTED_HEX = (
+    "286b4b30f808ed46e986e5536939c4177b61588ac4a3080d228cb47edd798164"
+    "96da9c08f0703f749fd14e630a2b81d9109a9a8f17b7ade18952e82eb2b5e431"
+)
+
+
+def test_load_keypair_from_mnemonic():
+    kp = wallet.load_keypair_from_mnemonic(MNEMONIC)
+    assert kp.to_bytes().hex() == EXPECTED_HEX
+
+
+def test_derive_and_save_keypair(tmp_path, monkeypatch):
+    setup_wallet(tmp_path, monkeypatch)
+    kp = wallet.load_keypair_from_mnemonic(MNEMONIC)
+    wallet.save_keypair("mn", list(kp.to_bytes()))
+    loaded = wallet.load_keypair(str(tmp_path / "mn.json"))
+    assert loaded.to_bytes() == kp.to_bytes()

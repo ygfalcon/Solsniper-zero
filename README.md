@@ -206,6 +206,11 @@ profit calculation so routes are ranked based on the borrowed size.
     ```bash
     export KEYPAIR_PATH=/path/to/your/keypair.json
     ```
+    You can also recover a keypair from a BIP‑39 mnemonic using the
+    `solhunter-wallet` utility:
+    ```bash
+    solhunter-wallet derive mywallet "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" --passphrase ""
+    ```
 9. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
