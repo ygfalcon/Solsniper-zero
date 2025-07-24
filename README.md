@@ -202,10 +202,21 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
 8. **Provide a keypair for signing**
     Generate a keypair with `solana-keygen new` if you don't already have one and
-    point the bot to it using `KEYPAIR_PATH` or the `--keypair` flag:
+    point the bot to it using `KEYPAIR_PATH`, `SOLANA_KEYPAIR` or the `--keypair`
+    flag:
     ```bash
     export KEYPAIR_PATH=/path/to/your/keypair.json
     ```
+    The path can also be supplied via `SOLANA_KEYPAIR` for the Rust depth
+    service.  Placing the file in the `keypairs/` directory (for example
+    `keypairs/main.json`) lets the bot discover it automatically:
+    ```bash
+    mkdir -p keypairs
+    cp ~/my-keypair.json keypairs/main.json
+    ```
+    Set
+    `AUTO_SELECT_KEYPAIR=1` so the Web UI selects the only available keypair
+    on start.
     You can also recover a keypair from a BIP‑39 mnemonic using the
     `solhunter-wallet` utility:
     ```bash
@@ -229,11 +240,12 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
 12. **Run the bot**
    ```bash
-   ./run.sh
+   ./run.sh --auto
    ```
-   This automatically loads the selected configuration (or the `config.highrisk.toml`
-   preset when none is selected), selects the only available keypair if there is
-   just one, and begins trading with the default strategies.
+   This loads the selected configuration (or the `config.highrisk.toml` preset
+   when none is chosen). If there is exactly one keypair in `keypairs/`, it is
+   picked automatically. Set `AUTO_SELECT_KEYPAIR=1` for the same behaviour in
+   the Web UI.
 
    You can still run the bot manually with explicit options:
    ```bash
@@ -413,8 +425,8 @@ python -m solhunter_zero.main \
   --discovery-method websocket
   --config myconfig.yaml
 ```
-Set the keypair path with the `--keypair` flag or the `KEYPAIR_PATH`
-environment variable if you want to sign orders.
+Set the keypair path with the `--keypair` flag or the `KEYPAIR_PATH` (or
+`SOLANA_KEYPAIR`) environment variable if you want to sign orders.
 
 Choose how tokens are discovered with `--discovery-method` (or the
 `DISCOVERY_METHOD` environment variable). Available methods are `onchain`,
@@ -602,9 +614,10 @@ The best weight configuration found is printed as JSON.
   `DEPTH_SERVICE_SOCKET` points to a writable location and that the Rust
   service owns the file. Delete any stale socket file and restart the
   service.
-- **Missing keypair** — ensure a valid Solana keypair file is available and
-  loaded in the UI or specified via environment variables before submitting
-  transactions.
+- **Missing keypair** — ensure a valid Solana keypair file is available.
+  Set `KEYPAIR_PATH` or `SOLANA_KEYPAIR` to its path or place it in the
+  `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` with the Web UI to select
+  the sole available key automatically.
 - **Service not running** — verify `depth_service` is running and that
   `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to
   `True`.
