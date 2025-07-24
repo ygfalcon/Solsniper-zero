@@ -3,7 +3,6 @@ import logging
 import asyncio
 from typing import Dict, List, Optional, Iterable
 
-import requests
 import aiohttp
 
 from pathlib import Path
@@ -142,15 +141,8 @@ def parse_trending_tokens(data: dict) -> List[str]:
 
 
 def fetch_trending_tokens() -> List[str]:
-    """Fetch trending token addresses from Jupiter."""
-    try:
-        resp = requests.get(JUPITER_TRENDS_API, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as exc:  # pragma: no cover - network errors
-        logger.warning("Failed to fetch trending tokens: %s", exc)
-        return []
-    return parse_trending_tokens(data)
+    """Fetch trending token addresses from Jupiter using ``aiohttp``."""
+    return asyncio.run(fetch_trending_tokens_async())
 
 
 async def fetch_trending_tokens_async() -> List[str]:
@@ -181,14 +173,8 @@ def parse_listing_tokens(data: dict) -> List[str]:
 
 
 def fetch_raydium_listings() -> List[str]:
-    try:
-        resp = requests.get(RAYDIUM_LISTINGS_API, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as exc:  # pragma: no cover - network errors
-        logger.warning("Failed to fetch Raydium listings: %s", exc)
-        return []
-    return parse_listing_tokens(data)
+    """Return token listings from the Raydium API using ``aiohttp``."""
+    return asyncio.run(fetch_raydium_listings_async())
 
 
 async def fetch_raydium_listings_async() -> List[str]:
@@ -204,14 +190,8 @@ async def fetch_raydium_listings_async() -> List[str]:
 
 
 def fetch_orca_listings() -> List[str]:
-    try:
-        resp = requests.get(ORCA_LISTINGS_API, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as exc:  # pragma: no cover - network errors
-        logger.warning("Failed to fetch Orca listings: %s", exc)
-        return []
-    return parse_listing_tokens(data)
+    """Return token listings from the Orca API using ``aiohttp``."""
+    return asyncio.run(fetch_orca_listings_async())
 
 
 async def fetch_orca_listings_async() -> List[str]:
@@ -227,14 +207,8 @@ async def fetch_orca_listings_async() -> List[str]:
 
 
 def fetch_phoenix_listings() -> List[str]:
-    try:
-        resp = requests.get(PHOENIX_LISTINGS_API, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as exc:  # pragma: no cover - network errors
-        logger.warning("Failed to fetch Phoenix listings: %s", exc)
-        return []
-    return parse_listing_tokens(data)
+    """Return token listings from the Phoenix API using ``aiohttp``."""
+    return asyncio.run(fetch_phoenix_listings_async())
 
 
 async def fetch_phoenix_listings_async() -> List[str]:
@@ -250,14 +224,8 @@ async def fetch_phoenix_listings_async() -> List[str]:
 
 
 def fetch_meteora_listings() -> List[str]:
-    try:
-        resp = requests.get(METEORA_LISTINGS_API, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as exc:  # pragma: no cover - network errors
-        logger.warning("Failed to fetch Meteora listings: %s", exc)
-        return []
-    return parse_listing_tokens(data)
+    """Return token listings from the Meteora API using ``aiohttp``."""
+    return asyncio.run(fetch_meteora_listings_async())
 
 
 async def fetch_meteora_listings_async() -> List[str]:

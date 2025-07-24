@@ -5,7 +5,6 @@ from typing import Optional, Dict, Any
 import asyncio
 import json
 
-import requests
 import aiohttp
 
 IPC_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
@@ -129,9 +128,13 @@ def place_order(
         return {"dry_run": True, **payload}
 
     try:
-        resp = requests.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        async def _post() -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=10) as resp:
+                    resp.raise_for_status()
+                    return await resp.json()
+
+        data = asyncio.run(_post())
         tx_b64 = data.get("swapTransaction")
         if not tx_b64 or keypair is None:
             return data
@@ -140,12 +143,12 @@ def place_order(
         result = rpc.send_raw_transaction(bytes(tx))
         data["signature"] = str(result.value)
         return data
-    except requests.HTTPError as exc:
+    except aiohttp.ClientError as exc:
         data = getattr(exc.response, "text", "") if getattr(exc, "response", None) else ""
         status = exc.response.status_code if getattr(exc, "response", None) else "no-response"
         logger.error("Order failed with status %s: %s", status, data)
         raise OrderPlacementError(f"HTTP {status}: {data}") from exc
-    except requests.RequestException as exc:
+    except Exception as exc:
         logger.error("Order submission failed: %s", exc)
         return None
 

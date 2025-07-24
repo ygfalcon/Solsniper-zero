@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-import requests
+import aiohttp
+import asyncio
 import xml.etree.ElementTree as ET
 from typing import Iterable, List
 
@@ -43,13 +44,18 @@ def fetch_headlines(
             logger.warning("Blocked RSS feed: %s", url)
             continue
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-        except requests.RequestException as exc:  # pragma: no cover - network errors
+            async def _get() -> str:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=10) as resp:
+                        resp.raise_for_status()
+                        return await resp.text()
+
+            text = asyncio.run(_get())
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch feed %s: %s", url, exc)
             continue
         try:
-            root = ET.fromstring(resp.text)
+            root = ET.fromstring(text)
         except ET.ParseError as exc:  # pragma: no cover - bad xml
             logger.warning("Failed to parse feed %s: %s", url, exc)
             continue
@@ -59,10 +65,14 @@ def fetch_headlines(
 
     for url in twitter_urls or []:
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-        except (requests.RequestException, ValueError) as exc:  # pragma: no cover - network errors
+            async def _get() -> dict:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=10) as resp:
+                        resp.raise_for_status()
+                        return await resp.json()
+
+            data = asyncio.run(_get())
+        except (aiohttp.ClientError, ValueError) as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch twitter feed %s: %s", url, exc)
             continue
         posts = data.get("posts", [])
@@ -72,10 +82,14 @@ def fetch_headlines(
 
     for url in discord_urls or []:
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-        except (requests.RequestException, ValueError) as exc:  # pragma: no cover - network errors
+            async def _get() -> dict:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=10) as resp:
+                        resp.raise_for_status()
+                        return await resp.json()
+
+            data = asyncio.run(_get())
+        except (aiohttp.ClientError, ValueError) as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch discord feed %s: %s", url, exc)
             continue
         messages = data.get("messages", [])

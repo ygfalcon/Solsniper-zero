@@ -75,12 +75,17 @@ def test_fetch_token_metrics_base_url(monkeypatch):
 
     captured = {}
 
-    def fake_get(url, timeout=5):
-        captured["url"] = url
-        return FakeResp()
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=5):
+            captured["url"] = url
+            return FakeResp()
 
     monkeypatch.setenv("METRICS_BASE_URL", "http://metrics.local")
-    monkeypatch.setattr(simulation.requests, "get", fake_get)
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
 
     metrics = simulation.fetch_token_metrics("tok")
     assert captured["url"] == "http://metrics.local/token/tok/metrics"
@@ -112,12 +117,17 @@ def test_fetch_token_metrics_multiple_dex(monkeypatch):
                 return {"depth": 2.0}
             return {"slippage": 0.02}
 
-    def fake_get(url, timeout=5):
-        urls.append(url)
-        return FakeResp(url)
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=5):
+            urls.append(url)
+            return FakeResp(url)
 
     monkeypatch.setenv("DEX_METRIC_URLS", "http://dex1,http://dex2")
-    monkeypatch.setattr(simulation.requests, "get", fake_get)
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
 
     metrics = simulation.fetch_token_metrics("tok")
 

@@ -23,14 +23,36 @@ def test_scan_tokens_websocket(monkeypatch):
 
     captured = {}
 
-    def fake_get(url, headers=None, timeout=10):
-        captured['headers'] = headers
-        return FakeResponse(data)
+    class FakeResp:
+        status = 200
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        async def json(self):
+            return data
+        def raise_for_status(self):
+            pass
 
-    monkeypatch.setattr(scanner.requests, 'get', fake_get)
-    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['trend'])
-    monkeypatch.setattr(scanner, 'fetch_raydium_listings', lambda: ['ray'])
-    monkeypatch.setattr(scanner, 'fetch_orca_listings', lambda: ['orca'])
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, headers=None, timeout=10):
+            captured['headers'] = headers
+            return FakeResp()
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    async def fake_trend():
+        return ['trend']
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens_async', fake_trend)
+    async def fr():
+        return ['ray']
+    async def fo():
+        return ['orca']
+    monkeypatch.setattr(scanner, 'fetch_raydium_listings_async', fr)
+    monkeypatch.setattr(scanner, 'fetch_orca_listings_async', fo)
     scanner_common.BIRDEYE_API_KEY = "test"
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "test"
@@ -46,13 +68,15 @@ def test_scan_tokens_websocket(monkeypatch):
 def test_scan_tokens_offline(monkeypatch):
     called = {}
 
-    def fake_get(*args, **kwargs):
+    def fake_session(*args, **kwargs):
         called['called'] = True
-        return FakeResponse({}, 200)
+        raise AssertionError('network used')
 
     monkeypatch.setattr("solhunter_zero.websocket_scanner.stream_new_tokens", lambda *a, **k: (_ for _ in ()).throw(AssertionError('ws')))
-    monkeypatch.setattr(scanner.requests, 'get', fake_get)
-    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: (_ for _ in ()).throw(AssertionError('trending')))
+    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def fail():
+        raise AssertionError('trending')
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens_async', fail)
 
     tokens = asyncio.run(scanner.scan_tokens(offline=True))
     assert tokens == scanner.OFFLINE_TOKENS
@@ -66,14 +90,18 @@ def test_scan_tokens_onchain(monkeypatch):
         captured['url'] = url
         return ['tok']
 
-    def fake_get(*args, **kwargs):
+    def fake_session(*args, **kwargs):
         raise AssertionError('should not call BirdEye')
 
     monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_onchain)
-    monkeypatch.setattr(scanner.requests, 'get', fake_get)
-    monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: ['t2'])
-    monkeypatch.setattr(scanner, 'fetch_raydium_listings', lambda: [])
-    monkeypatch.setattr(scanner, 'fetch_orca_listings', lambda: [])
+    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def ft():
+        return ['t2']
+    async def fr():
+        return []
+    monkeypatch.setattr(scanner, 'fetch_trending_tokens_async', ft)
+    monkeypatch.setattr(scanner, 'fetch_raydium_listings_async', fr)
+    monkeypatch.setattr(scanner, 'fetch_orca_listings_async', fr)
 
     scanner_common.SOLANA_RPC_URL = 'http://node'
 
@@ -129,14 +157,14 @@ def test_scan_tokens_from_file(monkeypatch, tmp_path):
     path = tmp_path / "tokens.txt"
     path.write_text("tok1\n tok2\n\n#comment\n")
 
-    def fake_get(*a, **k):
+    def fake_session(*a, **k):
         raise AssertionError("should not call network")
 
-    monkeypatch.setattr(scanner.requests, "get", fake_get)
+    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
     monkeypatch.setattr(scanner_common, "scan_tokens_onchain", lambda _: ["x"])  # should not be called
     monkeypatch.setattr(
         scanner,
-        "fetch_trending_tokens",
+        "fetch_trending_tokens_async",
         lambda: (_ for _ in ()).throw(AssertionError("trending")),
     )
 
@@ -168,9 +196,11 @@ def test_scan_tokens_mempool(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.mempool_scanner.stream_mempool_tokens", fake_stream
     )
-    monkeypatch.setattr(scanner, "fetch_trending_tokens", lambda: [])
-    monkeypatch.setattr(scanner, "fetch_raydium_listings", lambda: [])
-    monkeypatch.setattr(scanner, "fetch_orca_listings", lambda: [])
+    async def fr():
+        return []
+    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", fr)
+    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", fr)
+    monkeypatch.setattr(scanner, "fetch_orca_listings_async", fr)
 
     tokens = asyncio.run(scanner.scan_tokens(method="mempool"))
     assert tokens == ["memtok"]

@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import List
 
-import requests
+import aiohttp
 import builtins
 
 from . import scanner_common, dex_scanner
@@ -14,11 +14,8 @@ from .scanner_common import (
     HEADERS,
     OFFLINE_TOKENS,
     SOLANA_RPC_URL,
-    fetch_trending_tokens,
     fetch_trending_tokens_async,
-    fetch_raydium_listings,
     fetch_raydium_listings_async,
-    fetch_orca_listings,
     fetch_orca_listings_async,
     offline_or_onchain,
     parse_birdeye_tokens,
@@ -58,20 +55,21 @@ async def scan_tokens(
                                 {"address": "xyzBONK"},
                             ]
                         }
-                    resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
-                    if resp.status_code == 429:
-                        logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
-                        await asyncio.sleep(backoff)
-                        backoff = min(backoff * 2, max_backoff)
-                        continue
-                    resp.raise_for_status()
-                    data = resp.json()
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(BIRDEYE_API, headers=HEADERS, timeout=10) as resp:
+                            if resp.status == 429:
+                                logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
+                                await asyncio.sleep(backoff)
+                                backoff = min(backoff * 2, max_backoff)
+                                continue
+                            resp.raise_for_status()
+                            data = await resp.json()
                     tokens = parse_birdeye_tokens(data)
                     if "otherbonk" in tokens and "xyzBONK" not in tokens:
                         tokens[tokens.index("otherbonk")] = "xyzBONK"
                     backoff = 1
                     break
-                except requests.RequestException as e:
+                except aiohttp.ClientError as e:
                     logger.error("Scan failed: %s", e)
                     tokens = []
                     break
@@ -118,18 +116,19 @@ async def scan_tokens(
         extra = []
         if scanner_common.BIRDEYE_API_KEY and method == "websocket":
             try:
-                resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(BIRDEYE_API, headers=HEADERS, timeout=10) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
                 extra += parse_birdeye_tokens(data)
                 if "otherbonk" in extra and "xyzBONK" not in extra:
                     extra[extra.index("otherbonk")] = "xyzBONK"
             except Exception:  # pragma: no cover - network errors
                 logger.warning("Failed to fetch BirdEye tokens")
                 extra += ["abcbonk", "xyzBONK"]
-        extra += fetch_trending_tokens()
-        extra += fetch_raydium_listings()
-        extra += fetch_orca_listings()
+        extra += await fetch_trending_tokens_async()
+        extra += await fetch_raydium_listings_async()
+        extra += await fetch_orca_listings_async()
         tokens = list(dict.fromkeys(tokens + extra))
     return tokens
 

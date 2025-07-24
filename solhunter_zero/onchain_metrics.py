@@ -6,7 +6,8 @@ import logging
 import os
 from typing import List, Dict
 
-import requests
+import aiohttp
+import asyncio
 
 try:
     from solana.publickey import PublicKey  # type: ignore
@@ -108,9 +109,13 @@ def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, floa
     ):
         url = f"{base.rstrip('/')}{path}?token={token}"
         try:
-            resp = requests.get(url, timeout=5)
-            resp.raise_for_status()
-            data = resp.json()
+            async def _fetch() -> dict:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=5) as resp:
+                        resp.raise_for_status()
+                        return await resp.json()
+
+            data = asyncio.run(_fetch())
             val = data.get(key)
             if isinstance(val, (int, float)):
                 metrics[key] = float(val)
