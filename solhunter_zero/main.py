@@ -1,6 +1,7 @@
 import logging
 import os
 import asyncio
+import sys
 import contextlib
 import subprocess
 import time
@@ -22,6 +23,14 @@ from . import wallet
 _SERVICE_MANIFEST = (
     Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
 )
+
+if sys.platform != "win32":
+    try:
+        import uvloop  # type: ignore
+    except Exception:
+        pass
+    else:
+        uvloop.install()
 
 
 def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
