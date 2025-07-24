@@ -19,6 +19,16 @@ PY
 
 if ! check_deps; then
     echo "Installing dependencies..."
+    if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+        python - <<'EOF'
+import importlib.util, sys
+sys.exit(0 if importlib.util.find_spec('torch') else 1)
+EOF
+        if [ $? -ne 0 ]; then
+            pip install torch==2.1.0 torchvision==0.16.0 \
+              --extra-index-url https://download.pytorch.org/whl/metal
+        fi
+    fi
     pip install .
 fi
 
