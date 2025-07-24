@@ -35,6 +35,7 @@ agents = [
     "emotion",
     "vanta",
     "inferna",
+    "crossdex_rebalancer",
     "mev_sandwich",
 ]
 
@@ -65,3 +66,4 @@ emotion = 1.0
 vanta = 1.0
 inferna = 1.0
 portfolio_optimizer = 1.0
+crossdex_rebalancer = 1.0
