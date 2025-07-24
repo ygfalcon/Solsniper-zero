@@ -2,6 +2,7 @@ import time
 import os
 import io
 import json
+import asyncio
 import pytest
 from solders.keypair import Keypair
 from solhunter_zero import ui, config
@@ -15,7 +16,7 @@ import threading
 def test_start_and_stop(monkeypatch):
     calls = []
 
-    def fake_loop():
+    async def fake_loop():
         calls.append(True)
         ui.stop_event.set()
 
@@ -89,7 +90,7 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
 
     ui.stop_event.clear()
 
-    thread = threading.Thread(target=ui.trading_loop, daemon=True)
+    thread = threading.Thread(target=lambda: asyncio.run(ui.trading_loop()), daemon=True)
     thread.start()
     thread.join(timeout=1)
 
@@ -122,7 +123,7 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     monkeypatch.setattr(ui, "loop_delay", 0)
 
     ui.stop_event.clear()
-    thread = threading.Thread(target=ui.trading_loop, daemon=True)
+    thread = threading.Thread(target=lambda: asyncio.run(ui.trading_loop()), daemon=True)
     thread.start()
     thread.join(timeout=1)
 
@@ -164,7 +165,9 @@ def test_get_and_set_discovery_method(monkeypatch):
 
 
 def test_start_requires_env(monkeypatch):
-    monkeypatch.setattr(ui, "trading_loop", lambda: None)
+    async def noop():
+        pass
+    monkeypatch.setattr(ui, "trading_loop", noop)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
@@ -216,7 +219,9 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     kp = Keypair()
     (tmp_path / "only.json").write_text(json.dumps(list(kp.to_bytes())))
 
-    monkeypatch.setattr(ui, "trading_loop", lambda: None)
+    async def noop():
+        pass
+    monkeypatch.setattr(ui, "trading_loop", noop)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)

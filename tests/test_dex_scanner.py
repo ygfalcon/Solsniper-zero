@@ -37,7 +37,7 @@ def test_scanner_method_pools(monkeypatch):
     monkeypatch.setattr(scanner, "fetch_raydium_listings", lambda: [])
     monkeypatch.setattr(scanner, "fetch_orca_listings", lambda: [])
     scanner_common.SOLANA_RPC_URL = "http://node"
-    tokens = scanner.scan_tokens(method="pools")
+    tokens = asyncio.run(scanner.scan_tokens(method="pools"))
     assert tokens == ["tokbonk"]
 
 

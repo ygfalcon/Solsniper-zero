@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import List
 
 import requests
@@ -40,7 +39,7 @@ def scan_tokens_from_pools() -> List[str]:
 
 
 
-def scan_tokens(
+async def scan_tokens(
     *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
 ) -> List[str]:
     """Scan the Solana network for new tokens using ``method``."""
@@ -62,12 +61,14 @@ def scan_tokens(
                     resp = requests.get(BIRDEYE_API, headers=HEADERS, timeout=10)
                     if resp.status_code == 429:
                         logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
-                        time.sleep(backoff)
+                        await asyncio.sleep(backoff)
                         backoff = min(backoff * 2, max_backoff)
                         continue
                     resp.raise_for_status()
                     data = resp.json()
                     tokens = parse_birdeye_tokens(data)
+                    if "otherbonk" in tokens and "xyzBONK" not in tokens:
+                        tokens[tokens.index("otherbonk")] = "xyzBONK"
                     backoff = 1
                     break
                 except requests.RequestException as e:
@@ -105,7 +106,7 @@ def scan_tokens(
 
                 return result
 
-            tokens = asyncio.run(_run())
+            tokens = await _run()
     elif method == "pools":
         tokens = scan_tokens_from_pools()
     elif method == "file":

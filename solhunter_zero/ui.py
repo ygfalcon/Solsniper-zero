@@ -1,5 +1,4 @@
 import threading
-import time
 import os
 import asyncio
 import json
@@ -86,7 +85,7 @@ def _missing_required() -> list[str]:
     return missing
 
 
-def trading_loop() -> None:
+async def trading_loop() -> None:
     global current_portfolio, current_keypair
 
     cfg = apply_env_overrides(load_config("config.toml"))
@@ -105,20 +104,18 @@ def trading_loop() -> None:
         selected_keypair = wallet.load_selected_keypair()
         keypair = selected_keypair if selected_keypair is not None else env_keypair
         current_keypair = keypair
-        asyncio.run(
-            main_module._run_iteration(
-                memory,
-                portfolio,
-                testnet=False,
-                dry_run=False,
-                offline=False,
-                keypair=keypair,
-            )
+        await main_module._run_iteration(
+            memory,
+            portfolio,
+            testnet=False,
+            dry_run=False,
+            offline=False,
+            keypair=keypair,
         )
         for _ in range(loop_delay):
             if stop_event.is_set():
                 break
-            time.sleep(1)
+            await asyncio.sleep(1)
 
 
 @app.route("/start", methods=["POST"])
@@ -151,7 +148,9 @@ def start() -> dict:
         return jsonify({"status": "error", "message": msg}), 400
 
     stop_event.clear()
-    trading_thread = threading.Thread(target=trading_loop, daemon=True)
+    trading_thread = threading.Thread(
+        target=lambda: asyncio.run(trading_loop()), daemon=True
+    )
     trading_thread.start()
     return jsonify({"status": "started"})
 
