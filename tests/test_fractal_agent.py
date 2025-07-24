@@ -2,6 +2,7 @@ import asyncio
 import numpy as np
 
 from solhunter_zero.agents.fractal_agent import FractalAgent
+from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -22,19 +23,15 @@ def test_fractal_agent_trade(monkeypatch):
         DummyPywt,
     )
 
-    monkeypatch.setattr(
-        FractalAgent,
-        "_roi_history",
-        lambda self, token: [1.0, 1.0, 1.0, 1.0],
-    )
     monkeypatch.setattr(FractalAgent, "_hurst", lambda self, s: 0.4)
 
-    def fake_past(self, exclude=None):
-        return [self._fractal_fingerprint([1.0, 1.0, 1.0, 1.0])]
+    mem = Memory("sqlite:///:memory:")
+    for price in [1.0, 1.0, 1.0, 1.0]:
+        mem.log_trade(token="tok", direction="buy", amount=1.0, price=price)
+    for price in [1.0, 1.0, 1.0, 1.0]:
+        mem.log_trade(token="oth", direction="buy", amount=1.0, price=price)
 
-    monkeypatch.setattr(FractalAgent, "_past_fingerprints", fake_past)
-
-    agent = FractalAgent(similarity_threshold=0.8)
+    agent = FractalAgent(similarity_threshold=0.8, memory=mem)
     pf = DummyPortfolio()
     actions = asyncio.run(agent.propose_trade("tok", pf))
     assert actions and actions[0]["side"] == "buy"
