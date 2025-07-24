@@ -1,3 +1,4 @@
+import asyncio
 from solhunter_zero import scanner
 from solhunter_zero import scanner_common
 
@@ -34,7 +35,7 @@ def test_scan_tokens_websocket(monkeypatch):
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "test"
 
-    tokens = scanner.scan_tokens()
+    tokens = asyncio.run(scanner.scan_tokens())
     assert tokens == ['abcbonk', 'xyzBONK', 'trend', 'ray', 'orca']
     assert captured['headers'] == scanner.HEADERS
 
@@ -53,7 +54,7 @@ def test_scan_tokens_offline(monkeypatch):
     monkeypatch.setattr(scanner.requests, 'get', fake_get)
     monkeypatch.setattr(scanner, 'fetch_trending_tokens', lambda: (_ for _ in ()).throw(AssertionError('trending')))
 
-    tokens = scanner.scan_tokens(offline=True)
+    tokens = asyncio.run(scanner.scan_tokens(offline=True))
     assert tokens == scanner.OFFLINE_TOKENS
     assert 'called' not in called
 
@@ -76,12 +77,11 @@ def test_scan_tokens_onchain(monkeypatch):
 
     scanner_common.SOLANA_RPC_URL = 'http://node'
 
-    tokens = scanner.scan_tokens(method="onchain")
+    tokens = asyncio.run(scanner.scan_tokens(method="onchain"))
     assert tokens == ['tok', 't2']
     assert captured['url'] == 'http://node'
 
 
-import asyncio
 from solhunter_zero.async_scanner import scan_tokens_async as async_scan
 
 
@@ -140,7 +140,7 @@ def test_scan_tokens_from_file(monkeypatch, tmp_path):
         lambda: (_ for _ in ()).throw(AssertionError("trending")),
     )
 
-    tokens = scanner.scan_tokens(token_file=str(path))
+    tokens = asyncio.run(scanner.scan_tokens(token_file=str(path)))
     assert tokens == ["tok1", "tok2"]
 
 
@@ -172,7 +172,7 @@ def test_scan_tokens_mempool(monkeypatch):
     monkeypatch.setattr(scanner, "fetch_raydium_listings", lambda: [])
     monkeypatch.setattr(scanner, "fetch_orca_listings", lambda: [])
 
-    tokens = scanner.scan_tokens(method="mempool")
+    tokens = asyncio.run(scanner.scan_tokens(method="mempool"))
     assert tokens == ["memtok"]
 
 

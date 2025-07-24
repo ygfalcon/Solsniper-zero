@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import time
 from .rl_daemon import RLDaemon
 
 async def main() -> None:
@@ -25,7 +24,7 @@ async def main() -> None:
     if args.daemon:
         try:
             while True:
-                time.sleep(3600)
+                await asyncio.sleep(3600)
         except KeyboardInterrupt:
             pass
     else:
