@@ -72,6 +72,7 @@ ENV_VARS = {
     "use_mev_bundles": "USE_MEV_BUNDLES",
     "mempool_threshold": "MEMPOOL_THRESHOLD",
     "bundle_size": "BUNDLE_SIZE",
+    "depth_threshold": "DEPTH_THRESHOLD",
 }
 
 

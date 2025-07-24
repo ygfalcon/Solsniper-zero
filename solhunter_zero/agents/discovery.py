@@ -5,7 +5,7 @@ from typing import List, AsyncGenerator, Dict, Any, Iterable
 
 from . import BaseAgent
 from ..async_scanner import scan_tokens_async
-from ..mempool_scanner import stream_ranked_mempool_tokens
+from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
 from ..scanner_common import SOLANA_RPC_URL
 from ..discovery import merge_sources
 from ..portfolio import Portfolio
@@ -41,8 +41,7 @@ class DiscoveryAgent(BaseAgent):
                 "avg_swap_size",
             ]
             self.metrics = {
-                d["address"]: {k: float(d.get(k, 0.0)) for k in fields}
-                for d in data
+                d["address"]: {k: float(d.get(k, 0.0)) for k in fields} for d in data
             }
             return [d["address"] for d in data]
 
@@ -76,7 +75,7 @@ class DiscoveryAgent(BaseAgent):
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream ranked mempool events for immediate simulation."""
 
-        async for event in stream_ranked_mempool_tokens(
+        async for event in stream_ranked_mempool_tokens_with_depth(
             rpc_url,
             suffix=suffix,
             keywords=keywords,

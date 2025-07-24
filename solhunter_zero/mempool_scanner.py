@@ -16,6 +16,7 @@ from .dex_scanner import DEX_PROGRAM_ID
 from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
 from . import onchain_metrics
 from . import scanner_onchain
+from . import order_book_ws
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
 POOL_TOKEN_RE = re.compile(r"token[AB]:\s*([A-Za-z0-9]{32,44})", re.IGNORECASE)
+
 
 async def stream_mempool_tokens(
     rpc_url: str,
@@ -92,7 +94,11 @@ async def stream_mempool_tokens(
                             m = MINT_RE.search(line)
                             if m:
                                 mint = m.group(1)
-                    if name and mint and token_matches(mint, name, suffix=suffix, keywords=keywords):
+                    if (
+                        name
+                        and mint
+                        and token_matches(mint, name, suffix=suffix, keywords=keywords)
+                    ):
                         tokens.add(mint)
 
                 if include_pools:
@@ -100,7 +106,9 @@ async def stream_mempool_tokens(
                         m = POOL_TOKEN_RE.search(line)
                         if m:
                             tok = m.group(1)
-                            if token_matches(tok, None, suffix=suffix, keywords=keywords):
+                            if token_matches(
+                                tok, None, suffix=suffix, keywords=keywords
+                            ):
                                 tokens.add(tok)
 
                 for tok in tokens:
@@ -203,3 +211,21 @@ async def stream_ranked_mempool_tokens(
         if score >= threshold:
             combined = data["momentum"] * (1.0 - data["whale_activity"])
             yield {"address": address, **data, "combined_score": combined}
+
+
+async def stream_ranked_mempool_tokens_with_depth(
+    rpc_url: str,
+    *,
+    depth_threshold: float = 0.0,
+    **kwargs,
+) -> AsyncGenerator[Dict[str, float], None]:
+    """Yield ranked mempool tokens enriched with depth metrics."""
+
+    async for event in stream_ranked_mempool_tokens(rpc_url, **kwargs):
+        token = event["address"]
+        depth, _imb, txr = order_book_ws.snapshot(token)
+        event["depth"] = depth
+        event["depth_tx_rate"] = txr
+        event["combined_score"] += depth + txr
+        if depth >= depth_threshold:
+            yield event

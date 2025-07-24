@@ -13,8 +13,12 @@ from . import onchain_metrics
 async def _metrics_for(token: str, rpc_url: str) -> tuple[float, float]:
     """Return volume and liquidity for ``token`` via on-chain metrics."""
 
-    volume = await asyncio.to_thread(onchain_metrics.fetch_volume_onchain, token, rpc_url)
-    liquidity = await asyncio.to_thread(onchain_metrics.fetch_liquidity_onchain, token, rpc_url)
+    volume = await asyncio.to_thread(
+        onchain_metrics.fetch_volume_onchain, token, rpc_url
+    )
+    liquidity = await asyncio.to_thread(
+        onchain_metrics.fetch_liquidity_onchain, token, rpc_url
+    )
     return float(volume), float(liquidity)
 
 
@@ -35,7 +39,9 @@ async def merge_sources(
         asyncio.to_thread(scan_tokens_onchain, rpc_url, return_metrics=True)
     )
 
-    mp_gen = stream_ranked_mempool_tokens(rpc_url, threshold=mempool_threshold)
+    mp_gen = stream_ranked_mempool_tokens_with_depth(
+        rpc_url, threshold=mempool_threshold
+    )
     mp_tokens: List[Dict[str, Any]] = []
     try:
         while len(mp_tokens) < mempool_limit:
@@ -102,4 +108,3 @@ async def merge_sources(
     if limit is not None:
         result = result[:limit]
     return result
-
