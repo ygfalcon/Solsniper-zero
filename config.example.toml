@@ -83,7 +83,7 @@ trend_volume_threshold = 0
 trend_sentiment_threshold = 0.0
 
 # Enable built-in agents for trading
-agents = ["simulation", "conviction", "arbitrage", "exit", "trend", "momentum", "vanta", "inferna", "portfolio_optimizer", "crossdex_rebalancer", "mev_sandwich"]
+agents = ["simulation", "conviction", "arbitrage", "exit", "trend", "momentum", "vanta", "inferna", "portfolio_optimizer", "crossdex_rebalancer", "mev_sandwich", "flashloan_sandwich"]
 
 [agent_weights]
 simulation = 1.0
@@ -96,3 +96,4 @@ vanta = 1.0
 inferna = 1.0
 portfolio_optimizer = 1.0
 crossdex_rebalancer = 1.0
+flashloan_sandwich = 1.0
