@@ -40,10 +40,12 @@ up automatically. Select this file from the UI or set
    [PyYAML](https://pyyaml.org/) and
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
-   Heavy packages such as `faiss`, `sentence-transformers` and `torch` are only
-   needed for features like semantic trade search and reinforcement learning.
-   If you are just running the lightweight test suite or core trading loop they
-   can be safely skipped.  The tests stub them automatically when missing.
+
+   To run the full test suite install the heavy extras as well:
+   ```bash
+   pip install .[heavy]
+   ```
+   Common heavy packages include `numpy`, `aiohttp`, `solana`, `torch` and `faiss`.
    On Apple Silicon machines `./run.sh` automatically installs the Metal
    PyTorch wheel when it is missing.
 
@@ -633,3 +635,7 @@ The best weight configuration found is printed as JSON.
 - **Service not running** — verify `depth_service` is running and that
   `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to
   `True`.
+
+## Testing
+
+See [TESTING.md](TESTING.md) for instructions on installing dependencies and running the test suite.
