@@ -389,8 +389,9 @@ torch.set_default_device('mps')
 EOF
 ```
 
-Heavy features such as reinforcement learning will automatically use the MPS
-backend when available.
+Heavy features such as reinforcement learning automatically detect the MPS
+backend. The RL daemon and :class:`RLTraining` default to `device='mps'` when
+available unless you specify another device.
 
 ### CUDA GPUs
 

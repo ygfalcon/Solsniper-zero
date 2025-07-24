@@ -200,7 +200,14 @@ class RLDaemon:
         self.data = OfflineData(f"sqlite:///{data_path}")
         self.model_path = Path(model_path)
         self.algo = algo
-        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        if device is None:
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+        self.device = torch.device(device)
         if algo == "dqn":
             self.model: nn.Module = _DQN()
         else:
@@ -253,10 +260,14 @@ class RLDaemon:
         if self._task is not None:
             return self._task
 
-        # Auto-select CUDA if available
-        if self.device.type == "cpu" and torch.cuda.device_count() > 0:
-            self.device = torch.device("cuda")
-            self.model.to(self.device)
+        # Auto-select accelerator if none was provided
+        if self.device.type == "cpu":
+            if torch.cuda.is_available():
+                self.device = torch.device("cuda")
+            elif torch.backends.mps.is_available():
+                self.device = torch.device("mps")
+            if self.device.type != "cpu":
+                self.model.to(self.device)
 
         try:
             loop = asyncio.get_running_loop()
