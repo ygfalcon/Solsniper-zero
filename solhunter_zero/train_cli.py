@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import time
 from .rl_daemon import RLDaemon
 
 async def main() -> None:
@@ -10,6 +11,7 @@ async def main() -> None:
     p.add_argument("--algo", default="ppo", choices=["ppo", "dqn"])
     p.add_argument("--interval", type=float, default=3600.0)
     p.add_argument("--device", default=None)
+    p.add_argument("--daemon", action="store_true", help="Run in background")
     args = p.parse_args()
 
     daemon = RLDaemon(
@@ -20,7 +22,14 @@ async def main() -> None:
         device=args.device,
     )
     daemon.start(args.interval)
-    await asyncio.Event().wait()
+    if args.daemon:
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+    else:
+        await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())

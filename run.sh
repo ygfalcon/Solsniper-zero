@@ -22,7 +22,10 @@ if ! check_deps; then
     pip install .
 fi
 
-if [ "$#" -eq 0 ] || [ "$1" = "--auto" ]; then
+if [ "$1" = "--daemon" ]; then
+    shift
+    python -m solhunter_zero.train_cli --daemon "$@"
+elif [ "$#" -eq 0 ] || [ "$1" = "--auto" ]; then
     if [ "$1" = "--auto" ]; then
         shift
     fi

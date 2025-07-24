@@ -559,6 +559,12 @@ To continuously retrain the RL models on GPU run `scripts/train_rl_gpu.py`:
 python scripts/train_rl_gpu.py --db sqlite:///offline_data.db --model ppo_model.pt --interval 3600
 ```
 
+You can also launch the built-in RL daemon directly with GPU acceleration:
+
+```bash
+./run.sh --daemon --device cuda
+```
+
 `solhunter_zero.backtest_cli` now supports Bayesian optimisation of agent
 weights. Optimisation runs the backtester repeatedly while a Gaussian process
 searches the weight space:
