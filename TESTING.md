@@ -1,10 +1,10 @@
 # Testing
 
 Before running the test suite make sure all dependencies are installed.
-Install the package in editable mode:
+Install the package in editable mode with the development extras:
 
 ```bash
-pip install -e .
+pip install -e .[dev]
 ```
 
 Heavy packages such as `numpy`, `aiohttp`, `solana`, `torch` and

@@ -28,6 +28,11 @@ dependencies = [
 
 [project.optional-dependencies]
 uvloop = ["uvloop"]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "flake8",
+]
 
 [project.scripts]
 solhunter-wallet = "solhunter_zero.wallet_cli:main"
