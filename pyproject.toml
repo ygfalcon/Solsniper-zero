@@ -17,6 +17,7 @@ dependencies = [
     "flask",
 
     "aiohttp",
+    "aiofiles",
     "pyyaml",
     "torch",
     "pytorch-lightning",

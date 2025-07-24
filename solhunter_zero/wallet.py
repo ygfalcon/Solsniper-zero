@@ -1,20 +1,21 @@
 import json
 import os
+import aiofiles
 from solders.keypair import Keypair
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
 if not hasattr(Keypair, "to_bytes"):
+
     def _to_bytes(self) -> bytes:  # pragma: no cover - shim for old versions
         return bytes(self.to_bytes_array())
 
     Keypair.to_bytes = _to_bytes  # type: ignore[attr-defined]
 
 
-    
-
 if not hasattr(Keypair, "to_bytes_array"):
+
     def _to_bytes_array(self) -> list[int]:  # pragma: no cover - shim for old versions
         return list(self.to_bytes())
 
@@ -42,6 +43,17 @@ def load_keypair(path: str) -> Keypair:
     return Keypair.from_bytes(secret)
 
 
+async def load_keypair_async(path: str) -> Keypair:
+    """Asynchronously load a Solana ``Keypair`` from ``path``."""
+    async with aiofiles.open(path, "r") as f:
+        content = await f.read()
+    data = json.loads(content)
+    if not isinstance(data, list):
+        raise ValueError("Invalid keypair file")
+    secret = bytes(data)
+    return Keypair.from_bytes(secret)
+
+
 def list_keypairs() -> list[str]:
     """Return the names of all saved keypairs."""
     return [
@@ -56,7 +68,11 @@ def save_keypair(name: str, data: list[int]) -> None:
 
     The name must not contain path traversal components.
     """
-    if os.path.sep in name or (os.path.altsep and os.path.altsep in name) or ".." in name:
+    if (
+        os.path.sep in name
+        or (os.path.altsep and os.path.altsep in name)
+        or ".." in name
+    ):
         raise ValueError("invalid keypair name")
     path = os.path.join(KEYPAIR_DIR, name + ".json")
     with open(path, "w", encoding="utf-8") as f:
@@ -86,6 +102,14 @@ def load_selected_keypair() -> Keypair | None:
         return None
     path = os.path.join(KEYPAIR_DIR, name + ".json")
     return load_keypair(path)
+
+
+async def load_selected_keypair_async() -> Keypair | None:
+    name = get_active_keypair_name()
+    if not name:
+        return None
+    path = os.path.join(KEYPAIR_DIR, name + ".json")
+    return await load_keypair_async(path)
 
 
 def load_keypair_from_mnemonic(mnemonic: str, passphrase: str = "") -> Keypair:
