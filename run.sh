@@ -2,22 +2,30 @@
 set -e
 
 check_deps() {
-python - <<'PY'
-import pkgutil, re, sys, tomllib
+  python - <<'PY'
+import pkgutil, re, sys, tomllib, json
 with open('pyproject.toml', 'rb') as f:
     data = tomllib.load(f)
 deps = data.get('project', {}).get('dependencies', [])
-missing = False
+missing_required = []
 for dep in deps:
     mod = re.split('[<=>]', dep)[0].replace('-', '_')
     if pkgutil.find_loader(mod) is None:
-        missing = True
-        break
-sys.exit(1 if missing else 0)
+        missing_required.append(mod)
+optional = ['faiss', 'sentence_transformers', 'torch']
+missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
+print(json.dumps(missing_optional))
+sys.exit(1 if missing_required or missing_optional else 0)
 PY
 }
 
-if ! check_deps; then
+missing_opt_json=$(check_deps)
+if [ $? -ne 0 ]; then
+    missing_opt=$(python - "$missing_opt_json" <<'PY'
+import json,sys
+print(' '.join(json.loads(sys.argv[1])))
+PY
+)
     echo "Installing dependencies..."
     if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
         python - <<'EOF'
@@ -29,7 +37,10 @@ EOF
               --extra-index-url https://download.pytorch.org/whl/metal
         fi
     fi
-    pip install .[uvloop]
+    pip install .
+    if [ -n "$missing_opt" ]; then
+        echo "Installed optional modules: $missing_opt"
+    fi
 fi
 
 if [ "${DEPTH_SERVICE,,}" = "true" ]; then
