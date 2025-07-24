@@ -26,6 +26,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .emotion_agent import EmotionAgent
     from .momentum import MomentumAgent
     from .mempool_sniper import MempoolSniperAgent
+    from .mev_sandwich import MEVSandwichAgent
 
     from .opportunity_cost import OpportunityCostAgent
 
@@ -100,6 +101,7 @@ def _ensure_agents_loaded() -> None:
 
         "momentum": MomentumAgent,
         "mempool_sniper": MempoolSniperAgent,
+        "mev_sandwich": MEVSandwichAgent,
 
         "meta_conviction": MetaConvictionAgent,
 
