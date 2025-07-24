@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from pathlib import Path
 from typing import Iterable, List, Tuple, Any
 
@@ -248,6 +249,20 @@ class RLDaemon:
             await asyncio.sleep(interval)
 
     def start(self, interval: float = 3600.0) -> asyncio.Task:
-        if self._task is None:
-            self._task = asyncio.create_task(self._loop(interval))
+        """Begin the training loop in the current or a background event loop."""
+        if self._task is not None:
+            return self._task
+
+        # Auto-select CUDA if available
+        if self.device.type == "cpu" and torch.cuda.device_count() > 0:
+            self.device = torch.device("cuda")
+            self.model.to(self.device)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # pragma: no cover - no running loop
+            loop = asyncio.new_event_loop()
+            t = threading.Thread(target=loop.run_forever, daemon=True)
+            t.start()
+        self._task = loop.create_task(self._loop(interval))
         return self._task
