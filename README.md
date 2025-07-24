@@ -214,9 +214,9 @@ profit calculation so routes are ranked based on the borrowed size.
     mkdir -p keypairs
     cp ~/my-keypair.json keypairs/main.json
     ```
-    Set `AUTO_SELECT_KEYPAIR=1` so the Web UI selects the only available keypair
-    on start. `run.sh` will also pick it automatically whenever there is a single
-    keypair in that directory.
+    Set `AUTO_SELECT_KEYPAIR=1` so `run.sh` and the Web UI pick the only
+    available keypair automatically. When there is just one keypair in the
+    `keypairs/` directory it will be selected on start.
 
     You can also recover a keypair from a BIP‑39 mnemonic using the
     `solhunter-wallet` utility and activate it:
@@ -253,9 +253,9 @@ profit calculation so routes are ranked based on the borrowed size.
    ./run.sh --auto
    ```
    This loads the selected configuration (or the `config.highrisk.toml` preset
-   when none is chosen). If there is exactly one keypair in `keypairs/`, it is
-   picked automatically. Set `AUTO_SELECT_KEYPAIR=1` for the same behaviour in
-   the Web UI.
+   when none is chosen). If there is exactly one keypair in `keypairs/`, `run.sh`
+   uses it automatically. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI does the
+   same.
 
    You can still run the bot manually with explicit options:
    ```bash
@@ -626,8 +626,8 @@ The best weight configuration found is printed as JSON.
   service.
 - **Missing keypair** — ensure a valid Solana keypair file is available.
   Set `KEYPAIR_PATH` or `SOLANA_KEYPAIR` to its path or place it in the
-  `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` with the Web UI to select
-  the sole available key automatically.
+  `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so `run.sh` or the Web UI
+  select the sole available key automatically.
 - **Service not running** — verify `depth_service` is running and that
   `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to
   `True`.
