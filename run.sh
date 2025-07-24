@@ -32,6 +32,15 @@ EOF
     pip install .
 fi
 
+if [ "${DEPTH_SERVICE,,}" = "true" ]; then
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "Error: DEPTH_SERVICE requested but 'cargo' is not installed." >&2
+        echo "Install Rust from https://www.rust-lang.org/tools/install" >&2
+        exit 1
+    fi
+    cargo build --manifest-path depth_service/Cargo.toml --release
+fi
+
 if [ "$1" = "--daemon" ]; then
     shift
     python -m solhunter_zero.train_cli --daemon "$@"
