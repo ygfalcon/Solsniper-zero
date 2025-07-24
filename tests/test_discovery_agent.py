@@ -9,7 +9,7 @@ async def fake_stream(url, **_):
 
 def test_stream_mempool_events(monkeypatch):
     monkeypatch.setattr(
-        "solhunter_zero.agents.discovery.stream_ranked_mempool_tokens",
+        "solhunter_zero.agents.discovery.stream_ranked_mempool_tokens_with_depth",
         fake_stream,
     )
 

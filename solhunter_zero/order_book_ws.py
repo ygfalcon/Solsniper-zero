@@ -28,17 +28,21 @@ def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
                 entry = data.get(token)
                 if not entry:
                     return 0.0, 0.0, 0.0
-                total_bids = 0.0
-                total_asks = 0.0
                 rate = float(entry.get("tx_rate", 0.0))
-                for k, v in entry.items():
-                    if k == "tx_rate":
-                        continue
-                    if isinstance(v, dict):
-                        total_bids += float(v.get("bids", 0.0))
-                        total_asks += float(v.get("asks", 0.0))
-                bids = total_bids
-                asks = total_asks
+                if "bids" in entry and "asks" in entry:
+                    bids = float(entry.get("bids", 0.0))
+                    asks = float(entry.get("asks", 0.0))
+                else:
+                    total_bids = 0.0
+                    total_asks = 0.0
+                    for k, v in entry.items():
+                        if k == "tx_rate":
+                            continue
+                        if isinstance(v, dict):
+                            total_bids += float(v.get("bids", 0.0))
+                            total_asks += float(v.get("asks", 0.0))
+                    bids = total_bids
+                    asks = total_asks
                 depth = bids + asks
                 imb = (bids - asks) / depth if depth else 0.0
                 return depth, imb, rate
@@ -96,7 +100,12 @@ async def stream_order_book(
                                 asks += float(v.get("asks", 0.0))
                     _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
                     depth, imb, txr = snapshot(token)
-                    yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}
+                    yield {
+                        "token": token,
+                        "depth": depth,
+                        "imbalance": imb,
+                        "tx_rate": txr,
+                    }
                 except Exception as exc:
                     logger.error("Failed to parse IPC depth update: %s", exc)
                 count += 1
@@ -136,9 +145,18 @@ async def stream_order_book(
                                     if isinstance(v, dict):
                                         bids += float(v.get("bids", 0.0))
                                         asks += float(v.get("asks", 0.0))
-                            _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
+                            _DEPTH_CACHE[token] = {
+                                "bids": bids,
+                                "asks": asks,
+                                "tx_rate": rate,
+                            }
                             depth, imb, txr = snapshot(token)
-                            yield {"token": token, "depth": depth, "imbalance": imb, "tx_rate": txr}
+                            yield {
+                                "token": token,
+                                "depth": depth,
+                                "imbalance": imb,
+                                "tx_rate": txr,
+                            }
                             count += 1
                             if max_updates is not None and count >= max_updates:
                                 return

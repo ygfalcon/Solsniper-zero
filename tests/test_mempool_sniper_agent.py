@@ -19,7 +19,7 @@ async def _run(agent):
 
 def test_mempool_sniper_bundles(monkeypatch):
     monkeypatch.setattr(
-        "solhunter_zero.agents.mempool_sniper.stream_ranked_mempool_tokens",
+        "solhunter_zero.agents.mempool_sniper.stream_ranked_mempool_tokens_with_depth",
         fake_stream,
     )
     monkeypatch.setattr(

@@ -34,6 +34,8 @@ struct TokenInfo {
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct TokenAgg {
     dex: HashMap<String, TokenInfo>,
+    bids: f64,
+    asks: f64,
     tx_rate: f64,
     ts: i64,
 }
@@ -159,11 +161,8 @@ impl ExecContext {
                 ixs: &mut Vec<solana_sdk::instruction::CompiledInstruction>,
                 fee: u64,
             ) {
-                use solana_sdk::{
-                    compute_budget,
-                    message::account_keys::AccountKeys,
-                    message::v0::LoadedAddresses,
-                };
+                use solana_sdk::{compute_budget, message::v0::LoadedAddresses};
+                use solana_program::message::AccountKeys;
                 let pid = compute_budget::id();
                 if keys.iter().position(|k| *k == pid).is_none() {
                     keys.push(pid);
@@ -218,6 +217,8 @@ async fn update_mmap(dex_map: &DexMap, mem: &MempoolMap, mmap: &SharedMmap) -> R
         for (tok, info) in dex {
             let entry = agg.entry(tok.clone()).or_default();
             entry.dex.insert(dex_name.clone(), info.clone());
+            entry.bids += info.bids;
+            entry.asks += info.asks;
             if entry.ts == 0 {
                 entry.ts = Utc::now().timestamp_millis();
             }
@@ -372,6 +373,8 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             let mut entry = TokenAgg::default();
                             for (dex_name, dex) in dexes.iter() {
                                 if let Some(info) = dex.get(token) {
+                                    entry.bids += info.bids;
+                                    entry.asks += info.asks;
                                     entry.dex.insert(dex_name.clone(), info.clone());
                                 }
                             }

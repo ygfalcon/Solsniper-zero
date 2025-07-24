@@ -5,6 +5,7 @@ from solhunter_zero import scanner_common
 
 scanner_common.TOKEN_SUFFIX = ""
 
+
 class FakeWS:
     def __init__(self, messages):
         self.messages = list(messages)
@@ -38,7 +39,11 @@ class FakeConnect:
 
 def test_stream_mempool_tokens(monkeypatch):
     msgs = [
-        {"result": {"value": {"logs": ["InitializeMint", "name: coolbonk", "mint: tok1"]}}},
+        {
+            "result": {
+                "value": {"logs": ["InitializeMint", "name: coolbonk", "mint: tok1"]}
+            }
+        },
         {"result": {"value": {"logs": ["something else"]}}},
     ]
 
@@ -87,13 +92,19 @@ def test_offline_or_onchain_async_mempool(monkeypatch):
     scanner_common.BIRDEYE_API_KEY = None
     scanner_common.SOLANA_RPC_URL = "ws://node"
 
-    tokens = asyncio.run(scanner_common.offline_or_onchain_async(False, method="mempool"))
+    tokens = asyncio.run(
+        scanner_common.offline_or_onchain_async(False, method="mempool")
+    )
     assert tokens == ["tokmp"]
 
 
 def test_stream_mempool_tokens_with_metrics(monkeypatch):
     msgs = [
-        {"result": {"value": {"logs": ["InitializeMint", "name: coolbonk", "mint: tok1"]}}},
+        {
+            "result": {
+                "value": {"logs": ["InitializeMint", "name: coolbonk", "mint: tok1"]}
+            }
+        },
     ]
 
     def fake_connect(url):
@@ -129,8 +140,12 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
 
     import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 10.0 if t == "tok1" else 1.0)
-    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 5.0 if t == "tok1" else 0.5)
+    monkeypatch.setattr(
+        om, "fetch_volume_onchain", lambda t, u: 10.0 if t == "tok1" else 1.0
+    )
+    monkeypatch.setattr(
+        om, "fetch_liquidity_onchain", lambda t, u: 5.0 if t == "tok1" else 0.5
+    )
     monkeypatch.setattr(
         om,
         "collect_onchain_insights",
@@ -142,7 +157,9 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
     )
 
     async def run():
-        gen = mp_scanner.stream_ranked_mempool_tokens("ws://node", suffix="", threshold=10.0)
+        gen = mp_scanner.stream_ranked_mempool_tokens(
+            "ws://node", suffix="", threshold=10.0
+        )
         data = await asyncio.wait_for(anext(gen), timeout=0.1)
         await gen.aclose()
         return data
@@ -174,3 +191,37 @@ def test_rank_token_momentum(monkeypatch):
 
     first, second = asyncio.run(run())
     assert second[1]["momentum"] != 0.0
+
+
+def test_stream_ranked_with_depth(monkeypatch):
+    async def fake_gen(url, **_):
+        yield {
+            "address": "tok1",
+            "combined_score": 1.0,
+            "momentum": 1.0,
+            "whale_activity": 0.0,
+        }
+        yield {
+            "address": "tok2",
+            "combined_score": 1.0,
+            "momentum": 1.0,
+            "whale_activity": 0.0,
+        }
+
+    monkeypatch.setattr(mp_scanner, "stream_ranked_mempool_tokens", fake_gen)
+
+    import solhunter_zero.order_book_ws as obws
+
+    monkeypatch.setattr(
+        obws, "snapshot", lambda t: (5.0 if t == "tok1" else 10.0, 0.0, 0.0)
+    )
+
+    async def run():
+        gen = mp_scanner.stream_ranked_mempool_tokens_with_depth("rpc")
+        r1 = await asyncio.wait_for(anext(gen), timeout=0.1)
+        r2 = await asyncio.wait_for(anext(gen), timeout=0.1)
+        await gen.aclose()
+        return r1, r2
+
+    first, second = asyncio.run(run())
+    assert second["combined_score"] > first["combined_score"]

@@ -15,7 +15,7 @@ async def _run(agent):
 
 def test_mev_sandwich_bundle(monkeypatch):
     monkeypatch.setattr(
-        "solhunter_zero.agents.mev_sandwich.stream_ranked_mempool_tokens",
+        "solhunter_zero.agents.mev_sandwich.stream_ranked_mempool_tokens_with_depth",
         fake_stream,
     )
 
