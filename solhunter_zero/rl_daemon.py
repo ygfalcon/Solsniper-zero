@@ -12,8 +12,9 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
-from .memory import Memory
-from .offline_data import OfflineData
+from .memory import Memory, Trade
+from .offline_data import OfflineData, MarketSnapshot
+from . import rl_training
 from .risk import average_correlation
 
 logger = logging.getLogger(__name__)
@@ -224,23 +225,45 @@ class RLDaemon:
         self.agents: List[Any] = list(agents) if agents else []
         self._task: asyncio.Task | None = None
         self._proc: subprocess.Popen | None = None
+        self._last_trade_id = 0
+        self._last_snap_id = 0
+
+    def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
+        """Return new trades and snapshots since the last training cycle."""
+        trades: list[Trade] = []
+        snaps: list[MarketSnapshot] = []
+        with self.memory.Session() as session:
+            q = session.query(Trade).filter(Trade.id > self._last_trade_id)
+            trades = list(q.order_by(Trade.id))
+            if trades:
+                self._last_trade_id = trades[-1].id
+        with self.data.Session() as session:
+            q = session.query(MarketSnapshot).filter(MarketSnapshot.id > self._last_snap_id)
+            snaps = list(q.order_by(MarketSnapshot.id))
+            if snaps:
+                self._last_snap_id = snaps[-1].id
+        return trades, snaps
 
     def register_agent(self, agent: Any) -> None:
         """Register an agent to reload checkpoints after training."""
         self.agents.append(agent)
 
     def train(self) -> None:
-        trades = self.memory.list_trades()
-        snaps = self.data.list_snapshots()
-        metrics = _metrics(trades, snaps)
-        dataset = _TradeDataset(trades, snaps, metrics)
-        if len(dataset) == 0:
+        trades, snaps = self._fetch_new()
+        if not trades and not snaps:
             return
-        if self.algo == "dqn":
-            _train_dqn(self.model, dataset, self.device)
-        else:
-            _train_ppo(self.model, dataset, self.device)
-        torch.save(self.model.state_dict(), self.model_path)
+        rl_training.fit(
+            trades,
+            snaps,
+            model_path=self.model_path,
+            algo=self.algo,
+            device=self.device.type,
+        )
+        try:
+            self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+        except Exception as exc:  # pragma: no cover - corrupt file
+            logger.error("failed to load updated model: %s", exc)
+            return
         for ag in self.agents:
             try:
                 if hasattr(ag, "reload_weights"):

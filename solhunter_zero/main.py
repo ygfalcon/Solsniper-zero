@@ -414,7 +414,8 @@ async def _init_rl_training(
 ) -> asyncio.Task | None:
     """Set up RL background training if enabled."""
 
-    if not rl_daemon:
+    auto_train_cfg = bool(cfg.get("rl_auto_train", False))
+    if not rl_daemon and not auto_train_cfg:
         return None
 
     from .rl_daemon import RLDaemon
@@ -423,7 +424,7 @@ async def _init_rl_training(
     data_path = cfg.get("rl_db_path", "offline_data.db")
     model_path = cfg.get("rl_model_path", "ppo_model.pt")
     algo = cfg.get("rl_algo", "ppo")
-    auto_train = bool(cfg.get("rl_auto_train", False))
+    auto_train = auto_train_cfg
     tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
 
     daemon = RLDaemon(
