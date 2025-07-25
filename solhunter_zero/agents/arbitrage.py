@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Sequence, Callable, Awaitable, Mapping
 from . import BaseAgent
 from .. import arbitrage
 from ..arbitrage import _best_route, refresh_costs
+from ..depth_client import snapshot as depth_snapshot
 from ..portfolio import Portfolio
 
 PriceFeed = Callable[[str], Awaitable[float]]
@@ -116,12 +117,14 @@ class ArbitrageAgent(BaseAgent):
         self.latency.update(env_lat)
 
         gas_costs = {k: v * self.gas_multiplier for k, v in self.gas.items()}
+        depth_map, _ = depth_snapshot(token)
         path, profit = _best_route(
             valid,
             self.amount,
             fees=self.fees,
             gas=gas_costs,
             latency=self.latency,
+            depth=depth_map,
         )
 
         if not path or profit <= 0:
