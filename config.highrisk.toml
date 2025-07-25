@@ -44,6 +44,8 @@ max_hops = 3
 path_algorithm = "graph"
 jito_rpc_url = ""
 jito_auth = ""
+jito_ws_url = ""
+jito_ws_auth = ""
 
 # Enable every built-in agent for maximum exposure
 agents = [

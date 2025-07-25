@@ -17,7 +17,8 @@ async def _run(agent):
 
 def test_mev_sandwich_from_jito(monkeypatch):
     monkeypatch.setattr(
-        "solhunter_zero.jito_stream.stream_pending_transactions", fake_jito
+        "solhunter_zero.jito_stream.stream_pending_swaps",
+        fake_jito,
     )
 
     async def fake_fetch(token, side, amount, price, base_url):
@@ -44,7 +45,12 @@ def test_mev_sandwich_from_jito(monkeypatch):
         fake_submit,
     )
 
-    agent = MEVSandwichAgent(jito_rpc_url="ws://jito", jito_auth="A")
+    agent = MEVSandwichAgent(
+        jito_rpc_url="ws://jito",
+        jito_auth="A",
+        jito_ws_url="ws://ws",
+        jito_ws_auth="T",
+    )
     token = asyncio.run(_run(agent))
 
     assert token == "tok"
@@ -53,7 +59,8 @@ def test_mev_sandwich_from_jito(monkeypatch):
 
 def test_flashloan_sandwich_from_jito(monkeypatch):
     monkeypatch.setattr(
-        "solhunter_zero.jito_stream.stream_pending_transactions", fake_jito
+        "solhunter_zero.jito_stream.stream_pending_swaps",
+        fake_jito,
     )
 
     async def fake_fetch(token, side, amount, price, base_url):
@@ -94,7 +101,12 @@ def test_flashloan_sandwich_from_jito(monkeypatch):
         fake_submit,
     )
 
-    agent = FlashloanSandwichAgent(jito_rpc_url="ws://jito", jito_auth="A")
+    agent = FlashloanSandwichAgent(
+        jito_rpc_url="ws://jito",
+        jito_auth="A",
+        jito_ws_url="ws://ws",
+        jito_ws_auth="T",
+    )
     token = asyncio.run(_run(agent))
 
     assert token == "tok"

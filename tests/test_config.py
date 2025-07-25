@@ -61,12 +61,21 @@ def test_apply_env_overrides(monkeypatch):
 
 
 def test_jito_env_overrides(monkeypatch):
-    cfg = {"jito_rpc_url": "a", "jito_auth": "b"}
+    cfg = {
+        "jito_rpc_url": "a",
+        "jito_auth": "b",
+        "jito_ws_url": "c",
+        "jito_ws_auth": "d",
+    }
     monkeypatch.setenv("JITO_RPC_URL", "url")
     monkeypatch.setenv("JITO_AUTH", "tok")
+    monkeypatch.setenv("JITO_WS_URL", "ws")
+    monkeypatch.setenv("JITO_WS_AUTH", "tok2")
     result = apply_env_overrides(cfg)
     assert result["jito_rpc_url"] == "url"
     assert result["jito_auth"] == "tok"
+    assert result["jito_ws_url"] == "ws"
+    assert result["jito_ws_auth"] == "tok2"
 
 
 def test_set_env_from_config(monkeypatch):

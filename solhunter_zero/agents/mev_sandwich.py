@@ -60,6 +60,8 @@ class MEVSandwichAgent(BaseAgent):
         priority_rpc: Iterable[str] | None = None,
         jito_rpc_url: str | None = None,
         jito_auth: str | None = None,
+        jito_ws_url: str | None = None,
+        jito_ws_auth: str | None = None,
         base_url: str = DEX_BASE_URL,
     ) -> None:
         self.slippage_threshold = float(slippage_threshold)
@@ -68,6 +70,8 @@ class MEVSandwichAgent(BaseAgent):
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
         self.jito_rpc_url = jito_rpc_url or os.getenv("JITO_RPC_URL")
         self.jito_auth = jito_auth or os.getenv("JITO_AUTH")
+        self.jito_ws_url = jito_ws_url or os.getenv("JITO_WS_URL")
+        self.jito_ws_auth = jito_ws_auth or os.getenv("JITO_WS_AUTH")
         self.base_url = base_url
 
     async def _prepare_tx(self, token: str, side: str, amount: float) -> str | None:
@@ -93,7 +97,13 @@ class MEVSandwichAgent(BaseAgent):
 
         stream_fn = stream_ranked_mempool_tokens_with_depth or _default_stream
 
-        if self.jito_rpc_url and self.jito_auth:
+        if self.jito_ws_url and self.jito_ws_auth:
+            from ..jito_stream import stream_pending_swaps
+            event_stream = stream_pending_swaps(
+                self.jito_ws_url, auth=self.jito_ws_auth
+            )
+            use_onchain = False
+        elif self.jito_rpc_url and self.jito_auth:
             from ..jito_stream import stream_pending_transactions as jito_stream
             event_stream = jito_stream(self.jito_rpc_url, auth=self.jito_auth)
             use_onchain = False

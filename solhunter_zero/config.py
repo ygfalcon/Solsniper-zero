@@ -62,6 +62,8 @@ ENV_VARS = {
     "priority_rpc": "PRIORITY_RPC",
     "jito_rpc_url": "JITO_RPC_URL",
     "jito_auth": "JITO_AUTH",
+    "jito_ws_url": "JITO_WS_URL",
+    "jito_ws_auth": "JITO_WS_AUTH",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
     "use_depth_stream": "USE_DEPTH_STREAM",
