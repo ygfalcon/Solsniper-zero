@@ -75,6 +75,8 @@ ENV_VARS = {
     "mempool_threshold": "MEMPOOL_THRESHOLD",
     "bundle_size": "BUNDLE_SIZE",
     "depth_threshold": "DEPTH_THRESHOLD",
+    "max_hops": "MAX_HOPS",
+    "path_algorithm": "PATH_ALGORITHM",
 }
 
 
