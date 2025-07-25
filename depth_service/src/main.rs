@@ -5,12 +5,16 @@ use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, SinkExt};
 use memmap2::{MmapMut, MmapOptions};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::UnixListener};
-use tokio_tungstenite::connect_async;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, UnixListener},
+    sync::broadcast,
+};
+use tokio_tungstenite::{connect_async, accept_async, tungstenite::Message};
 use solana_client::nonblocking::rpc_client::RpcClient;
 
 mod route;
@@ -46,6 +50,8 @@ type DexMap = Arc<Mutex<HashMap<String, HashMap<String, TokenInfo>>>>;
 type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 
 type SharedMmap = Arc<Mutex<MmapMut>>;
+
+type WsSender = broadcast::Sender<String>;
 
 #[derive(Default, Clone)]
 struct AutoExecEntry {
@@ -211,7 +217,12 @@ impl ExecContext {
     }
 }
 
-async fn update_mmap(dex_map: &DexMap, mem: &MempoolMap, mmap: &SharedMmap) -> Result<()> {
+async fn update_mmap(
+    dex_map: &DexMap,
+    mem: &MempoolMap,
+    mmap: &SharedMmap,
+    ws: &WsSender,
+) -> Result<()> {
     let dexes = dex_map.lock().await;
     let mem = mem.lock().await;
     let mut agg: HashMap<String, TokenAgg> = HashMap::new();
@@ -241,12 +252,20 @@ async fn update_mmap(dex_map: &DexMap, mem: &MempoolMap, mmap: &SharedMmap) -> R
         mmap[i] = 0;
     }
     mmap.flush()?;
+    let _ = ws.send(String::from_utf8_lossy(&json).to_string());
     Ok(())
 }
 
-async fn connect_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolMap, mmap: SharedMmap) -> Result<()> {
-    let (ws, _) = connect_async(url).await?;
-    let (_write, mut read) = ws.split();
+async fn connect_feed(
+    dex: &str,
+    url: &str,
+    dex_map: DexMap,
+    mem: MempoolMap,
+    mmap: SharedMmap,
+    ws: WsSender,
+) -> Result<()> {
+    let (socket, _) = connect_async(url).await?;
+    let (_write, mut read) = socket.split();
     while let Some(Ok(msg)) = read.next().await {
         if !msg.is_text() {
             continue;
@@ -264,16 +283,23 @@ async fn connect_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolMap, mm
                 let entry = dexes.entry(dex.to_string()).or_default();
                 entry.insert(token.clone(), TokenInfo { bids, asks, tx_rate: 0.0 });
                 drop(dexes);
-                let _ = update_mmap(&dex_map, &mem, &mmap).await;
+                let _ = update_mmap(&dex_map, &mem, &mmap, &ws).await;
             }
         }
     }
     Ok(())
 }
 
-async fn connect_price_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolMap, mmap: SharedMmap) -> Result<()> {
-    let (ws, _) = connect_async(url).await?;
-    let (_write, mut read) = ws.split();
+async fn connect_price_feed(
+    dex: &str,
+    url: &str,
+    dex_map: DexMap,
+    mem: MempoolMap,
+    mmap: SharedMmap,
+    ws: WsSender,
+) -> Result<()> {
+    let (socket, _) = connect_async(url).await?;
+    let (_write, mut read) = socket.split();
     while let Some(Ok(msg)) = read.next().await {
         if !msg.is_text() {
             continue;
@@ -286,16 +312,22 @@ async fn connect_price_feed(dex: &str, url: &str, dex_map: DexMap, mem: MempoolM
                 let entry = dexes.entry(dex.to_string()).or_default();
                 entry.insert(token.clone(), TokenInfo { bids: price, asks: price, tx_rate: 0.0 });
                 drop(dexes);
-                let _ = update_mmap(&dex_map, &mem, &mmap).await;
+                let _ = update_mmap(&dex_map, &mem, &mmap, &ws).await;
             }
         }
     }
     Ok(())
 }
 
-async fn connect_mempool(url: &str, mem: MempoolMap, dex_map: DexMap, mmap: SharedMmap) -> Result<()> {
-    let (ws, _) = connect_async(url).await?;
-    let (_write, mut read) = ws.split();
+async fn connect_mempool(
+    url: &str,
+    mem: MempoolMap,
+    dex_map: DexMap,
+    mmap: SharedMmap,
+    ws: WsSender,
+) -> Result<()> {
+    let (socket, _) = connect_async(url).await?;
+    let (_write, mut read) = socket.split();
     while let Some(Ok(msg)) = read.next().await {
         if !msg.is_text() {
             continue;
@@ -307,7 +339,7 @@ async fn connect_mempool(url: &str, mem: MempoolMap, dex_map: DexMap, mmap: Shar
                 let mut mem_lock = mem.lock().await;
                 mem_lock.insert(token, rate);
                 drop(mem_lock);
-                let _ = update_mmap(&dex_map, &mem, &mmap).await;
+                let _ = update_mmap(&dex_map, &mem, &mmap, &ws).await;
             }
         }
     }
@@ -522,6 +554,25 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
     }
 }
 
+async fn ws_server(addr: &str, port: u16, tx: WsSender) -> Result<()> {
+    let listener = TcpListener::bind((addr, port)).await?;
+    loop {
+        let (stream, _) = listener.accept().await?;
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            if let Ok(ws) = accept_async(stream).await {
+                let (mut write, _) = ws.split();
+                let mut rx = tx.subscribe();
+                while let Ok(msg) = rx.recv().await {
+                    if write.send(Message::Text(msg)).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        });
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -558,61 +609,81 @@ async fn main() -> Result<()> {
     let mmap = Arc::new(Mutex::new(mmap));
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
+    let (ws_tx, _) = broadcast::channel(16);
+    let ws_addr = std::env::var("DEPTH_WS_ADDR").unwrap_or_else(|_| "0.0.0.0".into());
+    let ws_port: u16 = std::env::var("DEPTH_WS_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8765);
+    {
+        let tx = ws_tx.clone();
+        let addr = ws_addr.clone();
+        tokio::spawn(async move {
+            let _ = ws_server(&addr, ws_port, tx).await;
+        });
+    }
 
     if let Some(url) = serum {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_feed("serum", &url, d, m, mm).await;
+            let _ = connect_feed("serum", &url, d, m, mm, tx).await;
         });
     }
     if let Some(url) = raydium {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("raydium", &url, d, m, mm).await;
+            let _ = connect_price_feed("raydium", &url, d, m, mm, tx).await;
         });
     }
     if let Some(url) = orca {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("orca", &url, d, m, mm).await;
+            let _ = connect_price_feed("orca", &url, d, m, mm, tx).await;
         });
     }
     if let Some(url) = jupiter {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("jupiter", &url, d, m, mm).await;
+            let _ = connect_price_feed("jupiter", &url, d, m, mm, tx).await;
         });
     }
     if let Some(url) = phoenix {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("phoenix", &url, d, m, mm).await;
+            let _ = connect_price_feed("phoenix", &url, d, m, mm, tx).await;
         });
     }
     if let Some(url) = meteora {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("meteora", &url, d, m, mm).await;
+            let _ = connect_price_feed("meteora", &url, d, m, mm, tx).await;
         });
     }
     if let Some(url) = mempool {
         let d = dex_map.clone();
         let m = mem_map.clone();
         let mm = mmap.clone();
+        let tx = ws_tx.clone();
         tokio::spawn(async move {
-            let _ = connect_mempool(&url, m, d, mm).await;
+            let _ = connect_mempool(&url, m, d, mm, tx).await;
         });
     }
 

@@ -4,11 +4,15 @@ import mmap
 import asyncio
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
+import aiohttp
+
 from . import order_book_ws
 
 DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 
 MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
+DEPTH_WS_PORT = int(os.getenv("DEPTH_WS_PORT", "8765"))
+DEPTH_WS_ADDR = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
 
 async def stream_depth(
     token: str,
@@ -22,6 +26,68 @@ async def stream_depth(
         url, rate_limit=rate_limit, max_updates=max_updates
     ):
         yield data
+
+
+async def stream_depth_ws(
+    token: str,
+    *,
+    rate_limit: float = 0.1,
+    max_updates: Optional[int] = None,
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Stream depth updates from the WebSocket server with mmap fallback."""
+    url = f"ws://{DEPTH_WS_ADDR}:{DEPTH_WS_PORT}"
+    count = 0
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect(url) as ws:
+                    async for msg in ws:
+                        if msg.type != aiohttp.WSMsgType.TEXT:
+                            continue
+                        try:
+                            data = json.loads(msg.data)
+                        except Exception:
+                            continue
+                        entry = data.get(token)
+                        if not entry:
+                            continue
+                        bids = float(entry.get("bids", 0.0)) if "bids" in entry else 0.0
+                        asks = float(entry.get("asks", 0.0)) if "asks" in entry else 0.0
+                        rate = float(entry.get("tx_rate", 0.0))
+                        for v in entry.values():
+                            if isinstance(v, dict):
+                                bids += float(v.get("bids", 0.0))
+                                asks += float(v.get("asks", 0.0))
+                        depth = bids + asks
+                        imb = (bids - asks) / depth if depth else 0.0
+                        yield {
+                            "token": token,
+                            "depth": depth,
+                            "imbalance": imb,
+                            "tx_rate": rate,
+                        }
+                        count += 1
+                        if max_updates is not None and count >= max_updates:
+                            return
+                        if rate_limit > 0:
+                            await asyncio.sleep(rate_limit)
+        except Exception:
+            venues, rate = snapshot(token)
+            bids = sum(float(v.get("bids", 0.0)) for v in venues.values())
+            asks = sum(float(v.get("asks", 0.0)) for v in venues.values())
+            depth = bids + asks
+            imb = (bids - asks) / depth if depth else 0.0
+            yield {
+                "token": token,
+                "depth": depth,
+                "imbalance": imb,
+                "tx_rate": rate,
+            }
+            count += 1
+            if max_updates is not None and count >= max_updates:
+                return
+            if rate_limit > 0:
+                await asyncio.sleep(rate_limit)
 
 
 def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
