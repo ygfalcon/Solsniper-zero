@@ -236,6 +236,7 @@ class AgentManager:
             self.weights[name] = self.weights.get(name, 1.0) * factor
 
         self.coordinator.base_weights = self.weights
+        self.save_weights()
 
     # ------------------------------------------------------------------
     #  Mutation helpers
