@@ -70,15 +70,32 @@ class FlashloanSandwichAgent(BaseAgent):
 
         stream_fn = stream_ranked_mempool_tokens_with_depth or _default_stream
 
-        async for event in stream_fn(
-            rpc_url,
-            suffix=suffix,
-            keywords=keywords,
-            include_pools=include_pools,
-        ):
-            token = event["address"]
-            size = float(event.get("avg_swap_size", 0.0))
-            slip = await asyncio.to_thread(fetch_slippage_onchain, token, rpc_url)
+        if self.jito_rpc_url and self.jito_auth:
+            from ..jito_stream import stream_pending_transactions as jito_stream
+            event_stream = jito_stream(self.jito_rpc_url, auth=self.jito_auth)
+            use_onchain = False
+        else:
+            event_stream = stream_fn(
+                rpc_url,
+                suffix=suffix,
+                keywords=keywords,
+                include_pools=include_pools,
+            )
+            use_onchain = True
+
+        async for event in event_stream:
+            if use_onchain:
+                token = event["address"]
+                size = float(event.get("avg_swap_size", 0.0))
+                slip = await asyncio.to_thread(
+                    fetch_slippage_onchain, token, rpc_url
+                )
+            else:
+                token = event.get("token") or event.get("address")
+                if not token:
+                    continue
+                size = float(event.get("size", 0.0))
+                slip = float(event.get("slippage", 0.0))
             if slip >= self.slippage_threshold or size >= self.size_threshold:
                 amt = max(self.amount, size)
                 front = await self._prepare_tx(token, "buy", amt)

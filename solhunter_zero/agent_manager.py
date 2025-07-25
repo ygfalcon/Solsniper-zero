@@ -477,6 +477,13 @@ class AgentManager:
         evolve_interval = int(cfg.get("evolve_interval", 1))
         mutation_threshold = float(cfg.get("mutation_threshold", 0.0))
 
+        jito_rpc_url = cfg.get("jito_rpc_url")
+        jito_auth = cfg.get("jito_auth")
+        if jito_rpc_url and os.getenv("JITO_RPC_URL") is None:
+            os.environ["JITO_RPC_URL"] = str(jito_rpc_url)
+        if jito_auth and os.getenv("JITO_AUTH") is None:
+            os.environ["JITO_AUTH"] = str(jito_auth)
+
         if not agents:
             return None
         return cls(
