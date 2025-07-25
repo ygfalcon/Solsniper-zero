@@ -36,6 +36,7 @@ class SimulationSummary(Base):
 
     id = Column(Integer, primary_key=True)
     token = Column(String, nullable=False)
+    agent = Column(String)
     expected_roi = Column(Float, nullable=False)
     success_prob = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=utcnow)
@@ -92,12 +93,18 @@ class AdvancedMemory:
 
     # ------------------------------------------------------------------
     def log_simulation(
-        self, token: str, expected_roi: float, success_prob: float
+        self,
+        token: str,
+        *,
+        expected_roi: float,
+        success_prob: float,
+        agent: str | None = None,
     ) -> int:
         """Insert a simulation summary and return its id."""
         with self.Session() as session:
             sim = SimulationSummary(
                 token=token,
+                agent=agent,
                 expected_roi=expected_roi,
                 success_prob=success_prob,
             )
@@ -141,14 +148,13 @@ class AdvancedMemory:
             return session.query(Trade).all()
 
     # ------------------------------------------------------------------
-    def simulation_success_rate(self, token: str) -> float:
+    def simulation_success_rate(self, token: str, *, agent: str | None = None) -> float:
         """Return the average success probability for recorded simulations."""
         with self.Session() as session:
-            sims = (
-                session.query(SimulationSummary)
-                .filter_by(token=token)
-                .all()
-            )
+            query = session.query(SimulationSummary).filter_by(token=token)
+            if agent is not None:
+                query = query.filter_by(agent=agent)
+            sims = query.all()
             if not sims:
                 return 0.0
             return float(sum(s.success_prob for s in sims) / len(sims))
