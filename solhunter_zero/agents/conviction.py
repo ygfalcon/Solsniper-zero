@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Iterable
 
 import os
 import numpy as np
 
 from .. import models
 from ..simulation import run_simulations, predict_price_movement as _predict_price_movement
+from ..news import fetch_sentiment
 
 
 def predict_price_movement(token: str, *, model_path: str | None = None) -> float:
@@ -22,13 +23,35 @@ class ConvictionAgent(BaseAgent):
 
     name = "conviction"
 
-    def __init__(self, threshold: float = 0.05, count: int = 100, *, model_path: str | None = None):
+    def __init__(
+        self,
+        threshold: float = 0.05,
+        count: int = 100,
+        *,
+        model_path: str | None = None,
+        feeds: Iterable[str] | None = None,
+        twitter_feeds: Iterable[str] | None = None,
+        discord_feeds: Iterable[str] | None = None,
+    ):
         self.threshold = threshold
         self.count = count
         self.model_path = model_path or os.getenv("PRICE_MODEL_PATH")
+        self.feeds = list(feeds) if feeds else []
+        self.twitter_feeds = list(twitter_feeds) if twitter_feeds else []
+        self.discord_feeds = list(discord_feeds) if discord_feeds else []
 
     def _predict_return(self, token: str) -> float:
-        return predict_price_movement(token, model_path=self.model_path)
+        sentiment = 0.0
+        if self.feeds or self.twitter_feeds or self.discord_feeds:
+            try:
+                sentiment = fetch_sentiment(
+                    self.feeds,
+                    twitter_urls=self.twitter_feeds,
+                    discord_urls=self.discord_feeds,
+                )
+            except Exception:
+                sentiment = 0.0
+        return predict_price_movement(token, sentiment=sentiment, model_path=self.model_path)
 
     async def propose_trade(
         self,

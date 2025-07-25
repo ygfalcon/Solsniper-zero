@@ -35,6 +35,7 @@ def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
             return FakeResp(url)
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr(data_sync, "fetch_sentiment", lambda *a, **k: 0.0)
 
     data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=0.0000001, base_url="http://api")
 
