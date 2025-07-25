@@ -1,0 +1,111 @@
+birdeye_api_key = "EXAMPLE_BIRDEYE_KEY"
+solana_rpc_url = "https://solana.mycustomrpc.com"
+dex_base_url = "https://dex.myhost.com/api"
+dex_testnet_url = "https://testnet.dex.myhost.com/api"
+orca_api_url = "https://api.orca.so"
+raydium_api_url = "https://api.raydium.io"
+phoenix_api_url = "https://api.phoenix.trade"
+meteora_api_url = "https://api.meteora.ag"
+orca_ws_url = ""
+raydium_ws_url = ""
+jupiter_ws_url = ""
+phoenix_ws_url = ""
+meteora_ws_url = ""
+order_book_ws_url = ""
+depth_service = false    # start the Rust depth_service automatically when true
+# IPC paths for the depth_service (change if running on another host)
+# DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
+# DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
+use_depth_stream = true  # set to false to disable depth-stream IPC
+use_rust_exec = true     # set to false to execute swaps in Python
+use_service_exec = true  # set to false to bypass depth_service execution
+orca_dex_url = "https://dex.orca.so"
+raydium_dex_url = "https://dex.raydium.io"
+phoenix_dex_url = "https://dex.phoenix.trade"
+meteora_dex_url = "https://dex.meteora.ag"
+metrics_base_url = "https://metrics.example.com/api"
+news_feeds = "https://news.example.com/rss"
+twitter_feeds = ""
+discord_feeds = ""
+dex_listing_ws_url = "wss://dex.example/ws"
+discovery_method = "websocket"
+# Sell thresholds
+stop_loss = 0.1
+take_profit = 0.2
+# Adjust weights based on agent success
+dynamic_weights = true
+# Amount to add or subtract from an agent's weight after each cycle
+weight_step = 0.05
+strategy_selection = true
+vote_threshold = 0.1
+risk_tolerance = 0.1
+max_allocation = 0.2
+risk_multiplier = 1.0
+max_risk_per_token = 0.05
+trailing_stop = 0.1
+max_drawdown = 0.5
+volatility_factor = 1.0
+min_delay = 10
+max_delay = 300
+offline_data_limit_gb = 50
+min_portfolio_value = 20.0
+arbitrage_threshold = 0.0
+arbitrage_amount = 0.0
+use_flash_loans = true   # set to false to disable flash-loan arbitrage
+max_flash_amount = 0.02
+dex_priorities = "phoenix,meteora,orca,raydium,jupiter"
+dex_fees = "{}"
+dex_gas = "{}"
+dex_latency = "{}"
+use_mev_bundles = true # submit swap bundles via MEVExecutor when true
+max_hops = 3          # maximum hops to consider when searching arbitrage paths
+path_algorithm = "graph"  # "graph" or "permutation"
+# CrossDEXRebalancer options
+rebalance_interval = 30     # seconds between venue rebalances
+slippage_threshold = 0.05   # ignore venues with higher expected slippage
+# Multipliers applied to the compute-unit price derived from mempool rate
+priority_fees = "0,1,2"
+# Comma-separated RPC URLs used for priority submission
+priority_rpc = "https://priority.rpc.myhost.com"
+jito_rpc_url = "https://jito.myhost.com"       # Jito block-engine endpoint
+jito_auth = "jito-auth-token"          # authentication token for Jito
+jito_ws_url = "wss://jito.myhost.com/ws"       # Jito searcher websocket
+jito_ws_auth = ""      # websocket auth token
+weights_path = "weights.json"
+evolve_interval = 1
+mutation_threshold = 0.0
+
+token_suffix = "bonk"
+token_keywords = ""
+mempool_score_threshold = 0.0
+mempool_stats_window = 5
+mempool_threshold = 0.0
+depth_threshold = 0.0      # minimum depth for ranked mempool tokens
+bundle_size = 1
+volume_threshold = 0
+trend_volume_threshold = 0
+trend_sentiment_threshold = 0.0
+
+# Enable built-in agents for trading
+agents = ["simulation", "conviction", "arbitrage", "exit", "smart_discovery", "trend", "momentum", "vanta", "inferna", "portfolio_optimizer", "crossdex_rebalancer", "mev_sandwich", "flashloan_sandwich", "sac"]
+
+[agent_weights]
+simulation = 1.0
+conviction = 1.0
+arbitrage = 1.0
+exit = 1.0
+smart_discovery = 1.0
+trend = 1.0
+momentum = 1.0
+vanta = 1.0
+inferna = 1.0
+portfolio_optimizer = 1.0
+crossdex_rebalancer = 1.0
+flashloan_sandwich = 1.0
+sac = 1.0
+
+# RL auto-training
+rl_auto_train = false
+rl_tune_interval = 3600
+regime_weight = 1.0
+
