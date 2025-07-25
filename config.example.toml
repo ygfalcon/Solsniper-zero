@@ -107,4 +107,5 @@ sac = 1.0
 # RL auto-training
 rl_auto_train = false
 rl_tune_interval = 3600
+regime_weight = 1.0
 

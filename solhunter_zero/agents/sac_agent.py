@@ -69,6 +69,7 @@ class SACAgent(BaseAgent):
         gamma: float = 0.99,
         tau: float = 0.005,
         alpha: float = 0.2,
+        regime_weight: float = 1.0,
         model_path: str | Path = "sac_model.pt",
         replay_url: str = "sqlite:///replay.db",
         price_model_path: str | None = None,
@@ -80,6 +81,7 @@ class SACAgent(BaseAgent):
         self.tau = tau
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
+        self.regime_weight = float(regime_weight)
         self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
         self.device = torch.device(device)
         self._last_mtime = 0.0
@@ -87,11 +89,11 @@ class SACAgent(BaseAgent):
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
 
-        self.actor = GaussianPolicy(3, hidden_size)
-        self.q1 = QNetwork(3, hidden_size)
-        self.q2 = QNetwork(3, hidden_size)
-        self.tq1 = QNetwork(3, hidden_size)
-        self.tq2 = QNetwork(3, hidden_size)
+        self.actor = GaussianPolicy(4, hidden_size)
+        self.q1 = QNetwork(4, hidden_size)
+        self.q2 = QNetwork(4, hidden_size)
+        self.tq1 = QNetwork(4, hidden_size)
+        self.tq2 = QNetwork(4, hidden_size)
         self.tq1.load_state_dict(self.q1.state_dict())
         self.tq2.load_state_dict(self.q2.state_dict())
 
@@ -145,7 +147,9 @@ class SACAgent(BaseAgent):
         pos = portfolio.balances.get(token)
         amt = float(pos.amount) if pos else 0.0
         depth, imb, _ = snapshot(token)
-        return [amt, depth, imb]
+        regime = detect_regime(portfolio.price_history.get(token, []))
+        r = {"bull": 1.0, "bear": -1.0}.get(regime, 0.0) * self.regime_weight
+        return [amt, depth, imb, r]
 
     def _predict_return(self, token: str) -> float:
         return predict_price_movement(token, model_path=self.price_model_path)
@@ -167,7 +171,8 @@ class SACAgent(BaseAgent):
                 action_val = -float(t.amount)
             seq = prices.setdefault(t.token, [])
             regime_label = detect_regime(seq)
-            state = [float(t.amount), float(t.price), 0.0]
+            r = {"bull": 1.0, "bear": -1.0}.get(regime_label, 0.0) * self.regime_weight
+            state = [float(t.amount), float(t.price), 0.0, r]
             self.replay.add(
                 state,
                 str(action_val),

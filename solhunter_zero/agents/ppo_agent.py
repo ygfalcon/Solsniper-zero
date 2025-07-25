@@ -43,6 +43,7 @@ class PPOAgent(BaseAgent):
         gamma: float = 0.99,
         clip_epsilon: float = 0.2,
         epochs: int = 5,
+        regime_weight: float = 1.0,
         model_path: str | Path = "ppo_model.pt",
         replay_url: str = "sqlite:///replay.db",
         price_model_path: str | None = None,
@@ -55,6 +56,7 @@ class PPOAgent(BaseAgent):
         self.epochs = int(epochs)
         self.model_path = Path(model_path)
         self.replay = ReplayBuffer(replay_url)
+        self.regime_weight = float(regime_weight)
         self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
         self.device = torch.device(device)
         self._last_mtime = 0.0
@@ -63,12 +65,12 @@ class PPOAgent(BaseAgent):
         self._logger = logging.getLogger(__name__)
 
         self.actor = nn.Sequential(
-            nn.Linear(3, hidden_size),
+            nn.Linear(4, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
         self.critic = nn.Sequential(
-            nn.Linear(3, hidden_size),
+            nn.Linear(4, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
@@ -110,7 +112,9 @@ class PPOAgent(BaseAgent):
         pos = portfolio.balances.get(token)
         amt = float(pos.amount) if pos else 0.0
         depth, imb, _ = snapshot(token)
-        return [amt, depth, imb]
+        regime = detect_regime(portfolio.price_history.get(token, []))
+        r = {"bull": 1.0, "bear": -1.0}.get(regime, 0.0) * self.regime_weight
+        return [amt, depth, imb, r]
 
     def _predict_return(self, token: str) -> float:
         return predict_price_movement(token, model_path=self.price_model_path)
@@ -129,7 +133,8 @@ class PPOAgent(BaseAgent):
                 reward = -reward
             seq = prices.setdefault(t.token, [])
             regime_label = detect_regime(seq)
-            state = [float(t.amount), float(t.price), 0.0]
+            r = {"bull": 1.0, "bear": -1.0}.get(regime_label, 0.0) * self.regime_weight
+            state = [float(t.amount), float(t.price), 0.0, r]
             self.replay.add(
                 state,
                 t.direction,

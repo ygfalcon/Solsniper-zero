@@ -46,9 +46,11 @@ class _TradeDataset(Dataset):
         snaps: Iterable[Any],
         sims_per_token: int = 10,
         price_model_path: str | None = None,
+        regime_weight: float = 1.0,
     ) -> None:
         self.samples: List[Tuple[List[float], int, float]] = []
         self.price_model_path = price_model_path
+        self.regime_weight = float(regime_weight)
 
         snap_map: dict[str, List[Any]] = {}
         for s in snaps:
@@ -70,6 +72,7 @@ class _TradeDataset(Dataset):
             except Exception:
                 sentiment = 0.0
 
+        price_hist: dict[str, List[float]] = {}
         for t in trades:
             try:
                 pred = predict_price_movement(t.token, model_path=price_model_path)
@@ -90,6 +93,9 @@ class _TradeDataset(Dataset):
                 slippage = float(getattr(snap, "slippage", 0.0))
                 imbalance = float(getattr(snap, "imbalance", 0.0))
                 tx_rate = float(getattr(snap, "tx_rate", 0.0))
+            hist = price_hist.setdefault(t.token, [])
+            regime = detect_regime(hist)
+            r = {"bull": 1.0, "bear": -1.0}.get(regime, 0.0) * self.regime_weight
             state = [
                 float(t.price),
                 float(getattr(t, "amount", 0.0)),
@@ -99,12 +105,14 @@ class _TradeDataset(Dataset):
                 sentiment,
                 imbalance,
                 pred,
+                r,
             ]
             reward = float(t.amount) * float(t.price)
             action = 0 if t.side == "buy" else 1
             if t.side == "buy":
                 reward = -reward
             self.samples.append((state, action, reward))
+            hist.append(float(t.price))
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -121,19 +129,26 @@ class _TradeDataset(Dataset):
 class TradeDataModule(pl.LightningDataModule):
     """PyTorch Lightning datamodule wrapping :class:`_TradeDataset`."""
 
-    def __init__(self, db_url: str, batch_size: int = 64, sims_per_token: int = 10, *, price_model_path: str | None = None) -> None:
+    def __init__(self, db_url: str, batch_size: int = 64, sims_per_token: int = 10, *, price_model_path: str | None = None, regime_weight: float = 1.0) -> None:
         super().__init__()
         self.db_url = db_url
         self.batch_size = batch_size
         self.sims_per_token = sims_per_token
         self.price_model_path = price_model_path
+        self.regime_weight = float(regime_weight)
         self.dataset: _TradeDataset | None = None
 
     def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
         data = OfflineData(self.db_url)
         trades = data.list_trades()
         snaps = data.list_snapshots()
-        self.dataset = _TradeDataset(trades, snaps, self.sims_per_token, price_model_path=self.price_model_path)
+        self.dataset = _TradeDataset(
+            trades,
+            snaps,
+            self.sims_per_token,
+            price_model_path=self.price_model_path,
+            regime_weight=self.regime_weight,
+        )
 
     def train_dataloader(self) -> DataLoader:
         if self.dataset is None:
@@ -148,12 +163,12 @@ class LightningPPO(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.actor = nn.Sequential(
-            nn.Linear(8, hidden_size),
+            nn.Linear(9, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
         self.critic = nn.Sequential(
-            nn.Linear(8, hidden_size),
+            nn.Linear(9, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
@@ -190,7 +205,7 @@ class LightningDQN(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = nn.Sequential(
-            nn.Linear(8, hidden_size),
+            nn.Linear(9, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
@@ -225,6 +240,7 @@ class RLTraining:
         batch_size: int = 64,
         sims_per_token: int = 10,
         price_model_path: str | None = None,
+        regime_weight: float = 1.0,
         device: str | None = None,
     ) -> None:
         self.model_path = Path(model_path)
@@ -233,6 +249,7 @@ class RLTraining:
             batch_size=batch_size,
             sims_per_token=sims_per_token,
             price_model_path=price_model_path,
+            regime_weight=regime_weight,
         )
         if algo == "dqn":
             self.model: pl.LightningModule = LightningDQN()
@@ -286,6 +303,7 @@ def fit(
     *,
     model_path: str | Path = "ppo_model.pt",
     algo: str = "ppo",
+    regime_weight: float = 1.0,
     device: str | None = None,
 ) -> None:
     """Train a lightweight RL model from in-memory samples.
@@ -304,7 +322,7 @@ def fit(
         Optional accelerator string, ``"cuda"`` or ``"mps"``.
     """
 
-    dataset = _TradeDataset(trades, snaps)
+    dataset = _TradeDataset(trades, snaps, regime_weight=regime_weight)
     if len(dataset) == 0:
         return
 
