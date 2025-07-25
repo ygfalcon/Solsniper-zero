@@ -75,6 +75,7 @@ def _ensure_agents_loaded() -> None:
     from .emotion_agent import EmotionAgent
     from .opportunity_cost import OpportunityCostAgent
     from .trend import TrendAgent
+    from .smart_discovery import SmartDiscoveryAgent
 
     from .dqn import DQNAgent
     from .ramanujan_agent import RamanujanAgent
@@ -101,6 +102,7 @@ def _ensure_agents_loaded() -> None:
         "sac": SACAgent,
         "opportunity_cost": OpportunityCostAgent,
         "trend": TrendAgent,
+        "smart_discovery": SmartDiscoveryAgent,
 
         "momentum": MomentumAgent,
         "mempool_sniper": MempoolSniperAgent,
