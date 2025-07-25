@@ -319,6 +319,7 @@ The trading logic is implemented by a swarm of small agents:
 - **ReinforcementAgent** — learns from trade history using Q-learning.
 - **DQNAgent** — deep Q-network that learns optimal trade actions.
 - **PPOAgent** — actor-critic model trained on offline order book history.
+- **SACAgent** — soft actor-critic with continuous trade sizing.
 - **RamanujanAgent** — proposes deterministic buys or sells from a hashed conviction score.
 - **StrangeAttractorAgent** — chaotic Lorenz model seeded with order-book depth,
   mempool entropy and conviction velocity. Trades when divergence aligns with a
@@ -585,6 +586,12 @@ python scripts/train_transformer_agent.py --db sqlite:///offline_data.db --out m
 
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
 `predict_price_movement()` can load it automatically.
+
+You can train a soft actor-critic policy from the same dataset:
+
+```bash
+python scripts/train_sac_agent.py --db sqlite:///offline_data.db --out sac_model.pt
+```
 
 ### Continuous Training
 

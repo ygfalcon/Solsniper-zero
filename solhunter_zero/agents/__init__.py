@@ -22,6 +22,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .strange_attractor import StrangeAttractorAgent
     from .meta_conviction import MetaConvictionAgent
     from .ppo_agent import PPOAgent
+    from .sac_agent import SACAgent
     from .portfolio_agent import PortfolioAgent
     from .emotion_agent import EmotionAgent
     from .momentum import MomentumAgent
@@ -97,6 +98,7 @@ def _ensure_agents_loaded() -> None:
         "crossdex_rebalancer": CrossDEXRebalancer,
         "dqn": DQNAgent,
         "ppo": PPOAgent,
+        "sac": SACAgent,
         "opportunity_cost": OpportunityCostAgent,
         "trend": TrendAgent,
 

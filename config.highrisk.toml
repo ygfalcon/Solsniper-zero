@@ -61,6 +61,7 @@ agents = [
     "hedging",
     "dqn",
     "ppo",
+    "sac",
     "opportunity_cost",
     "meta_conviction",
     "ramanujan",
@@ -92,6 +93,7 @@ portfolio_manager = 1.0
 hedging = 1.0
 dqn = 1.0
 ppo = 1.0
+sac = 1.0
 opportunity_cost = 1.0
 meta_conviction = 1.0
 ramanujan = 1.0
