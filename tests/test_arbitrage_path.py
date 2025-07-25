@@ -2,6 +2,7 @@ import asyncio
 import time
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
+from itertools import permutations
 
 async def dex1(token):
     return 1.0
@@ -111,3 +112,47 @@ def test_new_venue_path(monkeypatch):
     assert result == (0, 3)
     assert ("buy", 0.9) in calls
     assert ("sell", 1.6) in calls
+
+
+def _legacy_best_route(prices, amount):
+    fees = {k: 0.0 for k in prices}
+    gas = {k: 0.0 for k in prices}
+    latency = {k: 0.0 for k in prices}
+    trade_amount = amount
+    venues = list(prices.keys())
+    best, best_profit = [], float("-inf")
+
+    def step_cost(a, b):
+        return (
+            prices[a] * trade_amount * fees[a]
+            + prices[b] * trade_amount * fees[b]
+            + gas[a]
+            + gas[b]
+            + latency[a]
+            + latency[b]
+        )
+
+    for length in range(2, len(venues) + 1):
+        for path in permutations(venues, length):
+            profit = 0.0
+            for i in range(len(path) - 1):
+                a = path[i]
+                b = path[i + 1]
+                profit += (prices[b] - prices[a]) * trade_amount - step_cost(a, b)
+            if profit > best_profit:
+                best_profit = profit
+                best = list(path)
+    return best, best_profit
+
+
+def test_graph_search_profit():
+    prices = {"dex1": 1.0, "dex2": 1.2, "dex3": 1.3}
+    old_path, old_profit = _legacy_best_route(prices, 1.0)
+    new_path, new_profit = arb._best_route(
+        prices,
+        1.0,
+        max_hops=3,
+        path_algorithm="graph",
+    )
+
+    assert new_profit >= old_profit

@@ -58,6 +58,8 @@ dex_fees = "{}"
 dex_gas = "{}"
 dex_latency = "{}"
 use_mev_bundles = true # submit swap bundles via MEVExecutor when true
+max_hops = 3          # maximum hops to consider when searching arbitrage paths
+path_algorithm = "graph"  # "graph" or "permutation"
 # CrossDEXRebalancer options
 rebalance_interval = 30     # seconds between venue rebalances
 slippage_threshold = 0.05   # ignore venues with higher expected slippage

@@ -93,6 +93,10 @@ USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "ye
 MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
 USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "yes"}
 
+# Path search configuration
+MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
+PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
+
 
 def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return updated fee, gas and latency mappings from the environment."""
@@ -402,6 +406,8 @@ def _best_route(
     latency: Mapping[str, float] | None = None,
     use_flash_loans: bool | None = None,
     max_flash_amount: float | None = None,
+    max_hops: int | None = None,
+    path_algorithm: str | None = None,
 ) -> tuple[list[str], float]:
     """Return path with maximum profit and the expected profit."""
 
@@ -419,6 +425,14 @@ def _best_route(
         use_flash_loans = USE_FLASH_LOANS
     if max_flash_amount is None:
         max_flash_amount = MAX_FLASH_AMOUNT
+    if max_hops is None:
+        max_hops = MAX_HOPS
+    if path_algorithm is None:
+        path_algorithm = PATH_ALGORITHM
+    if max_hops is None:
+        max_hops = MAX_HOPS
+    if path_algorithm is None:
+        path_algorithm = PATH_ALGORITHM
     trade_amount = (
         min(max_flash_amount or amount, amount) if use_flash_loans else amount
     )
@@ -436,16 +450,44 @@ def _best_route(
             + latency.get(b, 0.0)
         )
 
-    for length in range(2, len(venues) + 1):
-        for path in permutations(venues, length):
-            profit = 0.0
-            for i in range(len(path) - 1):
-                a = path[i]
-                b = path[i + 1]
-                profit += (prices[b] - prices[a]) * trade_amount - step_cost(a, b)
-            if profit > best_profit:
-                best_profit = profit
-                best = list(path)
+    edge_profit: dict[tuple[str, str], float] = {}
+    for a in venues:
+        for b in venues:
+            if a == b:
+                continue
+            edge_profit[(a, b)] = (prices[b] - prices[a]) * trade_amount - step_cost(a, b)
+
+    if path_algorithm == "permutation":
+        for length in range(2, min(len(venues), max_hops) + 1):
+            for path in permutations(venues, length):
+                profit = 0.0
+                for i in range(len(path) - 1):
+                    profit += edge_profit[(path[i], path[i + 1])]
+                if profit > best_profit:
+                    best_profit = profit
+                    best = list(path)
+        return (best or []), best_profit
+
+    paths: list[tuple[str, list[str], float]] = [
+        (v, [v], 0.0) for v in venues
+    ]
+    for _ in range(1, max_hops):
+        new_paths: list[tuple[str, list[str], float]] = []
+        for last, path, profit in paths:
+            for nxt in venues:
+                if nxt in path:
+                    continue
+                step = edge_profit[(last, nxt)]
+                new_profit = profit + step
+                new_path = path + [nxt]
+                if new_profit > best_profit:
+                    best_profit = new_profit
+                    best = new_path
+                new_paths.append((nxt, new_path, new_profit))
+        paths = new_paths
+        if not paths:
+            break
+
     return (best or []), best_profit
 
 
@@ -469,6 +511,8 @@ async def _detect_for_token(
     use_flash_loans: bool | None = None,
     use_mev_bundles: bool | None = None,
     max_flash_amount: float | None = None,
+    max_hops: int | None = None,
+    path_algorithm: str | None = None,
 ) -> Optional[Tuple[int, int]]:
     """Check for price discrepancies and place arbitrage orders.
 
@@ -486,6 +530,11 @@ async def _detect_for_token(
         Borrow funds via a flash-loan program before executing the swap chain.
     max_flash_amount:
         Maximum amount to borrow when flash loans are enabled.
+    max_hops:
+        Maximum number of venues to traverse when searching for a path.
+    path_algorithm:
+        "graph" to use the dynamic graph search or "permutation" for the
+        legacy exhaustive search.
 
     Returns
     -------
@@ -538,6 +587,8 @@ async def _detect_for_token(
                 latency=latencies,
                 use_flash_loans=use_flash_loans,
                 max_flash_amount=max_flash_amount,
+                max_hops=max_hops,
+                path_algorithm=path_algorithm,
             )
             if not path:
                 return None
@@ -725,6 +776,8 @@ async def _detect_for_token(
         latency=latencies,
         use_flash_loans=use_flash_loans,
         max_flash_amount=max_flash_amount,
+        max_hops=max_hops,
+        path_algorithm=path_algorithm,
     )
     if not path:
         return None
@@ -859,6 +912,8 @@ async def detect_and_execute_arbitrage(
     use_flash_loans: bool | None = None,
     use_mev_bundles: bool | None = None,
     max_flash_amount: float | None = None,
+    max_hops: int | None = None,
+    path_algorithm: str | None = None,
     **kwargs,
 ) -> Optional[Tuple[int, int]] | list[Optional[Tuple[int, int]]]:
     """Run arbitrage detection for one or multiple tokens.
@@ -877,6 +932,10 @@ async def detect_and_execute_arbitrage(
 
     if use_service is None:
         use_service = USE_SERVICE_EXEC
+    if max_hops is None:
+        max_hops = MAX_HOPS
+    if path_algorithm is None:
+        path_algorithm = PATH_ALGORITHM
 
     def _streams_for(token: str):
         if streams is not None:
@@ -929,6 +988,8 @@ async def detect_and_execute_arbitrage(
                     use_flash_loans=use_flash_loans,
                     use_mev_bundles=use_mev_bundles,
                     max_flash_amount=max_flash_amount,
+                    max_hops=max_hops,
+                    path_algorithm=path_algorithm,
                     **kwargs,
                 )
             )
@@ -951,6 +1012,8 @@ async def detect_and_execute_arbitrage(
                 use_flash_loans=use_flash_loans,
                 use_mev_bundles=use_mev_bundles,
                 max_flash_amount=max_flash_amount,
+                max_hops=max_hops,
+                path_algorithm=path_algorithm,
                 **kwargs,
             )
             if res:
@@ -970,5 +1033,7 @@ async def detect_and_execute_arbitrage(
         use_flash_loans=use_flash_loans,
         use_mev_bundles=use_mev_bundles,
         max_flash_amount=max_flash_amount,
+        max_hops=max_hops,
+        path_algorithm=path_algorithm,
         **kwargs,
     )
