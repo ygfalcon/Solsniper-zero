@@ -278,3 +278,61 @@ class RLTraining:
         if self._task is None:
             self._task = asyncio.create_task(self._loop(interval))
         return self._task
+
+
+def fit(
+    trades: Iterable[Any],
+    snaps: Iterable[Any],
+    *,
+    model_path: str | Path = "ppo_model.pt",
+    algo: str = "ppo",
+    device: str | None = None,
+) -> None:
+    """Train a lightweight RL model from in-memory samples.
+
+    Parameters
+    ----------
+    trades:
+        Iterable of trade records as returned by :class:`~solhunter_zero.memory.Memory`.
+    snaps:
+        Iterable of :class:`~solhunter_zero.offline_data.MarketSnapshot`.
+    model_path:
+        File path where the checkpoint is stored.
+    algo:
+        ``"ppo"`` or ``"dqn"`` model type.
+    device:
+        Optional accelerator string, ``"cuda"`` or ``"mps"``.
+    """
+
+    dataset = _TradeDataset(trades, snaps)
+    if len(dataset) == 0:
+        return
+
+    if algo == "dqn":
+        model: pl.LightningModule = LightningDQN()
+    else:
+        model = LightningPPO()
+
+    path = Path(model_path)
+    if path.exists():
+        try:
+            model.load_state_dict(torch.load(path))
+        except Exception:  # pragma: no cover - ignore corrupt weights
+            pass
+
+    if device is None:
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+
+    acc = "gpu" if device == "cuda" else device
+    kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
+    if acc != "cpu":
+        kwargs["devices"] = 1
+    trainer = pl.Trainer(**kwargs)
+    loader = DataLoader(dataset, batch_size=64, shuffle=True)
+    trainer.fit(model, train_dataloaders=loader)
+    torch.save(model.state_dict(), path)
