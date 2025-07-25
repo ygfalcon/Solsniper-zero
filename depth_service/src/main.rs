@@ -12,6 +12,8 @@ use serde_json::Value;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::UnixListener};
 use tokio_tungstenite::connect_async;
 use solana_client::nonblocking::rpc_client::RpcClient;
+
+mod route;
 use solana_sdk::{
     commitment_config::CommitmentLevel,
     message::VersionedMessage,
@@ -495,6 +497,23 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             );
                             let _ = stream.write_all(b"{\"ok\":true}").await;
                         }
+                    } else if val.get("cmd") == Some(&Value::String("route".into())) {
+                        if let (Some(token), Some(amount)) = (
+                            val.get("token").and_then(|v| v.as_str()),
+                            val.get("amount").and_then(|v| v.as_f64()),
+                        ) {
+                            let dexes = dex_map.lock().await;
+                            if let Some(res) = route::best_route(&dexes, token, amount, 4) {
+                                let resp = serde_json::json!({
+                                    "path": res.path,
+                                    "profit": res.profit,
+                                    "slippage": res.slippage
+                                });
+                                let _ = stream.write_all(resp.to_string().as_bytes()).await;
+                            } else {
+                                let _ = stream.write_all(b"{}\n").await;
+                            }
+                        }
                     }
                 }
             }
@@ -510,6 +529,8 @@ async fn main() -> Result<()> {
     let mut raydium = None;
     let mut orca = None;
     let mut jupiter = None;
+    let mut phoenix = None;
+    let mut meteora = None;
     let mut mempool = None;
     let mut rpc = std::env::var("SOLANA_RPC_URL").unwrap_or_default();
     let mut keypair_path = std::env::var("SOLANA_KEYPAIR").unwrap_or_default();
@@ -522,6 +543,8 @@ async fn main() -> Result<()> {
             "--mempool" => mempool = Some(w[1].clone()),
             "--orca" => orca = Some(w[1].clone()),
             "--jupiter" => jupiter = Some(w[1].clone()),
+            "--phoenix" => phoenix = Some(w[1].clone()),
+            "--meteora" => meteora = Some(w[1].clone()),
             _ => {}
         }
     }
@@ -566,6 +589,22 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed("jupiter", &url, d, m, mm).await;
+        });
+    }
+    if let Some(url) = phoenix {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
+        tokio::spawn(async move {
+            let _ = connect_price_feed("phoenix", &url, d, m, mm).await;
+        });
+    }
+    if let Some(url) = meteora {
+        let d = dex_map.clone();
+        let m = mem_map.clone();
+        let mm = mmap.clone();
+        tokio::spawn(async move {
+            let _ = connect_price_feed("meteora", &url, d, m, mm).await;
         });
     }
     if let Some(url) = mempool {

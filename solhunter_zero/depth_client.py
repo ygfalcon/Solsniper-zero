@@ -201,3 +201,37 @@ async def auto_exec(
     except Exception:
         return False
     return bool(resp.get("ok"))
+
+
+async def best_route(
+    token: str,
+    amount: float,
+    *,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+    max_hops: int | None = None,
+) -> tuple[list[str], float, float] | None:
+    """Return the optimal trading path from the Rust service."""
+
+    reader, writer = await asyncio.open_unix_connection(socket_path)
+    payload: Dict[str, Any] = {"cmd": "route", "token": token, "amount": amount}
+    if max_hops is not None:
+        payload["max_hops"] = int(max_hops)
+    writer.write(json.dumps(payload).encode())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    if not data:
+        return None
+    try:
+        resp = json.loads(data.decode())
+        path = [str(p) for p in resp.get("path", [])]
+        profit = float(resp.get("profit", 0.0))
+        slippage = float(resp.get("slippage", 0.0))
+        return path, profit, slippage
+    except Exception:
+        return None

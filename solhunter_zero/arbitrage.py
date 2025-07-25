@@ -62,6 +62,7 @@ DEX_PRIORITIES = [
 
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
 USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true", "yes"}
+USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "0").lower() in {"1", "true", "yes"}
 
 
 def _parse_mapping_env(env: str) -> dict:
@@ -599,19 +600,31 @@ async def _detect_for_token(
             price_map = {n: p for n, p in zip(names, prices) if p is not None and p > 0}
             if len(price_map) < 2:
                 return None
-            depth_map, _ = depth_client.snapshot(token)
-            path, profit = _best_route(
-                price_map,
-                amount,
-                fees=fees,
-                gas=gas,
-                latency=latencies,
-                depth=depth_map,
-                use_flash_loans=use_flash_loans,
-                max_flash_amount=max_flash_amount,
-                max_hops=max_hops,
-                path_algorithm=path_algorithm,
-            )
+            if USE_SERVICE_ROUTE:
+                res = await depth_client.best_route(
+                    token,
+                    amount,
+                    socket_path=DEPTH_SERVICE_SOCKET,
+                    max_hops=max_hops,
+                )
+                if res:
+                    path, profit, _ = res
+                else:
+                    path, profit = [], 0.0
+            else:
+                depth_map, _ = depth_client.snapshot(token)
+                path, profit = _best_route(
+                    price_map,
+                    amount,
+                    fees=fees,
+                    gas=gas,
+                    latency=latencies,
+                    depth=depth_map,
+                    use_flash_loans=use_flash_loans,
+                    max_flash_amount=max_flash_amount,
+                    max_hops=max_hops,
+                    path_algorithm=path_algorithm,
+                )
             if not path:
                 return None
             buy_name, sell_name = path[0], path[-1]
@@ -790,20 +803,32 @@ async def _detect_for_token(
     if len(price_map) < 2:
         return None
 
-    depth_map, _ = depth_client.snapshot(token)
+    if USE_SERVICE_ROUTE:
+        res = await depth_client.best_route(
+            token,
+            amount,
+            socket_path=DEPTH_SERVICE_SOCKET,
+            max_hops=max_hops,
+        )
+        if res:
+            path, profit, _ = res
+        else:
+            path, profit = [], 0.0
+    else:
+        depth_map, _ = depth_client.snapshot(token)
 
-    path, profit = _best_route(
-        price_map,
-        amount,
-        fees=fees,
-        gas=gas,
-        latency=latencies,
-        depth=depth_map,
-        use_flash_loans=use_flash_loans,
-        max_flash_amount=max_flash_amount,
-        max_hops=max_hops,
-        path_algorithm=path_algorithm,
-    )
+        path, profit = _best_route(
+            price_map,
+            amount,
+            fees=fees,
+            gas=gas,
+            latency=latencies,
+            depth=depth_map,
+            use_flash_loans=use_flash_loans,
+            max_flash_amount=max_flash_amount,
+            max_hops=max_hops,
+            path_algorithm=path_algorithm,
+        )
     if not path:
         return None
     buy_name, sell_name = path[0], path[-1]
