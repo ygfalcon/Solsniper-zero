@@ -3,7 +3,7 @@ from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
 
 
 async def fake_stream(url, **_):
-    yield {"address": "tok", "avg_swap_size": 2.0}
+    yield {"address": "tok", "avg_swap_size": 2.0, "slippage": 0.3, "size": 2.0}
 
 
 async def _run(agent):
@@ -58,6 +58,10 @@ def test_mev_sandwich_bundle(monkeypatch):
 
 
 def test_mev_sandwich_jito(monkeypatch):
+    monkeypatch.setattr(
+        "solhunter_zero.jito_stream.stream_pending_transactions",
+        fake_stream,
+    )
     monkeypatch.setattr(
         "solhunter_zero.agents.mev_sandwich.stream_ranked_mempool_tokens_with_depth",
         fake_stream,
