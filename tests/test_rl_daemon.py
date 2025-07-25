@@ -1,3 +1,4 @@
+import asyncio
 from solhunter_zero.rl_daemon import RLDaemon
 from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
@@ -35,5 +36,25 @@ def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog):
     assert model_path.exists()
     assert agent._last_mtime != first
     assert any("checkpoint" in r.message for r in caplog.records)
+
+
+def test_queued_trades_trigger_update(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    data_db = f"sqlite:///{data_path}"
+
+    mem = Memory(mem_db)
+    data = OfflineData(data_db)
+    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+
+    queue: asyncio.Queue = asyncio.Queue()
+    mem_agent = MemoryAgent(mem, offline_data=data, queue=queue)
+    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt', algo='dqn', queue=queue)
+
+    action = {'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 1.0}
+    asyncio.run(mem_agent.log(action, skip_db=True))
+
+    daemon.train()
+    assert (tmp_path / 'model.pt').exists()
 
 

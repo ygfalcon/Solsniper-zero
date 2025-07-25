@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Dict, Any
+import asyncio
 
 from . import BaseAgent
 from ..memory import Memory
@@ -18,36 +19,48 @@ class MemoryAgent(BaseAgent):
         self,
         memory: Memory | AdvancedMemory | None = None,
         offline_data: OfflineData | None = None,
+        *,
+        queue: asyncio.Queue | None = None,
     ):
         self.memory = memory or Memory("sqlite:///:memory:")
         self.offline_data = offline_data
+        self.queue = queue
 
     async def log(self, action: Dict[str, Any], *, skip_db: bool = False) -> None:
         """Record ``action`` in memory unless ``skip_db`` is True."""
-        if skip_db:
-            return
-        extra = {}
-        if isinstance(self.memory, AdvancedMemory):
-            extra = {
-                "context": action.get("context", ""),
-                "emotion": action.get("emotion", ""),
-                "simulation_id": action.get("simulation_id"),
-            }
-        self.memory.log_trade(
-            token=action.get("token"),
-            direction=action.get("side"),
-            amount=action.get("amount", 0.0),
-            price=action.get("price", 0.0),
-            reason=action.get("agent"),
-            **extra,
-        )
-        if self.offline_data:
-            self.offline_data.log_trade(
-                token=action.get("token", ""),
-                side=action.get("side", ""),
-                price=float(action.get("price", 0.0)),
-                amount=float(action.get("amount", 0.0)),
+        if not skip_db:
+            extra = {}
+            if isinstance(self.memory, AdvancedMemory):
+                extra = {
+                    "context": action.get("context", ""),
+                    "emotion": action.get("emotion", ""),
+                    "simulation_id": action.get("simulation_id"),
+                }
+            self.memory.log_trade(
+                token=action.get("token"),
+                direction=action.get("side"),
+                amount=action.get("amount", 0.0),
+                price=action.get("price", 0.0),
+                reason=action.get("agent"),
+                **extra,
             )
+            if self.offline_data:
+                self.offline_data.log_trade(
+                    token=action.get("token", ""),
+                    side=action.get("side", ""),
+                    price=float(action.get("price", 0.0)),
+                    amount=float(action.get("amount", 0.0)),
+                )
+        if self.queue is not None:
+            from types import SimpleNamespace
+
+            trade = SimpleNamespace(
+                token=action.get("token"),
+                direction=action.get("side"),
+                amount=float(action.get("amount", 0.0)),
+                price=float(action.get("price", 0.0)),
+            )
+            await self.queue.put(trade)
 
     async def propose_trade(
         self,
