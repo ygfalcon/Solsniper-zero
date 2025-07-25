@@ -47,6 +47,9 @@ up automatically. Select this file from the UI or set
    Silicon machines the script also installs the Metal PyTorch wheel if
    it isn't already present.
 
+For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live.
+
+
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with
    your API keys, RPC URL and DEX endpoints:
@@ -261,6 +264,8 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    ./run.sh --auto
    ```
+Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`.
+
    This loads the selected configuration (or the `config.highrisk.toml` preset
    when none is chosen). If there is exactly one keypair in `keypairs/`, `run.sh`
    uses it automatically. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI does the
