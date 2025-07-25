@@ -479,10 +479,16 @@ class AgentManager:
 
         jito_rpc_url = cfg.get("jito_rpc_url")
         jito_auth = cfg.get("jito_auth")
+        jito_ws_url = cfg.get("jito_ws_url")
+        jito_ws_auth = cfg.get("jito_ws_auth")
         if jito_rpc_url and os.getenv("JITO_RPC_URL") is None:
             os.environ["JITO_RPC_URL"] = str(jito_rpc_url)
         if jito_auth and os.getenv("JITO_AUTH") is None:
             os.environ["JITO_AUTH"] = str(jito_auth)
+        if jito_ws_url and os.getenv("JITO_WS_URL") is None:
+            os.environ["JITO_WS_URL"] = str(jito_ws_url)
+        if jito_ws_auth and os.getenv("JITO_WS_AUTH") is None:
+            os.environ["JITO_WS_AUTH"] = str(jito_ws_auth)
 
         if not agents:
             return None

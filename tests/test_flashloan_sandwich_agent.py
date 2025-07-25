@@ -78,7 +78,7 @@ def test_flashloan_sandwich_bundle(monkeypatch):
 
 def test_flashloan_sandwich_jito(monkeypatch):
     monkeypatch.setattr(
-        "solhunter_zero.jito_stream.stream_pending_transactions",
+        "solhunter_zero.jito_stream.stream_pending_swaps",
         fake_stream,
     )
     monkeypatch.setattr(
@@ -141,6 +141,8 @@ def test_flashloan_sandwich_jito(monkeypatch):
         slippage_threshold=0.2,
         jito_rpc_url="http://jito",
         jito_auth="T",
+        jito_ws_url="ws://ws",
+        jito_ws_auth="A",
     )
     asyncio.run(_run(agent))
 

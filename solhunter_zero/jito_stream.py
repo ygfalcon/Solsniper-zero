@@ -31,6 +31,17 @@ async def stream_pending_transactions(
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(url, headers=headers) as ws:
+                    try:  # attempt protocol init for GraphQL-style feeds
+                        await ws.send_json(
+                            {
+                                "type": "start",
+                                "payload": {
+                                    "query": "subscription{pendingTransactions}"
+                                },
+                            }
+                        )
+                    except Exception:
+                        pass
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             try:
@@ -49,3 +60,33 @@ async def stream_pending_transactions(
         except Exception as exc:  # pragma: no cover - network errors
             logger.error("Jito stream error: %s", exc)
             await asyncio.sleep(1)
+
+
+async def stream_pending_swaps(
+    url: str,
+    *,
+    auth: str | None = None,
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Yield swap events from Jito's ``pendingTransactions`` feed."""
+
+    async for data in stream_pending_transactions(url, auth=auth):
+        txs = data.get("pendingTransactions") or data.get("data")
+        if not txs:
+            txs = [data]
+        if isinstance(txs, dict):
+            txs = [txs]
+        for tx in txs:
+            try:
+                swap = tx.get("swap") or tx
+                token = swap.get("token") or swap.get("address")
+                size = float(swap.get("size", swap.get("amount", 0.0)))
+                slip = float(swap.get("slippage", 0.0))
+                if token:
+                    yield {
+                        "token": token,
+                        "address": token,
+                        "size": size,
+                        "slippage": slip,
+                    }
+            except Exception as exc:  # pragma: no cover - malformed message
+                logger.error("Failed to parse pending swap: %s", exc)
