@@ -615,6 +615,10 @@ python scripts/online_train_transformer.py \
   --daemon --log-progress
 ```
 
+For quick adjustments during live trading use `scripts/live_finetune_transformer.py`.
+It reloads the latest checkpoints, performs a few gradient steps and writes the
+updated model back to disk so `ConvictionAgent` picks up the new weights.
+
 Set the `PRICE_MODEL_PATH` environment variable to `models/price.pt` so trading
 agents reload each checkpoint automatically.
 

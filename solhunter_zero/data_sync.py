@@ -9,6 +9,7 @@ import aiohttp
 from .offline_data import OfflineData, MarketSnapshot
 from .scanner import scan_tokens_async
 from .simulation import DEFAULT_METRICS_BASE_URL
+from .news import fetch_sentiment
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,20 @@ def sync_snapshots(
     )
     data = OfflineData(f"sqlite:///{db_path}")
 
+    feeds = [u for u in os.getenv("NEWS_FEEDS", "").split(",") if u]
+    twitter_feeds = [u for u in os.getenv("TWITTER_FEEDS", "").split(",") if u]
+    discord_feeds = [u for u in os.getenv("DISCORD_FEEDS", "").split(",") if u]
+    sentiment = 0.0
+    if feeds or twitter_feeds or discord_feeds:
+        try:
+            sentiment = fetch_sentiment(
+                feeds,
+                twitter_urls=twitter_feeds,
+                discord_urls=discord_feeds,
+            )
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("failed to fetch sentiment: %s", exc)
+
     for token in tokens:
         url = f"{base_url.rstrip('/')}/token/{token}/history?days={days}"
         try:
@@ -69,6 +84,7 @@ def sync_snapshots(
                         imbalance=float(snap.get("imbalance", 0.0)),
                         slippage=float(snap.get("slippage", 0.0)),
                         volume=float(snap.get("volume", 0.0)),
+                        sentiment=sentiment,
                     )
                 except Exception as exc:  # pragma: no cover - bad data
                     logger.warning("invalid snapshot for %s: %s", token, exc)

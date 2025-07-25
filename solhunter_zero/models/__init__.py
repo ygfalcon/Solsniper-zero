@@ -381,6 +381,7 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
     rate = torch.tensor([float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=torch.float32)
     whales = torch.tensor([float(getattr(s, "whale_share", getattr(s, "whale_activity", 0.0))) for s in snaps], dtype=torch.float32)
     spread = torch.tensor([float(getattr(s, "spread", 0.0)) for s in snaps], dtype=torch.float32)
+    sent = torch.tensor([float(getattr(s, "sentiment", 0.0)) for s in snaps], dtype=torch.float32)
 
     n = len(prices) - seq_len
     if n <= 0:
@@ -399,6 +400,7 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
             rate[i:i+seq_len],
             whales[i:i+seq_len],
             spread[i:i+seq_len],
+            sent[i:i+seq_len],
         ], dim=1)
         seqs.append(seq)
         p0 = prices[i + seq_len - 1]

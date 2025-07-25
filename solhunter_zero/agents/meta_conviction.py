@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Iterable
 
 import numpy as np
 
@@ -22,9 +22,22 @@ class MetaConvictionAgent(BaseAgent):
 
     name = "meta_conviction"
 
-    def __init__(self, weights: Dict[str, float] | None = None, *, model_path: str | None = None) -> None:
+    def __init__(
+        self,
+        weights: Dict[str, float] | None = None,
+        *,
+        model_path: str | None = None,
+        feeds: Iterable[str] | None = None,
+        twitter_feeds: Iterable[str] | None = None,
+        discord_feeds: Iterable[str] | None = None,
+    ) -> None:
         self.sim_agent = SimulationAgent()
-        self.conv_agent = ConvictionAgent(model_path=model_path)
+        self.conv_agent = ConvictionAgent(
+            model_path=model_path,
+            feeds=feeds,
+            twitter_feeds=twitter_feeds,
+            discord_feeds=discord_feeds,
+        )
         self.ram_agent = RamanujanAgent()
         self.model_path = model_path or os.getenv("PRICE_MODEL_PATH")
         self.weights = weights or {
