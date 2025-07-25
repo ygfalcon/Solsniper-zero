@@ -25,6 +25,7 @@ from .exchange import (
     SWAP_PATH,
 )
 from . import order_book_ws
+from . import depth_client
 from .depth_client import stream_depth, prepare_signed_tx
 from .execution import EventExecutor
 from .flash_loans import borrow_flash, repay_flash
@@ -404,6 +405,7 @@ def _best_route(
     fees: Mapping[str, float] | None = None,
     gas: Mapping[str, float] | None = None,
     latency: Mapping[str, float] | None = None,
+    depth: Mapping[str, Mapping[str, float]] | None = None,
     use_flash_loans: bool | None = None,
     max_flash_amount: float | None = None,
     max_hops: int | None = None,
@@ -450,12 +452,30 @@ def _best_route(
             + latency.get(b, 0.0)
         )
 
+    def slip_cost(a: str, b: str) -> float:
+        if depth is None:
+            return 0.0
+        a_depth = depth.get(a, {}) if isinstance(depth, Mapping) else {}
+        b_depth = depth.get(b, {}) if isinstance(depth, Mapping) else {}
+        ask = float(a_depth.get("asks", 0.0))
+        bid = float(b_depth.get("bids", 0.0))
+        slip_a = trade_amount / ask if ask > 0 else 0.0
+        slip_b = trade_amount / bid if bid > 0 else 0.0
+        return (
+            prices[a] * trade_amount * slip_a
+            + prices[b] * trade_amount * slip_b
+        )
+
     edge_profit: dict[tuple[str, str], float] = {}
     for a in venues:
         for b in venues:
             if a == b:
                 continue
-            edge_profit[(a, b)] = (prices[b] - prices[a]) * trade_amount - step_cost(a, b)
+            edge_profit[(a, b)] = (
+                (prices[b] - prices[a]) * trade_amount
+                - step_cost(a, b)
+                - slip_cost(a, b)
+            )
 
     if path_algorithm == "permutation":
         for length in range(2, min(len(venues), max_hops) + 1):
@@ -579,12 +599,14 @@ async def _detect_for_token(
             price_map = {n: p for n, p in zip(names, prices) if p is not None and p > 0}
             if len(price_map) < 2:
                 return None
+            depth_map, _ = depth_client.snapshot(token)
             path, profit = _best_route(
                 price_map,
                 amount,
                 fees=fees,
                 gas=gas,
                 latency=latencies,
+                depth=depth_map,
                 use_flash_loans=use_flash_loans,
                 max_flash_amount=max_flash_amount,
                 max_hops=max_hops,
@@ -768,12 +790,15 @@ async def _detect_for_token(
     if len(price_map) < 2:
         return None
 
+    depth_map, _ = depth_client.snapshot(token)
+
     path, profit = _best_route(
         price_map,
         amount,
         fees=fees,
         gas=gas,
         latency=latencies,
+        depth=depth_map,
         use_flash_loans=use_flash_loans,
         max_flash_amount=max_flash_amount,
         max_hops=max_hops,

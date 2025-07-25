@@ -359,3 +359,51 @@ def test_arbitrage_env_streams_three_no_op(monkeypatch):
 
     assert result is None
     assert "called" not in called
+
+
+def test_depth_aware_routing(monkeypatch):
+    monkeypatch.setattr(arb, "USE_DEPTH_STREAM", False)
+    monkeypatch.setattr(arb, "USE_SERVICE_EXEC", False)
+    async def dex_a(token):
+        return 1.0
+
+    async def dex_b(token):
+        return 1.2
+
+    async def dex_c(token):
+        return 1.2
+
+    monkeypatch.setattr(
+        "solhunter_zero.depth_client.snapshot",
+        lambda t: (
+            {
+                "dex_a": {"bids": 50, "asks": 100},
+                "dex_b": {"bids": 5, "asks": 100},
+                "dex_c": {"bids": 100, "asks": 100},
+            },
+            0.0,
+        ),
+    )
+
+    called = []
+
+    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+        called.append((side, price))
+        return {"ok": True}
+
+    monkeypatch.setattr(arb, "place_order_async", fake_place)
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            [dex_a, dex_b, dex_c],
+            threshold=0.0,
+            amount=5,
+            fees={"dex_a": 0.0, "dex_b": 0.0, "dex_c": 0.0},
+            gas={"dex_a": 0.0, "dex_b": 0.0, "dex_c": 0.0},
+            latencies={"dex_a": 0.0, "dex_b": 0.0, "dex_c": 0.0},
+        )
+    )
+
+    assert result == (0, 2)
+    assert ("sell", 1.2) in called
