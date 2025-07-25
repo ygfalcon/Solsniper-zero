@@ -101,3 +101,8 @@ inferna = 1.0
 portfolio_optimizer = 1.0
 crossdex_rebalancer = 1.0
 flashloan_sandwich = 1.0
+
+# RL auto-training
+rl_auto_train = true
+rl_tune_interval = 1800
+
