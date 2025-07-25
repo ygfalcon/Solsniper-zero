@@ -49,3 +49,4 @@ def test_swarm_feedback(tmp_path):
     actions3 = asyncio.run(swarm.propose("TOK", pf))
     assert actions3 == []
     assert mem.simulation_success_rate("TOK") == pytest.approx(0.5)
+    assert mem.simulation_success_rate("TOK", agent="aware") == pytest.approx(0.5)

@@ -46,7 +46,12 @@ class AgentSwarm:
             by_agent[name] = ok
             expected = float(action.get("expected_roi", 0.0))
             prob = 1.0 if ok else 0.0
-            self.memory.log_simulation(token, expected_roi=expected, success_prob=prob)
+            self.memory.log_simulation(
+                token,
+                expected_roi=expected,
+                success_prob=prob,
+                agent=name,
+            )
         for agent in self.agents:
             if agent.name in by_agent:
                 outcome = by_agent[agent.name]

@@ -5,7 +5,7 @@ def test_insert_search_persist(tmp_path):
     db = tmp_path / "mem.db"
     idx = tmp_path / "index.faiss"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
-    sim_id = mem.log_simulation("TOK", expected_roi=1.5, success_prob=0.8)
+    sim_id = mem.log_simulation("TOK", expected_roi=1.5, success_prob=0.8, agent="test")
     mem.log_trade(
         token="TOK",
         direction="buy",
