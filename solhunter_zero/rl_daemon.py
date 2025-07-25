@@ -198,6 +198,7 @@ class RLDaemon:
         device: str | None = None,
         *,
         agents: Iterable[Any] | None = None,
+        queue: asyncio.Queue | None = None,
     ) -> None:
         self.memory = Memory(memory_path)
         self.data_path = data_path
@@ -227,6 +228,7 @@ class RLDaemon:
         self._proc: subprocess.Popen | None = None
         self._last_trade_id = 0
         self._last_snap_id = 0
+        self.queue = queue
 
     def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
         """Return new trades and snapshots since the last training cycle."""
@@ -242,6 +244,23 @@ class RLDaemon:
             snaps = list(q.order_by(MarketSnapshot.id))
             if snaps:
                 self._last_snap_id = snaps[-1].id
+        if self.queue is not None:
+            from types import SimpleNamespace
+            while True:
+                try:
+                    item = self.queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                if isinstance(item, dict):
+                    trade = SimpleNamespace(
+                        token=item.get("token"),
+                        direction=item.get("side"),
+                        amount=float(item.get("amount", 0.0)),
+                        price=float(item.get("price", 0.0)),
+                    )
+                else:
+                    trade = item
+                trades.append(trade)
         return trades, snaps
 
     def register_agent(self, agent: Any) -> None:
