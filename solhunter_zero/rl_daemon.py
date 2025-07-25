@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import subprocess
+import sys
 from pathlib import Path
 from typing import Iterable, List, Tuple, Any
 
@@ -197,6 +199,7 @@ class RLDaemon:
         agents: Iterable[Any] | None = None,
     ) -> None:
         self.memory = Memory(memory_path)
+        self.data_path = data_path
         self.data = OfflineData(f"sqlite:///{data_path}")
         self.model_path = Path(model_path)
         self.algo = algo
@@ -220,6 +223,7 @@ class RLDaemon:
         self.model.to(self.device)
         self.agents: List[Any] = list(agents) if agents else []
         self._task: asyncio.Task | None = None
+        self._proc: subprocess.Popen | None = None
 
     def register_agent(self, agent: Any) -> None:
         """Register an agent to reload checkpoints after training."""
@@ -255,7 +259,38 @@ class RLDaemon:
                 logger.error("daemon training failed: %s", exc)
             await asyncio.sleep(interval)
 
-    def start(self, interval: float = 3600.0) -> asyncio.Task:
+    async def _watch_external(self, interval: float) -> None:
+        last = self.model_path.stat().st_mtime if self.model_path.exists() else 0.0
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                mtime = self.model_path.stat().st_mtime
+            except FileNotFoundError:
+                continue
+            if mtime > last:
+                last = mtime
+                try:
+                    self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                except Exception as exc:  # pragma: no cover - corrupt file
+                    logger.error("failed to load updated model: %s", exc)
+                    continue
+                for ag in self.agents:
+                    try:
+                        if hasattr(ag, "reload_weights"):
+                            ag.reload_weights()
+                        else:
+                            ag._load_weights()
+                    except Exception:
+                        logger.error("failed to reload agent")
+                logger.info("reloaded checkpoint from %s", self.model_path)
+
+    def start(
+        self,
+        interval: float = 3600.0,
+        *,
+        auto_train: bool = False,
+        tune_interval: float | None = None,
+    ) -> asyncio.Task:
         """Begin the training loop in the current or a background event loop."""
         if self._task is not None:
             return self._task
@@ -268,6 +303,24 @@ class RLDaemon:
                 self.device = torch.device("mps")
             if self.device.type != "cpu":
                 self.model.to(self.device)
+
+        if auto_train:
+            if tune_interval is None:
+                tune_interval = interval
+            script = Path(__file__).resolve().parent.parent / "scripts" / "auto_train_rl.py"
+            self._proc = subprocess.Popen(
+                [sys.executable, str(script), "--db", self.data_path, "--model", str(self.model_path), "--interval", str(tune_interval)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:  # pragma: no cover - no running loop
+                loop = asyncio.new_event_loop()
+                t = threading.Thread(target=loop.run_forever, daemon=True)
+                t.start()
+            self._task = loop.create_task(self._watch_external(interval))
+            return self._task
 
         try:
             loop = asyncio.get_running_loop()

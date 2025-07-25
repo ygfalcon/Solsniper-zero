@@ -423,6 +423,8 @@ async def _init_rl_training(
     data_path = cfg.get("rl_db_path", "offline_data.db")
     model_path = cfg.get("rl_model_path", "ppo_model.pt")
     algo = cfg.get("rl_algo", "ppo")
+    auto_train = bool(cfg.get("rl_auto_train", False))
+    tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
 
     daemon = RLDaemon(
         memory_path=mem_db,
@@ -430,7 +432,7 @@ async def _init_rl_training(
         model_path=model_path,
         algo=algo,
     )
-    return daemon.start(rl_interval)
+    return daemon.start(rl_interval, auto_train=auto_train, tune_interval=tune_interval)
 
 
 def main(
