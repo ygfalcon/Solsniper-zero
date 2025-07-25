@@ -209,16 +209,31 @@ class AgentManager:
             info = summary.setdefault(name, {"buy": 0.0, "sell": 0.0})
             info[t.direction] += t.amount * t.price
 
+        adv_mem = None
+        if isinstance(self.memory_agent.memory, AdvancedMemory):
+            adv_mem = self.memory_agent.memory
+
         for name, info in summary.items():
             spent = info.get("buy", 0.0)
             revenue = info.get("sell", 0.0)
             if spent <= 0:
                 continue
             roi = (revenue - spent) / spent
+            success_rate = 0.0
+            if adv_mem is not None:
+                try:
+                    success_rate = adv_mem.simulation_success_rate(name)
+                except Exception:
+                    success_rate = 0.0
+            factor = 1.0
             if roi > 0:
-                self.weights[name] = self.weights.get(name, 1.0) * 1.1
+                factor = 1.1
             elif roi < 0:
-                self.weights[name] = self.weights.get(name, 1.0) * 0.9
+                factor = 0.9
+            else:
+                continue
+            factor *= 1.0 + success_rate
+            self.weights[name] = self.weights.get(name, 1.0) * factor
 
         self.coordinator.base_weights = self.weights
 

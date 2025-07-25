@@ -13,6 +13,7 @@ from solhunter_zero.agents.meta_conviction import MetaConvictionAgent
 from solhunter_zero.agents.portfolio_agent import PortfolioAgent
 from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.memory import Memory
+from solhunter_zero.advanced_memory import AdvancedMemory
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio, Position
@@ -300,6 +301,26 @@ def test_agent_manager_update_weights():
 
     assert mgr.weights['a1'] > 1.0
     assert mgr.weights['a2'] < 1.0
+
+
+def test_agent_manager_update_weights_success_rate(tmp_path):
+    db = tmp_path / "mem.db"
+    idx = tmp_path / "idx.faiss"
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
+    mem_agent = MemoryAgent(mem)
+    mgr = AgentManager([], memory_agent=mem_agent, weights={"a1": 1.0, "a2": 1.0})
+
+    mem.log_simulation("a1", expected_roi=1.0, success_prob=0.8)
+    mem.log_simulation("a2", expected_roi=1.0, success_prob=0.2)
+
+    mem.log_trade(token="tok", direction="buy", amount=1, price=1, reason="a1")
+    mem.log_trade(token="tok", direction="sell", amount=1, price=2, reason="a1")
+    mem.log_trade(token="tok", direction="buy", amount=1, price=1, reason="a2")
+    mem.log_trade(token="tok", direction="sell", amount=1, price=2, reason="a2")
+
+    mgr.update_weights()
+
+    assert mgr.weights["a1"] > mgr.weights["a2"]
 
 
 
