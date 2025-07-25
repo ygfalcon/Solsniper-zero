@@ -190,3 +190,34 @@ def test_auto_exec(monkeypatch):
         "txs": ["AA"],
     }
     assert res is True
+
+
+def test_best_route(monkeypatch):
+    captured = {}
+
+    async def fake_conn(path):
+        captured["socket"] = path
+        writer = FakeWriter()
+        resp = {"path": ["a", "b"], "profit": 1.0, "slippage": 0.2}
+        reader = FakeReader(json.dumps(resp).encode())
+        captured["writer"] = writer
+        return reader, writer
+
+    monkeypatch.setattr(asyncio, "open_unix_connection", fake_conn)
+
+    async def run():
+        return await depth_client.best_route(
+            "TOK", 2.0, socket_path="sock", max_hops=4
+        )
+
+    res = asyncio.run(run())
+    payload = json.loads(captured["writer"].data.decode())
+
+    assert captured["socket"] == "sock"
+    assert payload == {
+        "cmd": "route",
+        "token": "TOK",
+        "amount": 2.0,
+        "max_hops": 4,
+    }
+    assert res == (["a", "b"], 1.0, 0.2)
