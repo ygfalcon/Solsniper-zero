@@ -101,6 +101,13 @@ evolve_interval: 1
 mutation_threshold: 0.0
 ```
 
+Key discovery options:
+
+- `mempool_score_threshold` sets the minimum score for tokens observed in the
+  mempool before they are considered by discovery agents.
+- `trend_volume_threshold` filters out tokens with on-chain volume below this
+  value when ranking new opportunities.
+
    An example configuration file named `config.example.toml` is included in
    the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
    values as needed. A high risk preset called `config.highrisk.toml` is also
