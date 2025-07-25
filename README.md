@@ -1,6 +1,8 @@
 # SolHunter Zero
 
-SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain. This project is a starting point based on the provided high‑level specifications.
+SolHunter Zero is an autonomous AI-driven trading bot for the Solana blockchain. 
+
+This project is targeted towards being the greatest Solana bot ever created and built by a mad genius known only as zero
 
 ## Primary User Preferences
 
