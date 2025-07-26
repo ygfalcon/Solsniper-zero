@@ -24,6 +24,7 @@ from .swarm_coordinator import SwarmCoordinator
 from .regime import detect_regime
 from . import mutation
 from .event_bus import publish
+from .multi_rl import PopulationRL
 
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,7 @@ class AgentManager:
         weights: Dict[str, float] | None = None,
         memory_agent: MemoryAgent | None = None,
         emotion_agent: EmotionAgent | None = None,
+        population_rl: PopulationRL | None = None,
         weights_path: str | os.PathLike | None = None,
         strategy_selection: bool = False,
         vote_threshold: float = 0.0,
@@ -141,6 +143,8 @@ class AgentManager:
             (a for a in self.agents if isinstance(a, EmotionAgent)),
             None,
         )
+
+        self.population_rl = population_rl
 
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
@@ -323,6 +327,14 @@ class AgentManager:
             return []
 
     def evolve(self, spawn_count: int = 1, threshold: float = 0.0) -> None:
+        if self.population_rl is not None:
+            best = self.population_rl.evolve()
+            best_weights = best.get("weights", {}) if isinstance(best, dict) else {}
+            if isinstance(best_weights, dict):
+                self.weights.update(best_weights)
+                self.coordinator.base_weights = self.weights
+                self.save_weights()
+
         new_agents = self.spawn_mutations(spawn_count)
         prices = self._load_price_history()
         if prices:
