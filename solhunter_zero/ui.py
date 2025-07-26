@@ -5,6 +5,7 @@ import json
 import logging
 from collections import deque
 from flask import Flask, jsonify, request
+from .event_bus import subscribe
 import sqlalchemy as sa
 from pathlib import Path
 import numpy as np
@@ -60,6 +61,14 @@ buffer_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 )
 logging.getLogger().addHandler(buffer_handler)
+
+def _update_weights(weights):
+    try:
+        os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
+    except Exception:
+        pass
+
+subscribe("weights_updated", _update_weights)
 
 trading_thread = None
 stop_event = threading.Event()
