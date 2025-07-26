@@ -139,6 +139,9 @@ direct transaction submission to the Solana RPC.
    ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
    ``solhunter_zero.execution``. The service relays them using
    ``send_raw_tx`` for minimal latency.
+4. **run.sh integration**
+   When `DEPTH_SERVICE=true` is set, `./run.sh` builds the Rust service automatically.
+   If `cargo` isn't available, the script prints a warning and disables the service.
 
 ## Flash-Loan Arbitrage
 
