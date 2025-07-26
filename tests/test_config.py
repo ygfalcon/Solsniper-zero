@@ -1,5 +1,10 @@
 import os
-from solhunter_zero.config import load_config, apply_env_overrides, set_env_from_config
+from solhunter_zero.config import (
+    load_config,
+    apply_env_overrides,
+    set_env_from_config,
+    load_dex_config,
+)
 
 
 def test_load_config_yaml(tmp_path):
@@ -121,3 +126,13 @@ def test_set_env_from_config_booleans(monkeypatch):
     assert os.getenv("USE_RUST_EXEC") == "True"
     assert os.getenv("USE_SERVICE_EXEC") == "True"
     assert os.getenv("USE_MEV_BUNDLES") == "True"
+
+def test_load_dex_config_env(monkeypatch):
+    monkeypatch.setenv("DEX_BASE_URL", "http://b")
+    monkeypatch.setenv("ORCA_DEX_URL", "http://o")
+    monkeypatch.setenv("DEX_FEES", '{"jupiter": 0.1}')
+    cfg = load_dex_config({})
+    assert cfg.base_url == "http://b"
+    assert cfg.venue_urls["orca"] == "http://o"
+    assert cfg.fees["jupiter"] == 0.1
+

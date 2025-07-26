@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import os
+import json
+import ast
+from typing import Mapping, Any
 from pathlib import Path
+
+from .dex_config import DEXConfig
 
 import tomllib
 
@@ -189,3 +194,53 @@ def load_selected_config() -> dict:
     if not os.path.exists(path):
         return {}
     return load_config(path)
+
+
+def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
+    """Return :class:`DEXConfig` populated from ``config`` and environment."""
+
+    cfg = apply_env_overrides(config or {})
+
+    base = str(cfg.get("dex_base_url", "https://quote-api.jup.ag"))
+    testnet = str(cfg.get("dex_testnet_url", base))
+
+    def _url(name: str) -> str:
+        return str(cfg.get(name, base))
+
+    venue_urls = {
+        "jupiter": base,
+        "raydium": _url("raydium_dex_url"),
+        "orca": _url("orca_dex_url"),
+        "phoenix": _url("phoenix_dex_url"),
+        "meteora": _url("meteora_dex_url"),
+    }
+
+    def _parse_map(val: Any) -> dict[str, float]:
+        if not val:
+            return {}
+        if isinstance(val, Mapping):
+            data = val
+        elif isinstance(val, str):
+            try:
+                data = json.loads(val)
+            except Exception:
+                try:
+                    data = ast.literal_eval(val)
+                except Exception:
+                    return {}
+        else:
+            return {}
+        return {str(k): float(v) for k, v in data.items()}
+
+    fees = _parse_map(cfg.get("dex_fees"))
+    gas = _parse_map(cfg.get("dex_gas"))
+    latency = _parse_map(cfg.get("dex_latency"))
+
+    return DEXConfig(
+        base_url=base,
+        testnet_url=testnet,
+        venue_urls=venue_urls,
+        fees=fees,
+        gas=gas,
+        latency=latency,
+    )
