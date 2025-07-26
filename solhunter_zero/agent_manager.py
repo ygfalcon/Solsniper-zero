@@ -23,6 +23,7 @@ from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
 from .regime import detect_regime
 from . import mutation
+from .event_bus import publish
 
 
 logger = logging.getLogger(__name__)
@@ -195,6 +196,7 @@ class AgentManager:
             results.append(result)
             if self.memory_agent:
                 await self.memory_agent.log(action)
+            publish("action_executed", {"action": action, "result": result})
         return results
 
     def update_weights(self) -> None:
@@ -237,6 +239,7 @@ class AgentManager:
 
         self.coordinator.base_weights = self.weights
         self.save_weights()
+        publish("weights_updated", dict(self.weights))
 
     # ------------------------------------------------------------------
     #  Mutation helpers
