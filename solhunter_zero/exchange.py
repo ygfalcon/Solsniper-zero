@@ -16,6 +16,7 @@ from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
 
 from .gas import get_current_fee_async
+from .config import load_dex_config
 
 
 class OrderPlacementError(Exception):
@@ -25,12 +26,13 @@ class OrderPlacementError(Exception):
 logger = logging.getLogger(__name__)
 
 # Using Jupiter Aggregator REST API for token swaps.
-DEX_BASE_URL = os.getenv("DEX_BASE_URL", "https://quote-api.jup.ag")
-DEX_TESTNET_URL = os.getenv("DEX_TESTNET_URL", "https://quote-api.jup.ag")
-ORCA_DEX_URL = os.getenv("ORCA_DEX_URL", DEX_BASE_URL)
-RAYDIUM_DEX_URL = os.getenv("RAYDIUM_DEX_URL", DEX_BASE_URL)
-PHOENIX_DEX_URL = os.getenv("PHOENIX_DEX_URL", DEX_BASE_URL)
-METEORA_DEX_URL = os.getenv("METEORA_DEX_URL", DEX_BASE_URL)
+_DEX_CFG = load_dex_config()
+DEX_BASE_URL = _DEX_CFG.base_url
+DEX_TESTNET_URL = _DEX_CFG.testnet_url
+ORCA_DEX_URL = _DEX_CFG.venue_urls.get("orca", DEX_BASE_URL)
+RAYDIUM_DEX_URL = _DEX_CFG.venue_urls.get("raydium", DEX_BASE_URL)
+PHOENIX_DEX_URL = _DEX_CFG.venue_urls.get("phoenix", DEX_BASE_URL)
+METEORA_DEX_URL = _DEX_CFG.venue_urls.get("meteora", DEX_BASE_URL)
 SWAP_PATH = "/v6/swap"
 
 RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")

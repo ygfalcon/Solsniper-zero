@@ -24,6 +24,7 @@ from .exchange import (
     VENUE_URLS,
     SWAP_PATH,
 )
+from .config import load_dex_config
 from . import order_book_ws
 from . import depth_client
 from .depth_client import stream_depth, prepare_signed_tx
@@ -84,9 +85,10 @@ def _parse_mapping_env(env: str) -> dict:
     return {}
 
 
-DEX_FEES = {str(k): float(v) for k, v in _parse_mapping_env("DEX_FEES").items()}
-DEX_GAS = {str(k): float(v) for k, v in _parse_mapping_env("DEX_GAS").items()}
-DEX_LATENCY = {str(k): float(v) for k, v in _parse_mapping_env("DEX_LATENCY").items()}
+_DEX_CFG = load_dex_config()
+DEX_FEES = _DEX_CFG.fees
+DEX_GAS = _DEX_CFG.gas
+DEX_LATENCY = _DEX_CFG.latency
 EXTRA_API_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_API_URLS").items()}
 EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").items()}
 
@@ -102,11 +104,8 @@ PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 
 def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return updated fee, gas and latency mappings from the environment."""
-
-    fees = {str(k): float(v) for k, v in _parse_mapping_env("DEX_FEES").items()}
-    gas = {str(k): float(v) for k, v in _parse_mapping_env("DEX_GAS").items()}
-    latency = {str(k): float(v) for k, v in _parse_mapping_env("DEX_LATENCY").items()}
-    return fees, gas, latency
+    cfg = load_dex_config()
+    return cfg.fees, cfg.gas, cfg.latency
 
 
 async def _prepare_service_tx(
