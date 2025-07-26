@@ -81,6 +81,9 @@ pnl_history: list[float] = []
 token_pnl_history: dict[str, list[float]] = {}
 allocation_history: dict[str, list[float]] = {}
 
+# global RL training daemon for status reporting
+rl_daemon = None
+
 # ``BIRDEYE_API_KEY`` is optional when ``SOLANA_RPC_URL`` is provided for
 # on-chain scanning.
 REQUIRED_ENV_VARS = ("DEX_BASE_URL",)
@@ -420,6 +423,19 @@ def logs() -> dict:
     return jsonify({"logs": list(log_buffer)})
 
 
+@app.route("/rl/status")
+def rl_status() -> dict:
+    """Return RL training metrics if available."""
+    if rl_daemon is None:
+        return jsonify({"last_train_time": None, "checkpoint_path": None})
+    return jsonify(
+        {
+            "last_train_time": getattr(rl_daemon, "last_train_time", None),
+            "checkpoint_path": getattr(rl_daemon, "checkpoint_path", None),
+        }
+    )
+
+
 @app.route("/memory/insert", methods=["POST"])
 def memory_insert() -> dict:
     data = request.get_json() or {}
@@ -503,6 +519,9 @@ HTML_PAGE = """
     <pre id='exposure'></pre>
 
     <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
+
+    <h3>RL Status</h3>
+    <pre id='rl_status'></pre>
 
     <h3>Risk Parameters</h3>
     <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
@@ -671,6 +690,9 @@ HTML_PAGE = """
         });
         fetch('/sharpe').then(r => r.json()).then(data => {
             document.getElementById('sharpe_val').textContent = data.sharpe.toFixed(4);
+        });
+        fetch('/rl/status').then(r => r.json()).then(data => {
+            document.getElementById('rl_status').textContent = JSON.stringify(data);
         });
         loadWeights();
     }

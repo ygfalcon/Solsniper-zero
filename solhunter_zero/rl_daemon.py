@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable, List, Tuple, Any
+import time
 
 import torch
 from torch import nn
@@ -206,6 +207,8 @@ class RLDaemon:
         self.data = OfflineData(f"sqlite:///{data_path}")
         self.model_path = Path(model_path)
         self.algo = algo
+        self.last_train_time: float | None = None
+        self.checkpoint_path: str = str(self.model_path)
         if device is None:
             if torch.cuda.is_available():
                 device = "cuda"
@@ -303,6 +306,8 @@ class RLDaemon:
                     ag._load_weights()
             except Exception:  # pragma: no cover - ignore bad agents
                 logger.error("failed to reload agent")
+        self.last_train_time = time.time()
+        self.checkpoint_path = str(self.model_path)
         logger.info("saved checkpoint to %s", self.model_path)
 
     async def _loop(self, interval: float) -> None:
@@ -336,6 +341,8 @@ class RLDaemon:
                             ag._load_weights()
                     except Exception:
                         logger.error("failed to reload agent")
+                self.last_train_time = time.time()
+                self.checkpoint_path = str(self.model_path)
                 logger.info("reloaded checkpoint from %s", self.model_path)
 
     def start(

@@ -333,3 +333,13 @@ def test_vars_endpoint(monkeypatch):
     data = resp.get_json()
     assert [v["value"] for v in data] == [0.1, 0.2]
 
+
+def test_rl_status_endpoint(monkeypatch):
+    daemon = type("D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"})()
+    monkeypatch.setattr(ui, "rl_daemon", daemon, raising=False)
+    client = ui.app.test_client()
+    resp = client.get("/rl/status")
+    data = resp.get_json()
+    assert data["last_train_time"] == 1.0
+    assert data["checkpoint_path"] == "chk.pt"
+
