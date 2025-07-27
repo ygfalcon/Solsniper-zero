@@ -344,7 +344,10 @@ The trading logic is implemented by a swarm of small agents:
 - **FractalAgent** — matches ROI fractal patterns using wavelet fingerprints.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 - **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
-- **CrossDEXRebalancer** — splits trades across venues based on order-book liquidity and slippage.
+- **CrossDEXRebalancer** — distributes trades across venues according to order-book depth and expected slippage. It asks `PortfolioOptimizer` for base actions,
+  splits them between venues with the best liquidity and forwards the resulting
+  orders to `ExecutionAgent` (or `MEVExecutor` bundles when enabled) so other
+  strategy agents can coordinate around the final execution.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
@@ -376,6 +379,46 @@ bundled agents.
 [project.entry-points."solhunter_zero.agents"]
 myagent = "mypkg.agents:MyAgent"
 ```
+
+Example custom agent:
+
+```python
+# mypkg/agents.py
+from solhunter_zero.agents import BaseAgent
+
+
+class MyAgent(BaseAgent):
+    name = "myagent"
+
+    async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
+        # implement strategy
+        return []
+```
+
+## Platform Coordination
+
+Agents and services communicate via a lightweight event bus. Three topics are
+published by default:
+
+- `action_executed` whenever the `AgentManager` finishes an order
+- `weights_updated` after agent weights change
+- `risk_updated` when the risk multiplier is modified
+
+Handlers can subscribe using :func:`subscribe` or the :func:`subscription`
+context manager:
+
+```python
+from solhunter_zero.event_bus import subscription
+
+async def on_action(event):
+    print("executed", event)
+
+with subscription("action_executed", on_action):
+    ...  # run trading loop
+```
+
+Other processes such as the RL daemon listen to these events to train models and
+adjust configuration in real time.
 
 
 
