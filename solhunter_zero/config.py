@@ -7,6 +7,7 @@ from typing import Mapping, Any
 from pathlib import Path
 
 from .dex_config import DEXConfig
+from .event_bus import publish
 
 import tomllib
 
@@ -166,6 +167,12 @@ def save_config(name: str, data: bytes) -> None:
     path = os.path.join(CONFIG_DIR, name)
     with open(path, "wb") as fh:
         fh.write(data)
+    cfg = {}
+    try:
+        cfg = _read_config_file(Path(path))
+    except Exception:
+        pass
+    publish("config_updated", cfg)
 
 
 def select_config(name: str) -> None:
