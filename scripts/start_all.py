@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Launch depth_service, RL daemon, trading loop and UI."""
+
+from __future__ import annotations
+
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+os.chdir(ROOT)
+
+PROCS: list[subprocess.Popen] = []
+
+
+def start(cmd: list[str]) -> None:
+    proc = subprocess.Popen(cmd)
+    PROCS.append(proc)
+
+
+def stop_all(*_: object) -> None:
+    for p in PROCS:
+        if p.poll() is None:
+            p.terminate()
+    deadline = time.time() + 5
+    for p in PROCS:
+        if p.poll() is None:
+            try:
+                p.wait(deadline - time.time())
+            except Exception:
+                p.kill()
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, stop_all)
+signal.signal(signal.SIGTERM, stop_all)
+
+start(["./target/release/depth_service"])
+start([sys.executable, "scripts/run_rl_daemon.py"])
+start(["./run.sh", "--auto"])
+start([sys.executable, "-m", "solhunter_zero.ui"])
+
+try:
+    while any(p.poll() is None for p in PROCS):
+        time.sleep(1)
+finally:
+    stop_all()
