@@ -5,7 +5,7 @@ import json
 import logging
 from collections import deque
 from flask import Flask, jsonify, request
-from .event_bus import subscribe
+from .event_bus import subscription
 import sqlalchemy as sa
 from pathlib import Path
 import numpy as np
@@ -68,7 +68,8 @@ def _update_weights(weights):
     except Exception:
         pass
 
-subscribe("weights_updated", _update_weights)
+_weights_subscription = subscription("weights_updated", _update_weights)
+_weights_subscription.__enter__()
 
 trading_thread = None
 stop_event = threading.Event()
