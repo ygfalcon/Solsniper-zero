@@ -152,6 +152,26 @@ def test_get_and_set_risk_params(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") == "1.5"
 
 
+def test_risk_endpoint_emits_event(monkeypatch):
+    monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
+    events = []
+
+    from solhunter_zero.event_bus import subscribe
+
+    async def on_risk(payload):
+        events.append(payload)
+
+    unsub = subscribe("risk_updated", on_risk)
+
+    client = ui.app.test_client()
+    resp = client.post("/risk", json={"risk_multiplier": 2.0})
+    assert resp.get_json()["status"] == "ok"
+    asyncio.run(asyncio.sleep(0))
+    unsub()
+
+    assert events and events[0]["multiplier"] == 2.0
+
+
 def test_get_and_set_discovery_method(monkeypatch):
     monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
     client = ui.app.test_client()

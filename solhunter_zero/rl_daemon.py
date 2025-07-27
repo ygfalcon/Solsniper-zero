@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable, List, Tuple, Any
+import os
 import time
 
 import torch
@@ -233,18 +234,28 @@ class RLDaemon:
         self._last_trade_id = 0
         self._last_snap_id = 0
         self.queue = queue
-        self._subscription = None
+        self.current_risk = float(os.getenv("RISK_MULTIPLIER", "1.0"))
+        self._subscriptions: list[Any] = []
         if queue is not None:
             async def _enqueue(payload):
                 await queue.put(payload.get("action", payload))
                 await asyncio.to_thread(self.train)
 
-            self._subscription = subscription("action_executed", _enqueue)
-            self._subscription.__enter__()
+            sub = subscription("action_executed", _enqueue)
+            sub.__enter__()
+            self._subscriptions.append(sub)
+
+        async def _update_risk(payload):
+            self.current_risk = float(payload.get("multiplier", self.current_risk))
+            logger.info("risk multiplier updated to %s", self.current_risk)
+
+        risk_sub = subscription("risk_updated", _update_risk)
+        risk_sub.__enter__()
+        self._subscriptions.append(risk_sub)
 
     def close(self) -> None:
-        if self._subscription:
-            self._subscription.__exit__(None, None, None)
+        for sub in self._subscriptions:
+            sub.__exit__(None, None, None)
 
     def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
         """Return new trades and snapshots since the last training cycle."""
