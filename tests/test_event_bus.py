@@ -3,6 +3,7 @@ import json
 import sys
 import types
 import importlib.util
+import websockets
 
 # Stub heavy optional dependencies to keep import lightweight
 dummy_trans = types.ModuleType("transformers")
@@ -23,6 +24,40 @@ if importlib.util.find_spec("aiohttp") is None:
     sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
 if importlib.util.find_spec("aiofiles") is None:
     sys.modules.setdefault("aiofiles", types.ModuleType("aiofiles"))
+if importlib.util.find_spec("sqlalchemy") is None:
+    sa = types.ModuleType("sqlalchemy")
+    sa.create_engine = lambda *a, **k: None
+    sa.MetaData = type("Meta", (), {"create_all": lambda *a, **k: None})
+    sa.Column = lambda *a, **k: None
+    sa.String = sa.Integer = sa.Float = sa.Numeric = sa.Text = object
+    sa.DateTime = object
+    sa.ForeignKey = lambda *a, **k: None
+    sys.modules.setdefault("sqlalchemy", sa)
+    orm = types.ModuleType("orm")
+
+    def declarative_base(*a, **k):
+        return type("Base", (), {"metadata": sa.MetaData()})
+
+    orm.declarative_base = declarative_base
+
+    class DummySession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+        def add(self, *a, **k):
+            pass
+
+        def commit(self):
+            pass
+
+        def query(self, *a, **k):
+            return []
+
+    orm.sessionmaker = lambda *a, **k: lambda **kw: DummySession()
+    sys.modules.setdefault("sqlalchemy.orm", orm)
 if importlib.util.find_spec("solders") is None:
     sys.modules.setdefault("solders", types.ModuleType("solders"))
     sys.modules["solders.keypair"] = types.SimpleNamespace(Keypair=type("Keypair", (), {}))
@@ -40,11 +75,19 @@ if importlib.util.find_spec("solana") is None:
 
 import pytest
 
-from solhunter_zero.event_bus import subscribe, publish, subscription
+from solhunter_zero.event_bus import (
+    subscribe,
+    publish,
+    subscription,
+    start_ws_server,
+    stop_ws_server,
+    connect_ws,
+    disconnect_ws,
+    broadcast_ws,
+)
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -68,8 +111,14 @@ async def test_publish_subscribe_basic():
 
 @pytest.mark.asyncio
 async def test_agent_manager_emits_events(monkeypatch):
-    mem = Memory("sqlite:///:memory:")
-    mem_agent = MemoryAgent(mem)
+    class DummyMemory:
+        def log_trade(self, **kw):
+            pass
+
+        def list_trades(self):
+            return []
+
+    mem_agent = MemoryAgent(DummyMemory())
 
     class DummyExec(ExecutionAgent):
         async def execute(self, action):
@@ -110,4 +159,34 @@ async def test_subscription_context_manager():
     await asyncio.sleep(0)
 
     assert seen == [{"msg": 1}]
+
+
+@pytest.mark.asyncio
+async def test_websocket_publish_and_receive():
+    port = 8768
+    await start_ws_server("localhost", port)
+
+    async with websockets.connect(f"ws://localhost:{port}") as ws:
+        publish("ws", {"foo": 1})
+        raw = await asyncio.wait_for(ws.recv(), timeout=1)
+        data = json.loads(raw)
+        assert data["topic"] == "ws"
+        assert data["payload"] == {"foo": 1}
+    await stop_ws_server()
+
+
+@pytest.mark.asyncio
+async def test_websocket_client_publish(monkeypatch):
+    port = 8769
+    await start_ws_server("localhost", port)
+    received = []
+    subscribe("remote", lambda p: received.append(p))
+    await connect_ws(f"ws://localhost:{port}")
+    await broadcast_ws(
+        json.dumps({"topic": "remote", "payload": {"x": 5}}), to_clients=False
+    )
+    await asyncio.sleep(0.1)
+    assert received == [{"x": 5}]
+    await disconnect_ws()
+    await stop_ws_server()
 
