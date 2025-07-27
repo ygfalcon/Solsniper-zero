@@ -134,6 +134,13 @@ direct transaction submission to the Solana RPC.
    Ensure `DEPTH_SERVICE_SOCKET` and `DEPTH_MMAP_PATH` are exported before
    launching the Python modules. They default to
    `/tmp/depth_service.sock` and `/tmp/depth_service.mmap` respectively.
+   Additional variables allow customization:
+   - `DEPTH_WS_ADDR` / `DEPTH_WS_PORT` – address and port for the built-in
+     websocket server (defaults to `0.0.0.0:8765`).
+   - `SOLANA_RPC_URL` and `SOLANA_KEYPAIR` – RPC endpoint and keypair for
+     transaction submission.
+   - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
+     When set, depth updates are forwarded using the topic `depth_update`.
 3. **Route transactions through the service**
    Python code signs transactions locally and forwards them via
    ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
