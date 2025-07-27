@@ -1,16 +1,21 @@
 import json
 import sys
 import types
+import importlib.util
 
 # Stub heavy optional dependencies to keep import lightweight
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
-sys.modules.setdefault("transformers", dummy_trans)
-sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
-sys.modules.setdefault("faiss", types.ModuleType("faiss"))
-sys.modules.setdefault("torch", types.ModuleType("torch"))
-sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
-sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
+if importlib.util.find_spec("transformers") is None:
+    sys.modules.setdefault("transformers", dummy_trans)
+if importlib.util.find_spec("sentence_transformers") is None:
+    sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
+if importlib.util.find_spec("faiss") is None:
+    sys.modules.setdefault("faiss", types.ModuleType("faiss"))
+if importlib.util.find_spec("torch") is None:
+    sys.modules.setdefault("torch", types.ModuleType("torch"))
+    sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
+    sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.memory import MemoryAgent

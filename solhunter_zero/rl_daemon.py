@@ -17,7 +17,7 @@ from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .risk import average_correlation
-from .event_bus import subscribe
+from .event_bus import subscription
 
 logger = logging.getLogger(__name__)
 
@@ -233,17 +233,18 @@ class RLDaemon:
         self._last_trade_id = 0
         self._last_snap_id = 0
         self.queue = queue
-        self._unsub = None
+        self._subscription = None
         if queue is not None:
             async def _enqueue(payload):
                 await queue.put(payload.get("action", payload))
                 await asyncio.to_thread(self.train)
 
-            self._unsub = subscribe("action_executed", _enqueue)
+            self._subscription = subscription("action_executed", _enqueue)
+            self._subscription.__enter__()
 
     def close(self) -> None:
-        if self._unsub:
-            self._unsub()
+        if self._subscription:
+            self._subscription.__exit__(None, None, None)
 
     def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
         """Return new trades and snapshots since the last training cycle."""

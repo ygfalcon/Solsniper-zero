@@ -1,7 +1,8 @@
 import asyncio
 import inspect
+from contextlib import contextmanager
 from collections import defaultdict
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, Generator, List
 
 # mapping of topic -> list of handlers
 _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(list)
@@ -17,6 +18,16 @@ def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
         unsubscribe(topic, handler)
 
     return _unsub
+
+
+@contextmanager
+def subscription(topic: str, handler: Callable[[Any], Awaitable[None] | None]) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
+    """Context manager that registers ``handler`` for ``topic`` and automatically unsubscribes."""
+    unsub = subscribe(topic, handler)
+    try:
+        yield handler
+    finally:
+        unsub()
 
 def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     """Remove ``handler`` from ``topic`` subscriptions."""
