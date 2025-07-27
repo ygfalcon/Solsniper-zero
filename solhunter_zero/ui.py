@@ -5,8 +5,13 @@ import json
 import logging
 import socket
 from collections import deque
+from typing import Any
 from flask import Flask, jsonify, request
 from .event_bus import subscription, publish
+try:
+    import websockets
+except Exception:  # pragma: no cover - optional
+    websockets = None
 import sqlalchemy as sa
 from .depth_client import DEPTH_WS_ADDR, DEPTH_WS_PORT
 from pathlib import Path
@@ -73,6 +78,28 @@ def _update_weights(weights):
 _weights_subscription = subscription("weights_updated", _update_weights)
 _weights_subscription.__enter__()
 
+
+async def _send_rl_update(payload):
+    if rl_ws_loop is None:
+        return
+    msg = json.dumps(payload)
+
+    async def _broadcast():
+        to_remove = []
+        for ws in list(rl_ws_clients):
+            try:
+                await ws.send(msg)
+            except Exception:
+                to_remove.append(ws)
+        for ws in to_remove:
+            rl_ws_clients.discard(ws)
+
+    asyncio.run_coroutine_threadsafe(_broadcast(), rl_ws_loop)
+
+
+_rl_subscription = subscription("rl_checkpoint", _send_rl_update)
+_rl_subscription.__enter__()
+
 trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
@@ -86,6 +113,10 @@ allocation_history: dict[str, list[float]] = {}
 
 # global RL training daemon for status reporting
 rl_daemon = None
+
+# store clients connected to RL checkpoint websocket
+rl_ws_clients: set[Any] = set()
+rl_ws_loop: asyncio.AbstractEventLoop | None = None
 
 # ``BIRDEYE_API_KEY`` is optional when ``SOLANA_RPC_URL`` is provided for
 # on-chain scanning.
@@ -737,5 +768,27 @@ def index() -> str:
     return HTML_PAGE
 
 
+async def _rl_ws_handler(ws):
+    rl_ws_clients.add(ws)
+    try:
+        async for _ in ws:
+            pass
+    except Exception:
+        pass
+    finally:
+        rl_ws_clients.discard(ws)
+
+
 if __name__ == "__main__":
+    if websockets is not None:
+        def _start_ws():
+            global rl_ws_loop
+            rl_ws_loop = asyncio.new_event_loop()
+            rl_ws_loop.run_until_complete(
+                websockets.serve(_rl_ws_handler, "localhost", 8767)
+            )
+            rl_ws_loop.run_forever()
+
+        threading.Thread(target=_start_ws, daemon=True).start()
+
     app.run()
