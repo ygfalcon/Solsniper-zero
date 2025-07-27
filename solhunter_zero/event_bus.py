@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+import os
 from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
@@ -163,4 +164,17 @@ async def disconnect_ws() -> None:
         except Exception:
             pass
         _ws_client = None
+
+
+# Automatically connect to an external event bus if configured
+_ENV_URL = os.environ.get("EVENT_BUS_URL")
+if _ENV_URL and websockets:
+    try:
+        _loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _loop = None
+    if _loop:
+        _loop.create_task(connect_ws(_ENV_URL))
+    else:
+        asyncio.run(connect_ws(_ENV_URL))
 

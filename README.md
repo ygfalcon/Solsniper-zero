@@ -267,6 +267,11 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    ./run.sh --auto
    ```
+13. **External event bus**
+   Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
+   ```bash
+   export EVENT_BUS_URL=wss://bus.example.com
+   ```
 Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`. The `make start` target is a convenient shortcut.
 
    This loads the selected configuration (or the `config.highrisk.toml` preset
