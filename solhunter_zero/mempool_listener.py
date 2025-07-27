@@ -9,6 +9,7 @@ from .mempool_scanner import stream_mempool_tokens
 from .onchain_metrics import fetch_liquidity_onchain, fetch_token_age
 from .agent_manager import AgentManager
 from .portfolio import Portfolio
+from .event_bus import publish
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ async def listen_mempool(
         if min_liquidity:
             risk *= max(1.0, liq / min_liquidity)
         os.environ["RISK_MULTIPLIER"] = str(risk)
+        publish("risk_updated", {"multiplier": risk})
         try:
             await agent_manager.execute(token, portfolio)
         except Exception as exc:  # pragma: no cover - agent errors

@@ -5,7 +5,7 @@ import json
 import logging
 from collections import deque
 from flask import Flask, jsonify, request
-from .event_bus import subscription
+from .event_bus import subscription, publish
 import sqlalchemy as sa
 from pathlib import Path
 import numpy as np
@@ -189,6 +189,7 @@ def risk_params() -> dict:
             os.environ["MAX_ALLOCATION"] = str(ma)
         if rm is not None:
             os.environ["RISK_MULTIPLIER"] = str(rm)
+            publish("risk_updated", {"multiplier": float(rm)})
         return jsonify({"status": "ok"})
     return jsonify(
         {

@@ -58,3 +58,21 @@ def test_queued_trades_trigger_update(tmp_path, monkeypatch):
     assert (tmp_path / 'model.pt').exists()
 
 
+def test_daemon_receives_risk_update(tmp_path):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    data_db = f"sqlite:///{data_path}"
+
+    mem = Memory(mem_db)
+    data = OfflineData(data_db)
+
+    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
+
+    from solhunter_zero.event_bus import publish
+
+    publish("risk_updated", {"multiplier": 3.0})
+    asyncio.run(asyncio.sleep(0))
+
+    assert daemon.current_risk == 3.0
+
+
