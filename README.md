@@ -365,6 +365,18 @@ Emotion tags produced by the `EmotionAgent` are stored alongside each trade.
 Reinforcement agents can read these tags to temper their proposals. A streak of
 negative emotions like `anxious` or `regret` reduces conviction in later
 iterations, while positive emotions encourage larger allocations.
+### Custom Agents via Entry Points
+
+Third-party packages can register their own agent classes under the
+`solhunter_zero.agents` entry point group. Any entry points found in this
+group are merged into the built-in registry and can be loaded just like the
+bundled agents.
+
+```toml
+[project.entry-points."solhunter_zero.agents"]
+myagent = "mypkg.agents:MyAgent"
+```
+
 
 
 ## Requirements

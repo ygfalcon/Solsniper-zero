@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Type
+import importlib.metadata
 
 from ..portfolio import Portfolio
 from typing import TYPE_CHECKING
@@ -118,6 +119,15 @@ def _ensure_agents_loaded() -> None:
         "emotion": EmotionAgent,
 
     })
+
+    for ep in importlib.metadata.entry_points(group="solhunter_zero.agents"):
+        try:
+            agent_cls = ep.load()
+        except Exception:  # pragma: no cover - load errors ignored
+            continue
+        name = getattr(agent_cls, "name", None) or ep.name
+        if isinstance(name, str):
+            BUILT_IN_AGENTS[name] = agent_cls
 
 
 def load_agent(name: str, **kwargs) -> BaseAgent:
