@@ -408,6 +408,7 @@ published by default:
 - `action_executed` whenever the `AgentManager` finishes an order
 - `weights_updated` after agent weights change
 - `risk_updated` when the risk multiplier is modified
+- `config_updated` when a configuration file is saved
 
 Handlers can subscribe using :func:`subscribe` or the :func:`subscription`
 context manager:

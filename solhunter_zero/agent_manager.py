@@ -23,7 +23,7 @@ from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
 from .regime import detect_regime
 from . import mutation
-from .event_bus import publish
+from .event_bus import publish, subscription
 from .multi_rl import PopulationRL
 
 
@@ -171,6 +171,11 @@ class AgentManager:
         self.depth_service = depth_service
         self._event_executors: Dict[str, EventExecutor] = {}
         self._event_tasks: Dict[str, asyncio.Task] = {}
+        self._subscriptions: list[Any] = []
+
+        sub = subscription("config_updated", self._update_from_config)
+        sub.__enter__()
+        self._subscriptions.append(sub)
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         agents = list(self.agents)
@@ -202,6 +207,58 @@ class AgentManager:
                 await self.memory_agent.log(action)
             publish("action_executed", {"action": action, "result": result})
         return results
+
+    def _update_from_config(self, cfg: dict) -> None:
+        weights = cfg.get("agent_weights")
+        if isinstance(weights, str):
+            try:
+                import ast
+
+                parsed = ast.literal_eval(weights)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict):
+                weights = parsed
+            else:
+                weights = {}
+        if isinstance(weights, dict):
+            for k, v in weights.items():
+                try:
+                    self.weights[str(k)] = float(v)
+                except Exception:
+                    continue
+            self.coordinator.base_weights = self.weights
+
+        ei = cfg.get("evolve_interval")
+        if ei is not None:
+            try:
+                self.evolve_interval = int(ei)
+            except Exception:
+                pass
+        mt = cfg.get("mutation_threshold")
+        if mt is not None:
+            try:
+                self.mutation_threshold = float(mt)
+            except Exception:
+                pass
+
+        reg_w = cfg.get("regime_weights")
+        if reg_w is not None:
+            if isinstance(reg_w, str):
+                try:
+                    import ast
+
+                    parsed_r = ast.literal_eval(reg_w)
+                    if isinstance(parsed_r, dict):
+                        reg_w = parsed_r
+                except Exception:
+                    reg_w = None
+            if isinstance(reg_w, dict):
+                self.regime_weights = {
+                    str(k): {str(sk): float(sv) for sk, sv in v.items()}
+                    for k, v in reg_w.items()
+                }
+                self.coordinator.regime_weights = self.regime_weights
 
     def update_weights(self) -> None:
         """Adjust agent weights based on historical trade ROI."""
@@ -537,3 +594,10 @@ class AgentManager:
             evolve_interval=evolve_interval,
             mutation_threshold=mutation_threshold,
         )
+
+    def close(self) -> None:
+        for sub in getattr(self, "_subscriptions", []):
+            try:
+                sub.__exit__(None, None, None)
+            except Exception:
+                pass

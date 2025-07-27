@@ -4,7 +4,9 @@ from solhunter_zero.config import (
     apply_env_overrides,
     set_env_from_config,
     load_dex_config,
+    save_config,
 )
+from solhunter_zero.event_bus import subscribe
 
 
 def test_load_config_yaml(tmp_path):
@@ -135,4 +137,18 @@ def test_load_dex_config_env(monkeypatch):
     assert cfg.base_url == "http://b"
     assert cfg.venue_urls["orca"] == "http://o"
     assert cfg.fees["jupiter"] == 0.1
+
+
+def test_save_config_emits_event(tmp_path):
+    events = []
+
+    def handler(payload):
+        events.append(payload)
+
+    unsub = subscribe("config_updated", handler)
+    try:
+        save_config("test.toml", b"foo='bar'")
+    finally:
+        unsub()
+    assert events and events[0].get("foo") == "bar"
 

@@ -130,10 +130,12 @@ def _sub_handler(topic: str):
 _action_sub = subscription("action_executed", _sub_handler("action_executed"))
 _weights_ws_sub = subscription("weights_updated", _sub_handler("weights_updated"))
 _risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
+_config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
 
 _action_sub.__enter__()
 _weights_ws_sub.__enter__()
 _risk_ws_sub.__enter__()
+_config_ws_sub.__enter__()
 
 trading_thread = None
 stop_event = threading.Event()
