@@ -100,6 +100,41 @@ async def _send_rl_update(payload):
 _rl_subscription = subscription("rl_checkpoint", _send_rl_update)
 _rl_subscription.__enter__()
 
+
+def _emit_ws_event(topic: str, payload: Any) -> None:
+    """Send event payload to all connected websocket clients."""
+    if event_ws_loop is None:
+        return
+    msg = json.dumps({"topic": topic, "payload": payload})
+
+    async def _broadcast() -> None:
+        to_remove: list[Any] = []
+        for ws in list(event_ws_clients):
+            try:
+                await ws.send(msg)
+            except Exception:
+                to_remove.append(ws)
+        for ws in to_remove:
+            event_ws_clients.discard(ws)
+
+    asyncio.run_coroutine_threadsafe(_broadcast(), event_ws_loop)
+
+
+def _sub_handler(topic: str):
+    def handler(payload: Any) -> None:
+        _emit_ws_event(topic, payload)
+
+    return handler
+
+
+_action_sub = subscription("action_executed", _sub_handler("action_executed"))
+_weights_ws_sub = subscription("weights_updated", _sub_handler("weights_updated"))
+_risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
+
+_action_sub.__enter__()
+_weights_ws_sub.__enter__()
+_risk_ws_sub.__enter__()
+
 trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
@@ -117,6 +152,10 @@ rl_daemon = None
 # store clients connected to RL checkpoint websocket
 rl_ws_clients: set[Any] = set()
 rl_ws_loop: asyncio.AbstractEventLoop | None = None
+
+# store clients connected to event broadcast websocket
+event_ws_clients: set[Any] = set()
+event_ws_loop: asyncio.AbstractEventLoop | None = None
 
 # ``BIRDEYE_API_KEY`` is optional when ``SOLANA_RPC_URL`` is provided for
 # on-chain scanning.
@@ -779,9 +818,20 @@ async def _rl_ws_handler(ws):
         rl_ws_clients.discard(ws)
 
 
+async def _event_ws_handler(ws):
+    event_ws_clients.add(ws)
+    try:
+        async for _ in ws:
+            pass
+    except Exception:
+        pass
+    finally:
+        event_ws_clients.discard(ws)
+
+
 if __name__ == "__main__":
     if websockets is not None:
-        def _start_ws():
+        def _start_rl_ws():
             global rl_ws_loop
             rl_ws_loop = asyncio.new_event_loop()
             rl_ws_loop.run_until_complete(
@@ -789,6 +839,15 @@ if __name__ == "__main__":
             )
             rl_ws_loop.run_forever()
 
-        threading.Thread(target=_start_ws, daemon=True).start()
+        def _start_event_ws():
+            global event_ws_loop
+            event_ws_loop = asyncio.new_event_loop()
+            event_ws_loop.run_until_complete(
+                websockets.serve(_event_ws_handler, "localhost", 8766, path="/ws")
+            )
+            event_ws_loop.run_forever()
+
+        threading.Thread(target=_start_rl_ws, daemon=True).start()
+        threading.Thread(target=_start_event_ws, daemon=True).start()
 
     app.run()
