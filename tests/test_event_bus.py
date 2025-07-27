@@ -190,3 +190,41 @@ async def test_websocket_client_publish(monkeypatch):
     await disconnect_ws()
     await stop_ws_server()
 
+
+@pytest.mark.asyncio
+async def test_event_bus_url_connect(monkeypatch):
+    import importlib
+    import solhunter_zero.event_bus as ev
+
+    called = {}
+
+    async def fake_connect(url):
+        called["url"] = url
+
+        class Dummy:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise StopAsyncIteration
+
+            async def send(self, _):
+                pass
+
+            async def close(self):
+                pass
+
+        return Dummy()
+
+    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
+    monkeypatch.setattr(websockets, "connect", fake_connect)
+
+    ev = importlib.reload(ev)
+    await asyncio.sleep(0)
+
+    assert called.get("url") == "ws://bus"
+
+    await ev.disconnect_ws()
+    monkeypatch.delenv("EVENT_BUS_URL", raising=False)
+    importlib.reload(ev)
+
