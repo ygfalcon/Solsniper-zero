@@ -722,6 +722,13 @@ You can also launch the built-in RL daemon directly with GPU acceleration:
 ./run.sh --daemon --device cuda
 ```
 
+To forward events to a remote bus use the `--event-bus` option when running
+`scripts/run_rl_daemon.py`:
+
+```bash
+python scripts/run_rl_daemon.py --event-bus wss://bus.example.com
+```
+
 Alternatively start the trainer manually using the dedicated CLI:
 
 ```bash

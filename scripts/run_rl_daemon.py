@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 
 from solhunter_zero.rl_daemon import RLDaemon
 from solhunter_zero.agents.dqn import DQNAgent
@@ -17,7 +18,10 @@ async def main() -> None:
     parser.add_argument("--ppo-model", default="ppo_model.pt")
     parser.add_argument("--interval", type=float, default=3600.0)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--event-bus")
     args = parser.parse_args()
+    if args.event_bus:
+        os.environ["EVENT_BUS_URL"] = args.event_bus
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)
