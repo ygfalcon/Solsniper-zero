@@ -425,6 +425,18 @@ with subscription("action_executed", on_action):
 Other processes such as the RL daemon listen to these events to train models and
 adjust configuration in real time.
 
+When the Web UI is running, these events are also forwarded over a simple
+WebSocket endpoint at `ws://localhost:8766/ws`. Clients can subscribe and react
+to updates directly in the browser:
+
+```javascript
+const ws = new WebSocket('ws://localhost:8766/ws');
+ws.onmessage = (ev) => {
+  const msg = JSON.parse(ev.data);
+  console.log(msg.topic, msg.payload);
+};
+```
+
 
 
 ## Requirements
