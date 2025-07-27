@@ -6,6 +6,8 @@ from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
 
+from .event_bus import publish
+
 from . import order_book_ws
 
 DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
@@ -88,6 +90,30 @@ async def stream_depth_ws(
                 return
             if rate_limit > 0:
                 await asyncio.sleep(rate_limit)
+
+
+async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
+    """Connect to the depth websocket and publish updates."""
+
+    url = f"ws://{DEPTH_WS_ADDR}:{DEPTH_WS_PORT}"
+    count = 0
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect(url) as ws:
+                    async for msg in ws:
+                        if msg.type != aiohttp.WSMsgType.TEXT:
+                            continue
+                        try:
+                            data = json.loads(msg.data)
+                        except Exception:
+                            continue
+                        publish("depth_update", data)
+                        count += 1
+                        if max_updates is not None and count >= max_updates:
+                            return
+        except Exception:
+            await asyncio.sleep(1.0)
 
 
 def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
