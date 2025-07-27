@@ -3,10 +3,12 @@ import os
 import asyncio
 import json
 import logging
+import socket
 from collections import deque
 from flask import Flask, jsonify, request
 from .event_bus import subscription, publish
 import sqlalchemy as sa
+from .depth_client import DEPTH_WS_ADDR, DEPTH_WS_PORT
 from pathlib import Path
 import numpy as np
 
@@ -434,6 +436,26 @@ def rl_status() -> dict:
         {
             "last_train_time": getattr(rl_daemon, "last_train_time", None),
             "checkpoint_path": getattr(rl_daemon, "checkpoint_path", None),
+        }
+    )
+
+
+@app.route("/status")
+def status() -> dict:
+    """Return status of background components."""
+    trading_alive = trading_thread.is_alive() if trading_thread else False
+    rl_alive = rl_daemon is not None
+    depth_alive = False
+    try:
+        with socket.create_connection((DEPTH_WS_ADDR, DEPTH_WS_PORT), timeout=0.5):
+            depth_alive = True
+    except OSError:
+        depth_alive = False
+    return jsonify(
+        {
+            "trading_loop": trading_alive,
+            "rl_daemon": rl_alive,
+            "depth_service": depth_alive,
         }
     )
 
