@@ -363,3 +363,33 @@ def test_rl_status_endpoint(monkeypatch):
     assert data["last_train_time"] == 1.0
     assert data["checkpoint_path"] == "chk.pt"
 
+
+def test_status_endpoint(monkeypatch):
+    class DummyThread:
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr(ui, "trading_thread", DummyThread(), raising=False)
+    monkeypatch.setattr(ui, "rl_daemon", object(), raising=False)
+
+    def fake_conn(addr, timeout=None):
+        class Dummy:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                pass
+
+        return Dummy()
+
+    monkeypatch.setattr(ui.socket, "create_connection", fake_conn)
+
+    client = ui.app.test_client()
+    resp = client.get("/status")
+    data = resp.get_json()
+    assert data == {
+        "trading_loop": True,
+        "rl_daemon": True,
+        "depth_service": True,
+    }
+
