@@ -114,6 +114,7 @@ from .agents.discovery import DiscoveryAgent
 from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
+from . import depth_client
 
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
@@ -598,6 +599,7 @@ def main(
         ws_task = None
         book_task = None
         arb_task = None
+        depth_task = None
         rl_task = await _init_rl_training(
             cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
         )
@@ -632,6 +634,19 @@ def main(
                         await asyncio.sleep(1.0)
 
             ws_task = asyncio.create_task(run_market_ws())
+
+        use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
+        if use_depth_stream:
+
+            async def run_depth_ws() -> None:
+                while True:
+                    try:
+                        await depth_client.listen_depth_ws()
+                    except Exception as exc:  # pragma: no cover - network errors
+                        logging.error("Depth websocket failed: %s", exc)
+                        await asyncio.sleep(1.0)
+
+            depth_task = asyncio.create_task(run_depth_ws())
 
         if order_book_ws_url:
 
@@ -753,6 +768,10 @@ def main(
             arb_task.cancel()
             with contextlib.suppress(Exception):
                 await arb_task
+        if depth_task:
+            depth_task.cancel()
+            with contextlib.suppress(Exception):
+                await depth_task
         if rl_task:
             rl_task.cancel()
             with contextlib.suppress(Exception):

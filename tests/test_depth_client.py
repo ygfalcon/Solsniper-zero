@@ -221,3 +221,52 @@ def test_best_route(monkeypatch):
         "max_hops": 4,
     }
     assert res == (["a", "b"], 1.0, 0.2)
+
+
+def test_listen_depth_ws(monkeypatch):
+    msgs = [{"tok": {"bids": 1, "asks": 2, "tx_rate": 1.0}}]
+
+    class FakeMsg:
+        def __init__(self, data):
+            self.type = aiohttp.WSMsgType.TEXT
+            self.data = json.dumps(data)
+
+    class FakeWS:
+        def __init__(self, messages):
+            self.messages = list(messages)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self.messages:
+                return FakeMsg(self.messages.pop(0))
+            raise StopAsyncIteration
+
+    class FakeSession:
+        def __init__(self, messages):
+            self.messages = messages
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        def ws_connect(self, url):
+            self.url = url
+            return FakeWS(self.messages)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession(msgs))
+    events = []
+    monkeypatch.setattr(depth_client, "publish", lambda t, d: events.append((t, d)))
+
+    asyncio.run(depth_client.listen_depth_ws(max_updates=1))
+
+    assert events == [("depth_update", msgs[0])]

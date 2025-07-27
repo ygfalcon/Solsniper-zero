@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import time
+
+from .event_bus import subscription
 
 from .depth_client import (
     stream_depth,
@@ -10,6 +14,8 @@ from .depth_client import (
     auto_exec as service_auto_exec,
     DEPTH_SERVICE_SOCKET,
 )
+
+USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
 
 
 class EventExecutor:
@@ -32,6 +38,7 @@ class EventExecutor:
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
         self.auto_exec = auto_exec
         self._queue: asyncio.Queue[str] = asyncio.Queue()
+        self._last = 0.0
 
     async def enqueue(self, tx_b64: str) -> None:
         """Queue a pre-signed transaction for immediate submission."""
@@ -46,25 +53,38 @@ class EventExecutor:
         else:
             await self._queue.put(tx_b64)
 
+    async def _handle_update(self, data: dict) -> None:
+        entry = data.get(self.token)
+        if entry is None:
+            return
+        rate = float(entry.get("tx_rate", 0.0))
+        now = time.monotonic()
+        if rate < self.threshold or now - self._last < self.rate_limit:
+            return
+        try:
+            tx = self._queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return
+        self._last = now
+        await submit_raw_tx(
+            tx,
+            socket_path=self.socket_path,
+            priority_rpc=self.priority_rpc,
+        )
+        self._queue.task_done()
+
     async def run(self) -> None:
         """Start the event loop."""
+
+        if USE_DEPTH_STREAM:
+            with subscription("depth_update", self._handle_update):
+                await asyncio.Future()
+            return
 
         async for update in stream_depth(
             self.token, rate_limit=self.rate_limit
         ):
-            rate = float(update.get("tx_rate", 0.0))
-            if rate < self.threshold:
-                continue
-            try:
-                tx = self._queue.get_nowait()
-            except asyncio.QueueEmpty:
-                continue
-            await submit_raw_tx(
-                tx,
-                socket_path=self.socket_path,
-                priority_rpc=self.priority_rpc,
-            )
-            self._queue.task_done()
+            await self._handle_update({self.token: update})
 
 
 async def run_event_loop(
