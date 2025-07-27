@@ -18,7 +18,7 @@ from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .risk import average_correlation
-from .event_bus import subscription
+from .event_bus import subscription, publish
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +321,10 @@ class RLDaemon:
         self.last_train_time = time.time()
         self.checkpoint_path = str(self.model_path)
         logger.info("saved checkpoint to %s", self.model_path)
+        publish(
+            "rl_checkpoint",
+            {"time": self.last_train_time, "path": self.checkpoint_path},
+        )
 
     async def _loop(self, interval: float) -> None:
         while True:
