@@ -12,6 +12,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .base_memory import BaseMemory
+from .event_bus import publish
+from .schemas import TradeLogged
 
 Base = declarative_base()
 
@@ -43,12 +45,17 @@ class Memory(BaseMemory):
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
-    def log_trade(self, **kwargs) -> int | None:
+    def log_trade(self, *, _broadcast: bool = True, **kwargs) -> int | None:
         with self.Session() as session:
             trade = Trade(**kwargs)
             session.add(trade)
             session.commit()
-            return trade.id
+        if _broadcast:
+            try:
+                publish("trade_logged", TradeLogged(**kwargs))
+            except Exception:
+                pass
+        return trade.id
     def log_var(self, value: float) -> None:
         """Record a value-at-risk measurement."""
         with self.Session() as session:

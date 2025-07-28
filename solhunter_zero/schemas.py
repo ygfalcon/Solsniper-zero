@@ -40,12 +40,27 @@ class PortfolioUpdated:
     balances: Dict[str, float]
 
 
+@dataclass
+class TradeLogged:
+    """Payload emitted when a trade is written to memory."""
+
+    token: str
+    direction: str
+    amount: float
+    price: float
+    reason: str | None = None
+    context: str | None = None
+    emotion: str | None = None
+    simulation_id: int | None = None
+
+
 _EVENT_SCHEMAS: Dict[str, Type] = {
     "action_executed": ActionExecuted,
     "weights_updated": WeightsUpdated,
     "rl_weights": RLWeights,
     "rl_checkpoint": RLCheckpoint,
     "portfolio_updated": PortfolioUpdated,
+    "trade_logged": TradeLogged,
 }
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import datetime
-from typing import List
+from typing import List, Any
 
 import numpy as np
 try:  # optional heavy deps
@@ -24,6 +24,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .base_memory import BaseMemory
+from .event_bus import publish, subscription
+from .schemas import TradeLogged
 
 
 Base = declarative_base()
@@ -66,6 +68,7 @@ class AdvancedMemory(BaseMemory):
         self,
         url: str = "sqlite:///memory.db",
         index_path: str = "trade.index",
+        replicate: bool = False,
     ) -> None:
         self.engine = create_engine(url, echo=False, future=True)
         Base.metadata.create_all(self.engine)
@@ -83,6 +86,11 @@ class AdvancedMemory(BaseMemory):
             self.model = None
             self.index = None
 
+        self._replication_sub = None
+        if replicate:
+            self._replication_sub = subscription("trade_logged", self._apply_remote)
+            self._replication_sub.__enter__()
+
     # ------------------------------------------------------------------
     def _add_embedding(self, text: str, trade_id: int) -> None:
         if self.index is None or self.model is None:
@@ -92,6 +100,11 @@ class AdvancedMemory(BaseMemory):
             np.array([vec]), np.array([trade_id], dtype="int64")
         )
         faiss.write_index(self.index, self.index_path)
+
+    # ------------------------------------------------------------------
+    def _apply_remote(self, msg: Any) -> None:
+        data = msg if isinstance(msg, dict) else msg.__dict__
+        self.log_trade(_broadcast=False, **data)
 
     # ------------------------------------------------------------------
     def log_simulation(
@@ -126,6 +139,7 @@ class AdvancedMemory(BaseMemory):
         context: str = "",
         emotion: str = "",
         simulation_id: int | None = None,
+        _broadcast: bool = True,
     ) -> int:
         with self.Session() as session:
             trade = Trade(
@@ -142,7 +156,24 @@ class AdvancedMemory(BaseMemory):
             session.commit()
             text = context or f"{direction} {token}"
             self._add_embedding(text, trade.id)
-            return trade.id
+        if _broadcast:
+            try:
+                publish(
+                    "trade_logged",
+                    TradeLogged(
+                        token=token,
+                        direction=direction,
+                        amount=amount,
+                        price=price,
+                        reason=reason,
+                        context=context,
+                        emotion=emotion,
+                        simulation_id=simulation_id,
+                    ),
+                )
+            except Exception:
+                pass
+        return trade.id
 
     # ------------------------------------------------------------------
     def list_trades(self) -> List[Trade]:
@@ -186,3 +217,5 @@ class AdvancedMemory(BaseMemory):
     def close(self) -> None:
         if self.index is not None:
             faiss.write_index(self.index, self.index_path)
+        if self._replication_sub is not None:
+            self._replication_sub.__exit__(None, None, None)
