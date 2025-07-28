@@ -98,6 +98,21 @@ _rl_weights_sub = subscription("rl_weights", _update_rl_weights)
 _rl_weights_sub.__enter__()
 
 
+def _store_rl_metrics(msg: Any) -> None:
+    loss = getattr(msg, "loss", None)
+    if loss is None and isinstance(msg, dict):
+        loss = msg.get("loss")
+    reward = getattr(msg, "reward", None)
+    if reward is None and isinstance(msg, dict):
+        reward = msg.get("reward")
+    if loss is None or reward is None:
+        return
+    rl_metrics.append({"loss": float(loss), "reward": float(reward)})
+
+_rl_metrics_sub = subscription("rl_metrics", _store_rl_metrics)
+_rl_metrics_sub.__enter__()
+
+
 async def _send_rl_update(payload):
     if rl_ws_loop is None:
         return
@@ -122,6 +137,8 @@ _rl_subscription = subscription("rl_checkpoint", _send_rl_update)
 _rl_subscription.__enter__()
 _rl_weights_ws = subscription("rl_weights", _send_rl_update)
 _rl_weights_ws.__enter__()
+_rl_metrics_ws = subscription("rl_metrics", _send_rl_update)
+_rl_metrics_ws.__enter__()
 
 
 def _emit_ws_event(topic: str, payload: Any) -> None:
@@ -155,12 +172,14 @@ def _sub_handler(topic: str):
 _action_sub = subscription("action_executed", _sub_handler("action_executed"))
 _weights_ws_sub = subscription("weights_updated", _sub_handler("weights_updated"))
 _rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
+_rl_metrics_ws_sub = subscription("rl_metrics", _sub_handler("rl_metrics"))
 _risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
 _config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
 
 _action_sub.__enter__()
 _weights_ws_sub.__enter__()
 _rl_weights_ws_sub.__enter__()
+_rl_metrics_ws_sub.__enter__()
 _risk_ws_sub.__enter__()
 _config_ws_sub.__enter__()
 
@@ -184,6 +203,9 @@ current_keypair = None
 pnl_history: list[float] = []
 token_pnl_history: dict[str, list[float]] = {}
 allocation_history: dict[str, list[float]] = {}
+
+# most recent RL training metrics
+rl_metrics: list[dict[str, float]] = []
 
 # global RL training daemon for status reporting
 rl_daemon = None
@@ -538,11 +560,12 @@ def logs() -> dict:
 def rl_status() -> dict:
     """Return RL training metrics if available."""
     if rl_daemon is None:
-        return jsonify({"last_train_time": None, "checkpoint_path": None})
+        return jsonify({"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics})
     return jsonify(
         {
             "last_train_time": getattr(rl_daemon, "last_train_time", None),
             "checkpoint_path": getattr(rl_daemon, "checkpoint_path", None),
+            "metrics": rl_metrics,
         }
     )
 
