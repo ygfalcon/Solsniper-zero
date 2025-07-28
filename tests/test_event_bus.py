@@ -141,7 +141,10 @@ async def test_agent_manager_emits_events(monkeypatch):
     await mgr.execute("TOK", Portfolio(path=None))
     await asyncio.sleep(0)
 
-    assert received and received[0]["action"]["token"] == "TOK"
+    from solhunter_zero.schemas import ActionExecuted
+
+    assert received and isinstance(received[0], ActionExecuted)
+    assert received[0].action["token"] == "TOK"
 
 
 @pytest.mark.asyncio
@@ -227,4 +230,10 @@ async def test_event_bus_url_connect(monkeypatch):
     await ev.disconnect_ws()
     monkeypatch.delenv("EVENT_BUS_URL", raising=False)
     importlib.reload(ev)
+
+
+def test_publish_invalid_payload():
+    from solhunter_zero.event_bus import publish
+    with pytest.raises(ValueError):
+        publish("action_executed", {"bad": 1})
 

@@ -2,6 +2,7 @@ import threading
 import os
 import asyncio
 import json
+from dataclasses import asdict, is_dataclass
 import logging
 import socket
 from collections import deque
@@ -70,6 +71,8 @@ buffer_handler.setFormatter(
 logging.getLogger().addHandler(buffer_handler)
 
 def _update_weights(weights):
+    if is_dataclass(weights):
+        weights = asdict(weights)["weights"]
     try:
         os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
     except Exception:
@@ -82,6 +85,8 @@ _weights_subscription.__enter__()
 async def _send_rl_update(payload):
     if rl_ws_loop is None:
         return
+    if is_dataclass(payload):
+        payload = asdict(payload)
     msg = json.dumps(payload)
 
     async def _broadcast():
@@ -105,6 +110,8 @@ def _emit_ws_event(topic: str, payload: Any) -> None:
     """Send event payload to all connected websocket clients."""
     if event_ws_loop is None:
         return
+    if is_dataclass(payload):
+        payload = asdict(payload)
     msg = json.dumps({"topic": topic, "payload": payload})
 
     async def _broadcast() -> None:

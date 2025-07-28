@@ -24,6 +24,7 @@ from .swarm_coordinator import SwarmCoordinator
 from .regime import detect_regime
 from . import mutation
 from .event_bus import publish, subscription
+from .schemas import ActionExecuted, WeightsUpdated
 from .multi_rl import PopulationRL
 
 
@@ -205,7 +206,7 @@ class AgentManager:
             results.append(result)
             if self.memory_agent:
                 await self.memory_agent.log(action)
-            publish("action_executed", {"action": action, "result": result})
+            publish("action_executed", ActionExecuted(action=action, result=result))
         return results
 
     def _update_from_config(self, cfg: dict) -> None:
@@ -300,7 +301,7 @@ class AgentManager:
 
         self.coordinator.base_weights = self.weights
         self.save_weights()
-        publish("weights_updated", dict(self.weights))
+        publish("weights_updated", WeightsUpdated(weights=dict(self.weights)))
 
     # ------------------------------------------------------------------
     #  Mutation helpers
