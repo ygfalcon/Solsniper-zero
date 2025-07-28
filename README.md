@@ -428,6 +428,7 @@ published by default:
 - `risk_updated` when the risk multiplier is modified
 - `config_updated` when a configuration file is saved
 - `risk_metrics` whenever portfolio risk metrics are recalculated
+- `trade_logged` after any trade is written to a memory database
 
 Handlers can subscribe using :func:`subscribe` or the :func:`subscription`
 context manager:
@@ -444,6 +445,9 @@ with subscription("action_executed", on_action):
 
 Other processes such as the RL daemon listen to these events to train models and
 adjust configuration in real time.
+
+When `replicate_trades` is enabled, `AdvancedMemory` also listens for
+`trade_logged` events to mirror trades from other nodes.
 
 When the Web UI is running, these events are also forwarded over a simple
 WebSocket endpoint at `ws://localhost:8766/ws`. Clients can subscribe and react

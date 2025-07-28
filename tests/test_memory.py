@@ -21,3 +21,19 @@ def test_log_and_list_vars():
     mem.log_var(0.2)
     vals = mem.list_vars()
     assert [v.value for v in vals] == [0.1, 0.2]
+
+
+def test_trade_replication_event(tmp_path):
+    db = tmp_path / "rep.db"
+    idx = tmp_path / "rep.index"
+    from solhunter_zero.advanced_memory import AdvancedMemory
+    from solhunter_zero.event_bus import publish
+    from solhunter_zero.schemas import TradeLogged
+
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx), replicate=True)
+    publish(
+        "trade_logged",
+        TradeLogged(token="TOK", direction="buy", amount=1.0, price=1.0),
+    )
+    trades = mem.list_trades()
+    assert trades and trades[0].token == "TOK"
