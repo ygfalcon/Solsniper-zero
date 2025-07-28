@@ -138,11 +138,11 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
 
     sentinel = object()
 
-    def fake_load_keypair(path):
-        used["path"] = path
+    async def fake_load_keypair(path):
+        used.setdefault("paths", []).append(path)
         return sentinel
 
-    monkeypatch.setattr(ui.wallet, "load_keypair", fake_load_keypair)
+    monkeypatch.setattr(ui.wallet, "load_keypair_async", fake_load_keypair)
     monkeypatch.setenv("KEYPAIR_PATH", "envpath")
     monkeypatch.setattr(ui, "loop_delay", 0)
 
@@ -152,7 +152,7 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     thread.join(timeout=1)
 
     assert used["keypair"] is sentinel
-    assert used["path"] == "envpath"
+    assert "envpath" in used.get("paths", [])
 
 
 def test_get_and_set_risk_params(monkeypatch):

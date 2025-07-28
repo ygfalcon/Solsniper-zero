@@ -26,6 +26,7 @@ from .prices import fetch_token_prices
 from . import wallet
 from . import main as main_module
 from .memory import Memory
+from .base_memory import BaseMemory
 from .portfolio import Portfolio
 from .config import (
     list_configs,
@@ -208,21 +209,19 @@ def _missing_required() -> list[str]:
     return missing
 
 
-async def trading_loop() -> None:
+async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
 
-    memory = Memory("sqlite:///memory.db")
+    memory = memory or Memory("sqlite:///memory.db")
     portfolio = Portfolio()
 
     current_portfolio = portfolio
     set_env_from_config(load_selected_config())
     keypair_path = os.getenv("KEYPAIR_PATH")
-    env_keypair = (
-        await wallet.load_keypair_async(keypair_path) if keypair_path else None
-    )
+    env_keypair = await wallet.load_keypair_async(keypair_path) if keypair_path else None
     current_keypair = env_keypair
 
     while not stop_event.is_set():

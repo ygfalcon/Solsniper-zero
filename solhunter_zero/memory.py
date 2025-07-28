@@ -11,6 +11,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from .base_memory import BaseMemory
+
 Base = declarative_base()
 
 def utcnow():
@@ -35,18 +37,18 @@ class VaRLog(Base):
     timestamp = Column(DateTime, default=utcnow)
 
 
-class Memory:
+class Memory(BaseMemory):
     def __init__(self, url: str = 'sqlite:///memory.db'):
         self.engine = create_engine(url, echo=False, future=True)
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
-    def log_trade(self, **kwargs) -> None:
+    def log_trade(self, **kwargs) -> int | None:
         with self.Session() as session:
             trade = Trade(**kwargs)
             session.add(trade)
             session.commit()
-
+            return trade.id
     def log_var(self, value: float) -> None:
         """Record a value-at-risk measurement."""
         with self.Session() as session:
@@ -54,7 +56,7 @@ class Memory:
             session.add(rec)
             session.commit()
 
-    def list_trades(self):
+    def list_trades(self) -> list[Trade]:
         with self.Session() as session:
             return session.query(Trade).all()
 

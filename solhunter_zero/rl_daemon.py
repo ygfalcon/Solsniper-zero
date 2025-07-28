@@ -14,6 +14,7 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
+from .base_memory import BaseMemory
 from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
@@ -195,6 +196,7 @@ class RLDaemon:
 
     def __init__(
         self,
+        memory: BaseMemory | None = None,
         memory_path: str = "sqlite:///memory.db",
         data_path: str = "offline_data.db",
         model_path: str | Path = "ppo_model.pt",
@@ -204,7 +206,7 @@ class RLDaemon:
         agents: Iterable[Any] | None = None,
         queue: asyncio.Queue | None = None,
     ) -> None:
-        self.memory = Memory(memory_path)
+        self.memory = memory or Memory(memory_path)
         self.data_path = data_path
         self.data = OfflineData(f"sqlite:///{data_path}")
         self.model_path = Path(model_path)
@@ -313,7 +315,6 @@ class RLDaemon:
             self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
         except Exception as exc:  # pragma: no cover - corrupt file
             logger.error("failed to load updated model: %s", exc)
-            return
         for ag in self.agents:
             try:
                 if hasattr(ag, "reload_weights"):
