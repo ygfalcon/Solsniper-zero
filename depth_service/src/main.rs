@@ -17,6 +17,19 @@ use tokio::{
 use tokio_tungstenite::{connect_async, accept_async, tungstenite::Message};
 use solana_client::nonblocking::rpc_client::RpcClient;
 
+fn event_bus_url() -> Option<String> {
+    std::env::var("EVENT_BUS_URL").ok().filter(|v| !v.is_empty())
+}
+
+fn depth_ws_addr() -> (String, u16) {
+    let addr = std::env::var("DEPTH_WS_ADDR").unwrap_or_else(|_| "0.0.0.0".into());
+    let port = std::env::var("DEPTH_WS_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8765);
+    (addr, port)
+}
+
 mod route;
 use solana_sdk::{
     commitment_config::CommitmentLevel,
@@ -629,7 +642,7 @@ async fn main() -> Result<()> {
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
-    let bus_tx = if let Ok(url) = std::env::var("EVENT_BUS_URL") {
+    let bus_tx = if let Some(url) = event_bus_url() {
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();
         tokio::spawn(async move {
             use serde_json::json;
@@ -663,11 +676,7 @@ async fn main() -> Result<()> {
     } else {
         None
     };
-    let ws_addr = std::env::var("DEPTH_WS_ADDR").unwrap_or_else(|_| "0.0.0.0".into());
-    let ws_port: u16 = std::env::var("DEPTH_WS_PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(8765);
+    let (ws_addr, ws_port) = depth_ws_addr();
     {
         let tx = ws_tx.clone();
         let addr = ws_addr.clone();

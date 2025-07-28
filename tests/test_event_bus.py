@@ -219,16 +219,18 @@ async def test_event_bus_url_connect(monkeypatch):
 
         return Dummy()
 
-    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
     monkeypatch.setattr(websockets, "connect", fake_connect)
+    monkeypatch.setattr(
+        "solhunter_zero.config.get_event_bus_url", lambda *_: "ws://bus"
+    )
 
     ev = importlib.reload(ev)
+    ev._reload_bus(None)
     await asyncio.sleep(0)
 
     assert called.get("url") == "ws://bus"
 
     await ev.disconnect_ws()
-    monkeypatch.delenv("EVENT_BUS_URL", raising=False)
     importlib.reload(ev)
 
 

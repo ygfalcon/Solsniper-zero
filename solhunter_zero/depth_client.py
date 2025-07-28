@@ -6,15 +6,23 @@ from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
 
-from .event_bus import publish
+from .event_bus import publish, subscription
+from .config import get_depth_ws_addr
 
 from . import order_book_ws
 
 DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 
 MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
-DEPTH_WS_PORT = int(os.getenv("DEPTH_WS_PORT", "8765"))
-DEPTH_WS_ADDR = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
+DEPTH_WS_ADDR, DEPTH_WS_PORT = get_depth_ws_addr()
+
+
+def _reload_depth(cfg) -> None:
+    global DEPTH_WS_ADDR, DEPTH_WS_PORT
+    DEPTH_WS_ADDR, DEPTH_WS_PORT = get_depth_ws_addr(cfg)
+
+
+subscription("config_updated", _reload_depth).__enter__()
 
 async def stream_depth(
     token: str,
