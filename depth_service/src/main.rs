@@ -9,27 +9,47 @@ use futures_util::{StreamExt, SinkExt};
 use memmap2::{MmapMut, MmapOptions};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-pub mod event;
-use event as pb;
+use prost::Message;
+use toml::value::Table as TomlTable;
+pub mod solhunter_zero;
+use solhunter_zero as pb;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, UnixListener},
     sync::{broadcast, mpsc},
 };
-use tokio_tungstenite::{connect_async, accept_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async, accept_async, tungstenite::Message as WsMessage};
 use solana_client::nonblocking::rpc_client::RpcClient;
 
-fn event_bus_url() -> Option<String> {
-    std::env::var("EVENT_BUS_URL").ok().filter(|v| !v.is_empty())
+fn cfg_str(cfg: &TomlTable, key: &str) -> Option<String> {
+    cfg.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
-fn depth_ws_addr() -> (String, u16) {
-    let addr = std::env::var("DEPTH_WS_ADDR").unwrap_or_else(|_| "0.0.0.0".into());
+fn event_bus_url(cfg: &TomlTable) -> Option<String> {
+    std::env::var("EVENT_BUS_URL").ok().filter(|v| !v.is_empty())
+        .or_else(|| cfg_str(cfg, "event_bus_url"))
+        .filter(|v| !v.is_empty())
+}
+
+fn depth_ws_addr(cfg: &TomlTable) -> (String, u16) {
+    let addr = std::env::var("DEPTH_WS_ADDR")
+        .ok()
+        .or_else(|| cfg_str(cfg, "DEPTH_WS_ADDR"))
+        .or_else(|| cfg_str(cfg, "depth_ws_addr"))
+        .unwrap_or_else(|| "0.0.0.0".into());
     let port = std::env::var("DEPTH_WS_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
+        .or_else(|| cfg_str(cfg, "DEPTH_WS_PORT").and_then(|v| v.parse().ok()))
+        .or_else(|| cfg_str(cfg, "depth_ws_port").and_then(|v| v.parse().ok()))
         .unwrap_or(8765);
     (addr, port)
+}
+
+fn load_config(path: &str) -> Result<TomlTable> {
+    let data = std::fs::read_to_string(path)?;
+    let val: toml::Value = toml::from_str(&data)?;
+    Ok(val.as_table().cloned().unwrap_or_default())
 }
 
 mod route;
@@ -625,7 +645,7 @@ async fn ws_server(addr: &str, port: u16, tx: WsSender) -> Result<()> {
                 let (mut write, _) = ws.split();
                 let mut rx = tx.subscribe();
                 while let Ok(msg) = rx.recv().await {
-                    if write.send(Message::Text(msg)).await.is_err() {
+                    if write.send(WsMessage::Text(msg)).await.is_err() {
                         break;
                     }
                 }
@@ -637,6 +657,7 @@ async fn ws_server(addr: &str, port: u16, tx: WsSender) -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    let mut config_path = None;
     let mut serum = None;
     let mut raydium = None;
     let mut orca = None;
@@ -648,6 +669,7 @@ async fn main() -> Result<()> {
     let mut keypair_path = std::env::var("SOLANA_KEYPAIR").unwrap_or_default();
     for w in args.windows(2) {
         match w[0].as_str() {
+            "--config" => config_path = Some(w[1].clone()),
             "--serum" => serum = Some(w[1].clone()),
             "--raydium" => raydium = Some(w[1].clone()),
             "--rpc" => rpc = w[1].clone(),
@@ -660,18 +682,62 @@ async fn main() -> Result<()> {
             _ => {}
         }
     }
+    let cfg = if let Some(path) = config_path {
+        load_config(&path).unwrap_or_default()
+    } else {
+        TomlTable::new()
+    };
+    if serum.is_none() {
+        serum = std::env::var("SERUM_WS_URL").ok().or_else(|| cfg_str(&cfg, "serum_ws_url"));
+    }
+    if raydium.is_none() {
+        raydium = std::env::var("RAYDIUM_WS_URL").ok().or_else(|| cfg_str(&cfg, "raydium_ws_url"));
+    }
+    if orca.is_none() {
+        orca = std::env::var("ORCA_WS_URL").ok().or_else(|| cfg_str(&cfg, "orca_ws_url"));
+    }
+    if jupiter.is_none() {
+        jupiter = std::env::var("JUPITER_WS_URL").ok().or_else(|| cfg_str(&cfg, "jupiter_ws_url"));
+    }
+    if phoenix.is_none() {
+        phoenix = std::env::var("PHOENIX_WS_URL").ok().or_else(|| cfg_str(&cfg, "phoenix_ws_url"));
+    }
+    if meteora.is_none() {
+        meteora = std::env::var("METEORA_WS_URL").ok().or_else(|| cfg_str(&cfg, "meteora_ws_url"));
+    }
+    if mempool.is_none() {
+        mempool = std::env::var("MEMPOOL_WS_URL").ok().or_else(|| cfg_str(&cfg, "mempool_ws_url"));
+    }
+    if rpc.is_empty() {
+        if let Ok(env_rpc) = std::env::var("SOLANA_RPC_URL") {
+            rpc = env_rpc;
+        } else if let Some(val) = cfg_str(&cfg, "solana_rpc_url") {
+            rpc = val;
+        }
+    }
+    if keypair_path.is_empty() {
+        if let Ok(env_kp) = std::env::var("SOLANA_KEYPAIR") {
+            keypair_path = env_kp;
+        } else if let Some(val) = cfg_str(&cfg, "solana_keypair") {
+            keypair_path = val;
+        }
+    }
+    let mmap_path = std::env::var("DEPTH_MMAP_PATH")
+        .ok()
+        .or_else(|| cfg_str(&cfg, "DEPTH_MMAP_PATH"))
+        .unwrap_or_else(|| "/tmp/depth_service.mmap".into());
     let file = OpenOptions::new()
         .create(true)
         .read(true)
         .write(true)
-        .open("/tmp/depth_service.mmap")?;
+        .open(&mmap_path)?;
     file.set_len(65536)?;
     let mmap = unsafe { MmapOptions::new().map_mut(&file)? };
     let mmap = Arc::new(Mutex::new(mmap));
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
-    let bus_tx = if let Some(url) = event_bus_url() {
+    let bus_tx = if let Some(url) = event_bus_url(&cfg) {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         tokio::spawn(async move {
             let mut backoff = Duration::from_secs(1);
@@ -685,10 +751,10 @@ async fn main() -> Result<()> {
                             topic: "depth_service_status".to_string(),
                             kind: Some(pb::event::Kind::DepthServiceStatus(pb::DepthServiceStatus { status: "online".to_string() })),
                         };
-                        let _ = write.send(Message::Binary(online.encode_to_vec())).await;
+                        let _ = write.send(WsMessage::Binary(online.encode_to_vec())).await;
                         tokio::spawn(async move { while read.next().await.is_some() {} });
                         while let Some(msg) = rx.recv().await {
-                            if write.send(Message::Binary(msg)).await.is_err() {
+                            if write.send(WsMessage::Binary(msg)).await.is_err() {
                                 break;
                             }
                         }
@@ -703,7 +769,7 @@ async fn main() -> Result<()> {
     } else {
         None
     };
-    let (ws_addr, ws_port) = depth_ws_addr();
+    let (ws_addr, ws_port) = depth_ws_addr(&cfg);
     {
         let tx = ws_tx.clone();
         let addr = ws_addr.clone();
@@ -793,6 +859,10 @@ async fn main() -> Result<()> {
     }
     let exec = Arc::new(ExecContext::new(&rpc, kp).await);
 
-    ipc_server(Path::new("/tmp/depth_service.sock"), dex_map, mem_map, exec).await?;
+    let sock_path = std::env::var("DEPTH_SERVICE_SOCKET")
+        .ok()
+        .or_else(|| cfg_str(&cfg, "DEPTH_SERVICE_SOCKET"))
+        .unwrap_or_else(|| "/tmp/depth_service.sock".into());
+    ipc_server(Path::new(&sock_path), dex_map, mem_map, exec).await?;
     Ok(())
 }

@@ -128,7 +128,7 @@ direct transaction submission to the Solana RPC.
 1. **Build and run the service**
    ```bash
    cargo run --manifest-path depth_service/Cargo.toml --release -- \
-     --serum wss://serum/ws --raydium wss://raydium/ws
+     --config config.toml --serum wss://serum/ws --raydium wss://raydium/ws
    ```
 2. **Set environment variables**
    Ensure `DEPTH_SERVICE_SOCKET` and `DEPTH_MMAP_PATH` are exported before
@@ -142,6 +142,7 @@ direct transaction submission to the Solana RPC.
    - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
      When set, depth updates are forwarded using the topic `depth_update`.
      The same value can be provided via `event_bus_url` in your config.
+   - `--config <path>` – load these options from the given configuration file.
 3. **Route transactions through the service**
    Python code signs transactions locally and forwards them via
    ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
@@ -286,7 +287,7 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    python scripts/start_all.py
    ```
-   The script waits for the depth websocket and passes `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
+   The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
 Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`. The `make start` target is a convenient shortcut.
 
