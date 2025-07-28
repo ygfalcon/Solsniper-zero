@@ -1,0 +1,60 @@
+syntax = "proto3";
+package solhunter_zero;
+
+message ActionExecuted {
+  string action_json = 1;
+  string result_json = 2;
+}
+
+message WeightsUpdated {
+  map<string, double> weights = 1;
+}
+
+message RLWeights {
+  map<string, double> weights = 1;
+  map<string, double> risk = 2;
+}
+
+message RLCheckpoint {
+  double time = 1;
+  string path = 2;
+}
+
+message PortfolioUpdated {
+  map<string, double> balances = 1;
+}
+
+message TokenInfo {
+  double bids = 1;
+  double asks = 2;
+  double tx_rate = 3;
+}
+
+message TokenAgg {
+  map<string, TokenInfo> dex = 1;
+  double bids = 2;
+  double asks = 3;
+  double tx_rate = 4;
+  int64 ts = 5;
+}
+
+message DepthUpdate {
+  map<string, TokenAgg> entries = 1;
+}
+
+message DepthServiceStatus {
+  string status = 1;
+}
+
+message Event {
+  string topic = 1;
+  oneof kind {
+    ActionExecuted action_executed = 2;
+    WeightsUpdated weights_updated = 3;
+    RLWeights rl_weights = 4;
+    RLCheckpoint rl_checkpoint = 5;
+    PortfolioUpdated portfolio_updated = 6;
+    DepthUpdate depth_update = 7;
+    DepthServiceStatus depth_service_status = 8;
+  }
+}

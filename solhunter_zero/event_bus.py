@@ -7,6 +7,17 @@ from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
 from .schemas import validate_message, to_dict
+from . import event_pb2 as pb
+
+_PB_MAP = {
+    "action_executed": pb.ActionExecuted,
+    "weights_updated": pb.WeightsUpdated,
+    "rl_weights": pb.RLWeights,
+    "rl_checkpoint": pb.RLCheckpoint,
+    "portfolio_updated": pb.PortfolioUpdated,
+    "depth_update": pb.DepthUpdate,
+    "depth_service_status": pb.DepthServiceStatus,
+}
 
 
 def _get_bus_url(cfg=None):
@@ -25,6 +36,63 @@ _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = default
 _ws_clients: Set[Any] = set()
 _ws_client = None
 _ws_server = None
+
+
+def _encode_event(topic: str, payload: Any) -> Any:
+    cls = _PB_MAP.get(topic)
+    if cls is None:
+        return json.dumps({"topic": topic, "payload": to_dict(payload)})
+
+    if topic == "action_executed":
+        event = pb.Event(
+            topic=topic,
+            action_executed=pb.ActionExecuted(
+                action_json=json.dumps(payload.action),
+                result_json=json.dumps(payload.result),
+            ),
+        )
+    elif topic == "weights_updated":
+        event = pb.Event(topic=topic, weights_updated=pb.WeightsUpdated(weights=payload.weights))
+    elif topic == "rl_weights":
+        event = pb.Event(
+            topic=topic,
+            rl_weights=pb.RLWeights(weights=payload.weights, risk=payload.risk or {}),
+        )
+    elif topic == "rl_checkpoint":
+        event = pb.Event(topic=topic, rl_checkpoint=pb.RLCheckpoint(time=payload.time, path=payload.path))
+    elif topic == "portfolio_updated":
+        event = pb.Event(topic=topic, portfolio_updated=pb.PortfolioUpdated(balances=payload.balances))
+    elif topic == "depth_update":
+        return json.dumps({"topic": topic, "payload": to_dict(payload)})
+    elif topic == "depth_service_status":
+        event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
+    else:
+        return json.dumps({"topic": topic, "payload": to_dict(payload)})
+    return event.SerializeToString()
+
+def _decode_payload(ev: pb.Event) -> Any:
+    field = ev.WhichOneof("kind")
+    if not field:
+        return None
+    msg = getattr(ev, field)
+    if field == "action_executed":
+        return {
+            "action": json.loads(msg.action_json),
+            "result": json.loads(msg.result_json),
+        }
+    if field == "weights_updated":
+        return {"weights": dict(msg.weights)}
+    if field == "rl_weights":
+        return {"weights": dict(msg.weights), "risk": dict(msg.risk)}
+    if field == "rl_checkpoint":
+        return {"time": msg.time, "path": msg.path}
+    if field == "portfolio_updated":
+        return {"balances": dict(msg.balances)}
+    if field == "depth_update":
+        return {k: {"dex": {dk: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate} for dk, di in v.dex.items()}, "bids": v.bids, "asks": v.asks, "tx_rate": v.tx_rate, "ts": v.ts} for k, v in msg.entries.items()}
+    if field == "depth_service_status":
+        return {"status": msg.status}
+    return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     """Register ``handler`` for ``topic`` events.
@@ -78,7 +146,7 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
             h(payload)
 
     if websockets and _broadcast:
-        msg = json.dumps({"topic": topic, "payload": to_dict(payload)})
+        msg = _encode_event(topic, payload)
         if loop:
             loop.create_task(broadcast_ws(msg))
         else:
@@ -86,7 +154,10 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
 
 
 async def broadcast_ws(
-    message: str, *, to_clients: bool = True, to_server: bool = True
+    message: Any,
+    *,
+    to_clients: bool = True,
+    to_server: bool = True,
 ) -> None:
     """Send ``message`` to websocket peers."""
     if to_clients:
@@ -115,10 +186,13 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
         try:
             async for msg in ws:
                 try:
-                    data = json.loads(msg)
-                    publish(
-                        data.get("topic"), data.get("payload"), _broadcast=False
-                    )
+                    if isinstance(msg, bytes):
+                        ev = pb.Event()
+                        ev.ParseFromString(msg)
+                        publish(ev.topic, _decode_payload(ev), _broadcast=False)
+                    else:
+                        data = json.loads(msg)
+                        publish(data.get("topic"), data.get("payload"), _broadcast=False)
                 except Exception:  # pragma: no cover - malformed message
                     continue
         finally:
@@ -152,10 +226,15 @@ async def connect_ws(url: str):
     async def receiver(ws):
         async for msg in ws:
             try:
-                data = json.loads(msg)
+                if isinstance(msg, bytes):
+                    ev = pb.Event()
+                    ev.ParseFromString(msg)
+                    publish(ev.topic, _decode_payload(ev), _broadcast=False)
+                else:
+                    data = json.loads(msg)
+                    publish(data.get("topic"), data.get("payload"), _broadcast=False)
             except Exception:  # pragma: no cover - malformed msg
                 continue
-            publish(data.get("topic"), data.get("payload"), _broadcast=False)
 
     global _ws_client
     _ws_client = await websockets.connect(url)

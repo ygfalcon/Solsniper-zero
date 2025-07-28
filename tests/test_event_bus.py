@@ -169,12 +169,17 @@ async def test_websocket_publish_and_receive():
     port = 8768
     await start_ws_server("localhost", port)
 
+    from solhunter_zero import event_pb2
     async with websockets.connect(f"ws://localhost:{port}") as ws:
-        publish("ws", {"foo": 1})
+        publish("weights_updated", {"weights": {"x": 1.0}})
         raw = await asyncio.wait_for(ws.recv(), timeout=1)
-        data = json.loads(raw)
-        assert data["topic"] == "ws"
-        assert data["payload"] == {"foo": 1}
+        if isinstance(raw, bytes):
+            ev = event_pb2.Event()
+            ev.ParseFromString(raw)
+            assert ev.topic == "weights_updated"
+            assert dict(ev.weights_updated.weights)["x"] == 1.0
+        else:
+            raise AssertionError("expected binary message")
     await stop_ws_server()
 
 
@@ -183,13 +188,16 @@ async def test_websocket_client_publish(monkeypatch):
     port = 8769
     await start_ws_server("localhost", port)
     received = []
-    subscribe("remote", lambda p: received.append(p))
+    subscribe("weights_updated", lambda p: received.append(p))
     await connect_ws(f"ws://localhost:{port}")
-    await broadcast_ws(
-        json.dumps({"topic": "remote", "payload": {"x": 5}}), to_clients=False
-    )
+    from solhunter_zero import event_pb2
+    upd = event_pb2.WeightsUpdated(weights={"x": 5.0})
+    ev = event_pb2.Event(topic="weights_updated", weights_updated=upd)
+    await broadcast_ws(ev.SerializeToString(), to_clients=False)
     await asyncio.sleep(0.1)
-    assert received == [{"x": 5}]
+    from solhunter_zero.schemas import WeightsUpdated
+    assert received and isinstance(received[0], WeightsUpdated)
+    assert received[0].weights["x"] == 5.0
     await disconnect_ws()
     await stop_ws_server()
 

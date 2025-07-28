@@ -9,6 +9,8 @@ use futures_util::{StreamExt, SinkExt};
 use memmap2::{MmapMut, MmapOptions};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+pub mod event;
+use event as pb;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, UnixListener},
@@ -241,7 +243,7 @@ async fn update_mmap(
     mem: &MempoolMap,
     mmap: &SharedMmap,
     ws: &WsSender,
-    bus: Option<&mpsc::UnboundedSender<String>>,
+    bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
     let mem = mem.lock().await;
@@ -275,12 +277,39 @@ async fn update_mmap(
     let text = String::from_utf8_lossy(&json).to_string();
     let _ = ws.send(text.clone());
     if let Some(bus) = bus {
-        let payload: HashMap<String, TokenAgg> = agg;
-        let msg = serde_json::to_string(&EventMessage {
+        let entries: HashMap<String, pb::TokenAgg> = agg
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    pb::TokenAgg {
+                        dex: v
+                            .dex
+                            .iter()
+                            .map(|(dk, di)| {
+                                (
+                                    dk.clone(),
+                                    pb::TokenInfo {
+                                        bids: di.bids,
+                                        asks: di.asks,
+                                        tx_rate: di.tx_rate,
+                                    },
+                                )
+                            })
+                            .collect(),
+                        bids: v.bids,
+                        asks: v.asks,
+                        tx_rate: v.tx_rate,
+                        ts: v.ts,
+                    },
+                )
+            })
+            .collect();
+        let event = pb::Event {
             topic: "depth_update".to_string(),
-            payload,
-        })?;
-        let _ = bus.send(msg);
+            kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
+        };
+        let _ = bus.send(event.encode_to_vec());
     }
     Ok(())
 }
@@ -292,7 +321,7 @@ async fn connect_feed(
     mem: MempoolMap,
     mmap: SharedMmap,
     ws: WsSender,
-    bus: Option<mpsc::UnboundedSender<String>>,
+    bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -327,7 +356,7 @@ async fn connect_price_feed(
     mem: MempoolMap,
     mmap: SharedMmap,
     ws: WsSender,
-    bus: Option<mpsc::UnboundedSender<String>>,
+    bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -356,7 +385,7 @@ async fn connect_mempool(
     dex_map: DexMap,
     mmap: SharedMmap,
     ws: WsSender,
-    bus: Option<mpsc::UnboundedSender<String>>,
+    bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -643,9 +672,8 @@ async fn main() -> Result<()> {
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
     let bus_tx = if let Some(url) = event_bus_url() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         tokio::spawn(async move {
-            use serde_json::json;
             let mut backoff = Duration::from_secs(1);
             loop {
                 match connect_async(&url).await {
@@ -653,15 +681,14 @@ async fn main() -> Result<()> {
                         backoff = Duration::from_secs(1);
                         let (mut write, mut read) = socket.split();
                         // Notify bus that the service is online
-                        let online = serde_json::to_string(&EventMessage::<serde_json::Value> {
+                        let online = pb::Event {
                             topic: "depth_service_status".to_string(),
-                            payload: json!({"status": "online"}),
-                        })
-                        .unwrap();
-                        let _ = write.send(Message::Text(online)).await;
+                            kind: Some(pb::event::Kind::DepthServiceStatus(pb::DepthServiceStatus { status: "online".to_string() })),
+                        };
+                        let _ = write.send(Message::Binary(online.encode_to_vec())).await;
                         tokio::spawn(async move { while read.next().await.is_some() {} });
                         while let Some(msg) = rx.recv().await {
-                            if write.send(Message::Text(msg)).await.is_err() {
+                            if write.send(Message::Binary(msg)).await.is_err() {
                                 break;
                             }
                         }
