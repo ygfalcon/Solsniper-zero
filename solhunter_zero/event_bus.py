@@ -229,10 +229,15 @@ async def connect_ws(url: str):
                 if isinstance(msg, bytes):
                     ev = pb.Event()
                     ev.ParseFromString(msg)
-                    publish(ev.topic, _decode_payload(ev), _broadcast=False)
+                    payload = _decode_payload(ev)
+                    publish(ev.topic, payload, _broadcast=False)
+                    await broadcast_ws(msg, to_server=False)
                 else:
                     data = json.loads(msg)
-                    publish(data.get("topic"), data.get("payload"), _broadcast=False)
+                    topic = data.get("topic")
+                    payload = data.get("payload")
+                    publish(topic, payload, _broadcast=False)
+                    await broadcast_ws(msg, to_server=False)
             except Exception:  # pragma: no cover - malformed msg
                 continue
 
