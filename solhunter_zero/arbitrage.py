@@ -101,6 +101,38 @@ USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "ye
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
 PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 
+from .lru import LRUCache
+from .event_bus import subscribe
+
+ROUTE_CACHE = LRUCache(maxsize=128)
+_LAST_DEPTH: dict[str, float] = {}
+
+def _route_key(token: str, amount: float, fees: Mapping[str, float], gas: Mapping[str, float], latency: Mapping[str, float]) -> tuple:
+    def _norm(m: Mapping[str, float]) -> tuple:
+        return tuple(sorted((k, float(v)) for k, v in m.items()))
+    return (token, float(amount), _norm(fees), _norm(gas), _norm(latency))
+
+def invalidate_route(token: str | None = None) -> None:
+    """Remove cached paths for ``token`` or clear the cache."""
+    if token is None:
+        ROUTE_CACHE.clear()
+        return
+    keys = [k for k in ROUTE_CACHE._cache if k[0] == token]
+    for k in keys:
+        ROUTE_CACHE._cache.pop(k, None)
+
+def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
+    for token, entry in payload.items():
+        depth = float(entry.get("depth", 0.0))
+        last = _LAST_DEPTH.get(token)
+        if last is not None:
+            base = max(depth, last, 1.0)
+            if abs(depth - last) / base > 0.1:
+                invalidate_route(token)
+        _LAST_DEPTH[token] = depth
+
+subscribe("depth_update", _on_depth_update)
+
 
 def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return updated fee, gas and latency mappings from the environment."""
@@ -511,6 +543,60 @@ def _best_route(
     return (best or []), best_profit
 
 
+async def _compute_route(
+    token: str,
+    amount: float,
+    price_map: Mapping[str, float],
+    *,
+    fees: Mapping[str, float],
+    gas: Mapping[str, float],
+    latency: Mapping[str, float],
+    use_service: bool,
+    use_flash_loans: bool,
+    max_flash_amount: float,
+    max_hops: int,
+    path_algorithm: str,
+) -> tuple[list[str], float]:
+    key = _route_key(token, amount, fees, gas, latency)
+    cached = ROUTE_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    if use_service:
+        res = await depth_client.best_route(
+            token,
+            amount,
+            socket_path=DEPTH_SERVICE_SOCKET,
+            max_hops=max_hops,
+        )
+        if res:
+            path, profit, _ = res
+        else:
+            path, profit = [], 0.0
+    else:
+        depth_map, _ = depth_client.snapshot(token)
+        total = sum(
+            float(v.get("bids", 0.0)) + float(v.get("asks", 0.0))
+            for v in depth_map.values()
+        )
+        _LAST_DEPTH[token] = total
+        path, profit = _best_route(
+            price_map,
+            amount,
+            fees=fees,
+            gas=gas,
+            latency=latency,
+            depth=depth_map,
+            use_flash_loans=use_flash_loans,
+            max_flash_amount=max_flash_amount,
+            max_hops=max_hops,
+            path_algorithm=path_algorithm,
+        )
+
+    ROUTE_CACHE.set(key, (path, profit))
+    return path, profit
+
+
 async def _detect_for_token(
     token: str,
     feeds: Sequence[PriceFeed] | None = None,
@@ -599,31 +685,19 @@ async def _detect_for_token(
             price_map = {n: p for n, p in zip(names, prices) if p is not None and p > 0}
             if len(price_map) < 2:
                 return None
-            if USE_SERVICE_ROUTE:
-                res = await depth_client.best_route(
-                    token,
-                    amount,
-                    socket_path=DEPTH_SERVICE_SOCKET,
-                    max_hops=max_hops,
-                )
-                if res:
-                    path, profit, _ = res
-                else:
-                    path, profit = [], 0.0
-            else:
-                depth_map, _ = depth_client.snapshot(token)
-                path, profit = _best_route(
-                    price_map,
-                    amount,
-                    fees=fees,
-                    gas=gas,
-                    latency=latencies,
-                    depth=depth_map,
-                    use_flash_loans=use_flash_loans,
-                    max_flash_amount=max_flash_amount,
-                    max_hops=max_hops,
-                    path_algorithm=path_algorithm,
-                )
+            path, profit = await _compute_route(
+                token,
+                amount,
+                price_map,
+                fees=fees,
+                gas=gas,
+                latency=latencies,
+                use_service=USE_SERVICE_ROUTE,
+                use_flash_loans=use_flash_loans,
+                max_flash_amount=max_flash_amount,
+                max_hops=max_hops,
+                path_algorithm=path_algorithm,
+            )
             if not path:
                 return None
             buy_name, sell_name = path[0], path[-1]
@@ -802,32 +876,19 @@ async def _detect_for_token(
     if len(price_map) < 2:
         return None
 
-    if USE_SERVICE_ROUTE:
-        res = await depth_client.best_route(
-            token,
-            amount,
-            socket_path=DEPTH_SERVICE_SOCKET,
-            max_hops=max_hops,
-        )
-        if res:
-            path, profit, _ = res
-        else:
-            path, profit = [], 0.0
-    else:
-        depth_map, _ = depth_client.snapshot(token)
-
-        path, profit = _best_route(
-            price_map,
-            amount,
-            fees=fees,
-            gas=gas,
-            latency=latencies,
-            depth=depth_map,
-            use_flash_loans=use_flash_loans,
-            max_flash_amount=max_flash_amount,
-            max_hops=max_hops,
-            path_algorithm=path_algorithm,
-        )
+    path, profit = await _compute_route(
+        token,
+        amount,
+        price_map,
+        fees=fees,
+        gas=gas,
+        latency=latencies,
+        use_service=USE_SERVICE_ROUTE,
+        use_flash_loans=use_flash_loans,
+        max_flash_amount=max_flash_amount,
+        max_hops=max_hops,
+        path_algorithm=path_algorithm,
+    )
     if not path:
         return None
     buy_name, sell_name = path[0], path[-1]
