@@ -2,6 +2,7 @@
 name = "depth_service"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -17,3 +18,8 @@ solana-program = "1.18"
 base64 = "0.21"
 bincode = "1"
 chrono = { version = "0.4", features = ["serde"] }
+prost = "0.12"
+prost-types = "0.12"
+
+[build-dependencies]
+prost-build = "0.12"
