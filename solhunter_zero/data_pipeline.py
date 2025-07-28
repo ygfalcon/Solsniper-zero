@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List, Mapping
+
+from .event_bus import subscribe
 
 from .offline_data import OfflineData
 
@@ -43,3 +45,41 @@ def load_high_freq_snapshots(
                 )
             )
     return snaps
+
+
+def start_depth_snapshot_listener(
+    data: OfflineData | str = "offline_data.db",
+) -> Callable[[], None]:
+    """Subscribe to ``depth_update`` events and log snapshots.
+
+    Parameters
+    ----------
+    data:
+        Either an :class:`OfflineData` instance or path to the database file.
+
+    Returns
+    -------
+    Callable
+        Function that unregisters the subscriber when called.
+    """
+
+    offline = data if isinstance(data, OfflineData) else OfflineData(f"sqlite:///{data}")
+
+    def _handler(payload: Mapping[str, Mapping[str, float]]) -> None:
+        for token, entry in payload.items():
+            offline.log_snapshot(
+                token=token,
+                price=float(entry.get("price", 0.0)),
+                depth=float(entry.get("depth", 0.0)),
+                total_depth=float(entry.get("total_depth", 0.0)),
+                slippage=float(entry.get("slippage", 0.0)),
+                volume=float(entry.get("volume", 0.0)),
+                imbalance=float(entry.get("imbalance", 0.0)),
+                tx_rate=float(entry.get("tx_rate", 0.0)),
+                whale_share=float(entry.get("whale_share", 0.0)),
+                spread=float(entry.get("spread", 0.0)),
+                sentiment=float(entry.get("sentiment", 0.0)),
+            )
+
+    return subscribe("depth_update", _handler)
+
