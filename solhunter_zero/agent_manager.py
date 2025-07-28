@@ -178,6 +178,21 @@ class AgentManager:
         sub.__enter__()
         self._subscriptions.append(sub)
 
+        def _merge_rl_weights(payload):
+            data = payload.weights if hasattr(payload, "weights") else payload.get("weights", {})
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    try:
+                        self.weights[str(k)] = float(v)
+                    except Exception:
+                        continue
+                self.coordinator.base_weights = self.weights
+                self.save_weights()
+
+        rl_sub = subscription("rl_weights", _merge_rl_weights)
+        rl_sub.__enter__()
+        self._subscriptions.append(rl_sub)
+
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         agents = list(self.agents)
         regime = detect_regime(portfolio.price_history.get(token, []))

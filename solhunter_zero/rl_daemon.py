@@ -19,7 +19,7 @@ from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .risk import average_correlation
 from .event_bus import subscription, publish
-from .schemas import ActionExecuted, RLCheckpoint
+from .schemas import ActionExecuted, RLCheckpoint, RLWeights
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +328,13 @@ class RLDaemon:
         publish(
             "rl_checkpoint",
             RLCheckpoint(time=self.last_train_time, path=self.checkpoint_path),
+        )
+        publish(
+            "rl_weights",
+            RLWeights(
+                weights={},
+                risk={"risk_multiplier": self.current_risk},
+            ),
         )
 
     async def _loop(self, interval: float) -> None:

@@ -1,4 +1,5 @@
 import json
+import asyncio
 import sys
 import types
 import importlib.util
@@ -38,4 +39,20 @@ def test_update_weights_persists(tmp_path):
         data = json.load(fh)
 
     assert data.get("a", 0) > 1.0
+
+
+def test_rl_weights_event_updates_manager(tmp_path):
+    path = tmp_path / "w.json"
+    mem = Memory("sqlite:///:memory:")
+    mem_agent = MemoryAgent(mem)
+    mgr = AgentManager([], memory_agent=mem_agent, weights={}, weights_path=str(path))
+
+    from solhunter_zero.event_bus import publish
+    from solhunter_zero.schemas import RLWeights
+
+    publish("rl_weights", RLWeights(weights={"b": 2.0}, risk={"risk_multiplier": 1.1}))
+    asyncio.run(asyncio.sleep(0))
+
+    assert mgr.weights.get("b") == 2.0
+    assert path.exists()
 
