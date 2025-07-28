@@ -36,6 +36,7 @@ from .offline_data import OfflineData
 from .simulation import run_simulations, predict_price_movement
 from .news import fetch_sentiment
 from .regime import detect_regime
+from .event_bus import publish
 
 
 class _TradeDataset(Dataset):
@@ -194,6 +195,7 @@ class LightningPPO(pl.LightningModule):
         critic_loss = self.loss_fn(values, returns)
         loss = actor_loss + 0.5 * critic_loss
         self.log("loss", loss)
+        self.log("reward", rewards.mean())
         return loss
 
     def configure_optimizers(self):  # pragma: no cover - simple
@@ -224,10 +226,30 @@ class LightningDQN(pl.LightningModule):
             target[i, a] = r
         loss = self.loss_fn(q, target)
         self.log("loss", loss)
+        self.log("reward", rewards.mean())
         return loss
 
     def configure_optimizers(self):  # pragma: no cover - simple
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
+
+
+class _MetricsCallback(pl.callbacks.Callback):
+    """Callback publishing metrics after each training epoch."""
+
+    def on_train_epoch_end(self, trainer, pl_module):  # pragma: no cover - simple
+        loss = trainer.callback_metrics.get("loss")
+        reward = trainer.callback_metrics.get("reward")
+        if loss is None or reward is None:
+            return
+        try:
+            loss_val = float(loss)
+        except Exception:
+            loss_val = float(loss.item())
+        try:
+            reward_val = float(reward)
+        except Exception:
+            reward_val = float(reward.item())
+        publish("rl_metrics", {"loss": loss_val, "reward": reward_val})
 
 
 class RLTraining:
@@ -274,7 +296,7 @@ class RLTraining:
         kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
         if acc != "cpu":
             kwargs["devices"] = 1
-        self.trainer = pl.Trainer(**kwargs)
+        self.trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
 
@@ -352,7 +374,7 @@ def fit(
     kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
     if acc != "cpu":
         kwargs["devices"] = 1
-    trainer = pl.Trainer(**kwargs)
+    trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
     loader = DataLoader(dataset, batch_size=64, shuffle=True)
     trainer.fit(model, train_dataloaders=loader)
     torch.save(model.state_dict(), path)

@@ -217,3 +217,37 @@ def test_rl_weights_event_emitted(tmp_path, monkeypatch):
     assert events and isinstance(events[0], RLWeights)
 
 
+def test_rl_metrics_event_emitted(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    data_db = f"sqlite:///{data_path}"
+
+    mem = Memory(mem_db)
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+
+    data = OfflineData(data_db)
+    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+
+    events = []
+    from solhunter_zero.event_bus import subscribe
+    import solhunter_zero.rl_training as rl_training
+    from pathlib import Path
+
+    unsub = subscribe("rl_metrics", lambda p: events.append(p))
+
+    def fake_fit(*a, **k):
+        Path(k.get("model_path")).write_text("x")
+        from solhunter_zero.event_bus import publish
+        publish("rl_metrics", {"loss": 1.0, "reward": 0.5})
+
+    monkeypatch.setattr(rl_training, "fit", fake_fit)
+    import torch
+    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
+    monkeypatch.setattr(torch, "load", lambda *a, **k: {})
+    monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
+    daemon.train()
+    unsub()
+
+    assert events and isinstance(events[0], dict)
+
+
