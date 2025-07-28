@@ -564,7 +564,9 @@ def _best_route(
                 - slip_cost(a, b)
             )
 
-    if path_algorithm == "permutation":
+    def _permutation_best_route() -> tuple[list[str], float]:
+        best: list[str] | None = None
+        best_profit = float("-inf")
         for length in range(2, min(len(venues), max_hops) + 1):
             for path in permutations(venues, length):
                 profit = 0.0
@@ -573,29 +575,37 @@ def _best_route(
                 if profit > best_profit:
                     best_profit = profit
                     best = list(path)
-        return (best or []), best_profit
+        return best or [], best_profit
 
-    paths: list[tuple[str, list[str], float]] = [
-        (v, [v], 0.0) for v in venues
-    ]
-    for _ in range(1, max_hops):
-        new_paths: list[tuple[str, list[str], float]] = []
-        for last, path, profit in paths:
-            for nxt in venues:
-                if nxt in path:
-                    continue
-                step = edge_profit[(last, nxt)]
-                new_profit = profit + step
-                new_path = path + [nxt]
-                if new_profit > best_profit:
-                    best_profit = new_profit
-                    best = new_path
-                new_paths.append((nxt, new_path, new_profit))
-        paths = new_paths
-        if not paths:
-            break
+    def _graph_best_route() -> tuple[list[str], float]:
+        best_path: list[str] = []
+        best_profit = float("-inf")
+        paths: dict[str, tuple[list[str], float]] = {
+            v: ([v], 0.0) for v in venues
+        }
+        for _ in range(1, max_hops):
+            next_paths: dict[str, tuple[list[str], float]] = {}
+            for last, (path, profit) in paths.items():
+                for nxt in venues:
+                    if nxt in path:
+                        continue
+                    step = edge_profit[(last, nxt)]
+                    new_profit = profit + step
+                    new_path = path + [nxt]
+                    cur = next_paths.get(nxt)
+                    if cur is None or new_profit > cur[1]:
+                        next_paths[nxt] = (new_path, new_profit)
+                        if new_profit > best_profit:
+                            best_profit = new_profit
+                            best_path = new_path
+            if not next_paths:
+                break
+            paths = next_paths
+        return best_path, best_profit
 
-    return (best or []), best_profit
+    if path_algorithm == "permutation":
+        return _permutation_best_route()
+    return _graph_best_route()
 
 
 async def _compute_route(
