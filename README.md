@@ -281,6 +281,13 @@ profit calculation so routes are ranked based on the borrowed size.
    export EVENT_BUS_URL=wss://bus.example.com
    ```
    Alternatively specify `event_bus_url` in the configuration file.
+14. **Full system startup**
+   Launch the Rust service, RL daemon and trading loop together:
+   ```bash
+   python scripts/start_all.py
+   ```
+   The script waits for the depth websocket and passes `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
+
 Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`. The `make start` target is a convenient shortcut.
 
    This loads the selected configuration (or the `config.highrisk.toml` preset
