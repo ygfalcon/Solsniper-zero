@@ -3,6 +3,7 @@ import time
 import pytest
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
+from solhunter_zero.event_bus import publish
 from itertools import permutations
 
 async def dex1(token):
@@ -26,6 +27,8 @@ def _disable_jup(monkeypatch):
     monkeypatch.setattr(arb, "JUPITER_WS_URL", "")
     monkeypatch.setattr(arb, "USE_DEPTH_STREAM", False)
     monkeypatch.setattr(arb, "USE_SERVICE_EXEC", False)
+    arb.invalidate_route()
+    arb.invalidate_edges()
 
 
 def test_arbitrage_path_selection(monkeypatch):
@@ -159,6 +162,7 @@ def test_graph_search_profit():
     new_path, new_profit = arb._best_route(
         prices,
         1.0,
+        token="tok",
         max_hops=3,
         path_algorithm="graph",
     )
@@ -173,6 +177,7 @@ def test_graph_vs_permutation_benchmark():
     _, perm_profit = arb._best_route(
         prices,
         1.0,
+        token="tok",
         max_hops=6,
         path_algorithm="permutation",
     )
@@ -182,6 +187,7 @@ def test_graph_vs_permutation_benchmark():
     _, graph_profit = arb._best_route(
         prices,
         1.0,
+        token="tok",
         max_hops=6,
         path_algorithm="graph",
     )
@@ -189,3 +195,42 @@ def test_graph_vs_permutation_benchmark():
 
     assert graph_profit == pytest.approx(perm_profit)
     assert graph_time <= perm_time
+
+
+class _CountingCache(arb.LRUCache):
+    def __init__(self):
+        super().__init__(maxsize=128)
+        self.set_count = 0
+
+    def set(self, key, value):
+        self.set_count += 1
+        super().set(key, value)
+
+
+def test_edge_cache_reuse(monkeypatch):
+    cache = _CountingCache()
+    monkeypatch.setattr(arb, "_EDGE_CACHE", cache)
+
+    prices = {"dex1": 1.0, "dex2": 1.2, "dex3": 1.3}
+    depth = {v: {"bids": 1.0, "asks": 1.0} for v in prices}
+
+    arb._best_route(prices, 1.0, token="tok", depth=depth)
+    first = cache.set_count
+
+    arb._best_route(prices, 1.0, token="tok", depth=depth)
+    assert cache.set_count == first
+
+
+def test_edge_cache_invalidation(monkeypatch):
+    cache = _CountingCache()
+    monkeypatch.setattr(arb, "_EDGE_CACHE", cache)
+
+    prices = {"dex1": 1.0, "dex2": 1.2}
+    depth = {v: {"bids": 1.0, "asks": 1.0} for v in prices}
+
+    arb._best_route(prices, 1.0, token="tok", depth=depth)
+    first = cache.set_count
+    arb._LAST_DEPTH["tok"] = 1.0
+    publish("depth_update", {"tok": {"depth": 2.0}})
+    arb._best_route(prices, 1.0, token="tok", depth=depth)
+    assert cache.set_count > first
