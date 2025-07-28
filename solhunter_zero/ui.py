@@ -871,6 +871,17 @@ HTML_PAGE = """
     loadWeights();
     refreshData();
     setInterval(refreshData, 5000);
+    try {
+        const rlSock = new WebSocket('ws://' + window.location.hostname + ':8767');
+        rlSock.onmessage = function(ev) {
+            try {
+                const data = JSON.parse(ev.data);
+                if('loss' in data && 'reward' in data) {
+                    document.getElementById('rl_status').textContent = JSON.stringify(data);
+                }
+            } catch(e) {}
+        };
+    } catch(e) {}
     </script>
 </body>
 </html>

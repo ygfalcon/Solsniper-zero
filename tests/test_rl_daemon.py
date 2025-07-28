@@ -2,6 +2,7 @@ import asyncio
 import sys
 import types
 import importlib.util
+import pytest
 
 # Stub heavy optional dependencies similar to event_bus tests
 dummy_trans = types.ModuleType("transformers")
@@ -13,11 +14,84 @@ if importlib.util.find_spec("sentence_transformers") is None:
 if importlib.util.find_spec("faiss") is None:
     sys.modules.setdefault("faiss", types.ModuleType("faiss"))
 if importlib.util.find_spec("torch") is None:
-    sys.modules.setdefault("torch", types.ModuleType("torch"))
-    sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
+    torch_mod = types.ModuleType("torch")
+    torch_mod.Tensor = object
+    torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
+    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
+    torch_mod.load = lambda *a, **k: {}
+    sys.modules.setdefault("torch", torch_mod)
+    torch_nn = types.ModuleType("torch.nn")
+    torch_nn.Module = type(
+        "Module",
+        (),
+        {
+            "to": lambda self, *a, **k: None,
+            "load_state_dict": lambda self, *a, **k: None,
+        },
+    )
+    torch_nn.Sequential = lambda *a, **k: object()
+    torch_nn.Linear = lambda *a, **k: object()
+    torch_nn.ReLU = lambda *a, **k: object()
+    torch_nn.MSELoss = lambda *a, **k: object()
+    sys.modules.setdefault("torch.nn", torch_nn)
     sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
+    sys.modules.setdefault("torch.utils", types.ModuleType("torch.utils"))
+    sys.modules.setdefault(
+        "torch.utils.data",
+        types.SimpleNamespace(Dataset=object, DataLoader=object),
+    )
 if importlib.util.find_spec("numpy") is None:
     sys.modules.setdefault("numpy", types.ModuleType("numpy"))
+if importlib.util.find_spec("sklearn") is None:
+    sys.modules.setdefault("sklearn", types.ModuleType("sklearn"))
+    sys.modules["sklearn.linear_model"] = types.SimpleNamespace(LinearRegression=object)
+    sys.modules["sklearn.ensemble"] = types.SimpleNamespace(
+        GradientBoostingRegressor=object,
+        RandomForestRegressor=object,
+    )
+    sys.modules["sklearn.gaussian_process"] = types.SimpleNamespace(GaussianProcessRegressor=object)
+    sys.modules["sklearn.gaussian_process.kernels"] = types.SimpleNamespace(
+        Matern=object,
+        RBF=object,
+        ConstantKernel=object,
+        C=object,
+    )
+try:
+    import google
+except ModuleNotFoundError:
+    google = types.ModuleType("google")
+    google.__path__ = []
+    sys.modules.setdefault("google", google)
+
+if importlib.util.find_spec("google.protobuf") is None:
+    protobuf = types.ModuleType("protobuf")
+    descriptor = types.ModuleType("descriptor")
+    descriptor_pool = types.ModuleType("descriptor_pool")
+    symbol_database = types.ModuleType("symbol_database")
+    symbol_database.Default = lambda: object()
+    internal = types.ModuleType("internal")
+    internal.builder = types.ModuleType("builder")
+    protobuf.descriptor = descriptor
+    protobuf.descriptor_pool = descriptor_pool
+    protobuf.symbol_database = symbol_database
+    protobuf.internal = internal
+    google.protobuf = protobuf
+    sys.modules.setdefault("google.protobuf", protobuf)
+    sys.modules.setdefault("google.protobuf.descriptor", descriptor)
+    sys.modules.setdefault("google.protobuf.descriptor_pool", descriptor_pool)
+    sys.modules.setdefault("google.protobuf.symbol_database", symbol_database)
+    sys.modules.setdefault("google.protobuf.internal", internal)
+    sys.modules.setdefault("google.protobuf.internal.builder", internal.builder)
+
+if importlib.util.find_spec("pytorch_lightning") is None:
+    pl = types.ModuleType("pytorch_lightning")
+    callbacks = types.SimpleNamespace(Callback=object)
+    pl.callbacks = callbacks
+    pl.LightningModule = type("LightningModule", (), {})
+    pl.LightningDataModule = type("LightningDataModule", (), {})
+    pl.Trainer = type("Trainer", (), {"fit": lambda *a, **k: None})
+    sys.modules.setdefault("pytorch_lightning", pl)
 if importlib.util.find_spec("aiohttp") is None:
     sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
 if importlib.util.find_spec("aiofiles") is None:
@@ -29,6 +103,7 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sa.Column = lambda *a, **k: None
     sa.String = sa.Integer = sa.Float = sa.Numeric = sa.Text = object
     sa.DateTime = object
+    sa.LargeBinary = object
     sa.ForeignKey = lambda *a, **k: None
     sys.modules.setdefault("sqlalchemy", sa)
     orm = types.ModuleType("orm")
@@ -76,6 +151,14 @@ from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.event_bus import (
+    start_ws_server,
+    stop_ws_server,
+    connect_ws,
+    disconnect_ws,
+)
+import websockets
+import json
 import os
 import logging
 
@@ -89,6 +172,7 @@ def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog):
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
+    monkeypatch.setattr(Memory, "log_trade", lambda self, **kw: None)
     mem = Memory(mem_db)
     mem.log_trade(token='tok', direction='buy', amount=1, price=1)
     mem.log_trade(token='tok', direction='sell', amount=1, price=2)
@@ -174,6 +258,10 @@ def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
+    from types import SimpleNamespace
+    dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
+    dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
+    monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: ([dummy_trade], [dummy_snap]))
     daemon.train()
     unsub()
 
@@ -249,5 +337,54 @@ def test_rl_metrics_event_emitted(tmp_path, monkeypatch):
     unsub()
 
     assert events and isinstance(events[0], dict)
+
+
+@pytest.mark.asyncio
+async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    data_db = f"sqlite:///{data_path}"
+
+    monkeypatch.setattr(Memory, "log_trade", lambda self, **kw: None)
+    mem = Memory(mem_db)
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+
+    monkeypatch.setattr(OfflineData, "log_snapshot", lambda *a, **k: None)
+    data = OfflineData(data_db)
+    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+
+    import solhunter_zero.rl_training as rl_training
+    from pathlib import Path
+    port = 8771
+    await start_ws_server("localhost", port)
+    await connect_ws(f"ws://localhost:{port}")
+
+    def fake_fit(*a, **k):
+        Path(k.get("model_path")).write_text("x")
+
+    monkeypatch.setattr(rl_training, "fit", fake_fit)
+    import torch
+    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
+    monkeypatch.setattr(torch, "load", lambda *a, **k: {})
+    monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
+    from types import SimpleNamespace
+    dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
+    dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
+    monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: ([dummy_trade], [dummy_snap]))
+
+    async with websockets.connect(f"ws://localhost:{port}") as ws:
+        daemon.train()
+        for _ in range(3):
+            raw = await asyncio.wait_for(ws.recv(), timeout=1)
+            if isinstance(raw, str):
+                msg = json.loads(raw)
+                if msg.get("topic") == "rl_metrics":
+                    assert "reward" in msg.get("payload", {})
+                    break
+        else:
+            raise AssertionError("rl_metrics not received")
+
+    await disconnect_ws()
+    await stop_ws_server()
 
 

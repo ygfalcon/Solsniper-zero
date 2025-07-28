@@ -337,6 +337,14 @@ class RLDaemon:
                 risk={"risk_multiplier": self.current_risk},
             ),
         )
+        reward = 0.0
+        for t in trades:
+            val = float(getattr(t, "amount", 0.0)) * float(getattr(t, "price", 0.0))
+            if getattr(t, "direction", "buy") == "sell":
+                reward += val
+            else:
+                reward -= val
+        publish("rl_metrics", {"loss": 0.0, "reward": reward})
 
     async def _loop(self, interval: float) -> None:
         while True:
