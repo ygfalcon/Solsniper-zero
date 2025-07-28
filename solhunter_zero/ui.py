@@ -163,6 +163,16 @@ _rl_weights_ws_sub.__enter__()
 _risk_ws_sub.__enter__()
 _config_ws_sub.__enter__()
 
+depth_service_connected = False
+
+def _depth_status(payload: Any) -> None:
+    global depth_service_connected
+    status = str(getattr(payload, "status", payload.get("status")))
+    depth_service_connected = status in {"connected", "reconnected"}
+
+_depth_status_sub = subscription("depth_service_status", _depth_status)
+_depth_status_sub.__enter__()
+
 trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
@@ -543,12 +553,7 @@ def status() -> dict:
     """Return status of background components."""
     trading_alive = trading_thread.is_alive() if trading_thread else False
     rl_alive = rl_daemon is not None
-    depth_alive = False
-    try:
-        with socket.create_connection((DEPTH_WS_ADDR, DEPTH_WS_PORT), timeout=0.5):
-            depth_alive = True
-    except OSError:
-        depth_alive = False
+    depth_alive = depth_service_connected
     event_alive = False
     url = os.getenv("EVENT_BUS_URL")
     if url and websockets is not None:

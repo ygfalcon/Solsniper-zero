@@ -39,10 +39,16 @@ async def stream_depth_ws(
     """Stream depth updates from the WebSocket server with mmap fallback."""
     url = f"ws://{DEPTH_WS_ADDR}:{DEPTH_WS_PORT}"
     count = 0
+    was_connected = False
     while True:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(url) as ws:
+                    publish(
+                        "depth_service_status",
+                        {"status": "reconnected" if was_connected else "connected"},
+                    )
+                    was_connected = True
                     async for msg in ws:
                         if msg.type != aiohttp.WSMsgType.TEXT:
                             continue
@@ -70,10 +76,14 @@ async def stream_depth_ws(
                         }
                         count += 1
                         if max_updates is not None and count >= max_updates:
+                            publish("depth_service_status", {"status": "disconnected"})
                             return
                         if rate_limit > 0:
                             await asyncio.sleep(rate_limit)
         except Exception:
+            if was_connected:
+                publish("depth_service_status", {"status": "disconnected"})
+                was_connected = False
             venues, rate = snapshot(token)
             bids = sum(float(v.get("bids", 0.0)) for v in venues.values())
             asks = sum(float(v.get("asks", 0.0)) for v in venues.values())
@@ -90,6 +100,10 @@ async def stream_depth_ws(
                 return
             if rate_limit > 0:
                 await asyncio.sleep(rate_limit)
+        else:
+            if was_connected:
+                publish("depth_service_status", {"status": "disconnected"})
+                was_connected = False
 
 
 async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
@@ -97,10 +111,16 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
 
     url = f"ws://{DEPTH_WS_ADDR}:{DEPTH_WS_PORT}"
     count = 0
+    was_connected = False
     while True:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(url) as ws:
+                    publish(
+                        "depth_service_status",
+                        {"status": "reconnected" if was_connected else "connected"},
+                    )
+                    was_connected = True
                     async for msg in ws:
                         if msg.type != aiohttp.WSMsgType.TEXT:
                             continue
@@ -111,9 +131,17 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                         publish("depth_update", data)
                         count += 1
                         if max_updates is not None and count >= max_updates:
+                            publish("depth_service_status", {"status": "disconnected"})
                             return
         except Exception:
+            if was_connected:
+                publish("depth_service_status", {"status": "disconnected"})
+                was_connected = False
             await asyncio.sleep(1.0)
+        else:
+            if was_connected:
+                publish("depth_service_status", {"status": "disconnected"})
+                was_connected = False
 
 
 def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:

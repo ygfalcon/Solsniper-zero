@@ -269,4 +269,7 @@ def test_listen_depth_ws(monkeypatch):
 
     asyncio.run(depth_client.listen_depth_ws(max_updates=1))
 
-    assert events == [("depth_update", msgs[0])]
+    assert events[0][0] == "depth_service_status"
+    assert events[0][1]["status"] == "connected"
+    assert events[1] == ("depth_update", msgs[0])
+    assert events[2][0] == "depth_service_status" and events[2][1]["status"] == "disconnected"
