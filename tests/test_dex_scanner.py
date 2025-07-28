@@ -1,5 +1,5 @@
 import asyncio
-from solhunter_zero import dex_scanner, scanner, scanner_common
+from solhunter_zero import dex_scanner, token_scanner as scanner, scanner_common
 
 
 class FakeClient:

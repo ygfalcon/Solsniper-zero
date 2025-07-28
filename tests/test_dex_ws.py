@@ -3,7 +3,7 @@ import json
 import aiohttp
 
 from solhunter_zero import dex_ws
-from solhunter_zero import async_scanner
+from solhunter_zero import token_scanner as async_scanner
 from solhunter_zero import scanner_common
 
 

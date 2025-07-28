@@ -7,7 +7,7 @@ from typing import Sequence
 import aiohttp
 
 from .offline_data import OfflineData, MarketSnapshot
-from .scanner import scan_tokens_async
+from .token_scanner import scan_tokens_async
 from .simulation import DEFAULT_METRICS_BASE_URL
 from .news import fetch_sentiment
 

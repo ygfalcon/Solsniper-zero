@@ -4,7 +4,7 @@ import os
 from typing import List, AsyncGenerator, Dict, Any, Iterable
 
 from . import BaseAgent
-from ..async_scanner import scan_tokens_async
+from ..token_scanner import scan_tokens_async
 from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
 from ..scanner_common import SOLANA_RPC_URL
 from ..discovery import merge_sources

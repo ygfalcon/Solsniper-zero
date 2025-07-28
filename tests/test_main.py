@@ -251,7 +251,7 @@ def test_discovery_methods(monkeypatch, method, target):
     else:
         monkeypatch.setattr(target, fake_sync)
 
-    import solhunter_zero.async_scanner as async_scanner_mod
+    import solhunter_zero.token_scanner as async_scanner_mod
     async def fake_trend():
         return []
     monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fake_trend)

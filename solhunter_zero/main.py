@@ -95,7 +95,7 @@ _cfg = apply_env_overrides(load_config())
 set_env_from_config(_cfg)
 
 
-from .scanner import scan_tokens_async
+from .token_scanner import scan_tokens_async
 from .onchain_metrics import top_volume_tokens, fetch_dex_metrics
 from .market_ws import listen_and_trade
 from .simulation import run_simulations
