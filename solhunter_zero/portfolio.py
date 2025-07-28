@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, Mapping
 import aiofiles
 
+from .event_bus import publish
+from .schemas import PortfolioUpdated
+
 
 @dataclass
 class Position:
@@ -58,6 +61,12 @@ class Portfolio:
         }
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(data, f)
+        publish(
+            "portfolio_updated",
+            PortfolioUpdated(
+                balances={t: p.amount for t, p in self.balances.items()}
+            ),
+        )
 
     async def save_async(self) -> None:
         if not self.path:
@@ -72,6 +81,12 @@ class Portfolio:
         }
         async with aiofiles.open(self.path, "w", encoding="utf-8") as f:
             await f.write(json.dumps(data))
+        publish(
+            "portfolio_updated",
+            PortfolioUpdated(
+                balances={t: p.amount for t, p in self.balances.items()}
+            ),
+        )
 
     # position management -------------------------------------------------
     def add(self, token: str, amount: float, price: float) -> None:
@@ -96,6 +111,12 @@ class Portfolio:
                 if price > pos.high_price:
                     pos.high_price = price
         self.save()
+        publish(
+            "portfolio_updated",
+            PortfolioUpdated(
+                balances={t: p.amount for t, p in self.balances.items()}
+            ),
+        )
 
     async def update_async(self, token: str, amount: float, price: float) -> None:
         pos = self.balances.get(token)
@@ -113,11 +134,23 @@ class Portfolio:
                 if price > pos.high_price:
                     pos.high_price = price
         await self.save_async()
+        publish(
+            "portfolio_updated",
+            PortfolioUpdated(
+                balances={t: p.amount for t, p in self.balances.items()}
+            ),
+        )
 
     def remove(self, token: str) -> None:
         if token in self.balances:
             self.balances.pop(token)
             self.save()
+            publish(
+                "portfolio_updated",
+                PortfolioUpdated(
+                    balances={t: p.amount for t, p in self.balances.items()}
+                ),
+            )
 
     # analytics -----------------------------------------------------------
     def unrealized_pnl(self, prices: Dict[str, float]) -> float:

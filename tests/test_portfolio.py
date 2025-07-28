@@ -163,3 +163,20 @@ def test_trade_blocked_when_below_fee():
     )
     assert size == 0.0
 
+
+def test_portfolio_updated_event(tmp_path):
+    path = tmp_path / "pf.json"
+    p = Portfolio(path=str(path))
+    events = []
+
+    from solhunter_zero.event_bus import subscribe
+    from solhunter_zero.schemas import PortfolioUpdated
+
+    unsub = subscribe("portfolio_updated", lambda e: events.append(e))
+
+    p.update("tok", 1, 1.0)
+    assert events
+    assert isinstance(events[-1], PortfolioUpdated)
+    assert events[-1].balances.get("tok") == 1
+    unsub()
+
