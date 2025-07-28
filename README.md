@@ -419,6 +419,7 @@ published by default:
 - `rl_weights` when the RL daemon publishes new weights
 - `risk_updated` when the risk multiplier is modified
 - `config_updated` when a configuration file is saved
+- `risk_metrics` whenever portfolio risk metrics are recalculated
 
 Handlers can subscribe using :func:`subscribe` or the :func:`subscription`
 context manager:
