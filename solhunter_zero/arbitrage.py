@@ -103,6 +103,7 @@ PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 
 from .lru import LRUCache, TTLCache
 from .event_bus import subscribe
+from .prices import get_cached_price, update_price_cache
 
 ROUTE_CACHE = LRUCache(maxsize=128)
 _LAST_DEPTH: dict[str, float] = {}
@@ -183,8 +184,14 @@ async def _prepare_service_tx(
 
 async def fetch_orca_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Orca API."""
+    cached = get_cached_price(token)
+    if cached is not None:
+        PRICE_CACHE.set(("orca", token), cached)
+        return cached
+
     cached = PRICE_CACHE.get(("orca", token))
     if cached is not None:
+        update_price_cache(token, cached)
         return cached
 
     url = f"{ORCA_API_URL}/price?token={token}"
@@ -200,13 +207,20 @@ async def fetch_orca_price_async(token: str) -> float:
         return 0.0
 
     PRICE_CACHE.set(("orca", token), value)
+    update_price_cache(token, value)
     return value
 
 
 async def fetch_raydium_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Raydium API."""
+    cached = get_cached_price(token)
+    if cached is not None:
+        PRICE_CACHE.set(("raydium", token), cached)
+        return cached
+
     cached = PRICE_CACHE.get(("raydium", token))
     if cached is not None:
+        update_price_cache(token, cached)
         return cached
 
     url = f"{RAYDIUM_API_URL}/price?token={token}"
@@ -222,13 +236,20 @@ async def fetch_raydium_price_async(token: str) -> float:
         return 0.0
 
     PRICE_CACHE.set(("raydium", token), value)
+    update_price_cache(token, value)
     return value
 
 
 async def fetch_phoenix_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Phoenix API."""
+    cached = get_cached_price(token)
+    if cached is not None:
+        PRICE_CACHE.set(("phoenix", token), cached)
+        return cached
+
     cached = PRICE_CACHE.get(("phoenix", token))
     if cached is not None:
+        update_price_cache(token, cached)
         return cached
 
     url = f"{PHOENIX_API_URL}/price?token={token}"
@@ -244,13 +265,20 @@ async def fetch_phoenix_price_async(token: str) -> float:
         return 0.0
 
     PRICE_CACHE.set(("phoenix", token), value)
+    update_price_cache(token, value)
     return value
 
 
 async def fetch_meteora_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Meteora API."""
+    cached = get_cached_price(token)
+    if cached is not None:
+        PRICE_CACHE.set(("meteora", token), cached)
+        return cached
+
     cached = PRICE_CACHE.get(("meteora", token))
     if cached is not None:
+        update_price_cache(token, cached)
         return cached
 
     url = f"{METEORA_API_URL}/price?token={token}"
@@ -266,6 +294,7 @@ async def fetch_meteora_price_async(token: str) -> float:
         return 0.0
 
     PRICE_CACHE.set(("meteora", token), value)
+    update_price_cache(token, value)
     return value
 
 
@@ -275,8 +304,14 @@ JUPITER_API_URL = os.getenv("JUPITER_API_URL", "https://price.jup.ag/v4/price")
 async def fetch_jupiter_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Jupiter price API."""
 
+    cached = get_cached_price(token)
+    if cached is not None:
+        PRICE_CACHE.set(("jupiter", token), cached)
+        return cached
+
     cached = PRICE_CACHE.get(("jupiter", token))
     if cached is not None:
+        update_price_cache(token, cached)
         return cached
 
     url = f"{JUPITER_API_URL}?ids={token}"
@@ -296,6 +331,7 @@ async def fetch_jupiter_price_async(token: str) -> float:
         return 0.0
 
     PRICE_CACHE.set(("jupiter", token), value)
+    update_price_cache(token, value)
     return value
 
 
@@ -306,8 +342,14 @@ def make_api_price_fetch(url: str, name: str | None = None) -> PriceFeed:
         name = url
 
     async def _fetch(token: str, _name=name) -> float:
+        cached = get_cached_price(token)
+        if cached is not None:
+            PRICE_CACHE.set((_name, token), cached)
+            return cached
+
         cached = PRICE_CACHE.get((_name, token))
         if cached is not None:
+            update_price_cache(token, cached)
             return cached
 
         req = f"{url.rstrip('/')}/price?token={token}"
@@ -323,6 +365,7 @@ def make_api_price_fetch(url: str, name: str | None = None) -> PriceFeed:
             return 0.0
 
         PRICE_CACHE.set((_name, token), value)
+        update_price_cache(token, value)
         return value
 
     _fetch.__name__ = str(name)

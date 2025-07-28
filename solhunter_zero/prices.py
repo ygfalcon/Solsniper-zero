@@ -2,23 +2,35 @@ import os
 import logging
 import aiohttp
 import asyncio
-import time
 
-from typing import Iterable, Dict, Tuple, Optional
+from typing import Iterable, Dict, Optional
+
+from .lru import TTLCache
 
 logger = logging.getLogger(__name__)
 
 PRICE_API_BASE_URL = os.getenv("PRICE_API_URL", "https://price.jup.ag")
 PRICE_API_PATH = "/v4/price"
 
-# module level session and cache
+# module level session and price cache
 _session: Optional[aiohttp.ClientSession] = None
-_cache: Dict[Tuple[str, ...], Tuple[float, Dict[str, float]]] = {}
-CACHE_TTL = 30  # seconds
+PRICE_CACHE_TTL = 30  # seconds
+PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
 
 
-def _tokens_key(tokens: Iterable[str]) -> Tuple[str, ...]:
+def _tokens_key(tokens: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(set(tokens)))
+
+
+def get_cached_price(token: str) -> float | None:
+    """Return cached price for ``token`` if available."""
+    return PRICE_CACHE.get(token)
+
+
+def update_price_cache(token: str, price: float) -> None:
+    """Store ``price`` in the module cache."""
+    if isinstance(price, (int, float)):
+        PRICE_CACHE.set(token, float(price))
 
 
 async def _get_session() -> aiohttp.ClientSession:
@@ -60,11 +72,19 @@ async def fetch_token_prices_async(tokens: Iterable[str]) -> Dict[str, float]:
     if not token_list:
         return {}
 
-    now = time.time()
-    cached = _cache.get(token_list)
-    if cached and now - cached[0] < CACHE_TTL:
-        return cached[1]
+    result: Dict[str, float] = {}
+    missing: list[str] = []
+    for tok in token_list:
+        val = get_cached_price(tok)
+        if val is not None:
+            result[tok] = val
+        else:
+            missing.append(tok)
 
-    prices = await _fetch_prices(token_list)
-    _cache[token_list] = (now, prices)
-    return prices
+    if missing:
+        fetched = await _fetch_prices(missing)
+        for t, v in fetched.items():
+            update_price_cache(t, v)
+            result[t] = v
+
+    return result
