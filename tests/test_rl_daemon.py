@@ -177,6 +177,9 @@ def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
     daemon.train()
     unsub()
 
-    assert events and events[0]["path"].endswith("model.pt")
+    from solhunter_zero.schemas import RLCheckpoint
+
+    assert events and isinstance(events[0], RLCheckpoint)
+    assert events[0].path.endswith("model.pt")
 
 

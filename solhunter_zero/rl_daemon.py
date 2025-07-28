@@ -19,6 +19,7 @@ from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .risk import average_correlation
 from .event_bus import subscription, publish
+from .schemas import ActionExecuted, RLCheckpoint
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,10 @@ class RLDaemon:
         self._subscriptions: list[Any] = []
         if queue is not None:
             async def _enqueue(payload):
-                await queue.put(payload.get("action", payload))
+                if isinstance(payload, ActionExecuted):
+                    await queue.put(payload.action)
+                else:
+                    await queue.put(payload)
                 await asyncio.to_thread(self.train)
 
             sub = subscription("action_executed", _enqueue)
@@ -323,7 +327,7 @@ class RLDaemon:
         logger.info("saved checkpoint to %s", self.model_path)
         publish(
             "rl_checkpoint",
-            {"time": self.last_train_time, "path": self.checkpoint_path},
+            RLCheckpoint(time=self.last_train_time, path=self.checkpoint_path),
         )
 
     async def _loop(self, interval: float) -> None:

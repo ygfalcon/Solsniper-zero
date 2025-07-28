@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
+from .schemas import validate_message, to_dict
+
 try:
     import websockets  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -55,6 +57,7 @@ def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
 
 def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
     """Publish ``payload`` to all subscribers of ``topic`` and over websockets."""
+    payload = validate_message(topic, payload)
     handlers = list(_subscribers.get(topic, []))
     try:
         loop = asyncio.get_running_loop()
@@ -70,7 +73,7 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
             h(payload)
 
     if websockets and _broadcast:
-        msg = json.dumps({"topic": topic, "payload": payload})
+        msg = json.dumps({"topic": topic, "payload": to_dict(payload)})
         if loop:
             loop.create_task(broadcast_ws(msg))
         else:

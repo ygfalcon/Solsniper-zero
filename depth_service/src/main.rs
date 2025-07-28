@@ -53,6 +53,12 @@ type SharedMmap = Arc<Mutex<MmapMut>>;
 
 type WsSender = broadcast::Sender<String>;
 
+#[derive(Serialize, Deserialize)]
+struct EventMessage<T> {
+    topic: String,
+    payload: T,
+}
+
 #[derive(Default, Clone)]
 struct AutoExecEntry {
     threshold: f64,
@@ -256,7 +262,11 @@ async fn update_mmap(
     let text = String::from_utf8_lossy(&json).to_string();
     let _ = ws.send(text.clone());
     if let Some(bus) = bus {
-        let msg = format!(r#"{{"topic":"depth_update","payload":{}}}"#, text);
+        let payload: HashMap<String, TokenAgg> = agg;
+        let msg = serde_json::to_string(&EventMessage {
+            topic: "depth_update".to_string(),
+            payload,
+        })?;
         let _ = bus.send(msg);
     }
     Ok(())
