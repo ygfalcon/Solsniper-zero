@@ -3,12 +3,14 @@ import pytest
 from solders.keypair import Keypair
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
+from solhunter_zero import prices
 
 
 # reset global state before each test
 def setup_function(_):
     arb._SESSION = None
     arb.PRICE_CACHE.clear()
+    prices.PRICE_CACHE = prices.TTLCache(maxsize=256, ttl=prices.PRICE_CACHE_TTL)
 
 
 @pytest.fixture(autouse=True)
@@ -445,9 +447,12 @@ def test_price_cache(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     arb.PRICE_CACHE.ttl = 60
+    prices.PRICE_CACHE.ttl = 60
 
     result1 = asyncio.run(arb.fetch_orca_price_async("tok"))
     result2 = asyncio.run(arb.fetch_orca_price_async("tok"))
+
+    assert prices.get_cached_price("tok") == 1.1
 
     assert result1 == 1.1
     assert result2 == 1.1

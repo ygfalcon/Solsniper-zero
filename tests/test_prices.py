@@ -8,7 +8,7 @@ from solhunter_zero import prices
 # reset global state before each test
 def setup_function(_):
     prices._session = None
-    prices._cache = {}
+    prices.PRICE_CACHE = prices.TTLCache(maxsize=256, ttl=prices.PRICE_CACHE_TTL)
 
 
 class FakeResponse:
@@ -123,7 +123,7 @@ def test_price_cache_and_session_reuse(monkeypatch):
             return FakeResp(url)
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
-    monkeypatch.setattr(prices, "CACHE_TTL", 60)
+    prices.PRICE_CACHE.ttl = 60
 
     result1 = prices.fetch_token_prices(["tok"])
     result2 = asyncio.run(prices.fetch_token_prices_async(["tok"]))
