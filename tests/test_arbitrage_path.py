@@ -1,5 +1,6 @@
 import asyncio
 import time
+import pytest
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 from itertools import permutations
@@ -18,6 +19,13 @@ async def phoenix(token):
 
 async def meteora(token):
     return 1.6
+
+
+@pytest.fixture(autouse=True)
+def _disable_jup(monkeypatch):
+    monkeypatch.setattr(arb, "JUPITER_WS_URL", "")
+    monkeypatch.setattr(arb, "USE_DEPTH_STREAM", False)
+    monkeypatch.setattr(arb, "USE_SERVICE_EXEC", False)
 
 
 def test_arbitrage_path_selection(monkeypatch):
@@ -156,3 +164,28 @@ def test_graph_search_profit():
     )
 
     assert new_profit >= old_profit
+
+
+def test_graph_vs_permutation_benchmark():
+    prices = {f"dex{i}": 1.0 + 0.1 * i for i in range(6)}
+
+    start = time.perf_counter()
+    _, perm_profit = arb._best_route(
+        prices,
+        1.0,
+        max_hops=6,
+        path_algorithm="permutation",
+    )
+    perm_time = time.perf_counter() - start
+
+    start = time.perf_counter()
+    _, graph_profit = arb._best_route(
+        prices,
+        1.0,
+        max_hops=6,
+        path_algorithm="graph",
+    )
+    graph_time = time.perf_counter() - start
+
+    assert graph_profit == pytest.approx(perm_profit)
+    assert graph_time <= perm_time
