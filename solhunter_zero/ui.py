@@ -81,6 +81,21 @@ def _update_weights(weights):
 _weights_subscription = subscription("weights_updated", _update_weights)
 _weights_subscription.__enter__()
 
+def _update_rl_weights(msg: Any) -> None:
+    weights = msg.weights if hasattr(msg, "weights") else msg.get("weights", {})
+    risk = msg.risk if hasattr(msg, "risk") else msg.get("risk", {})
+    if isinstance(weights, dict):
+        try:
+            os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
+        except Exception:
+            pass
+    rm = risk.get("risk_multiplier") if isinstance(risk, dict) else None
+    if rm is not None:
+        os.environ["RISK_MULTIPLIER"] = str(rm)
+
+_rl_weights_sub = subscription("rl_weights", _update_rl_weights)
+_rl_weights_sub.__enter__()
+
 
 async def _send_rl_update(payload):
     if rl_ws_loop is None:
@@ -104,6 +119,8 @@ async def _send_rl_update(payload):
 
 _rl_subscription = subscription("rl_checkpoint", _send_rl_update)
 _rl_subscription.__enter__()
+_rl_weights_ws = subscription("rl_weights", _send_rl_update)
+_rl_weights_ws.__enter__()
 
 
 def _emit_ws_event(topic: str, payload: Any) -> None:
@@ -136,11 +153,13 @@ def _sub_handler(topic: str):
 
 _action_sub = subscription("action_executed", _sub_handler("action_executed"))
 _weights_ws_sub = subscription("weights_updated", _sub_handler("weights_updated"))
+_rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
 _risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
 _config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
 
 _action_sub.__enter__()
 _weights_ws_sub.__enter__()
+_rl_weights_ws_sub.__enter__()
 _risk_ws_sub.__enter__()
 _config_ws_sub.__enter__()
 

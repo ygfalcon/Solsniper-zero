@@ -416,6 +416,7 @@ published by default:
 
 - `action_executed` whenever the `AgentManager` finishes an order
 - `weights_updated` after agent weights change
+- `rl_weights` when the RL daemon publishes new weights
 - `risk_updated` when the risk multiplier is modified
 - `config_updated` when a configuration file is saved
 

@@ -267,6 +267,20 @@ def test_get_and_set_weights(monkeypatch):
     assert json.loads(os.getenv("AGENT_WEIGHTS"))["sim"] == 1.2
 
 
+def test_rl_weights_event_updates_env(monkeypatch):
+    monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
+    monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
+
+    from solhunter_zero.event_bus import publish
+    from solhunter_zero.schemas import RLWeights
+
+    publish("rl_weights", RLWeights(weights={"x": 1.5}, risk={"risk_multiplier": 2.0}))
+    asyncio.run(asyncio.sleep(0))
+
+    assert json.loads(os.getenv("AGENT_WEIGHTS"))["x"] == 1.5
+    assert os.getenv("RISK_MULTIPLIER") == "2.0"
+
+
 def test_logs_endpoint(monkeypatch):
     monkeypatch.setattr(ui, "log_buffer", deque(maxlen=5))
     ui.buffer_handler.setFormatter(logging.Formatter("%(message)s"))

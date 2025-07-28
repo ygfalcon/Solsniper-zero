@@ -19,6 +19,14 @@ class WeightsUpdated:
 
 
 @dataclass
+class RLWeights:
+    """Payload for RL-generated weights and risk parameters."""
+
+    weights: Dict[str, float]
+    risk: Dict[str, float] | None = None
+
+
+@dataclass
 class RLCheckpoint:
     """Payload emitted when RL daemon saves a checkpoint."""
     time: float
@@ -28,6 +36,7 @@ class RLCheckpoint:
 _EVENT_SCHEMAS: Dict[str, Type] = {
     "action_executed": ActionExecuted,
     "weights_updated": WeightsUpdated,
+    "rl_weights": RLWeights,
     "rl_checkpoint": RLCheckpoint,
 }
 
