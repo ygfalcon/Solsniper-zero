@@ -46,6 +46,7 @@ jito_rpc_url = ""
 jito_auth = ""
 jito_ws_url = ""
 jito_ws_auth = ""
+event_bus_url = ""
 
 # Enable every built-in agent for maximum exposure
 agents = [

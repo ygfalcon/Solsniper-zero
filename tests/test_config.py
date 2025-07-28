@@ -11,16 +11,24 @@ from solhunter_zero.event_bus import subscribe
 
 def test_load_config_yaml(tmp_path):
     path = tmp_path / "my.yaml"
-    path.write_text("birdeye_api_key: KEY\nsolana_rpc_url: http://local")
+    path.write_text("birdeye_api_key: KEY\nsolana_rpc_url: http://local\nevent_bus_url: ws://bus")
     cfg = load_config(str(path))
-    assert cfg == {"birdeye_api_key": "KEY", "solana_rpc_url": "http://local"}
+    assert cfg == {
+        "birdeye_api_key": "KEY",
+        "solana_rpc_url": "http://local",
+        "event_bus_url": "ws://bus",
+    }
 
 
 def test_load_config_toml(tmp_path):
     path = tmp_path / "my.toml"
-    path.write_text('birdeye_api_key="KEY"\nsolana_rpc_url="http://local"')
+    path.write_text('birdeye_api_key="KEY"\nsolana_rpc_url="http://local"\nevent_bus_url="ws://bus"')
     cfg = load_config(str(path))
-    assert cfg == {"birdeye_api_key": "KEY", "solana_rpc_url": "http://local"}
+    assert cfg == {
+        "birdeye_api_key": "KEY",
+        "solana_rpc_url": "http://local",
+        "event_bus_url": "ws://bus",
+    }
 
 
 def test_load_config_agents(tmp_path):
@@ -52,12 +60,14 @@ def test_apply_env_overrides(monkeypatch):
         "token_suffix": "bonk",
         "agents": ["a"],
         "agent_weights": {"a": 1.0},
+        "event_bus_url": "ws://old",
     }
     monkeypatch.setenv("BIRDEYE_API_KEY", "NEW")
     monkeypatch.setenv("RISK_TOLERANCE", "0.2")
     monkeypatch.setenv("TOKEN_SUFFIX", "doge")
     monkeypatch.setenv("AGENTS", "x,y")
     monkeypatch.setenv("AGENT_WEIGHTS", "{'x': 1}")
+    monkeypatch.setenv("EVENT_BUS_URL", "ws://new")
     result = apply_env_overrides(cfg)
     assert result["birdeye_api_key"] == "NEW"
     assert result["solana_rpc_url"] == "b"
@@ -65,6 +75,7 @@ def test_apply_env_overrides(monkeypatch):
     assert result["token_suffix"] == "doge"
     assert result["agents"] == "x,y"
     assert result["agent_weights"] == "{'x': 1}"
+    assert result["event_bus_url"] == "ws://new"
 
 
 def test_jito_env_overrides(monkeypatch):

@@ -70,6 +70,7 @@ ENV_VARS = {
     "jito_auth": "JITO_AUTH",
     "jito_ws_url": "JITO_WS_URL",
     "jito_ws_auth": "JITO_WS_AUTH",
+    "event_bus_url": "EVENT_BUS_URL",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
     "use_depth_stream": "USE_DEPTH_STREAM",
