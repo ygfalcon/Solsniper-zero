@@ -250,6 +250,7 @@ class Portfolio:
 
         if not self.price_history or not self.balances:
             self.risk_metrics = {}
+            publish("risk_metrics", self.risk_metrics)
             return
 
         from .risk import (
@@ -264,6 +265,7 @@ class Portfolio:
         weights = self.weights()
         if not weights:
             self.risk_metrics = {}
+            publish("risk_metrics", self.risk_metrics)
             return
 
         hist = {t: self.price_history.get(t, []) for t in weights}
@@ -282,6 +284,12 @@ class Portfolio:
             "cov_matrix": cov_matrix,
             "corr_matrix": corr_matrix,
         }
+        payload = {
+            **self.risk_metrics,
+            "cov_matrix": cov_matrix.tolist(),
+            "corr_matrix": corr_matrix.tolist(),
+        }
+        publish("risk_metrics", payload)
 
     def hedged_weights(self, prices: Dict[str, float]) -> Dict[str, float]:
         """Return allocation weights adjusted for correlations."""

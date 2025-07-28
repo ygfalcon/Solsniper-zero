@@ -180,3 +180,55 @@ def test_portfolio_updated_event(tmp_path):
     assert events[-1].balances.get("tok") == 1
     unsub()
 
+
+def test_risk_metrics_event(monkeypatch):
+    p = Portfolio(path=None)
+    p.add("tok", 1, 1.0)
+    p.add("oth", 1, 1.0)
+    p.record_prices({"tok": 1.0, "oth": 1.0})
+    p.record_prices({"tok": 1.1, "oth": 1.2})
+
+    events = []
+    from solhunter_zero.event_bus import subscribe
+
+    unsub = subscribe("risk_metrics", lambda e: events.append(e))
+
+    p.update_risk_metrics()
+    unsub()
+
+    assert events
+    ev = events[-1]
+    import math
+
+    if math.isnan(p.risk_metrics["covariance"]):
+        assert math.isnan(ev["covariance"])
+    else:
+        assert ev["covariance"] == p.risk_metrics["covariance"]
+
+    if math.isnan(p.risk_metrics["portfolio_cvar"]):
+        assert math.isnan(ev["portfolio_cvar"])
+    else:
+        assert ev["portfolio_cvar"] == p.risk_metrics["portfolio_cvar"]
+
+    if math.isnan(p.risk_metrics["portfolio_evar"]):
+        assert math.isnan(ev["portfolio_evar"])
+    else:
+        assert ev["portfolio_evar"] == p.risk_metrics["portfolio_evar"]
+
+    if math.isnan(p.risk_metrics["correlation"]):
+        assert math.isnan(ev["correlation"])
+    else:
+        assert ev["correlation"] == p.risk_metrics["correlation"]
+    for a_row, b_row in zip(ev["cov_matrix"], p.risk_metrics["cov_matrix"].tolist()):
+        for a_val, b_val in zip(a_row, b_row):
+            if math.isnan(b_val):
+                assert math.isnan(a_val)
+            else:
+                assert a_val == b_val
+    for a_row, b_row in zip(ev["corr_matrix"], p.risk_metrics["corr_matrix"].tolist()):
+        for a_val, b_val in zip(a_row, b_row):
+            if math.isnan(b_val):
+                assert math.isnan(a_val)
+            else:
+                assert a_val == b_val
+
