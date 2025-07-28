@@ -19,6 +19,7 @@ from .scanner_common import (
     parse_birdeye_tokens,
 )
 from . import dex_ws
+from .event_bus import publish
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,7 @@ async def scan_tokens_async(
         extras.extend(res)
     if extras:
         tokens = list(dict.fromkeys(tokens + extras))
+    publish("token_discovered", tokens)
     return tokens
 
 

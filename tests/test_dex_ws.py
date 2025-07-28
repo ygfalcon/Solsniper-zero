@@ -5,6 +5,7 @@ import aiohttp
 from solhunter_zero import dex_ws
 from solhunter_zero import token_scanner as async_scanner
 from solhunter_zero import scanner_common
+from solhunter_zero.event_bus import subscribe
 
 
 class FakeMsg:
@@ -110,6 +111,13 @@ def test_scan_tokens_async_includes_dex_ws(monkeypatch):
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "k"
     monkeypatch.setattr(scanner_common, "DEX_LISTING_WS_URL", "ws://dex")
-
+    import importlib
+    import solhunter_zero.token_scanner as ts_mod
+    importlib.reload(ts_mod)
+    monkeypatch.setattr(ts_mod, "DEX_LISTING_WS_URL", "ws://dex")
+    events = []
+    unsub = subscribe("token_discovered", lambda p: events.append(p))
     tokens = asyncio.run(async_scanner.scan_tokens_async())
+    unsub()
     assert tokens == ["abcbonk", "dexws"]
+    assert events == [tokens]

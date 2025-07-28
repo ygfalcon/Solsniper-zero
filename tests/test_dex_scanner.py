@@ -1,5 +1,6 @@
 import asyncio
 from solhunter_zero import dex_scanner, token_scanner as scanner, scanner_common
+from solhunter_zero.event_bus import subscribe
 
 
 class FakeClient:
@@ -33,12 +34,22 @@ def test_scan_new_pools(monkeypatch):
 def test_scanner_method_pools(monkeypatch):
     monkeypatch.setattr(dex_scanner, "scan_new_pools", lambda url: ["tokbonk"])
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
-    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", lambda: [])
-    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", lambda: [])
-    monkeypatch.setattr(scanner, "fetch_orca_listings_async", lambda: [])
+    async def fake_trend():
+        return []
+    async def fr():
+        return []
+    async def fo():
+        return []
+    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", fake_trend)
+    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", fr)
+    monkeypatch.setattr(scanner, "fetch_orca_listings_async", fo)
     scanner_common.SOLANA_RPC_URL = "http://node"
+    events = []
+    unsub = subscribe("token_discovered", lambda p: events.append(p))
     tokens = asyncio.run(scanner.scan_tokens(method="pools"))
+    unsub()
     assert tokens == ["tokbonk"]
+    assert events == [tokens]
 
 
 def test_scanner_async_method_pools(monkeypatch):
@@ -54,5 +65,9 @@ def test_scanner_async_method_pools(monkeypatch):
     monkeypatch.setattr(scanner, "fetch_raydium_listings_async", fr)
     monkeypatch.setattr(scanner, "fetch_orca_listings_async", fo)
     scanner_common.SOLANA_RPC_URL = "http://node"
+    events = []
+    unsub = subscribe("token_discovered", lambda p: events.append(p))
     result = asyncio.run(scanner.scan_tokens_async(method="pools"))
+    unsub()
     assert result == ["tokbonk"]
+    assert events == [result]
