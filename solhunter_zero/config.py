@@ -7,7 +7,7 @@ from typing import Mapping, Any
 from pathlib import Path
 
 from .dex_config import DEXConfig
-from .event_bus import publish
+from importlib import import_module
 
 import tomllib
 
@@ -87,6 +87,12 @@ ENV_VARS = {
     "max_hops": "MAX_HOPS",
     "path_algorithm": "PATH_ALGORITHM",
 }
+
+
+def _publish(topic: str, payload: Any) -> None:
+    """Proxy to :func:`event_bus.publish` imported lazily."""
+    ev = import_module("solhunter_zero.event_bus")
+    ev.publish(topic, payload)
 
 
 def _read_config_file(path: Path) -> dict:
@@ -173,7 +179,7 @@ def save_config(name: str, data: bytes) -> None:
         cfg = _read_config_file(Path(path))
     except Exception:
         pass
-    publish("config_updated", cfg)
+    _publish("config_updated", cfg)
 
 
 def select_config(name: str) -> None:
@@ -183,6 +189,7 @@ def select_config(name: str) -> None:
         raise FileNotFoundError(path)
     with open(ACTIVE_CONFIG_FILE, "w", encoding="utf-8") as fh:
         fh.write(name)
+    reload_active_config()
 
 
 def get_active_config_name() -> str | None:
@@ -252,3 +259,51 @@ def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
         gas=gas,
         latency=latency,
     )
+
+
+# ---------------------------------------------------------------------------
+#  Active configuration helpers
+# ---------------------------------------------------------------------------
+
+_ACTIVE_CONFIG: dict[str, Any] = apply_env_overrides(load_selected_config())
+set_env_from_config(_ACTIVE_CONFIG)
+
+
+def _update_active(cfg: Mapping[str, Any] | None) -> None:
+    global _ACTIVE_CONFIG
+    if cfg is None:
+        cfg = {}
+    _ACTIVE_CONFIG = apply_env_overrides(dict(cfg))
+    set_env_from_config(_ACTIVE_CONFIG)
+
+
+def reload_active_config() -> dict:
+    """Reload the currently selected configuration and broadcast an update."""
+    cfg = load_selected_config()
+    _update_active(cfg)
+    _publish("config_updated", cfg)
+    return _ACTIVE_CONFIG
+
+
+from . import event_bus as _event_bus
+_sub = _event_bus.subscription("config_updated", _update_active)
+_sub.__enter__()
+try:
+    _event_bus._reload_bus(None)
+except Exception:
+    pass
+
+
+def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
+    """Return websocket URL of the external event bus if configured."""
+    cfg = cfg or _ACTIVE_CONFIG
+    url = os.getenv("EVENT_BUS_URL") or str(cfg.get("event_bus_url", ""))
+    return url or None
+
+
+def get_depth_ws_addr(cfg: Mapping[str, Any] | None = None) -> tuple[str, int]:
+    """Return address and port of the depth websocket server."""
+    cfg = cfg or _ACTIVE_CONFIG
+    addr = os.getenv("DEPTH_WS_ADDR") or str(cfg.get("depth_ws_addr", "127.0.0.1"))
+    port = int(os.getenv("DEPTH_WS_PORT") or cfg.get("depth_ws_port", 8765))
+    return addr, port

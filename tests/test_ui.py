@@ -422,10 +422,23 @@ def test_status_endpoint(monkeypatch):
 
     def fake_ws(url):
         called["url"] = url
-        return Dummy()
+
+        class Conn:
+            async def __aenter__(self_inner):
+                return Dummy()
+
+            async def __aexit__(self_inner, exc_type, exc, tb):
+                pass
+
+            def __await__(self_inner):
+                async def _coro():
+                    return self_inner
+                return _coro().__await__()
+
+        return Conn()
 
     monkeypatch.setattr(ui.websockets, "connect", fake_ws)
-    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
+    monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: "ws://bus")
 
     client = ui.app.test_client()
     resp = client.get("/status")

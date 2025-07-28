@@ -14,11 +14,16 @@ try:
 except Exception:  # pragma: no cover - optional
     websockets = None
 import sqlalchemy as sa
-from .depth_client import DEPTH_WS_ADDR, DEPTH_WS_PORT
+from .config import (
+    load_config,
+    apply_env_overrides,
+    set_env_from_config,
+    get_event_bus_url,
+    get_depth_ws_addr,
+)
 from pathlib import Path
 import numpy as np
 
-from .config import load_config, apply_env_overrides, set_env_from_config
 from . import config as config_module
 
 from .prices import fetch_token_prices
@@ -577,7 +582,7 @@ def status() -> dict:
     rl_alive = rl_daemon is not None
     depth_alive = depth_service_connected
     event_alive = False
-    url = os.getenv("EVENT_BUS_URL")
+    url = get_event_bus_url()
     if url and websockets is not None:
         async def _check():
             try:

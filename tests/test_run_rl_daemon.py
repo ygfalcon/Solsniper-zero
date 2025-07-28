@@ -12,7 +12,8 @@ def test_run_rl_daemon_sets_event_bus(monkeypatch):
 
     class DummyDaemon:
         def __init__(self, *a, **k):
-            DummyDaemon.url = os.environ.get("EVENT_BUS_URL")
+            from solhunter_zero.config import get_event_bus_url
+            DummyDaemon.url = get_event_bus_url()
         def start(self, *a, **k):
             pass
 
@@ -50,5 +51,8 @@ def test_run_rl_daemon_sets_event_bus(monkeypatch):
 
     asyncio.run(run_mod.main())
 
+    from solhunter_zero.config import get_event_bus_url
+
     assert DummyDaemon.url == "ws://bus"
+    assert get_event_bus_url() == "ws://bus"
 

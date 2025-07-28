@@ -8,6 +8,11 @@ from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
 from .schemas import validate_message, to_dict
 
+
+def _get_bus_url(cfg=None):
+    from .config import get_event_bus_url
+    return get_event_bus_url(cfg)
+
 try:
     import websockets  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -170,14 +175,31 @@ async def disconnect_ws() -> None:
 
 
 # Automatically connect to an external event bus if configured
-_ENV_URL = os.environ.get("EVENT_BUS_URL")
-if _ENV_URL and websockets:
+_ENV_URL = None
+
+
+def _reload_bus(cfg) -> None:
+    global _ENV_URL
+    url = _get_bus_url(cfg)
+    if url == _ENV_URL:
+        return
+
+    async def _reconnect() -> None:
+        if _ws_client is not None:
+            await disconnect_ws()
+        if url:
+            await connect_ws(url)
+
     try:
-        _loop = asyncio.get_running_loop()
+        loop = asyncio.get_running_loop()
     except RuntimeError:
-        _loop = None
-    if _loop:
-        _loop.create_task(connect_ws(_ENV_URL))
+        loop = None
+    if loop:
+        loop.create_task(_reconnect())
     else:
-        asyncio.run(connect_ws(_ENV_URL))
+        asyncio.run(_reconnect())
+    _ENV_URL = url
+
+
+subscription("config_updated", _reload_bus).__enter__()
 
