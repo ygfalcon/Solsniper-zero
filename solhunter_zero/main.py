@@ -115,6 +115,7 @@ from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
 from . import depth_client
+from .data_pipeline import start_depth_snapshot_listener
 
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
@@ -603,6 +604,14 @@ def main(
         rl_task = await _init_rl_training(
             cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
         )
+        collect_data = str(
+            cfg.get("collect_offline_data")
+            or os.getenv("COLLECT_OFFLINE_DATA", "false")
+        ).lower() in {"1", "true", "yes"}
+        stop_collector = None
+        if collect_data:
+            db_path = cfg.get("rl_db_path", "offline_data.db")
+            stop_collector = start_depth_snapshot_listener(db_path)
         prev_activity = 0.0
         iteration_idx = 0
 
@@ -776,6 +785,8 @@ def main(
             rl_task.cancel()
             with contextlib.suppress(Exception):
                 await rl_task
+        if stop_collector:
+            stop_collector()
 
     try:
         asyncio.run(loop())
