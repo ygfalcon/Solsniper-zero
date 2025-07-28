@@ -35,6 +35,23 @@ def start(cmd: list[str]) -> subprocess.Popen:
     return proc
 
 
+def get_config_file() -> str | None:
+    path = os.getenv("SOLHUNTER_CONFIG")
+    if path:
+        return path
+    cfg_dir = Path(os.getenv("CONFIG_DIR", "configs"))
+    active = cfg_dir / "active"
+    if active.is_file():
+        name = active.read_text().strip()
+        cfg = cfg_dir / name
+        if cfg.is_file():
+            return str(cfg)
+    for name in ("config.toml", "config.yaml", "config.yml"):
+        if Path(name).is_file():
+            return name
+    return None
+
+
 def stop_all(*_: object) -> None:
     for p in PROCS:
         if p.poll() is None:
@@ -53,7 +70,11 @@ signal.signal(signal.SIGINT, stop_all)
 signal.signal(signal.SIGTERM, stop_all)
 
 # Launch depth service and RL daemon first
-start(["./target/release/depth_service"])
+cfg = get_config_file()
+cmd = ["./target/release/depth_service"]
+if cfg:
+    cmd += ["--config", cfg]
+start(cmd)
 start([sys.executable, "scripts/run_rl_daemon.py"])
 
 # Wait for the websocket to come online before starting the bot
@@ -70,7 +91,10 @@ while True:
             stop_all()
         time.sleep(0.1)
 
-start([sys.executable, "-m", "solhunter_zero.main"])
+main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
+if cfg:
+    main_cmd += ["--config", cfg]
+start(main_cmd)
 
 try:
     while any(p.poll() is None for p in PROCS):
