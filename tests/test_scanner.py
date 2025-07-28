@@ -1,5 +1,5 @@
 import asyncio
-from solhunter_zero import scanner
+from solhunter_zero import token_scanner as scanner
 from solhunter_zero import scanner_common
 
 data = {"data": [{"address": "abcbonk"}, {"address": "otherbonk"}]}
@@ -93,7 +93,7 @@ def test_scan_tokens_onchain(monkeypatch):
     def fake_session(*args, **kwargs):
         raise AssertionError('should not call BirdEye')
 
-    monkeypatch.setattr(scanner, 'scan_tokens_onchain', fake_onchain)
+    monkeypatch.setattr(scanner_common, "scan_tokens_onchain", fake_onchain)
     monkeypatch.setattr("aiohttp.ClientSession", fake_session)
     async def ft():
         return ['t2']
@@ -110,7 +110,7 @@ def test_scan_tokens_onchain(monkeypatch):
     assert captured['url'] == 'http://node'
 
 
-from solhunter_zero.async_scanner import scan_tokens_async as async_scan
+from solhunter_zero.token_scanner import scan_tokens_async as async_scan
 
 
 def test_scan_tokens_async(monkeypatch):
@@ -137,9 +137,9 @@ def test_scan_tokens_async(monkeypatch):
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     async def fake_trend():
         return ['trend']
-    import solhunter_zero.async_scanner as async_scanner_mod
+    import solhunter_zero.token_scanner as async_scanner_mod
     monkeypatch.setattr(async_scanner_mod, 'fetch_trending_tokens_async', fake_trend)
-    scanner_async_module = __import__('solhunter_zero.async_scanner', fromlist=[''])
+    scanner_async_module = __import__('solhunter_zero.token_scanner', fromlist=[''])
     scanner_common.BIRDEYE_API_KEY = 'key'
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "key"
@@ -182,7 +182,7 @@ def test_scan_tokens_async_from_file(monkeypatch, tmp_path):
     monkeypatch.setattr("aiohttp.ClientSession", fake_session)
     async def fail():
         raise AssertionError("trending")
-    import solhunter_zero.async_scanner as async_scanner_mod
+    import solhunter_zero.token_scanner as async_scanner_mod
     monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fail)
 
     tokens = asyncio.run(async_scan(token_file=str(path)))
