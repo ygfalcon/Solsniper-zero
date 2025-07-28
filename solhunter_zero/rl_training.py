@@ -35,6 +35,7 @@ except Exception:  # pragma: no cover - optional dependency
 from .offline_data import OfflineData
 from .simulation import run_simulations, predict_price_movement
 from .news import fetch_sentiment
+from .regime import detect_regime
 
 
 class _TradeDataset(Dataset):
@@ -108,8 +109,9 @@ class _TradeDataset(Dataset):
                 r,
             ]
             reward = float(t.amount) * float(t.price)
-            action = 0 if t.side == "buy" else 1
-            if t.side == "buy":
+            side = getattr(t, "side", getattr(t, "direction", "buy"))
+            action = 0 if side == "buy" else 1
+            if side == "buy":
                 reward = -reward
             self.samples.append((state, action, reward))
             hist.append(float(t.price))

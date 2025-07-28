@@ -23,6 +23,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from .base_memory import BaseMemory
+
 
 Base = declarative_base()
 
@@ -57,7 +59,7 @@ class Trade(Base):
     simulation_id = Column(Integer, ForeignKey("simulation_summaries.id"))
 
 
-class AdvancedMemory:
+class AdvancedMemory(BaseMemory):
     """Store trades with semantic search on context text."""
 
     def __init__(
