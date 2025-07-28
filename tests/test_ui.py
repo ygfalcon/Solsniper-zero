@@ -3,8 +3,32 @@ import os
 import io
 import json
 import asyncio
+import types
+import contextlib
+import importlib.machinery
+import sys
 import pytest
 from solders.keypair import Keypair
+
+torch_mod = types.ModuleType("torch")
+torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", loader=None)
+torch_mod.no_grad = contextlib.nullcontext
+torch_mod.tensor = lambda *a, **k: None
+torch_mod.nn = types.SimpleNamespace(
+    Module=object,
+    LSTM=object,
+    Linear=object,
+    TransformerEncoder=object,
+    TransformerEncoderLayer=object,
+)
+torch_mod.Tensor = object
+torch_mod.optim = types.ModuleType("optim")
+sys.modules.setdefault("torch", torch_mod)
+sys.modules.setdefault("torch.nn", torch_mod.nn)
+dummy_trans = types.ModuleType("transformers")
+dummy_trans.pipeline = lambda *a, **k: lambda x: []
+sys.modules.setdefault("transformers", dummy_trans)
+
 from solhunter_zero import ui, config
 import solhunter_zero.data_sync as data_sync
 import logging
@@ -385,18 +409,7 @@ def test_status_endpoint(monkeypatch):
 
     monkeypatch.setattr(ui, "trading_thread", DummyThread(), raising=False)
     monkeypatch.setattr(ui, "rl_daemon", object(), raising=False)
-
-    def fake_conn(addr, timeout=None):
-        class Dummy:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                pass
-
-        return Dummy()
-
-    monkeypatch.setattr(ui.socket, "create_connection", fake_conn)
+    monkeypatch.setattr(ui, "depth_service_connected", True, raising=False)
 
     called = {}
 
