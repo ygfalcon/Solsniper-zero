@@ -1,4 +1,5 @@
 import asyncio
+import solhunter_zero.jito_stream
 
 from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
 from solhunter_zero.agents.flashloan_sandwich import FlashloanSandwichAgent
@@ -111,3 +112,41 @@ def test_flashloan_sandwich_from_jito(monkeypatch):
 
     assert token == "tok"
     assert sent == [["TX_MSG_buy", "TX_MSG_sell"]]
+
+
+def test_pending_swap_event(monkeypatch):
+    async def fake_stream(url, *, auth=None):
+        yield {
+            "pendingTransactions": [
+                {"swap": {"token": "tok", "size": 1.0, "slippage": 0.1}}
+            ]
+        }
+
+    monkeypatch.setattr(
+        "solhunter_zero.jito_stream.stream_pending_transactions",
+        fake_stream,
+    )
+
+    events = []
+    from solhunter_zero.event_bus import subscribe
+
+    unsub = subscribe("pending_swap", lambda p: events.append(p))
+
+    async def run_once():
+        gen = solhunter_zero.jito_stream.stream_pending_swaps("ws://")
+        data = await asyncio.wait_for(anext(gen), timeout=0.1)
+        await gen.aclose()
+        return data
+
+    import solhunter_zero.jito_stream
+
+    data = asyncio.run(run_once())
+    unsub()
+
+    assert data == {
+        "token": "tok",
+        "address": "tok",
+        "size": 1.0,
+        "slippage": 0.1,
+    }
+    assert events == [data]
