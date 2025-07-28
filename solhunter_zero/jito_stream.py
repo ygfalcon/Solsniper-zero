@@ -7,6 +7,8 @@ from typing import AsyncGenerator, Dict, Any
 
 import aiohttp
 
+from .event_bus import publish
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,11 +84,13 @@ async def stream_pending_swaps(
                 size = float(swap.get("size", swap.get("amount", 0.0)))
                 slip = float(swap.get("slippage", 0.0))
                 if token:
-                    yield {
+                    swap_event = {
                         "token": token,
                         "address": token,
                         "size": size,
                         "slippage": slip,
                     }
+                    publish("pending_swap", swap_event)
+                    yield swap_event
             except Exception as exc:  # pragma: no cover - malformed message
                 logger.error("Failed to parse pending swap: %s", exc)
