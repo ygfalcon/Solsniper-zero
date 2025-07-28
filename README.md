@@ -141,6 +141,7 @@ direct transaction submission to the Solana RPC.
      transaction submission.
    - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
      When set, depth updates are forwarded using the topic `depth_update`.
+     The same value can be provided via `event_bus_url` in your config.
 3. **Route transactions through the service**
    Python code signs transactions locally and forwards them via
    ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
@@ -279,6 +280,7 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    export EVENT_BUS_URL=wss://bus.example.com
    ```
+   Alternatively specify `event_bus_url` in the configuration file.
 Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`. The `make start` target is a convenient shortcut.
 
    This loads the selected configuration (or the `config.highrisk.toml` preset
