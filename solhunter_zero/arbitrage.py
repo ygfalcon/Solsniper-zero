@@ -106,6 +106,7 @@ from .event_bus import subscribe
 from .prices import get_cached_price, update_price_cache
 
 ROUTE_CACHE = LRUCache(maxsize=128)
+_EDGE_CACHE = LRUCache(maxsize=1024)
 _LAST_DEPTH: dict[str, float] = {}
 
 # shared HTTP session and price cache
@@ -133,6 +134,15 @@ def invalidate_route(token: str | None = None) -> None:
     for k in keys:
         ROUTE_CACHE._cache.pop(k, None)
 
+def invalidate_edges(token: str | None = None) -> None:
+    """Remove cached edge profits for ``token`` or clear the cache."""
+    if token is None:
+        _EDGE_CACHE.clear()
+        return
+    keys = [k for k in list(_EDGE_CACHE._cache) if k[0] == token]
+    for k in keys:
+        _EDGE_CACHE._cache.pop(k, None)
+
 def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
     for token, entry in payload.items():
         depth = float(entry.get("depth", 0.0))
@@ -141,6 +151,7 @@ def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
             base = max(depth, last, 1.0)
             if abs(depth - last) / base > 0.1:
                 invalidate_route(token)
+                invalidate_edges(token)
         _LAST_DEPTH[token] = depth
 
 subscribe("depth_update", _on_depth_update)
@@ -532,6 +543,7 @@ def _best_route(
     prices: Mapping[str, float],
     amount: float,
     *,
+    token: str | None = None,
     fees: Mapping[str, float] | None = None,
     gas: Mapping[str, float] | None = None,
     latency: Mapping[str, float] | None = None,
@@ -601,11 +613,19 @@ def _best_route(
         for b in venues:
             if a == b:
                 continue
-            edge_profit[(a, b)] = (
-                (prices[b] - prices[a]) * trade_amount
-                - step_cost(a, b)
-                - slip_cost(a, b)
-            )
+            key = (token, a, b) if token is not None else None
+            cached = _EDGE_CACHE.get(key) if key else None
+            if cached is None:
+                val = (
+                    (prices[b] - prices[a]) * trade_amount
+                    - step_cost(a, b)
+                    - slip_cost(a, b)
+                )
+                if key is not None:
+                    _EDGE_CACHE.set(key, val)
+            else:
+                val = cached
+            edge_profit[(a, b)] = val
 
     def _permutation_best_route() -> tuple[list[str], float]:
         best: list[str] | None = None
@@ -691,6 +711,7 @@ async def _compute_route(
         path, profit = _best_route(
             price_map,
             amount,
+            token=token,
             fees=fees,
             gas=gas,
             latency=latency,

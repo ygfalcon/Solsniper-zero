@@ -121,6 +121,7 @@ class ArbitrageAgent(BaseAgent):
         path, profit = _best_route(
             valid,
             self.amount,
+            token=token,
             fees=self.fees,
             gas=gas_costs,
             latency=self.latency,
