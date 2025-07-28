@@ -33,11 +33,19 @@ class RLCheckpoint:
     path: str
 
 
+@dataclass
+class PortfolioUpdated:
+    """Payload emitted whenever portfolio balances change."""
+
+    balances: Dict[str, float]
+
+
 _EVENT_SCHEMAS: Dict[str, Type] = {
     "action_executed": ActionExecuted,
     "weights_updated": WeightsUpdated,
     "rl_weights": RLWeights,
     "rl_checkpoint": RLCheckpoint,
+    "portfolio_updated": PortfolioUpdated,
 }
 
 
