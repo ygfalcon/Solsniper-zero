@@ -384,6 +384,22 @@ def test_status_endpoint(monkeypatch):
 
     monkeypatch.setattr(ui.socket, "create_connection", fake_conn)
 
+    called = {}
+
+    class Dummy:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    def fake_ws(url):
+        called["url"] = url
+        return Dummy()
+
+    monkeypatch.setattr(ui.websockets, "connect", fake_ws)
+    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
+
     client = ui.app.test_client()
     resp = client.get("/status")
     data = resp.get_json()
@@ -391,5 +407,7 @@ def test_status_endpoint(monkeypatch):
         "trading_loop": True,
         "rl_daemon": True,
         "depth_service": True,
+        "event_bus": True,
     }
+    assert called["url"] == "ws://bus"
 

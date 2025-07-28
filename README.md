@@ -664,6 +664,8 @@ very small.
 - **Web UI polling** — the browser polls `/positions`, `/trades`, `/roi`,
   `/risk` and `/weights` every 5&nbsp;s. It assumes a single user and exposes
   JSON endpoints to inspect trades and ROI history.
+- **Status endpoint** — `/status` reports if the trading loop, RL daemon,
+  depth service and external event bus are alive.
 - **Alerts and position sizing** — no Telegram or other alerting is built in.
   `RiskManager.adjusted()` factors whale liquidity share, mempool transaction
   rate and `min_portfolio_value` into position sizing.

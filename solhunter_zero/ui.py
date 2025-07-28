@@ -523,11 +523,26 @@ def status() -> dict:
             depth_alive = True
     except OSError:
         depth_alive = False
+    event_alive = False
+    url = os.getenv("EVENT_BUS_URL")
+    if url and websockets is not None:
+        async def _check():
+            try:
+                async with websockets.connect(url):
+                    return True
+            except Exception:
+                return False
+
+        try:
+            event_alive = asyncio.run(_check())
+        except Exception:
+            event_alive = False
     return jsonify(
         {
             "trading_loop": trading_alive,
             "rl_daemon": rl_alive,
             "depth_service": depth_alive,
+            "event_bus": event_alive,
         }
     )
 
