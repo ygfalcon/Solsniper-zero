@@ -5,6 +5,12 @@ from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 
 
+# reset global state before each test
+def setup_function(_):
+    arb._SESSION = None
+    arb.PRICE_CACHE.clear()
+
+
 @pytest.fixture(autouse=True)
 def _disable_jup(monkeypatch):
     monkeypatch.setattr(arb, "JUPITER_WS_URL", "")
@@ -407,3 +413,43 @@ def test_depth_aware_routing(monkeypatch):
 
     assert result == (0, 2)
     assert ("sell", 1.2) in called
+
+
+def test_price_cache(monkeypatch):
+    data = {"price": 1.1}
+    calls = {"sessions": 0, "gets": 0}
+
+    class FakeResp:
+        def __init__(self, url):
+            calls["url"] = url
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            return data
+
+        def raise_for_status(self):
+            pass
+
+    class FakeSession:
+        def __init__(self):
+            calls["sessions"] += 1
+
+        def get(self, url, timeout=10):
+            calls["gets"] += 1
+            return FakeResp(url)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    arb.PRICE_CACHE.ttl = 60
+
+    result1 = asyncio.run(arb.fetch_orca_price_async("tok"))
+    result2 = asyncio.run(arb.fetch_orca_price_async("tok"))
+
+    assert result1 == 1.1
+    assert result2 == 1.1
+    assert calls["sessions"] == 1
+    assert calls["gets"] == 1

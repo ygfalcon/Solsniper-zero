@@ -101,11 +101,22 @@ USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "ye
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
 PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 
-from .lru import LRUCache
+from .lru import LRUCache, TTLCache
 from .event_bus import subscribe
 
 ROUTE_CACHE = LRUCache(maxsize=128)
 _LAST_DEPTH: dict[str, float] = {}
+
+# shared HTTP session and price cache
+_SESSION: aiohttp.ClientSession | None = None
+PRICE_CACHE_TTL = 30  # seconds
+PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
+
+async def _get_session() -> aiohttp.ClientSession:
+    global _SESSION
+    if _SESSION is None or getattr(_SESSION, "closed", False):
+        _SESSION = aiohttp.ClientSession()
+    return _SESSION
 
 def _route_key(token: str, amount: float, fees: Mapping[str, float], gas: Mapping[str, float], latency: Mapping[str, float]) -> tuple:
     def _norm(m: Mapping[str, float]) -> tuple:
@@ -172,66 +183,90 @@ async def _prepare_service_tx(
 
 async def fetch_orca_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Orca API."""
+    cached = PRICE_CACHE.get(("orca", token))
+    if cached is not None:
+        return cached
 
     url = f"{ORCA_API_URL}/price?token={token}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                price = data.get("price")
-                return float(price) if isinstance(price, (int, float)) else 0.0
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch price from Orca: %s", exc)
-            return 0.0
+    session = await _get_session()
+    try:
+        async with session.get(url, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            price = data.get("price")
+            value = float(price) if isinstance(price, (int, float)) else 0.0
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch price from Orca: %s", exc)
+        return 0.0
+
+    PRICE_CACHE.set(("orca", token), value)
+    return value
 
 
 async def fetch_raydium_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Raydium API."""
+    cached = PRICE_CACHE.get(("raydium", token))
+    if cached is not None:
+        return cached
 
     url = f"{RAYDIUM_API_URL}/price?token={token}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                price = data.get("price")
-                return float(price) if isinstance(price, (int, float)) else 0.0
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch price from Raydium: %s", exc)
-            return 0.0
+    session = await _get_session()
+    try:
+        async with session.get(url, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            price = data.get("price")
+            value = float(price) if isinstance(price, (int, float)) else 0.0
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch price from Raydium: %s", exc)
+        return 0.0
+
+    PRICE_CACHE.set(("raydium", token), value)
+    return value
 
 
 async def fetch_phoenix_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Phoenix API."""
+    cached = PRICE_CACHE.get(("phoenix", token))
+    if cached is not None:
+        return cached
 
     url = f"{PHOENIX_API_URL}/price?token={token}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                price = data.get("price")
-                return float(price) if isinstance(price, (int, float)) else 0.0
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch price from Phoenix: %s", exc)
-            return 0.0
+    session = await _get_session()
+    try:
+        async with session.get(url, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            price = data.get("price")
+            value = float(price) if isinstance(price, (int, float)) else 0.0
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch price from Phoenix: %s", exc)
+        return 0.0
+
+    PRICE_CACHE.set(("phoenix", token), value)
+    return value
 
 
 async def fetch_meteora_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Meteora API."""
+    cached = PRICE_CACHE.get(("meteora", token))
+    if cached is not None:
+        return cached
 
     url = f"{METEORA_API_URL}/price?token={token}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                price = data.get("price")
-                return float(price) if isinstance(price, (int, float)) else 0.0
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch price from Meteora: %s", exc)
-            return 0.0
+    session = await _get_session()
+    try:
+        async with session.get(url, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            price = data.get("price")
+            value = float(price) if isinstance(price, (int, float)) else 0.0
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch price from Meteora: %s", exc)
+        return 0.0
+
+    PRICE_CACHE.set(("meteora", token), value)
+    return value
 
 
 JUPITER_API_URL = os.getenv("JUPITER_API_URL", "https://price.jup.ag/v4/price")
@@ -240,37 +275,57 @@ JUPITER_API_URL = os.getenv("JUPITER_API_URL", "https://price.jup.ag/v4/price")
 async def fetch_jupiter_price_async(token: str) -> float:
     """Return the current price for ``token`` from the Jupiter price API."""
 
+    cached = PRICE_CACHE.get(("jupiter", token))
+    if cached is not None:
+        return cached
+
     url = f"{JUPITER_API_URL}?ids={token}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                info = data.get("data", {}).get(token)
-                if info and isinstance(info, dict):
-                    price = info.get("price")
-                    return float(price) if isinstance(price, (int, float)) else 0.0
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch price from Jupiter: %s", exc)
-            return 0.0
+    session = await _get_session()
+    try:
+        async with session.get(url, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            info = data.get("data", {}).get(token)
+            if info and isinstance(info, dict):
+                price = info.get("price")
+                value = float(price) if isinstance(price, (int, float)) else 0.0
+            else:
+                value = 0.0
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch price from Jupiter: %s", exc)
+        return 0.0
+
+    PRICE_CACHE.set(("jupiter", token), value)
+    return value
 
 
-def make_api_price_fetch(url: str) -> PriceFeed:
+def make_api_price_fetch(url: str, name: str | None = None) -> PriceFeed:
     """Return a simple price fetcher for ``url``."""
 
-    async def _fetch(token: str) -> float:
-        req = f"{url.rstrip('/')}/price?token={token}"
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(req, timeout=10) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-                    price = data.get("price")
-                    return float(price) if isinstance(price, (int, float)) else 0.0
-            except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-                logger.warning("Failed to fetch price from %s: %s", url, exc)
-                return 0.0
+    if not name:
+        name = url
 
+    async def _fetch(token: str, _name=name) -> float:
+        cached = PRICE_CACHE.get((_name, token))
+        if cached is not None:
+            return cached
+
+        req = f"{url.rstrip('/')}/price?token={token}"
+        session = await _get_session()
+        try:
+            async with session.get(req, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                price = data.get("price")
+                value = float(price) if isinstance(price, (int, float)) else 0.0
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch price from %s: %s", url, exc)
+            return 0.0
+
+        PRICE_CACHE.set((_name, token), value)
+        return value
+
+    _fetch.__name__ = str(name)
     return _fetch
 
 
@@ -857,7 +912,7 @@ async def _detect_for_token(
             if latencies is not None and name not in latencies:
                 latencies[name] = DEX_LATENCY.get(name, 0.0)
         for name, url in EXTRA_API_URLS.items():
-            feeds.append(make_api_price_fetch(url))
+            feeds.append(make_api_price_fetch(url, name))
             if fees is not None and name not in fees:
                 fees[name] = DEX_FEES.get(name, 0.0)
             if gas is not None and name not in gas:
