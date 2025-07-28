@@ -632,14 +632,31 @@ async fn main() -> Result<()> {
     let bus_tx = if let Ok(url) = std::env::var("EVENT_BUS_URL") {
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();
         tokio::spawn(async move {
-            if let Ok((socket, _)) = connect_async(&url).await {
-                let (mut write, mut read) = socket.split();
-                tokio::spawn(async move { while read.next().await.is_some() {} });
-                while let Some(msg) = rx.recv().await {
-                    if write.send(Message::Text(msg)).await.is_err() {
-                        break;
+            use serde_json::json;
+            let mut backoff = Duration::from_secs(1);
+            loop {
+                match connect_async(&url).await {
+                    Ok((socket, _)) => {
+                        backoff = Duration::from_secs(1);
+                        let (mut write, mut read) = socket.split();
+                        // Notify bus that the service is online
+                        let online = serde_json::to_string(&EventMessage::<serde_json::Value> {
+                            topic: "depth_service_status".to_string(),
+                            payload: json!({"status": "online"}),
+                        })
+                        .unwrap();
+                        let _ = write.send(Message::Text(online)).await;
+                        tokio::spawn(async move { while read.next().await.is_some() {} });
+                        while let Some(msg) = rx.recv().await {
+                            if write.send(Message::Text(msg)).await.is_err() {
+                                break;
+                            }
+                        }
                     }
+                    Err(_) => {}
                 }
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(Duration::from_secs(64));
             }
         });
         Some(tx)
