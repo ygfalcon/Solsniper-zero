@@ -6,6 +6,13 @@ import pytest
 from solhunter_zero import depth_client
 
 
+@pytest.fixture(autouse=True)
+def _reset_pool():
+    asyncio.run(depth_client.close_ipc_clients())
+    yield
+    asyncio.run(depth_client.close_ipc_clients())
+
+
 class FakeReader:
     def __init__(self, data: bytes):
         self._data = data
@@ -28,6 +35,9 @@ class FakeWriter:
 
     def close(self):
         self.closed = True
+
+    def is_closing(self):
+        return self.closed
 
     async def wait_closed(self):
         self.waited = True
@@ -341,3 +351,23 @@ def test_listen_depth_ws(monkeypatch):
     assert events[0][1]["status"] == "connected"
     assert events[1] == ("depth_update", msgs[0])
     assert events[2][0] == "depth_service_status" and events[2][1]["status"] == "disconnected"
+
+
+def test_connection_pool_reuse(monkeypatch):
+    calls = []
+
+    async def fake_conn(path):
+        calls.append(path)
+        writer = FakeWriter()
+        reader = FakeReader(json.dumps({"ok": True}).encode())
+        return reader, writer
+
+    monkeypatch.setattr(asyncio, "open_unix_connection", fake_conn)
+
+    async def run():
+        await depth_client.auto_exec("TOK", 1.0, ["A"], socket_path="sock")
+        await depth_client.best_route("TOK", 1.0, socket_path="sock")
+
+    asyncio.run(run())
+
+    assert calls == ["sock"]

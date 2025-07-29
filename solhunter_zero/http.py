@@ -20,7 +20,8 @@ async def close_session() -> None:
             await close()
     _session = None
     try:
-        from .depth_client import close_mmap
+        from .depth_client import close_mmap, close_ipc_clients
         close_mmap()
+        await close_ipc_clients()
     except Exception:
         pass

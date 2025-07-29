@@ -4,6 +4,7 @@ import mmap
 import asyncio
 import time
 import atexit
+from contextlib import suppress
 import struct
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
@@ -67,6 +68,59 @@ atexit.register(close_mmap)
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
 SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
+
+# IPC connection pooling
+_CONNECTIONS: Dict[str, "_IPCClient"] = {}
+
+
+class _IPCClient:
+    """Maintain a persistent UNIX socket connection."""
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
+
+    async def _ensure(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        if (
+            self.writer is None
+            or getattr(self.writer, "is_closing", lambda: False)()
+        ):
+            self.reader, self.writer = await asyncio.open_unix_connection(self.path)
+        return self.reader, self.writer
+
+    async def request(self, payload: Dict[str, Any], timeout: float | None = None) -> bytes:
+        reader, writer = await self._ensure()
+        writer.write(json.dumps(payload).encode())
+        await writer.drain()
+        if timeout is not None:
+            data = await asyncio.wait_for(reader.read(), timeout)
+        else:
+            data = await reader.read()
+        return data
+
+    async def close(self) -> None:
+        if self.writer is not None and not getattr(self.writer, "is_closing", lambda: False)():
+            self.writer.close()
+            with suppress(Exception):
+                await self.writer.wait_closed()
+        self.reader = None
+        self.writer = None
+
+
+async def get_ipc_client(socket_path: str = DEPTH_SERVICE_SOCKET) -> _IPCClient:
+    client = _CONNECTIONS.get(socket_path)
+    if client is None:
+        client = _IPCClient(socket_path)
+        _CONNECTIONS[socket_path] = client
+    return client
+
+
+async def close_ipc_clients() -> None:
+    for client in list(_CONNECTIONS.values()):
+        with suppress(Exception):
+            await client.close()
+    _CONNECTIONS.clear()
 
 
 def _reload_depth(cfg) -> None:
@@ -282,16 +336,9 @@ async def submit_signed_tx(
 ) -> Optional[str]:
     """Forward a pre-signed transaction to the Rust service."""
 
-    reader, writer = await asyncio.open_unix_connection(socket_path)
+    client = await get_ipc_client(socket_path)
     payload = {"cmd": "signed_tx", "tx": tx_b64}
-    writer.write(json.dumps(payload).encode())
-    await writer.drain()
-    if timeout is not None:
-        data = await asyncio.wait_for(reader.read(), timeout)
-    else:
-        data = await reader.read()
-    writer.close()
-    await writer.wait_closed()
+    data = await client.request(payload, timeout)
     if not data:
         return None
     try:
@@ -310,18 +357,11 @@ async def prepare_signed_tx(
 ) -> Optional[str]:
     """Request a signed transaction from a template message."""
 
-    reader, writer = await asyncio.open_unix_connection(socket_path)
+    client = await get_ipc_client(socket_path)
     payload: Dict[str, Any] = {"cmd": "prepare", "msg": msg_b64}
     if priority_fee is not None:
         payload["priority_fee"] = int(priority_fee)
-    writer.write(json.dumps(payload).encode())
-    await writer.drain()
-    if timeout is not None:
-        data = await asyncio.wait_for(reader.read(), timeout)
-    else:
-        data = await reader.read()
-    writer.close()
-    await writer.wait_closed()
+    data = await client.request(payload, timeout)
     if not data:
         return None
     try:
@@ -339,16 +379,9 @@ async def submit_tx_batch(
 ) -> list[str] | None:
     """Submit multiple pre-signed transactions at once."""
 
-    reader, writer = await asyncio.open_unix_connection(socket_path)
+    client = await get_ipc_client(socket_path)
     payload = {"cmd": "batch", "txs": txs}
-    writer.write(json.dumps(payload).encode())
-    await writer.drain()
-    if timeout is not None:
-        data = await asyncio.wait_for(reader.read(), timeout)
-    else:
-        data = await reader.read()
-    writer.close()
-    await writer.wait_closed()
+    data = await client.request(payload, timeout)
     if not data:
         return None
     try:
@@ -370,20 +403,13 @@ async def submit_raw_tx(
 ) -> Optional[str]:
     """Submit a transaction with optional priority RPC endpoints."""
 
-    reader, writer = await asyncio.open_unix_connection(socket_path)
+    client = await get_ipc_client(socket_path)
     payload: Dict[str, Any] = {"cmd": "raw_tx", "tx": tx_b64}
     if priority_rpc:
         payload["priority_rpc"] = list(priority_rpc)
     if priority_fee is not None:
         payload["priority_fee"] = int(priority_fee)
-    writer.write(json.dumps(payload).encode())
-    await writer.drain()
-    if timeout is not None:
-        data = await asyncio.wait_for(reader.read(), timeout)
-    else:
-        data = await reader.read()
-    writer.close()
-    await writer.wait_closed()
+    data = await client.request(payload, timeout)
     if not data:
         return None
     try:
@@ -403,21 +429,14 @@ async def auto_exec(
 ) -> bool:
     """Register auto-execution triggers with the Rust service."""
 
-    reader, writer = await asyncio.open_unix_connection(socket_path)
+    client = await get_ipc_client(socket_path)
     payload: Dict[str, Any] = {
         "cmd": "auto_exec",
         "token": token,
         "threshold": threshold,
         "txs": list(txs),
     }
-    writer.write(json.dumps(payload).encode())
-    await writer.drain()
-    if timeout is not None:
-        data = await asyncio.wait_for(reader.read(), timeout)
-    else:
-        data = await reader.read()
-    writer.close()
-    await writer.wait_closed()
+    data = await client.request(payload, timeout)
     if not data:
         return False
     try:
@@ -437,18 +456,11 @@ async def best_route(
 ) -> tuple[list[str], float, float] | None:
     """Return the optimal trading path from the Rust service."""
 
-    reader, writer = await asyncio.open_unix_connection(socket_path)
+    client = await get_ipc_client(socket_path)
     payload: Dict[str, Any] = {"cmd": "route", "token": token, "amount": amount}
     if max_hops is not None:
         payload["max_hops"] = int(max_hops)
-    writer.write(json.dumps(payload).encode())
-    await writer.drain()
-    if timeout is not None:
-        data = await asyncio.wait_for(reader.read(), timeout)
-    else:
-        data = await reader.read()
-    writer.close()
-    await writer.wait_closed()
+    data = await client.request(payload, timeout)
     if not data:
         return None
     try:
