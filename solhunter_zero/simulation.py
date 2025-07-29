@@ -545,17 +545,16 @@ def run_simulations(
 
 
 
-    for _ in range(count):
-        daily_returns = np.random.normal(predicted_mean, sigma, days)
-        roi = float(np.prod(1 + daily_returns) - 1)
-        roi -= gas_cost
-        success_prob = float(np.mean(daily_returns > 0))
+    daily_returns = np.random.normal(predicted_mean, sigma, (count, days))
+    rois = np.prod(1 + daily_returns, axis=1) - 1
+    rois = rois - gas_cost
+    success_probs = np.mean(daily_returns > 0, axis=1)
 
+    for prob, roi in zip(success_probs, rois):
         results.append(
             SimulationResult(
-
-                success_prob=success_prob,
-                expected_roi=roi,
+                success_prob=float(prob),
+                expected_roi=float(roi),
                 volume=volume,
                 liquidity=liquidity,
                 slippage=slippage,
