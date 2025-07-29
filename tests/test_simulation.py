@@ -11,6 +11,7 @@ def setup_function(_):
     simulation.TOKEN_METRICS_CACHE = simulation.TTLCache(
         maxsize=256, ttl=simulation.TOKEN_METRICS_CACHE_TTL
     )
+    simulation.invalidate_simulation_models()
 
 
 def test_run_simulations_uses_metrics(monkeypatch):

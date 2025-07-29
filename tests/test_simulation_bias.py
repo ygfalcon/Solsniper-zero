@@ -5,6 +5,10 @@ import importlib
 simulation = importlib.import_module("solhunter_zero.simulation")
 
 
+def setup_function(_):
+    simulation.invalidate_simulation_models()
+
+
 def test_bias_correction_applied(monkeypatch):
     # reset history
     simulation._TRADE_ROIS.clear()

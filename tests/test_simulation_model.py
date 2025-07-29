@@ -5,6 +5,10 @@ import pytest
 from solhunter_zero import models, simulation
 
 
+def setup_function(_):
+    simulation.invalidate_simulation_models()
+
+
 def test_run_simulations_uses_model(tmp_path, monkeypatch):
     model = models.PriceModel(input_dim=4, hidden_dim=4, num_layers=1)
     with torch.no_grad():
