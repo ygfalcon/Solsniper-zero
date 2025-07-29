@@ -3,17 +3,17 @@ import logging
 import aiohttp
 import asyncio
 
-from typing import Iterable, Dict, Optional
+from typing import Iterable, Dict
 
 from .lru import TTLCache
+from .http import get_session
 
 logger = logging.getLogger(__name__)
 
 PRICE_API_BASE_URL = os.getenv("PRICE_API_URL", "https://price.jup.ag")
 PRICE_API_PATH = "/v4/price"
 
-# module level session and price cache
-_session: Optional[aiohttp.ClientSession] = None
+# module level price cache
 PRICE_CACHE_TTL = 30  # seconds
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
 
@@ -33,18 +33,13 @@ def update_price_cache(token: str, price: float) -> None:
         PRICE_CACHE.set(token, float(price))
 
 
-async def _get_session() -> aiohttp.ClientSession:
-    global _session
-    if _session is None or getattr(_session, "closed", False):
-        _session = aiohttp.ClientSession()
-    return _session
 
 
 async def _fetch_prices(token_list: Iterable[str]) -> Dict[str, float]:
     ids = ",".join(token_list)
     url = f"{PRICE_API_BASE_URL}{PRICE_API_PATH}?ids={ids}"
 
-    session = await _get_session()
+    session = await get_session()
     try:
         async with session.get(url, timeout=10) as resp:
             resp.raise_for_status()

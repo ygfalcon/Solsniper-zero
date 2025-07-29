@@ -5,7 +5,7 @@ import logging
 from typing import AsyncGenerator, Dict
 
 from .prices import fetch_token_prices_async
-from .simulation import async_fetch_token_metrics
+from .simulation import fetch_token_metrics_async
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ async def stream_market_data(
     """
 
     while True:
-        metrics = await async_fetch_token_metrics(token)
+        metrics = await fetch_token_metrics_async(token)
         prices = await fetch_token_prices_async([token])
         price = prices.get(token, 0.0)
         volume = float(metrics.get("volume", 0.0))

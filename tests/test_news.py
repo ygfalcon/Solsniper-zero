@@ -1,4 +1,5 @@
 import solhunter_zero.news as news
+import solhunter_zero.http as http
 
 class FakeResp:
     def __init__(self, text):
@@ -20,6 +21,7 @@ class DummyModel:
 
 
 def test_fetch_headlines(monkeypatch):
+    http._session = None
     class FakeSession:
         async def __aenter__(self):
             return self
@@ -34,6 +36,7 @@ def test_fetch_headlines(monkeypatch):
 
 
 def test_blocked_feed(monkeypatch):
+    http._session = None
     called = {}
     class FakeSession:
         async def __aenter__(self):
@@ -58,6 +61,7 @@ def test_compute_sentiment(monkeypatch):
 
 
 def test_fetch_sentiment(monkeypatch):
+    http._session = None
     class FakeSession:
         async def __aenter__(self):
             return self

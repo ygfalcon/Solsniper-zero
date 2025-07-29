@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Iterable, AsyncGenerator
 from . import BaseAgent
 from ..portfolio import Portfolio
 from ..mempool_scanner import stream_ranked_mempool_tokens
-from ..news import fetch_sentiment
+from ..news import fetch_sentiment_async
 
 
 class MomentumAgent(BaseAgent):
@@ -40,7 +40,7 @@ class MomentumAgent(BaseAgent):
         if not (self.feeds or self.twitter_feeds or self.discord_feeds):
             return 0.0
         try:
-            return fetch_sentiment(
+            return await fetch_sentiment_async(
                 self.feeds,
                 twitter_urls=self.twitter_feeds,
                 discord_urls=self.discord_feeds,

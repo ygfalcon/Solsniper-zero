@@ -3,13 +3,15 @@ from solhunter_zero.market_stream import stream_market_data
 
 
 def test_stream_market_data(monkeypatch):
+    from solhunter_zero import http
+    http._session = None
     async def fake_metrics(token):
         return {"volume": 100.0, "slippage": 0.05}
 
     async def fake_prices(tokens):
         return {tokens[0]: 2.0}
 
-    monkeypatch.setattr("solhunter_zero.market_stream.async_fetch_token_metrics", fake_metrics)
+    monkeypatch.setattr("solhunter_zero.market_stream.fetch_token_metrics_async", fake_metrics)
     monkeypatch.setattr("solhunter_zero.market_stream.fetch_token_prices_async", fake_prices)
 
     async def run():
