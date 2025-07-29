@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, List, Tuple, Any
 import os
 import time
+import types
 
 import torch
 from torch import nn
@@ -205,6 +206,7 @@ class RLDaemon:
         *,
         agents: Iterable[Any] | None = None,
         queue: asyncio.Queue | None = None,
+        metrics_url: str | None = None,
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -258,6 +260,9 @@ class RLDaemon:
         risk_sub = subscription("risk_updated", _update_risk)
         risk_sub.__enter__()
         self._subscriptions.append(risk_sub)
+        from .metrics_client import start_metrics_exporter
+        sub = start_metrics_exporter(metrics_url)
+        self._subscriptions.append(types.SimpleNamespace(__exit__=lambda *a, **k: sub()))
 
     def close(self) -> None:
         for sub in self._subscriptions:
