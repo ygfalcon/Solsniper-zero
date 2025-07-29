@@ -156,11 +156,12 @@ class TradeDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         if self.dataset is None:
             self.setup()
+        workers = int(os.getenv("DL_WORKERS", os.cpu_count() or 1))
         return DataLoader(
             self.dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=os.cpu_count() or 1,
+            num_workers=workers,
         )
 
 
@@ -390,11 +391,12 @@ def fit(
     if acc != "cpu":
         kwargs["devices"] = 1
     trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
+    workers = int(os.getenv("DL_WORKERS", os.cpu_count() or 1))
     loader = DataLoader(
         dataset,
         batch_size=64,
         shuffle=True,
-        num_workers=os.cpu_count() or 1,
+        num_workers=workers,
     )
     trainer.fit(model, train_dataloaders=loader)
     torch.save(model.state_dict(), path)

@@ -388,3 +388,24 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
     await stop_ws_server()
 
 
+def test_daemon_dl_workers_env(monkeypatch):
+    import torch
+    import solhunter_zero.rl_daemon as rl_daemon
+
+    monkeypatch.setenv("DL_WORKERS", "2")
+
+    captured = {}
+
+    def dummy_loader(*a, **k):
+        captured["workers"] = k.get("num_workers")
+        class L:
+            def __iter__(self):
+                return iter([])
+        return L()
+
+    monkeypatch.setattr(rl_daemon, "DataLoader", dummy_loader)
+    rl_daemon._train_dqn(rl_daemon._DQN(), [], torch.device("cpu"))
+
+    assert captured.get("workers") == 2
+
+
