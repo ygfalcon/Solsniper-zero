@@ -21,8 +21,10 @@ async def stream_market_data(
     """
 
     while True:
-        metrics = await fetch_token_metrics_async(token)
-        prices = await fetch_token_prices_async([token])
+        metrics, prices = await asyncio.gather(
+            fetch_token_metrics_async(token),
+            fetch_token_prices_async([token]),
+        )
         price = prices.get(token, 0.0)
         volume = float(metrics.get("volume", 0.0))
         slippage = float(metrics.get("slippage", 0.0))
