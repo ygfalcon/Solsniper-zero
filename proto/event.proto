@@ -46,6 +46,10 @@ message DepthServiceStatus {
   string status = 1;
 }
 
+message Heartbeat {
+  string service = 1;
+}
+
 message Event {
   string topic = 1;
   oneof kind {
@@ -56,5 +60,6 @@ message Event {
     PortfolioUpdated portfolio_updated = 6;
     DepthUpdate depth_update = 7;
     DepthServiceStatus depth_service_status = 8;
+    Heartbeat heartbeat = 9;
   }
 }

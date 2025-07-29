@@ -41,6 +41,13 @@ class PortfolioUpdated:
 
 
 @dataclass
+class Heartbeat:
+    """Heartbeat message payload."""
+
+    service: str
+
+
+@dataclass
 class TradeLogged:
     """Payload emitted when a trade is written to memory."""
 
@@ -63,6 +70,7 @@ _EVENT_SCHEMAS: Dict[str, Type] = {
     "rl_checkpoint": RLCheckpoint,
     "portfolio_updated": PortfolioUpdated,
     "trade_logged": TradeLogged,
+    "heartbeat": Heartbeat,
 }
 
 

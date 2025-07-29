@@ -7,6 +7,7 @@ import logging
 import socket
 from collections import deque
 from typing import Any
+import time
 from flask import Flask, jsonify, request
 from .event_bus import subscription, publish
 try:
@@ -189,6 +190,14 @@ _risk_ws_sub.__enter__()
 _config_ws_sub.__enter__()
 
 depth_service_connected = False
+last_heartbeat = 0.0
+
+def _heartbeat(_payload: Any) -> None:
+    global last_heartbeat
+    last_heartbeat = time.time()
+
+_heartbeat_sub = subscription("heartbeat", _heartbeat)
+_heartbeat_sub.__enter__()
 
 def _depth_status(payload: Any) -> None:
     global depth_service_connected
@@ -581,6 +590,7 @@ def status() -> dict:
     trading_alive = trading_thread.is_alive() if trading_thread else False
     rl_alive = rl_daemon is not None
     depth_alive = depth_service_connected
+    heartbeat_alive = time.time() - last_heartbeat < 120
     event_alive = False
     url = get_event_bus_url()
     if url and websockets is not None:
@@ -601,6 +611,7 @@ def status() -> dict:
             "rl_daemon": rl_alive,
             "depth_service": depth_alive,
             "event_bus": event_alive,
+            "heartbeat": heartbeat_alive,
         }
     )
 

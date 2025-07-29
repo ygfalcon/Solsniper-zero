@@ -448,6 +448,7 @@ def test_status_endpoint(monkeypatch):
         "rl_daemon": True,
         "depth_service": True,
         "event_bus": True,
+        "heartbeat": False,
     }
     assert called["url"] == "ws://bus"
 
