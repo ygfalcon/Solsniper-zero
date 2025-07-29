@@ -4,6 +4,8 @@ import logging
 import time
 from typing import List, Dict, Any
 
+from .lru import TTLCache
+
 
 try:
     from solana.publickey import PublicKey  # type: ignore
@@ -23,6 +25,12 @@ from solana.rpc.api import Client
 logger = logging.getLogger(__name__)
 
 TOKEN_PROGRAM_ID = PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+
+# module level caches for on-chain metrics
+METRIC_CACHE_TTL = 30  # seconds
+MEMPOOL_RATE_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
+WHALE_ACTIVITY_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
+AVG_SWAP_SIZE_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
 
 
 
@@ -89,6 +97,11 @@ def fetch_mempool_tx_rate(token: str, rpc_url: str, limit: int = 20) -> float:
     if not rpc_url:
         raise ValueError("rpc_url is required")
 
+    cache_key = (token, rpc_url)
+    cached = MEMPOOL_RATE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     client = Client(rpc_url)
     try:
         resp = client.get_signatures_for_address(PublicKey(token), limit=limit)
@@ -97,11 +110,16 @@ def fetch_mempool_tx_rate(token: str, rpc_url: str, limit: int = 20) -> float:
         if len(times) >= 2:
             duration = max(times) - min(times)
             if duration > 0:
-                return float(len(times)) / float(duration)
-        return float(len(times))
+                rate = float(len(times)) / float(duration)
+                MEMPOOL_RATE_CACHE.set(cache_key, rate)
+                return rate
+        rate = float(len(times))
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch mempool rate for %s: %s", token, exc)
-        return 0.0
+        rate = 0.0
+
+    MEMPOOL_RATE_CACHE.set(cache_key, rate)
+    return rate
 
 
 def fetch_whale_wallet_activity(
@@ -111,6 +129,11 @@ def fetch_whale_wallet_activity(
 
     if not rpc_url:
         raise ValueError("rpc_url is required")
+
+    cache_key = (token, rpc_url)
+    cached = WHALE_ACTIVITY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
 
     client = Client(rpc_url)
     try:
@@ -127,10 +150,13 @@ def fetch_whale_wallet_activity(
             total += bal
             if bal >= threshold:
                 whales += bal
-        return whales / total if total else 0.0
+        activity = whales / total if total else 0.0
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch whale activity for %s: %s", token, exc)
-        return 0.0
+        activity = 0.0
+
+    WHALE_ACTIVITY_CACHE.set(cache_key, activity)
+    return activity
 
 
 def fetch_average_swap_size(token: str, rpc_url: str, limit: int = 20) -> float:
@@ -138,6 +164,11 @@ def fetch_average_swap_size(token: str, rpc_url: str, limit: int = 20) -> float:
 
     if not rpc_url:
         raise ValueError("rpc_url is required")
+
+    cache_key = (token, rpc_url)
+    cached = AVG_SWAP_SIZE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
 
     client = Client(rpc_url)
     try:
@@ -152,7 +183,10 @@ def fetch_average_swap_size(token: str, rpc_url: str, limit: int = 20) -> float:
             except Exception:
                 continue
             count += 1
-        return total / float(count) if count else 0.0
+        size = total / float(count) if count else 0.0
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch swap size for %s: %s", token, exc)
-        return 0.0
+        size = 0.0
+
+    AVG_SWAP_SIZE_CACHE.set(cache_key, size)
+    return size
