@@ -369,3 +369,60 @@ def test_collect_onchain_insights(monkeypatch):
         "whale_activity": 0.1,
         "avg_swap_size": 1.5,
     }
+
+
+def test_fetch_dex_metrics_concurrent(monkeypatch):
+    calls = []
+
+    class FakeResp:
+        def __init__(self, url):
+            self.url = url
+
+        def raise_for_status(self):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            await asyncio.sleep(0.05)
+            if "liquidity" in self.url:
+                return {"liquidity": 1.0}
+            if "depth" in self.url:
+                return {"depth": 0.1}
+            return {"volume": 2.0}
+
+    class FakeSession:
+        def __init__(self):
+            self.closed = False
+
+        def get(self, url, timeout=5):
+            calls.append(url)
+            return FakeResp(url)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+
+    import time
+
+    start = time.perf_counter()
+    metrics = asyncio.run(
+        onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
+    )
+    elapsed = time.perf_counter() - start
+
+    assert metrics == {"liquidity": 1.0, "depth": 0.1, "volume": 2.0}
+    assert set(calls) == {
+        "http://dex/v1/liquidity?token=tok",
+        "http://dex/v1/depth?token=tok",
+        "http://dex/v1/volume?token=tok",
+    }
+    assert elapsed < 0.12
