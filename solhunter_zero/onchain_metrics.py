@@ -45,15 +45,15 @@ VOLUME_PATH = "/v1/volume"
 _DEPTH_CACHE: Dict[str, float] = {}
 
 # module level cache for dex metrics
-DEX_METRICS_CACHE_TTL = 30  # seconds
+DEX_METRICS_CACHE_TTL = float(os.getenv("DEX_METRICS_CACHE_TTL", "30") or 30)
 DEX_METRICS_CACHE = TTLCache(maxsize=256, ttl=DEX_METRICS_CACHE_TTL)
 
 # cache for per-token transaction volume
-TOKEN_VOLUME_CACHE_TTL = 30  # seconds
+TOKEN_VOLUME_CACHE_TTL = float(os.getenv("TOKEN_VOLUME_CACHE_TTL", "30") or 30)
 TOKEN_VOLUME_CACHE = TTLCache(maxsize=1024, ttl=TOKEN_VOLUME_CACHE_TTL)
 
 # cache of computed top volume token lists
-TOP_VOLUME_TOKENS_CACHE_TTL = 60  # seconds
+TOP_VOLUME_TOKENS_CACHE_TTL = float(os.getenv("TOP_VOLUME_TOKENS_CACHE_TTL", "60") or 60)
 TOP_VOLUME_TOKENS_CACHE = TTLCache(maxsize=32, ttl=TOP_VOLUME_TOKENS_CACHE_TTL)
 
 

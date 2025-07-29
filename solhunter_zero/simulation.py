@@ -38,11 +38,11 @@ _PRICE_MODEL = None
 _PRICE_MTIME = 0.0
 
 # module level cache for token metrics
-TOKEN_METRICS_CACHE_TTL = 30  # seconds
+TOKEN_METRICS_CACHE_TTL = float(os.getenv("TOKEN_METRICS_CACHE_TTL", "30") or 30)
 TOKEN_METRICS_CACHE = TTLCache(maxsize=256, ttl=TOKEN_METRICS_CACHE_TTL)
 
 # Cache for trained ROI models keyed by (token, model_type, params)
-SIM_MODEL_CACHE_TTL = 300  # seconds
+SIM_MODEL_CACHE_TTL = float(os.getenv("SIM_MODEL_CACHE_TTL", "300") or 300)
 SIM_MODEL_CACHE = TTLCache(maxsize=64, ttl=SIM_MODEL_CACHE_TTL)
 
 

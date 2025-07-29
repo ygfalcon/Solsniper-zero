@@ -275,23 +275,35 @@ profit calculation so routes are ranked based on the borrowed size.
     ```bash
     export PRIORITY_FEES="0,1,2"
     ```
-12. **Auto-execution**
+12. **Cache TTL overrides**
+    Adjust in-memory cache lifetimes:
+    ```bash
+    export PRICE_CACHE_TTL=10
+    export TOKEN_METRICS_CACHE_TTL=60
+    export SIM_MODEL_CACHE_TTL=600
+    export TREND_CACHE_TTL=120
+    export DEX_METRICS_CACHE_TTL=45
+    export TOKEN_VOLUME_CACHE_TTL=45
+    export TOP_VOLUME_TOKENS_CACHE_TTL=90
+    export DEPTH_CACHE_TTL=1
+    ```
+13. **Auto-execution**
     Register tokens and pre-signed transactions so the depth service
     dispatches them when thresholds are crossed:
     ```bash
     export AUTO_EXEC='{"TOKEN":{"threshold":1.0,"txs":["BASE64"]}}'
     ```
-13. **Run the bot**
+14. **Run the bot**
    ```bash
    ./run.sh --auto
    ```
-14. **External event bus**
+15. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
    ```bash
    export EVENT_BUS_URL=wss://bus.example.com
    ```
    Alternatively specify `event_bus_url` in the configuration file.
-15. **Full system startup**
+16. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
    python scripts/start_all.py

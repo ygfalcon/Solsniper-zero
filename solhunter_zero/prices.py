@@ -14,7 +14,7 @@ PRICE_API_BASE_URL = os.getenv("PRICE_API_URL", "https://price.jup.ag")
 PRICE_API_PATH = "/v4/price"
 
 # module level price cache
-PRICE_CACHE_TTL = 30  # seconds
+PRICE_CACHE_TTL = float(os.getenv("PRICE_CACHE_TTL", "30") or 30)
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
 
 
