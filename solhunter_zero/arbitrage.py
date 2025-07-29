@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import json
-from itertools import permutations
+import heapq
 from typing import (
     Callable,
     Awaitable,
@@ -135,13 +135,11 @@ def invalidate_route(token: str | None = None) -> None:
         ROUTE_CACHE._cache.pop(k, None)
 
 def invalidate_edges(token: str | None = None) -> None:
-    """Remove cached edge profits for ``token`` or clear the cache."""
+    """Remove cached adjacency data for ``token`` or clear the cache."""
     if token is None:
         _EDGE_CACHE.clear()
         return
-    keys = [k for k in list(_EDGE_CACHE._cache) if k[0] == token]
-    for k in keys:
-        _EDGE_CACHE._cache.pop(k, None)
+    _EDGE_CACHE._cache.pop(token, None)
 
 def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
     for token, entry in payload.items():
@@ -608,67 +606,49 @@ def _best_route(
             + prices[b] * trade_amount * slip_b
         )
 
-    edge_profit: dict[tuple[str, str], float] = {}
-    for a in venues:
-        for b in venues:
-            if a == b:
-                continue
-            key = (token, a, b) if token is not None else None
-            cached = _EDGE_CACHE.get(key) if key else None
-            if cached is None:
-                val = (
+    adj_key = token if token is not None else None
+    adjacency: dict[str, dict[str, float]] | None = None
+    if adj_key is not None:
+        adjacency = _EDGE_CACHE.get(adj_key)
+    if adjacency is None:
+        adjacency = {}
+        for a in venues:
+            neigh = {}
+            for b in venues:
+                if a == b:
+                    continue
+                profit = (
                     (prices[b] - prices[a]) * trade_amount
                     - step_cost(a, b)
                     - slip_cost(a, b)
                 )
-                if key is not None:
-                    _EDGE_CACHE.set(key, val)
-            else:
-                val = cached
-            edge_profit[(a, b)] = val
+                neigh[b] = profit
+            adjacency[a] = neigh
+        if adj_key is not None:
+            _EDGE_CACHE.set(adj_key, adjacency)
 
-    def _permutation_best_route() -> tuple[list[str], float]:
-        best: list[str] | None = None
-        best_profit = float("-inf")
-        for length in range(2, min(len(venues), max_hops) + 1):
-            for path in permutations(venues, length):
-                profit = 0.0
-                for i in range(len(path) - 1):
-                    profit += edge_profit[(path[i], path[i + 1])]
-                if profit > best_profit:
-                    best_profit = profit
-                    best = list(path)
-        return best or [], best_profit
+    best_path: list[str] = []
+    best_profit = float("-inf")
+    heap: list[tuple[float, list[str], set[str]]] = []
+    for v in venues:
+        heapq.heappush(heap, (0.0, [v], {v}))
 
-    def _graph_best_route() -> tuple[list[str], float]:
-        best_path: list[str] = []
-        best_profit = float("-inf")
-        paths: dict[str, tuple[list[str], float]] = {
-            v: ([v], 0.0) for v in venues
-        }
-        for _ in range(1, max_hops):
-            next_paths: dict[str, tuple[list[str], float]] = {}
-            for last, (path, profit) in paths.items():
-                for nxt in venues:
-                    if nxt in path:
-                        continue
-                    step = edge_profit[(last, nxt)]
-                    new_profit = profit + step
-                    new_path = path + [nxt]
-                    cur = next_paths.get(nxt)
-                    if cur is None or new_profit > cur[1]:
-                        next_paths[nxt] = (new_path, new_profit)
-                        if new_profit > best_profit:
-                            best_profit = new_profit
-                            best_path = new_path
-            if not next_paths:
-                break
-            paths = next_paths
-        return best_path, best_profit
+    while heap:
+        neg_profit, path, visited = heapq.heappop(heap)
+        profit = -neg_profit
+        if len(path) > 1 and profit > best_profit:
+            best_profit = profit
+            best_path = path
+        if len(path) >= max_hops:
+            continue
+        last = path[-1]
+        for nxt, val in adjacency.get(last, {}).items():
+            if nxt in visited:
+                continue
+            new_profit = profit + val
+            heapq.heappush(heap, (-new_profit, path + [nxt], visited | {nxt}))
 
-    if path_algorithm == "permutation":
-        return _permutation_best_route()
-    return _graph_best_route()
+    return best_path, best_profit
 
 
 async def _compute_route(
