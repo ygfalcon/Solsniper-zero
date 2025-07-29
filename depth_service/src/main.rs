@@ -745,16 +745,28 @@ async fn main() -> Result<()> {
                 match connect_async(&url).await {
                     Ok((socket, _)) => {
                         backoff = Duration::from_secs(1);
-                        let (mut write, mut read) = socket.split();
+                        let (write, mut read) = socket.split();
+                        let write = Arc::new(Mutex::new(write));
+                        let write_read = write.clone();
                         // Notify bus that the service is online
                         let online = pb::Event {
                             topic: "depth_service_status".to_string(),
                             kind: Some(pb::event::Kind::DepthServiceStatus(pb::DepthServiceStatus { status: "online".to_string() })),
                         };
-                        let _ = write.send(WsMessage::Binary(online.encode_to_vec())).await;
-                        tokio::spawn(async move { while read.next().await.is_some() {} });
+                        let _ = write.lock().await.send(WsMessage::Binary(online.encode_to_vec())).await;
+                        tokio::spawn(async move {
+                            while let Some(Ok(msg)) = read.next().await {
+                                if let WsMessage::Binary(data) = msg {
+                                    if let Ok(ev) = pb::Event::decode(&*data) {
+                                        if ev.topic == "heartbeat" {
+                                            let _ = write_read.lock().await.send(WsMessage::Binary(data)).await;
+                                        }
+                                    }
+                                }
+                            }
+                        });
                         while let Some(msg) = rx.recv().await {
-                            if write.send(WsMessage::Binary(msg)).await.is_err() {
+                            if write.lock().await.send(WsMessage::Binary(msg)).await.is_err() {
                                 break;
                             }
                         }

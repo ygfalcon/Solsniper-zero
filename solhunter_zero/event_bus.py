@@ -17,6 +17,7 @@ _PB_MAP = {
     "portfolio_updated": pb.PortfolioUpdated,
     "depth_update": pb.DepthUpdate,
     "depth_service_status": pb.DepthServiceStatus,
+    "heartbeat": pb.Heartbeat,
 }
 
 
@@ -68,6 +69,11 @@ def _encode_event(topic: str, payload: Any) -> Any:
         return json.dumps({"topic": topic, "payload": to_dict(payload)})
     elif topic == "depth_service_status":
         event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
+    elif topic == "heartbeat":
+        service = getattr(payload, "service", None)
+        if service is None and isinstance(payload, dict):
+            service = payload.get("service")
+        event = pb.Event(topic=topic, heartbeat=pb.Heartbeat(service=service or ""))
     else:
         return json.dumps({"topic": topic, "payload": to_dict(payload)})
     return event.SerializeToString()
@@ -94,6 +100,8 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {k: {"dex": {dk: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate} for dk, di in v.dex.items()}, "bids": v.bids, "asks": v.asks, "tx_rate": v.tx_rate, "ts": v.ts} for k, v in msg.entries.items()}
     if field == "depth_service_status":
         return {"status": msg.status}
+    if field == "heartbeat":
+        return {"service": msg.service}
     return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
@@ -347,4 +355,11 @@ def _reload_bus(cfg) -> None:
 
 
 subscription("config_updated", _reload_bus).__enter__()
+
+
+async def send_heartbeat(service: str, interval: float = 30.0) -> None:
+    """Publish heartbeat for ``service`` every ``interval`` seconds."""
+    while True:
+        publish("heartbeat", {"service": service})
+        await asyncio.sleep(interval)
 
