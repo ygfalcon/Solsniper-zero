@@ -327,13 +327,33 @@ async fn update_mmap(
         }) || last.len() != agg.len()
     };
 
-    let mut json = serde_json::to_vec(&agg)?;
-    let mut mmap = mmap.lock().await;
-    if json.len() > mmap.len() {
-        json.truncate(mmap.len());
+    // Serialize snapshot as a token-indexed binary structure for fast lookups
+    // Format: "IDX1" | u32 count | [u16 token_len | token_bytes | u32 offset | u32 len]* | data...
+    let header_size: usize = 8
+        + agg
+            .iter()
+            .map(|(t, _)| 2 + t.as_bytes().len() + 8)
+            .sum::<usize>();
+    let mut header = Vec::with_capacity(header_size);
+    header.extend_from_slice(b"IDX1");
+    header.extend_from_slice(&(agg.len() as u32).to_le_bytes());
+    let mut data = Vec::new();
+    for (token, entry) in agg.iter() {
+        let json = serde_json::to_vec(entry)?;
+        header.extend_from_slice(&(token.len() as u16).to_le_bytes());
+        header.extend_from_slice(token.as_bytes());
+        header.extend_from_slice(&((header_size + data.len()) as u32).to_le_bytes());
+        header.extend_from_slice(&(json.len() as u32).to_le_bytes());
+        data.extend_from_slice(&json);
     }
-    mmap[..json.len()].copy_from_slice(&json);
-    for i in json.len()..mmap.len() {
+    let mut buf = header;
+    buf.extend_from_slice(&data);
+    let mut mmap = mmap.lock().await;
+    if buf.len() > mmap.len() {
+        buf.truncate(mmap.len());
+    }
+    mmap[..buf.len()].copy_from_slice(&buf);
+    for i in buf.len()..mmap.len() {
         mmap[i] = 0;
     }
     mmap.flush()?;
@@ -345,7 +365,7 @@ async fn update_mmap(
     *last_map.lock().await = agg.clone();
     *last_sent.lock().await = now;
 
-    let text = String::from_utf8_lossy(&json).to_string();
+    let text = serde_json::to_string(&agg)?;
     let _ = ws.send(text.clone());
     *latest.lock().await = text.clone();
     if let Some(bus) = bus {

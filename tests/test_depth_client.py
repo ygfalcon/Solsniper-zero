@@ -1,5 +1,6 @@
 import asyncio
 import json
+import struct
 import pytest
 
 from solhunter_zero import depth_client
@@ -32,6 +33,20 @@ class FakeWriter:
         self.waited = True
 
 
+def build_index(path, entries):
+    header = bytearray(b"IDX1")
+    header.extend(struct.pack("<I", len(entries)))
+    header_size = 8 + sum(2 + len(k) + 8 for k in entries)
+    data = bytearray()
+    for token, obj in entries.items():
+        b = json.dumps(obj).encode()
+        header.extend(struct.pack("<H", len(token)))
+        header.extend(token.encode())
+        header.extend(struct.pack("<II", header_size + len(data), len(b)))
+        data.extend(b)
+    path.write_bytes(bytes(header + data))
+
+
 def test_snapshot(tmp_path, monkeypatch):
     data = {
         "tok": {
@@ -41,7 +56,7 @@ def test_snapshot(tmp_path, monkeypatch):
         }
     }
     path = tmp_path / "depth.mmap"
-    path.write_text(json.dumps(data))
+    build_index(path, data)
     monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
 
     venues, rate = depth_client.snapshot("tok")
@@ -58,7 +73,7 @@ def test_snapshot_cache(tmp_path, monkeypatch):
         "tok": {"tx_rate": 1.0, "dex": {"bids": 1, "asks": 1}}
     }
     path = tmp_path / "depth.mmap"
-    path.write_text(json.dumps(data))
+    build_index(path, data)
     monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
     depth_client.SNAPSHOT_CACHE.clear()
     monkeypatch.setattr(depth_client, "DEPTH_CACHE_TTL", 0.5)
@@ -89,6 +104,21 @@ def test_snapshot_cache(tmp_path, monkeypatch):
     assert venues1 == venues2
     assert rate1 == rate2
     assert len(calls) == 1
+
+
+def test_snapshot_json_fallback(tmp_path, monkeypatch):
+    data = {
+        "tok": {"tx_rate": 3.0, "dex": {"bids": 2, "asks": 4}}
+    }
+    path = tmp_path / "depth.mmap"
+    path.write_text(json.dumps(data))
+    monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
+    depth_client.SNAPSHOT_CACHE.clear()
+
+    venues, rate = depth_client.snapshot("tok")
+
+    assert rate == pytest.approx(3.0)
+    assert venues == {"dex": {"bids": 2.0, "asks": 4.0}}
 
 
 def test_submit_signed_tx(monkeypatch):
