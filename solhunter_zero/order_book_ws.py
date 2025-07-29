@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 import json
 import logging
 import mmap
@@ -76,47 +77,60 @@ async def stream_order_book(
         if "?" not in url[6:]:
             raise ValueError("ipc url must include token")
         path, token = url[6:].split("?", 1)
+        reader: asyncio.StreamReader | None = None
+        writer: asyncio.StreamWriter | None = None
         count = 0
-        while True:
-            try:
-                reader, writer = await asyncio.open_unix_connection(path)
-                writer.write(json.dumps({"cmd": "snapshot", "token": token}).encode())
-                await writer.drain()
-                data = await reader.read()
-                writer.close()
-                await writer.wait_closed()
+        try:
+            while True:
                 try:
-                    info = json.loads(data.decode())
-                    if "bids" in info and "asks" in info:
-                        bids = float(info.get("bids", 0.0))
-                        asks = float(info.get("asks", 0.0))
-                        rate = float(info.get("tx_rate", 0.0))
-                    else:
-                        bids = 0.0
-                        asks = 0.0
-                        rate = float(info.get("tx_rate", 0.0))
-                        for v in info.values():
-                            if isinstance(v, dict):
-                                bids += float(v.get("bids", 0.0))
-                                asks += float(v.get("asks", 0.0))
-                    _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
-                    depth, imb, txr = snapshot(token)
-                    yield {
-                        "token": token,
-                        "depth": depth,
-                        "imbalance": imb,
-                        "tx_rate": txr,
-                    }
-                except Exception as exc:
-                    logger.error("Failed to parse IPC depth update: %s", exc)
-                count += 1
-                if max_updates is not None and count >= max_updates:
-                    return
-                if rate_limit > 0:
-                    await asyncio.sleep(rate_limit)
-            except Exception as exc:  # pragma: no cover - IPC errors
-                logger.error("IPC order book error: %s", exc)
-                await asyncio.sleep(1.0)
+                    if writer is None or writer.is_closing():
+                        reader, writer = await asyncio.open_unix_connection(path)
+                    writer.write(json.dumps({"cmd": "snapshot", "token": token}).encode())
+                    await writer.drain()
+                    data = await reader.read()
+                    try:
+                        info = json.loads(data.decode())
+                        if "bids" in info and "asks" in info:
+                            bids = float(info.get("bids", 0.0))
+                            asks = float(info.get("asks", 0.0))
+                            rate = float(info.get("tx_rate", 0.0))
+                        else:
+                            bids = 0.0
+                            asks = 0.0
+                            rate = float(info.get("tx_rate", 0.0))
+                            for v in info.values():
+                                if isinstance(v, dict):
+                                    bids += float(v.get("bids", 0.0))
+                                    asks += float(v.get("asks", 0.0))
+                        _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
+                        depth, imb, txr = snapshot(token)
+                        yield {
+                            "token": token,
+                            "depth": depth,
+                            "imbalance": imb,
+                            "tx_rate": txr,
+                        }
+                    except Exception as exc:
+                        logger.error("Failed to parse IPC depth update: %s", exc)
+                    count += 1
+                    if max_updates is not None and count >= max_updates:
+                        break
+                    if rate_limit > 0:
+                        await asyncio.sleep(rate_limit)
+                except Exception as exc:  # pragma: no cover - IPC errors
+                    logger.error("IPC order book error: %s", exc)
+                    if writer is not None:
+                        writer.close()
+                        with suppress(Exception):
+                            await writer.wait_closed()
+                        reader = None
+                        writer = None
+                    await asyncio.sleep(1.0)
+        finally:
+            if writer is not None:
+                writer.close()
+                with suppress(Exception):
+                    await writer.wait_closed()
     else:
         count = 0
         while True:
