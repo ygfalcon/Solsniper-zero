@@ -36,6 +36,8 @@ _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = default
 _ws_clients: Set[Any] = set()
 _ws_client = None
 _ws_server = None
+_ws_url: str | None = None
+_watch_task = None
 
 
 def _encode_event(topic: str, payload: Any) -> Any:
@@ -176,6 +178,30 @@ async def broadcast_ws(
             pass
 
 
+async def _receiver(ws) -> None:
+    """Receive messages from ``ws`` and publish them."""
+    try:
+        async for msg in ws:
+            try:
+                if isinstance(msg, bytes):
+                    ev = pb.Event()
+                    ev.ParseFromString(msg)
+                    payload = _decode_payload(ev)
+                    publish(ev.topic, payload, _broadcast=False)
+                    await broadcast_ws(msg, to_server=False)
+                else:
+                    data = json.loads(msg)
+                    topic = data.get("topic")
+                    payload = data.get("payload")
+                    publish(topic, payload, _broadcast=False)
+                    await broadcast_ws(msg, to_server=False)
+            except Exception:  # pragma: no cover - malformed msg
+                continue
+    finally:
+        if ws is _ws_client and _ws_url:
+            asyncio.create_task(reconnect_ws())
+
+
 async def start_ws_server(host: str = "localhost", port: int = 8765):
     """Start websocket server broadcasting published events."""
     if not websockets:
@@ -222,40 +248,75 @@ async def connect_ws(url: str):
     """Connect to external websocket bus at ``url``."""
     if not websockets:
         raise RuntimeError("websockets library required")
+    global _ws_client, _ws_url, _watch_task
 
-    async def receiver(ws):
-        async for msg in ws:
-            try:
-                if isinstance(msg, bytes):
-                    ev = pb.Event()
-                    ev.ParseFromString(msg)
-                    payload = _decode_payload(ev)
-                    publish(ev.topic, payload, _broadcast=False)
-                    await broadcast_ws(msg, to_server=False)
-                else:
-                    data = json.loads(msg)
-                    topic = data.get("topic")
-                    payload = data.get("payload")
-                    publish(topic, payload, _broadcast=False)
-                    await broadcast_ws(msg, to_server=False)
-            except Exception:  # pragma: no cover - malformed msg
-                continue
-
-    global _ws_client
+    _ws_url = url
     _ws_client = await websockets.connect(url)
-    asyncio.create_task(receiver(_ws_client))
+    asyncio.create_task(_receiver(_ws_client))
+    if _watch_task is None or _watch_task.done():
+        loop = asyncio.get_running_loop()
+        _watch_task = loop.create_task(_watch_ws())
     return _ws_client
 
 
 async def disconnect_ws() -> None:
     """Close websocket connection opened via ``connect_ws``."""
-    global _ws_client
+    global _ws_client, _ws_url, _watch_task
     if _ws_client is not None:
         try:
             await _ws_client.close()
         except Exception:
             pass
         _ws_client = None
+    _ws_url = None
+    if _watch_task is not None:
+        _watch_task.cancel()
+        _watch_task = None
+
+
+async def reconnect_ws(url: str | None = None) -> None:
+    """(Re)connect the websocket client with exponential backoff."""
+    global _ws_client, _ws_url, _watch_task
+    if url:
+        _ws_url = url
+    if not _ws_url or not websockets:
+        return
+    backoff = 1.0
+    max_backoff = 30
+    while True:
+        try:
+            if _ws_client is not None:
+                try:
+                    await _ws_client.close()
+                except Exception:
+                    pass
+            _ws_client = await websockets.connect(_ws_url)
+            asyncio.create_task(_receiver(_ws_client))
+            if _watch_task is None or _watch_task.done():
+                loop = asyncio.get_running_loop()
+                _watch_task = loop.create_task(_watch_ws())
+            break
+        except Exception:  # pragma: no cover - connection errors
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+
+
+async def _watch_ws() -> None:
+    """Background task to watch the websocket connection."""
+    while _ws_url:
+        ws = _ws_client
+        if ws is None:
+            await reconnect_ws()
+            ws = _ws_client
+        if ws is None:
+            await asyncio.sleep(1.0)
+            continue
+        try:
+            await ws.wait_closed()
+        except Exception:
+            await asyncio.sleep(0.1)
+        if _ws_url:
+            await reconnect_ws()
 
 
 # Automatically connect to an external event bus if configured
@@ -269,10 +330,10 @@ def _reload_bus(cfg) -> None:
         return
 
     async def _reconnect() -> None:
-        if _ws_client is not None:
-            await disconnect_ws()
         if url:
-            await connect_ws(url)
+            await reconnect_ws(url)
+        else:
+            await disconnect_ws()
 
     try:
         loop = asyncio.get_running_loop()
