@@ -8,6 +8,7 @@ import os
 from typing import AsyncGenerator, Dict, Any, Optional
 
 import aiohttp
+from .http import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -120,8 +121,8 @@ async def stream_order_book(
         count = 0
         while True:
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.ws_connect(url) as ws:
+                session = await get_session()
+                async with session.ws_connect(url) as ws:
                         async for msg in ws:
                             if msg.type != aiohttp.WSMsgType.TEXT:
                                 continue

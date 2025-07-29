@@ -6,6 +6,7 @@ import asyncio
 import json
 
 import aiohttp
+from .http import get_session
 
 IPC_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 USE_RUST_EXEC = os.getenv("USE_RUST_EXEC", "True").lower() in {"1", "true", "yes"}
@@ -131,10 +132,10 @@ def place_order(
 
     try:
         async def _post() -> dict:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=10) as resp:
-                    resp.raise_for_status()
-                    return await resp.json()
+            session = await get_session()
+            async with session.post(url, json=payload, timeout=10) as resp:
+                resp.raise_for_status()
+                return await resp.json()
 
         data = asyncio.run(_post())
         tx_b64 = data.get("swapTransaction")
@@ -207,17 +208,17 @@ async def place_order_async(
 
     async def _submit(url: str) -> Optional[Dict[str, Any]]:
         remaining = trade_amount
-        async with aiohttp.ClientSession() as session:
-            for _ in range(max_retries):
-                payload = dict(payload_base, amount=remaining)
-                try:
-                    async with session.post(f"{url}{SWAP_PATH}", json=payload, timeout=10) as resp:
-                        resp.raise_for_status()
-                        data = await resp.json()
-                except aiohttp.ClientError as exc:
-                    logger.error("Order submission failed via %s: %s", url, exc)
-                    await asyncio.sleep(0.5)
-                    continue
+        session = await get_session()
+        for _ in range(max_retries):
+            payload = dict(payload_base, amount=remaining)
+            try:
+                async with session.post(f"{url}{SWAP_PATH}", json=payload, timeout=10) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+            except aiohttp.ClientError as exc:
+                logger.error("Order submission failed via %s: %s", url, exc)
+                await asyncio.sleep(0.5)
+                continue
 
                 tx_b64 = data.get("swapTransaction")
                 if not tx_b64 or keypair is None:

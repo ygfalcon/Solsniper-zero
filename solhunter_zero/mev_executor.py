@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Sequence, List, Optional
 
 import aiohttp
+from .http import get_session
 
 from .depth_client import submit_raw_tx, snapshot, DEPTH_SERVICE_SOCKET
 from .gas import adjust_priority_fee
@@ -40,15 +41,15 @@ class MEVExecutor:
             "method": "sendBundle",
             "params": {"transactions": list(txs)},
         }
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.post(
-                    self.jito_rpc_url, json=payload, headers=headers, timeout=10
-                ) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-            except aiohttp.ClientError:
-                return [None for _ in txs]
+        session = await get_session()
+        try:
+            async with session.post(
+                self.jito_rpc_url, json=payload, headers=headers, timeout=10
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError:
+            return [None for _ in txs]
         result = data.get("result")
         if isinstance(result, list):
             return [str(s) for s in result]

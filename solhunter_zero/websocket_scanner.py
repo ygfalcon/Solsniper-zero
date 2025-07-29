@@ -7,6 +7,8 @@ import logging
 import re
 from typing import AsyncGenerator, Iterable
 
+from .http import get_session
+
 from solana.publickey import PublicKey
 from solana.rpc.websocket_api import (
     RpcTransactionLogsFilterMentions,
@@ -145,8 +147,8 @@ async def stream_jupiter_tokens(
 
     import aiohttp
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             async for msg in ws:
                 try:
                     data = msg.json()

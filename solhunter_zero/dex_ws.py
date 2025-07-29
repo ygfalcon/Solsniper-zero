@@ -6,6 +6,7 @@ import os
 from typing import AsyncGenerator, Iterable
 
 import aiohttp
+from .http import get_session
 
 from .scanner_common import (
     TOKEN_SUFFIX,
@@ -38,8 +39,8 @@ async def stream_listed_tokens(
     if not url:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             async for msg in ws:
                 if msg.type != aiohttp.WSMsgType.TEXT:
                     continue

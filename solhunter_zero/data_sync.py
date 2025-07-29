@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Sequence
 
 import aiohttp
+from .http import get_session
 
 from .offline_data import OfflineData, MarketSnapshot
 from .token_scanner import scan_tokens_async
@@ -66,31 +67,32 @@ async def sync_snapshots(
             logger.warning("failed to fetch sentiment: %s", exc)
 
     sem = asyncio.Semaphore(concurrency)
-    async with aiohttp.ClientSession() as session:
-        async def fetch_and_log(token: str) -> None:
-            url = f"{base_url.rstrip('/')}/token/{token}/history?days={days}"
+    session = await get_session()
+
+    async def fetch_and_log(token: str) -> None:
+        url = f"{base_url.rstrip('/')}/token/{token}/history?days={days}"
+        try:
+            async with sem:
+                async with session.get(url, timeout=10) as resp:
+                    resp.raise_for_status()
+                    resp_data = await resp.json()
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("failed to fetch snapshots for %s: %s", token, exc)
+            return
+        for snap in resp_data.get("snapshots", []):
             try:
-                async with sem:
-                    async with session.get(url, timeout=10) as resp:
-                        resp.raise_for_status()
-                        resp_data = await resp.json()
-            except Exception as exc:  # pragma: no cover - network errors
-                logger.warning("failed to fetch snapshots for %s: %s", token, exc)
-                return
-            for snap in resp_data.get("snapshots", []):
-                try:
-                    data.log_snapshot(
-                        token=token,
-                        price=float(snap.get("price", 0.0)),
-                        depth=float(snap.get("depth", 0.0)),
-                        total_depth=float(snap.get("total_depth", 0.0)),
-                        imbalance=float(snap.get("imbalance", 0.0)),
-                        slippage=float(snap.get("slippage", 0.0)),
-                        volume=float(snap.get("volume", 0.0)),
-                        sentiment=sentiment,
-                    )
-                except Exception as exc:  # pragma: no cover - bad data
-                    logger.warning("invalid snapshot for %s: %s", token, exc)
+                data.log_snapshot(
+                    token=token,
+                    price=float(snap.get("price", 0.0)),
+                    depth=float(snap.get("depth", 0.0)),
+                    total_depth=float(snap.get("total_depth", 0.0)),
+                    imbalance=float(snap.get("imbalance", 0.0)),
+                    slippage=float(snap.get("slippage", 0.0)),
+                    volume=float(snap.get("volume", 0.0)),
+                    sentiment=sentiment,
+                )
+            except Exception as exc:  # pragma: no cover - bad data
+                logger.warning("invalid snapshot for %s: %s", token, exc)
 
         await asyncio.gather(*(fetch_and_log(token) for token in tokens))
 

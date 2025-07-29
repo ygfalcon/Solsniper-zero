@@ -5,6 +5,7 @@ import logging
 from typing import List
 
 import aiohttp
+from .http import get_session
 
 from .scanner_common import (    
     BIRDEYE_API,
@@ -40,8 +41,8 @@ class TokenScanner:
         max_backoff = 60
         while True:
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(BIRDEYE_API, headers=HEADERS, timeout=10) as resp:
+                session = await get_session()
+                async with session.get(BIRDEYE_API, headers=HEADERS, timeout=10) as resp:
                         if resp.status == 429:
                             logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
                             await asyncio.sleep(backoff)

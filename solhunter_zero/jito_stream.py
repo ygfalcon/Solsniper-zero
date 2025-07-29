@@ -6,6 +6,7 @@ import logging
 from typing import AsyncGenerator, Dict, Any
 
 import aiohttp
+from .http import get_session
 
 from .event_bus import publish
 
@@ -31,8 +32,8 @@ async def stream_pending_transactions(
 
     while True:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(url, headers=headers) as ws:
+            session = await get_session()
+            async with session.ws_connect(url, headers=headers) as ws:
                     try:  # attempt protocol init for GraphQL-style feeds
                         await ws.send_json(
                             {
