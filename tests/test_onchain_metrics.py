@@ -1,6 +1,7 @@
 import pytest
 import requests
 import aiohttp
+import asyncio
 from solhunter_zero import scanner_onchain, http
 
 from solhunter_zero import onchain_metrics
@@ -67,6 +68,56 @@ def test_top_volume_tokens_error(monkeypatch):
     assert result == ["a"]
 
 
+class FakeAsyncClient:
+    def __init__(self, url, data):
+        self.url = url
+        self._data = data
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+    async def get_signatures_for_address(self, addr):
+        return {"result": self._data.get(str(addr), [])}
+
+
+def test_async_top_volume_tokens(monkeypatch):
+    tokens = ["t1", "t2", "t3"]
+    tx_data = {"t1": [{"amount": 1.0}, {"amount": 3.0}], "t2": [{"amount": 5.0}], "t3": []}
+
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: tokens)
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: FakeAsyncClient(url, tx_data))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    result = asyncio.run(onchain_metrics.async_top_volume_tokens("http://node", limit=2))
+    assert result == ["t2", "t1"]
+
+
+def test_async_top_volume_tokens_cache(monkeypatch):
+    tokens = ["a", "b"]
+    tx_data = {"a": [{"amount": 1.0}], "b": [{"amount": 2.0}]}
+    calls = {"gets": 0}
+
+    class CountingClient(FakeAsyncClient):
+        async def get_signatures_for_address(self, addr):
+            calls["gets"] += 1
+            return await super().get_signatures_for_address(addr)
+
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: tokens)
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    onchain_metrics.TOKEN_VOLUME_CACHE.ttl = 60
+    first = asyncio.run(onchain_metrics.async_top_volume_tokens("node"))
+    second = asyncio.run(onchain_metrics.async_top_volume_tokens("node"))
+
+    assert first == ["b", "a"]
+    assert second == first
+    assert calls["gets"] == 2
+
+
 def test_fetch_dex_metrics(monkeypatch):
     urls = []
 
@@ -77,7 +128,13 @@ def test_fetch_dex_metrics(monkeypatch):
         def raise_for_status(self):
             pass
 
-        def json(self):
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
             if "liquidity" in urls[-1]:
                 return {"liquidity": 10.0}
             if "depth" in urls[-1]:

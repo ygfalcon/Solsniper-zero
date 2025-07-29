@@ -23,6 +23,7 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
     sys.modules.setdefault("solana.publickey", mod)
 
 from solana.rpc.api import Client
+from solana.rpc.async_api import AsyncClient
 
 from .scanner_onchain import (
     scan_tokens_onchain,
@@ -46,6 +47,10 @@ _DEPTH_CACHE: Dict[str, float] = {}
 # module level cache for dex metrics
 DEX_METRICS_CACHE_TTL = 30  # seconds
 DEX_METRICS_CACHE = TTLCache(maxsize=256, ttl=DEX_METRICS_CACHE_TTL)
+
+# cache for per-token transaction volume
+TOKEN_VOLUME_CACHE_TTL = 30  # seconds
+TOKEN_VOLUME_CACHE = TTLCache(maxsize=1024, ttl=TOKEN_VOLUME_CACHE_TTL)
 
 
 def _tx_volume(entries: List[dict]) -> float:
@@ -90,6 +95,37 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
 
     vol_list.sort(key=lambda x: x[1], reverse=True)
     return [t for t, _v in vol_list[:limit]]
+
+
+async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
+    """Asynchronously return the highest volume tokens using ``AsyncClient``."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    tokens = scan_tokens_onchain(rpc_url)
+    if not tokens:
+        return []
+
+    async with AsyncClient(rpc_url) as client:
+        async def _fetch(tok: str) -> tuple[str, float]:
+            cached = TOKEN_VOLUME_CACHE.get(tok)
+            if cached is not None:
+                return tok, cached
+            try:
+                resp = await client.get_signatures_for_address(PublicKey(tok))
+                entries = resp.get("result", [])
+                volume = _tx_volume(entries)
+            except Exception as exc:  # pragma: no cover - network errors
+                logger.warning("Failed to fetch tx for %s: %s", tok, exc)
+                volume = 0.0
+            TOKEN_VOLUME_CACHE.set(tok, volume)
+            return tok, volume
+
+        vols = await asyncio.gather(*[_fetch(t) for t in tokens])
+
+    vols.sort(key=lambda x: x[1], reverse=True)
+    return [t for t, _ in vols[:limit]]
 
 
 async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Dict[str, float]:

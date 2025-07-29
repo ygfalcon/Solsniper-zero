@@ -97,7 +97,7 @@ set_env_from_config(_cfg)
 
 
 from .token_scanner import scan_tokens_async
-from .onchain_metrics import top_volume_tokens, fetch_dex_metrics
+from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics
 from .market_ws import listen_and_trade
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -182,7 +182,7 @@ async def _run_iteration(
     if rpc_url and not offline:
         try:
 
-            ranked = top_volume_tokens(rpc_url, limit=len(tokens))
+            ranked = await async_top_volume_tokens(rpc_url, limit=len(tokens))
             ranked_set = set(ranked)
             tokens = [t for t in ranked if t in tokens] + [
                 t for t in tokens if t not in ranked_set
