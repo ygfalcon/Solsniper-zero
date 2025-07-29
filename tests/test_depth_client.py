@@ -341,3 +341,60 @@ def test_listen_depth_ws(monkeypatch):
     assert events[0][1]["status"] == "connected"
     assert events[1] == ("depth_update", msgs[0])
     assert events[2][0] == "depth_service_status" and events[2][1]["status"] == "disconnected"
+
+
+def test_snapshot_orjson(tmp_path, monkeypatch):
+    import importlib
+    import types
+    import sys
+    import json
+
+    fake = types.SimpleNamespace(
+        dumps=lambda obj: json.dumps(obj).encode(),
+        loads=lambda b: json.loads(b),
+    )
+    monkeypatch.setitem(sys.modules, "orjson", fake)
+    import solhunter_zero.depth_client as dc
+    dc = importlib.reload(dc)
+
+    data = {"tok": {"tx_rate": 5.0, "dex": {"bids": 1, "asks": 2}}}
+    path = tmp_path / "depth.mmap"
+    build_index(path, data)
+    monkeypatch.setattr(dc, "MMAP_PATH", str(path))
+
+    venues, rate = dc.snapshot("tok")
+
+    assert rate == pytest.approx(5.0)
+    assert venues == {"dex": {"bids": 1.0, "asks": 2.0}}
+    assert dc._USE_ORJSON
+
+    importlib.reload(dc)
+
+
+def test_snapshot_fallback_json(tmp_path, monkeypatch):
+    import importlib
+    import builtins
+
+    orig_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "orjson":
+            raise ModuleNotFoundError
+        return orig_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    import solhunter_zero.depth_client as dc
+    dc = importlib.reload(dc)
+
+    data = {"tok": {"tx_rate": 4.0, "dex": {"bids": 2, "asks": 1}}}
+    path = tmp_path / "depth.mmap"
+    build_index(path, data)
+    monkeypatch.setattr(dc, "MMAP_PATH", str(path))
+
+    venues, rate = dc.snapshot("tok")
+
+    assert rate == pytest.approx(4.0)
+    assert venues == {"dex": {"bids": 2.0, "asks": 1.0}}
+    assert not dc._USE_ORJSON
+
+    importlib.reload(dc)

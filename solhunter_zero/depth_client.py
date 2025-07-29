@@ -1,5 +1,10 @@
 import os
-import json
+try:
+    import orjson as json  # type: ignore
+    _USE_ORJSON = True
+except Exception:  # pragma: no cover - optional dependency
+    import json  # type: ignore
+    _USE_ORJSON = False
 import mmap
 import asyncio
 import time
@@ -14,6 +19,18 @@ from .event_bus import publish, subscription
 from .config import get_depth_ws_addr
 
 from . import order_book_ws
+
+
+def _dumps(obj: Any) -> str | bytes:
+    if _USE_ORJSON:
+        return json.dumps(obj).decode()
+    return json.dumps(obj)
+
+
+def _loads(data: Any) -> Any:
+    if _USE_ORJSON and isinstance(data, str):
+        data = data.encode()
+    return json.loads(data)
 
 DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 
@@ -114,7 +131,7 @@ async def stream_depth_ws(
                     if msg.type != aiohttp.WSMsgType.TEXT:
                         continue
                     try:
-                        data = json.loads(msg.data)
+                        data = _loads(msg.data)
                     except Exception:
                         continue
                     entry = data.get(token)
@@ -187,7 +204,7 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                     if msg.type != aiohttp.WSMsgType.TEXT:
                         continue
                     try:
-                        data = json.loads(msg.data)
+                        data = _loads(msg.data)
                     except Exception:
                         continue
                     publish("depth_update", data)
@@ -238,7 +255,7 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
                     slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
                     if not slice_bytes:
                         return {}, 0.0
-                    entry = json.loads(slice_bytes.decode())
+                    entry = _loads(slice_bytes)
                     rate = float(entry.get("tx_rate", 0.0))
                     venues = {
                         d: {
@@ -255,7 +272,7 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         raw = bytes(buf).rstrip(b"\x00")
         if not raw:
             return {}, 0.0
-        data = json.loads(raw.decode())
+        data = _loads(raw)
         entry = data.get(token)
         if not entry:
             return {}, 0.0
@@ -284,7 +301,7 @@ async def submit_signed_tx(
 
     reader, writer = await asyncio.open_unix_connection(socket_path)
     payload = {"cmd": "signed_tx", "tx": tx_b64}
-    writer.write(json.dumps(payload).encode())
+    writer.write(_dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
         data = await asyncio.wait_for(reader.read(), timeout)
@@ -295,7 +312,7 @@ async def submit_signed_tx(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = _loads(data)
     except Exception:
         return None
     return resp.get("signature")
@@ -314,7 +331,7 @@ async def prepare_signed_tx(
     payload: Dict[str, Any] = {"cmd": "prepare", "msg": msg_b64}
     if priority_fee is not None:
         payload["priority_fee"] = int(priority_fee)
-    writer.write(json.dumps(payload).encode())
+    writer.write(_dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
         data = await asyncio.wait_for(reader.read(), timeout)
@@ -325,7 +342,7 @@ async def prepare_signed_tx(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = _loads(data)
     except Exception:
         return None
     return resp.get("tx")
@@ -341,7 +358,7 @@ async def submit_tx_batch(
 
     reader, writer = await asyncio.open_unix_connection(socket_path)
     payload = {"cmd": "batch", "txs": txs}
-    writer.write(json.dumps(payload).encode())
+    writer.write(_dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
         data = await asyncio.wait_for(reader.read(), timeout)
@@ -352,7 +369,7 @@ async def submit_tx_batch(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = _loads(data)
     except Exception:
         return None
     if isinstance(resp, list):
@@ -376,7 +393,7 @@ async def submit_raw_tx(
         payload["priority_rpc"] = list(priority_rpc)
     if priority_fee is not None:
         payload["priority_fee"] = int(priority_fee)
-    writer.write(json.dumps(payload).encode())
+    writer.write(_dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
         data = await asyncio.wait_for(reader.read(), timeout)
@@ -387,7 +404,7 @@ async def submit_raw_tx(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = _loads(data)
     except Exception:
         return None
     return resp.get("signature")
@@ -410,7 +427,7 @@ async def auto_exec(
         "threshold": threshold,
         "txs": list(txs),
     }
-    writer.write(json.dumps(payload).encode())
+    writer.write(_dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
         data = await asyncio.wait_for(reader.read(), timeout)
@@ -421,7 +438,7 @@ async def auto_exec(
     if not data:
         return False
     try:
-        resp = json.loads(data.decode())
+        resp = _loads(data)
     except Exception:
         return False
     return bool(resp.get("ok"))
@@ -441,7 +458,7 @@ async def best_route(
     payload: Dict[str, Any] = {"cmd": "route", "token": token, "amount": amount}
     if max_hops is not None:
         payload["max_hops"] = int(max_hops)
-    writer.write(json.dumps(payload).encode())
+    writer.write(_dumps(payload).encode())
     await writer.drain()
     if timeout is not None:
         data = await asyncio.wait_for(reader.read(), timeout)
@@ -452,7 +469,7 @@ async def best_route(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = _loads(data)
         path = [str(p) for p in resp.get("path", [])]
         profit = float(resp.get("profit", 0.0))
         slippage = float(resp.get("slippage", 0.0))
