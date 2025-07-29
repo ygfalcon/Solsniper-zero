@@ -3,6 +3,8 @@ import logging
 import asyncio
 from typing import Dict, List, Optional, Iterable
 
+from .lru import TTLCache
+
 import aiohttp
 from .http import get_session
 
@@ -58,6 +60,10 @@ else:
     )
 
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
+
+# cache for trending token results
+TREND_CACHE_TTL = 60  # seconds
+TREND_CACHE = TTLCache(maxsize=1, ttl=TREND_CACHE_TTL)
 
 
 def token_matches(
@@ -148,6 +154,10 @@ def fetch_trending_tokens() -> List[str]:
 
 async def fetch_trending_tokens_async() -> List[str]:
     """Asynchronously fetch trending token addresses from Jupiter."""
+    cached = TREND_CACHE.get("tokens")
+    if cached is not None:
+        return cached
+
     session = await get_session()
     try:
         async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
@@ -157,7 +167,9 @@ async def fetch_trending_tokens_async() -> List[str]:
         logger.warning("Failed to fetch trending tokens: %s", exc)
         return []
 
-    return parse_trending_tokens(data)
+    tokens = parse_trending_tokens(data)
+    TREND_CACHE.set("tokens", tokens)
+    return tokens
 
 
 def parse_listing_tokens(data: dict) -> List[str]:
