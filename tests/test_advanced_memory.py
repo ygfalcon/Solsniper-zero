@@ -30,3 +30,22 @@ def test_insert_search_persist(tmp_path):
     assert len(trades2) == 1
     results2 = mem2.search("momentum")
     assert results2 and results2[0].id == trades[0].id
+
+
+def test_replicated_trade_dedup(tmp_path):
+    db = tmp_path / "rep.db"
+    idx = tmp_path / "rep.index"
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx), replicate=True)
+
+    from uuid import uuid4
+    from solhunter_zero.event_bus import publish
+    from solhunter_zero.schemas import TradeLogged
+
+    tid = str(uuid4())
+    event = TradeLogged(token="TOK", direction="buy", amount=1.0, price=1.0, uuid=tid)
+    publish("trade_logged", event)
+    publish("trade_logged", event)
+
+    trades = mem.list_trades()
+    assert len(trades) == 1
+    assert trades[0].uuid == tid
