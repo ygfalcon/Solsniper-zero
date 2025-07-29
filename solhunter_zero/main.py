@@ -16,6 +16,7 @@ from .config import (
     set_env_from_config,
     load_selected_config,
     get_active_config_name,
+    get_event_bus_url,
     CONFIG_DIR,
 )
 from .http import close_session
@@ -116,6 +117,7 @@ from .portfolio import calculate_order_size
 from .risk import RiskManager
 from . import arbitrage
 from . import depth_client
+from . import event_bus
 from .data_pipeline import start_depth_snapshot_listener
 
 # keep track of recently traded tokens for scheduling
@@ -602,6 +604,11 @@ def main(
         book_task = None
         arb_task = None
         depth_task = None
+        bus_started = False
+        if get_event_bus_url() is None:
+            await event_bus.start_ws_server()
+            bus_started = True
+
         rl_task = await _init_rl_training(
             cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
         )
@@ -788,6 +795,8 @@ def main(
                 await rl_task
         if stop_collector:
             stop_collector()
+        if bus_started:
+            await event_bus.stop_ws_server()
 
     try:
         asyncio.run(loop())
