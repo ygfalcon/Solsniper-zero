@@ -203,6 +203,44 @@ async def test_websocket_client_publish(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_websocket_reconnect_on_drop():
+    port = 8770
+    connections = []
+
+    async def handler(ws):
+        connections.append(ws)
+        if len(connections) == 1:
+            await asyncio.sleep(0.05)
+            await ws.close()
+        else:
+            await ws.send(json.dumps({"topic": "weights_updated", "payload": {"weights": {"x": 7}}}))
+            await asyncio.sleep(0.1)
+
+    server = await websockets.serve(handler, "localhost", port)
+
+    received = []
+    subscribe("weights_updated", lambda p: received.append(p))
+    await connect_ws(f"ws://localhost:{port}")
+
+    for _ in range(50):
+        if len(connections) >= 2:
+            break
+        await asyncio.sleep(0.1)
+
+    await asyncio.sleep(0.2)
+
+    await disconnect_ws()
+    server.close()
+    await server.wait_closed()
+
+    from solhunter_zero.schemas import WeightsUpdated
+
+    assert len(connections) >= 2
+    assert received and isinstance(received[-1], WeightsUpdated)
+    assert received[-1].weights["x"] == 7
+
+
+@pytest.mark.asyncio
 async def test_event_bus_url_connect(monkeypatch):
     import importlib
     import solhunter_zero.event_bus as ev
