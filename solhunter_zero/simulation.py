@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover - when xgboost is missing
 import numpy as np
 from . import onchain_metrics, models
 from .http import get_session
+from .lru import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,10 @@ _BIAS: dict[str, float] = {"mean": 0.0, "volatility": 0.0}
 # Cached price model and modification time for fast reloads
 _PRICE_MODEL = None
 _PRICE_MTIME = 0.0
+
+# module level cache for token metrics
+TOKEN_METRICS_CACHE_TTL = 30  # seconds
+TOKEN_METRICS_CACHE = TTLCache(maxsize=256, ttl=TOKEN_METRICS_CACHE_TTL)
 
 
 def get_price_model(model_path: str | None = None):
@@ -97,6 +102,10 @@ class SimulationResult:
 
 async def fetch_token_metrics_async(token: str) -> dict:
     """Asynchronously fetch historical return metrics for ``token``."""
+
+    cached = TOKEN_METRICS_CACHE.get(token)
+    if cached is not None:
+        return cached
 
     base_url = os.getenv("METRICS_BASE_URL", DEFAULT_METRICS_BASE_URL)
     url = f"{base_url.rstrip('/')}/token/{token}/metrics"
@@ -176,6 +185,7 @@ async def fetch_token_metrics_async(token: str) -> dict:
     else:
         metrics["slippage_per_dex"] = []
 
+    TOKEN_METRICS_CACHE.set(token, metrics)
     return metrics
 
 

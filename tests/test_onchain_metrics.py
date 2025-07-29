@@ -1,9 +1,17 @@
 import pytest
 import requests
 import aiohttp
-from solhunter_zero import scanner_onchain
+from solhunter_zero import scanner_onchain, http
 
 from solhunter_zero import onchain_metrics
+
+
+# reset global state before each test
+def setup_function(_):
+    http._session = None
+    onchain_metrics.DEX_METRICS_CACHE = onchain_metrics.TTLCache(
+        maxsize=256, ttl=onchain_metrics.DEX_METRICS_CACHE_TTL
+    )
 
 
 class FakeClient:
@@ -90,6 +98,50 @@ def test_fetch_dex_metrics(monkeypatch):
 
     assert metrics == {"liquidity": 10.0, "depth": 0.5, "volume": 20.0}
     assert urls[0] == "http://dex/v1/liquidity?token=tok"
+
+
+def test_dex_metrics_cache(monkeypatch):
+    calls = {"sessions": 0, "gets": 0}
+
+    class FakeResp:
+        def __init__(self, url):
+            calls["url"] = url
+
+        def raise_for_status(self):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            if "liquidity" in calls["url"]:
+                return {"liquidity": 1.0}
+            if "depth" in calls["url"]:
+                return {"depth": 0.1}
+            return {"volume": 2.0}
+
+    class FakeSession:
+        def __init__(self):
+            calls["sessions"] += 1
+            self.closed = False
+
+        def get(self, url, timeout=5):
+            calls["gets"] += 1
+            return FakeResp(url)
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    onchain_metrics.DEX_METRICS_CACHE.ttl = 60
+
+    metrics1 = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+    metrics2 = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+
+    assert metrics1 == {"liquidity": 1.0, "depth": 0.1, "volume": 2.0}
+    assert metrics2 == metrics1
+    assert calls["sessions"] == 1
+    assert calls["gets"] == 3
 
 
 def test_fetch_dex_metrics_error(monkeypatch):
