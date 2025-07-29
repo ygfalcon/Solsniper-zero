@@ -6,6 +6,7 @@ import os
 from typing import AsyncGenerator, Dict, Any, Optional
 
 import aiohttp
+from .http import get_session
 
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -19,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 async def subscribe_events(url: str) -> AsyncGenerator[Dict[str, Any], None]:
     """Yield parsed JSON events from a websocket ``url``."""
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     try:
