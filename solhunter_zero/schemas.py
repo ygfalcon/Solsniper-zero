@@ -52,6 +52,8 @@ class TradeLogged:
     context: str | None = None
     emotion: str | None = None
     simulation_id: int | None = None
+    uuid: str | None = None
+    trade_id: int | None = None
 
 
 _EVENT_SCHEMAS: Dict[str, Type] = {

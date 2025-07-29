@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import datetime
+import uuid as uuid_module
 from typing import List, Any
 
 import numpy as np
@@ -50,6 +51,7 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id = Column(Integer, primary_key=True)
+    uuid = Column(String, unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     token = Column(String, nullable=False)
     direction = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
@@ -104,6 +106,13 @@ class AdvancedMemory(BaseMemory):
     # ------------------------------------------------------------------
     def _apply_remote(self, msg: Any) -> None:
         data = msg if isinstance(msg, dict) else msg.__dict__
+        trade_uuid = data.get("uuid")
+        if trade_uuid is not None:
+            with self.Session() as session:
+                exists = session.query(Trade).filter_by(uuid=trade_uuid).first()
+                if exists:
+                    return
+        data.pop("trade_id", None)
         self.log_trade(_broadcast=False, **data)
 
     # ------------------------------------------------------------------
@@ -135,6 +144,7 @@ class AdvancedMemory(BaseMemory):
         direction: str,
         amount: float,
         price: float,
+        uuid: str | None = None,
         reason: str | None = None,
         context: str = "",
         emotion: str = "",
@@ -142,11 +152,13 @@ class AdvancedMemory(BaseMemory):
         _broadcast: bool = True,
     ) -> int:
         with self.Session() as session:
+            trade_uuid = uuid or str(uuid_module.uuid4())
             trade = Trade(
                 token=token,
                 direction=direction,
                 amount=amount,
                 price=price,
+                uuid=trade_uuid,
                 reason=reason,
                 context=context,
                 emotion=emotion,
@@ -169,6 +181,8 @@ class AdvancedMemory(BaseMemory):
                         context=context,
                         emotion=emotion,
                         simulation_id=simulation_id,
+                        uuid=trade_uuid,
+                        trade_id=trade.id,
                     ),
                 )
             except Exception:
