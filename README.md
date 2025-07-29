@@ -217,14 +217,19 @@ profit calculation so routes are ranked based on the borrowed size.
     ```bash
     export METRICS_BASE_URL=https://api.example.com
     ```
-7. **Configure news feeds for sentiment**
+7. **Export RL metrics**
+    Provide a URL that receives ``rl_metrics`` events:
+    ```bash
+    export METRICS_URL=http://localhost:9000/metrics
+    ```
+8. **Configure news feeds for sentiment**
    Sentiment scores influence RL training. Provide comma-separated RSS URLs via `NEWS_FEEDS` and optional social feeds:
    ```bash
    export NEWS_FEEDS=https://news.example/rss
    export TWITTER_FEEDS=https://example.com/twitter.json
    export DISCORD_FEEDS=https://example.com/discord.json
    ```
-8. **Provide a keypair for signing**
+9. **Provide a keypair for signing**
     Generate a keypair with `solana-keygen new` if you don't already have one and
     point the bot to it using `KEYPAIR_PATH`, `SOLANA_KEYPAIR` or the `--keypair`
     flag:
@@ -256,33 +261,33 @@ profit calculation so routes are ranked based on the borrowed size.
     ```bash
     scripts/setup_default_keypair.sh
     ```
-9. **Priority RPC endpoints**
+10. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
     export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
     ```
-10. **Priority fee multipliers**
+11. **Priority fee multipliers**
     Configure compute unit price multipliers used when the mempool is busy:
     ```bash
     export PRIORITY_FEES="0,1,2"
     ```
-11. **Auto-execution**
+12. **Auto-execution**
     Register tokens and pre-signed transactions so the depth service
     dispatches them when thresholds are crossed:
     ```bash
     export AUTO_EXEC='{"TOKEN":{"threshold":1.0,"txs":["BASE64"]}}'
     ```
-12. **Run the bot**
+13. **Run the bot**
    ```bash
    ./run.sh --auto
    ```
-13. **External event bus**
+14. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
    ```bash
    export EVENT_BUS_URL=wss://bus.example.com
    ```
    Alternatively specify `event_bus_url` in the configuration file.
-14. **Full system startup**
+15. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
    python scripts/start_all.py

@@ -36,6 +36,7 @@ ENV_VARS = {
     "phoenix_dex_url": "PHOENIX_DEX_URL",
     "meteora_dex_url": "METEORA_DEX_URL",
     "metrics_base_url": "METRICS_BASE_URL",
+    "metrics_url": "METRICS_URL",
     "news_feeds": "NEWS_FEEDS",
     "twitter_feeds": "TWITTER_FEEDS",
     "discord_feeds": "DISCORD_FEEDS",

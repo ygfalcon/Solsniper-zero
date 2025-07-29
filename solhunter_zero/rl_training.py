@@ -266,6 +266,7 @@ class RLTraining:
         price_model_path: str | None = None,
         regime_weight: float = 1.0,
         device: str | None = None,
+        metrics_url: str | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         self.data = TradeDataModule(
@@ -299,6 +300,14 @@ class RLTraining:
         self.trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
+        from .metrics_client import start_metrics_exporter
+        self._metrics_sub = start_metrics_exporter(metrics_url)
+
+    def close(self) -> None:
+        try:
+            self._metrics_sub()
+        except Exception:
+            pass
 
     def train(self) -> None:
         """Run one training cycle and persist weights."""
