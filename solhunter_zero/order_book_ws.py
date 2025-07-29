@@ -5,15 +5,19 @@ import json
 import logging
 import mmap
 import os
-from typing import AsyncGenerator, Dict, Any, Optional
+import time
+from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
 from .http import get_session
 
 logger = logging.getLogger(__name__)
 
-# Cache of latest bid/ask and tx rate per token
-_DEPTH_CACHE: Dict[str, Dict[str, float]] = {}
+# how long cached order book entries remain valid
+ORDERBOOK_CACHE_TTL = float(os.getenv("ORDERBOOK_CACHE_TTL", "5") or 5)
+
+# Cache of latest bid/ask and tx rate per token along with timestamp
+_DEPTH_CACHE: Dict[str, Tuple[float, Dict[str, float]]] = {}
 
 _MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
 
@@ -54,8 +58,11 @@ def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
 
 def snapshot(token: str) -> tuple[float, float, float]:
     """Return current depth, imbalance and mempool rate for ``token``."""
-    data = _DEPTH_CACHE.get(token)
-    if not data:
+    cached = _DEPTH_CACHE.get(token)
+    if not cached:
+        return _snapshot_from_mmap(token)
+    ts, data = cached
+    if time.time() - ts > ORDERBOOK_CACHE_TTL:
         return _snapshot_from_mmap(token)
     bids = float(data.get("bids", 0.0))
     asks = float(data.get("asks", 0.0))
@@ -99,7 +106,12 @@ async def stream_order_book(
                             if isinstance(v, dict):
                                 bids += float(v.get("bids", 0.0))
                                 asks += float(v.get("asks", 0.0))
-                    _DEPTH_CACHE[token] = {"bids": bids, "asks": asks, "tx_rate": rate}
+                    now = time.time()
+                    # expire stale entries
+                    for k, (ts, _) in list(_DEPTH_CACHE.items()):
+                        if now - ts > ORDERBOOK_CACHE_TTL:
+                            _DEPTH_CACHE.pop(k, None)
+                    _DEPTH_CACHE[token] = (now, {"bids": bids, "asks": asks, "tx_rate": rate})
                     depth, imb, txr = snapshot(token)
                     yield {
                         "token": token,
@@ -146,11 +158,18 @@ async def stream_order_book(
                                     if isinstance(v, dict):
                                         bids += float(v.get("bids", 0.0))
                                         asks += float(v.get("asks", 0.0))
-                            _DEPTH_CACHE[token] = {
-                                "bids": bids,
-                                "asks": asks,
-                                "tx_rate": rate,
-                            }
+                            now = time.time()
+                            for k, (ts, _) in list(_DEPTH_CACHE.items()):
+                                if now - ts > ORDERBOOK_CACHE_TTL:
+                                    _DEPTH_CACHE.pop(k, None)
+                            _DEPTH_CACHE[token] = (
+                                now,
+                                {
+                                    "bids": bids,
+                                    "asks": asks,
+                                    "tx_rate": rate,
+                                },
+                            )
                             depth, imb, txr = snapshot(token)
                             yield {
                                 "token": token,
