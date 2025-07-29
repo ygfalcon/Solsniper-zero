@@ -4,6 +4,9 @@ import pickle
 import random
 from argparse import ArgumentParser
 from typing import Iterable, Tuple, List
+import asyncio
+
+from .http import close_session
 
 from sqlalchemy import (
     create_engine,
@@ -112,4 +115,7 @@ def main(argv: List[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    finally:
+        asyncio.run(close_session())

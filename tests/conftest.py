@@ -7,6 +7,9 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 import pytest
+import asyncio
+
+from solhunter_zero.http import close_session
 
 
 def pytest_addoption(parser):
@@ -26,3 +29,9 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "slow" in item.keywords:
             item.add_marker(skip_slow)
+
+
+@pytest.fixture(autouse=True)
+def _close_http_session():
+    yield
+    asyncio.run(close_session())

@@ -18,6 +18,7 @@ from .config import (
     get_active_config_name,
     CONFIG_DIR,
 )
+from .http import close_session
 from . import wallet
 
 _SERVICE_MANIFEST = (
@@ -1032,7 +1033,10 @@ if __name__ == "__main__":
         rl_interval=args.rl_interval,
     )
 
-    if args.auto:
-        run_auto(**kwargs)
-    else:
-        main(**kwargs)
+    try:
+        if args.auto:
+            run_auto(**kwargs)
+        else:
+            main(**kwargs)
+    finally:
+        asyncio.run(close_session())

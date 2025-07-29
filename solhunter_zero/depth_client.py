@@ -6,6 +6,7 @@ import time
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
+from .http import get_session
 
 from .event_bus import publish, subscription
 from .config import get_depth_ws_addr
@@ -55,8 +56,8 @@ async def stream_depth_ws(
     was_connected = False
     while True:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(url) as ws:
+            session = await get_session()
+            async with session.ws_connect(url) as ws:
                     publish(
                         "depth_service_status",
                         {"status": "reconnected" if was_connected else "connected"},
@@ -128,8 +129,8 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
     was_connected = False
     while True:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(url) as ws:
+            session = await get_session()
+            async with session.ws_connect(url) as ws:
                     publish(
                         "depth_service_status",
                         {"status": "reconnected" if was_connected else "connected"},
