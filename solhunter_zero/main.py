@@ -6,6 +6,7 @@ import contextlib
 import subprocess
 import time
 from argparse import ArgumentParser
+import cProfile
 from typing import Sequence
 
 from pathlib import Path
@@ -183,7 +184,6 @@ async def _run_iteration(
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url and not offline:
         try:
-
             ranked = await async_top_volume_tokens(rpc_url, limit=len(tokens))
             ranked_set = set(ranked)
             tokens = [t for t in ranked if t in tokens] + [
@@ -552,7 +552,6 @@ def main(
     if strategies is None:
         strategies = cfg.get("strategies")
         if isinstance(strategies, str):
-
             strategies = [s.strip() for s in strategies.split(",") if s.strip()]
 
     if market_ws_url is None:
@@ -652,7 +651,11 @@ def main(
 
             ws_task = asyncio.create_task(run_market_ws())
 
-        use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
+        use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         if use_depth_stream:
 
             async def run_depth_ws() -> None:
@@ -1003,6 +1006,11 @@ if __name__ == "__main__":
         help="Seconds between RL training cycles",
     )
     parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Profile the trading loop and write stats to profile.out",
+    )
+    parser.add_argument(
         "--auto",
         action="store_true",
         help="Load selected config and start trading automatically",
@@ -1043,9 +1051,19 @@ if __name__ == "__main__":
     )
 
     try:
-        if args.auto:
-            run_auto(**kwargs)
+        if args.profile:
+            if args.auto:
+                cProfile.runctx(
+                    "run_auto(**kwargs)", globals(), locals(), filename="profile.out"
+                )
+            else:
+                cProfile.runctx(
+                    "main(**kwargs)", globals(), locals(), filename="profile.out"
+                )
         else:
-            main(**kwargs)
+            if args.auto:
+                run_auto(**kwargs)
+            else:
+                main(**kwargs)
     finally:
         asyncio.run(close_session())

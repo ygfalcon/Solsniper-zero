@@ -564,6 +564,13 @@ python -m solhunter_zero.main \
   --discovery-method websocket
   --config myconfig.yaml
 ```
+Add `--profile` to gather performance stats with `cProfile`. The results are
+written to `profile.out`:
+
+```bash
+python -m solhunter_zero.main --profile --iterations 1 --dry-run --offline
+python -m pstats profile.out
+```
 Set the keypair path with the `--keypair` flag or the `KEYPAIR_PATH` (or
 `SOLANA_KEYPAIR`) environment variable if you want to sign orders.
 
