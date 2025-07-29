@@ -1,8 +1,16 @@
 import numpy as np
 import pytest
 
-from solhunter_zero import simulation
+from solhunter_zero import simulation, http
 from solhunter_zero.simulation import SimulationResult
+
+
+# reset global state before each test
+def setup_function(_):
+    http._session = None
+    simulation.TOKEN_METRICS_CACHE = simulation.TTLCache(
+        maxsize=256, ttl=simulation.TOKEN_METRICS_CACHE_TTL
+    )
 
 
 def test_run_simulations_uses_metrics(monkeypatch):
@@ -137,6 +145,46 @@ def test_fetch_token_metrics_multiple_dex(monkeypatch):
     assert metrics["slippage"] == pytest.approx(0.015)
     assert metrics["depth_per_dex"] == [1.0, 2.0]
     assert metrics["slippage_per_dex"] == [0.01, 0.02]
+
+
+def test_token_metrics_cache(monkeypatch):
+    calls = {"sessions": 0, "gets": 0}
+
+    class FakeResp:
+        def __init__(self, url):
+            calls["url"] = url
+
+        def raise_for_status(self):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            return {"mean_return": 0.0, "volatility": 0.02}
+
+    class FakeSession:
+        def __init__(self):
+            calls["sessions"] += 1
+            self.closed = False
+
+        def get(self, url, timeout=5):
+            calls["gets"] += 1
+            return FakeResp(url)
+
+    monkeypatch.setenv("DEX_METRIC_URLS", "")
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    simulation.TOKEN_METRICS_CACHE.ttl = 60
+
+    metrics1 = simulation.fetch_token_metrics("tok")
+    metrics2 = simulation.fetch_token_metrics("tok")
+
+    assert metrics1 == metrics2
+    assert calls["sessions"] == 1
+    assert calls["gets"] == 1
 
 
 def test_run_simulations_volume_filter(monkeypatch):

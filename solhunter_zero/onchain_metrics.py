@@ -32,6 +32,7 @@ from .scanner_onchain import (
 )
 from .exchange import DEX_BASE_URL
 from .http import get_session
+from .lru import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,10 @@ DEPTH_PATH = "/v1/depth"
 VOLUME_PATH = "/v1/volume"
 
 _DEPTH_CACHE: Dict[str, float] = {}
+
+# module level cache for dex metrics
+DEX_METRICS_CACHE_TTL = 30  # seconds
+DEX_METRICS_CACHE = TTLCache(maxsize=256, ttl=DEX_METRICS_CACHE_TTL)
 
 
 def _tx_volume(entries: List[dict]) -> float:
@@ -99,12 +104,17 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
     """
 
     base = base_url or DEX_BASE_URL
+    cache_key = (token, base)
+    cached = DEX_METRICS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     metrics = {"liquidity": 0.0, "depth": 0.0, "volume": 0.0}
     if not token:
         return metrics
 
     session = await get_session()
-    for path, key in (
+    for path, metric_key in (
         (LIQ_PATH, "liquidity"),
         (DEPTH_PATH, "depth"),
         (VOLUME_PATH, "volume"),
@@ -114,12 +124,13 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
             async with session.get(url, timeout=5) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-            val = data.get(key)
+            val = data.get(metric_key)
             if isinstance(val, (int, float)):
-                metrics[key] = float(val)
+                metrics[metric_key] = float(val)
         except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch %s for %s: %s", key, token, exc)
+            logger.warning("Failed to fetch %s for %s: %s", metric_key, token, exc)
 
+    DEX_METRICS_CACHE.set(cache_key, metrics)
     return metrics
 
 
