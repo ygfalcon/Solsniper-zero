@@ -132,13 +132,27 @@ class _TradeDataset(Dataset):
 class TradeDataModule(pl.LightningDataModule):
     """PyTorch Lightning datamodule wrapping :class:`_TradeDataset`."""
 
-    def __init__(self, db_url: str, batch_size: int = 64, sims_per_token: int = 10, *, price_model_path: str | None = None, regime_weight: float = 1.0) -> None:
+    def __init__(
+        self,
+        db_url: str,
+        batch_size: int = 64,
+        sims_per_token: int = 10,
+        *,
+        price_model_path: str | None = None,
+        regime_weight: float = 1.0,
+        num_workers: int | None = None,
+        pin_memory: bool = True,
+        persistent_workers: bool = True,
+    ) -> None:
         super().__init__()
         self.db_url = db_url
         self.batch_size = batch_size
         self.sims_per_token = sims_per_token
         self.price_model_path = price_model_path
         self.regime_weight = float(regime_weight)
+        self.num_workers = num_workers if num_workers is not None else (os.cpu_count() or 1)
+        self.pin_memory = pin_memory
+        self.persistent_workers = persistent_workers
         self.dataset: _TradeDataset | None = None
 
     def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
@@ -160,7 +174,9 @@ class TradeDataModule(pl.LightningDataModule):
             self.dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=os.cpu_count() or 1,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory and self.num_workers > 0,
+            persistent_workers=self.persistent_workers and self.num_workers > 0,
         )
 
 
@@ -272,6 +288,8 @@ class RLTraining:
         regime_weight: float = 1.0,
         device: str | None = None,
         metrics_url: str | None = None,
+        pin_memory: bool | None = None,
+        persistent_workers: bool | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         self.data = TradeDataModule(
@@ -280,6 +298,8 @@ class RLTraining:
             sims_per_token=sims_per_token,
             price_model_path=price_model_path,
             regime_weight=regime_weight,
+            pin_memory=pin_memory if pin_memory is not None else True,
+            persistent_workers=persistent_workers if persistent_workers is not None else True,
         )
         if algo == "dqn":
             self.model: pl.LightningModule = LightningDQN()
@@ -390,11 +410,14 @@ def fit(
     if acc != "cpu":
         kwargs["devices"] = 1
     trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
+    num_workers = os.cpu_count() or 1
     loader = DataLoader(
         dataset,
         batch_size=64,
         shuffle=True,
-        num_workers=os.cpu_count() or 1,
+        num_workers=num_workers,
+        pin_memory=num_workers > 0,
+        persistent_workers=num_workers > 0,
     )
     trainer.fit(model, train_dataloaders=loader)
     torch.save(model.state_dict(), path)
