@@ -204,25 +204,30 @@ async def fetch_token_metrics_async(token: str) -> dict:
     depth_vals = []
     slip_vals = []
     session = await get_session()
+
+    async def _fetch(url: str, key: str, base: str) -> float | None:
+        try:
+            async with session.get(url, timeout=5) as resp:
+                resp.raise_for_status()
+                val = (await resp.json()).get(key)
+            return float(val) if isinstance(val, (int, float)) else None
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch %s from %s: %s", key, base, exc)
+            return None
+
     for base in dex_urls:
         d_url = f"{base.rstrip('/')}/v1/depth?token={token}"
-        try:
-            async with session.get(d_url, timeout=5) as resp:
-                resp.raise_for_status()
-                val = (await resp.json()).get("depth")
-            if isinstance(val, (int, float)):
-                depth_vals.append(float(val))
-        except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch depth from %s: %s", base, exc)
         s_url = f"{base.rstrip('/')}/v1/slippage?token={token}"
-        try:
-            async with session.get(s_url, timeout=5) as resp:
-                resp.raise_for_status()
-                val = (await resp.json()).get("slippage")
-            if isinstance(val, (int, float)):
-                slip_vals.append(float(val))
-        except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch slippage from %s: %s", base, exc)
+
+        d_val, s_val = await asyncio.gather(
+            _fetch(d_url, "depth", base),
+            _fetch(s_url, "slippage", base),
+        )
+
+        if d_val is not None:
+            depth_vals.append(d_val)
+        if s_val is not None:
+            slip_vals.append(s_val)
 
     if depth_vals:
         metrics["depth_per_dex"] = depth_vals
