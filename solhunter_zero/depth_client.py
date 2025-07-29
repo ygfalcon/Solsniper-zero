@@ -178,6 +178,29 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         return {}, 0.0
 
 
+async def depth_feed(*, rate_limit: float = 0.5, max_updates: Optional[int] = None) -> None:
+    """Publish aggregated depth snapshots via the event bus."""
+
+    count = 0
+    while True:
+        data: Dict[str, Any] = {}
+        try:
+            with open(MMAP_PATH, "rb") as f:
+                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
+                    raw = bytes(m).rstrip(b"\x00")
+                    if raw:
+                        data = json.loads(raw.decode())
+        except Exception:
+            data = {}
+
+        publish("depth_update", data)
+        count += 1
+        if max_updates is not None and count >= max_updates:
+            return
+        if rate_limit > 0:
+            await asyncio.sleep(rate_limit)
+
+
 async def submit_signed_tx(
     tx_b64: str,
     *,
