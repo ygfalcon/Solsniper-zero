@@ -34,7 +34,7 @@ def test_run_simulations_uses_model(tmp_path, monkeypatch):
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
     monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
     monkeypatch.setenv("PRICE_MODEL_PATH", str(model_path))
 
     res = simulation.run_simulations("tok", count=1, days=2)[0]

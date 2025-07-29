@@ -47,10 +47,10 @@ def test_run_simulations_uses_metrics(monkeypatch):
 
     captured = {}
 
-    def fake_normal(mean, vol, days):
+    def fake_normal(mean, vol, size):
         captured["mean"] = mean
         captured["vol"] = vol
-        return np.full(days, mean)
+        return np.full(size, mean)
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
     monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", fake_dex_metrics)
@@ -255,7 +255,7 @@ def test_run_simulations_with_history(monkeypatch):
     monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
     monkeypatch.setattr(simulation, "GradientBoostingRegressor", lambda: FakeGBR())
     monkeypatch.setattr(
-        simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean)
+        simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
     )
 
     results = simulation.run_simulations("tok", count=1, days=2)
@@ -300,7 +300,7 @@ def test_run_simulations_with_tx_trend(monkeypatch):
     monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
     monkeypatch.setattr(simulation, "RandomForestRegressor", lambda **kw: FakeRF())
     monkeypatch.setattr(simulation, "XGBRegressor", None)
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
 
     results = simulation.run_simulations("tok", count=1, days=2)
 
@@ -321,7 +321,7 @@ def test_run_simulations_optional_inputs(monkeypatch):
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
     monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
 
     res = simulation.run_simulations(
         "tok",
@@ -355,7 +355,7 @@ def test_run_simulations_additional_metrics(monkeypatch):
         "collect_onchain_insights",
         lambda t, u: {"depth_change": 1.0, "tx_rate": 2.0, "whale_activity": 0.5},
     )
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, days: np.full(days, mean))
+    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
 
     res = simulation.run_simulations("tok", count=1)[0]
     assert res.depth_change == pytest.approx(1.0)
