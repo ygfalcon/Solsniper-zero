@@ -49,10 +49,11 @@ async def test_merge_sources(monkeypatch):
     )
     monkeypatch.setattr("solhunter_zero.discovery.scan_tokens_onchain", fake_onchain)
     monkeypatch.setattr(
-        "solhunter_zero.discovery.onchain_metrics.fetch_volume_onchain", fake_metric_vol
+        "solhunter_zero.discovery.onchain_metrics.fetch_volume_onchain_async",
+        fake_metric_vol,
     )
     monkeypatch.setattr(
-        "solhunter_zero.discovery.onchain_metrics.fetch_liquidity_onchain",
+        "solhunter_zero.discovery.onchain_metrics.fetch_liquidity_onchain_async",
         fake_metric_liq,
     )
 

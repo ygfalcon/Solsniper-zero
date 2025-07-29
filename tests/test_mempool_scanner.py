@@ -114,8 +114,8 @@ def test_stream_mempool_tokens_with_metrics(monkeypatch):
 
     import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
-    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 2.0)
+    monkeypatch.setattr(om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0))
+    monkeypatch.setattr(om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 2.0))
 
     async def run():
         gen = mp_scanner.stream_mempool_tokens("ws://node", return_metrics=True)
@@ -141,19 +141,22 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
     import solhunter_zero.onchain_metrics as om
 
     monkeypatch.setattr(
-        om, "fetch_volume_onchain", lambda t, u: 10.0 if t == "tok1" else 1.0
+        om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 10.0 if t == "tok1" else 1.0)
     )
     monkeypatch.setattr(
-        om, "fetch_liquidity_onchain", lambda t, u: 5.0 if t == "tok1" else 0.5
+        om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 5.0 if t == "tok1" else 0.5)
     )
     monkeypatch.setattr(
         om,
-        "collect_onchain_insights",
-        lambda t, u: {
-            "tx_rate": 2.0 if t == "tok1" else 0.1,
-            "whale_activity": 0.0,
-            "avg_swap_size": 1.0,
-        },
+        "collect_onchain_insights_async",
+        lambda t, u: asyncio.sleep(
+            0,
+            {
+                "tx_rate": 2.0 if t == "tok1" else 0.1,
+                "whale_activity": 0.0,
+                "avg_swap_size": 1.0,
+            },
+        ),
     )
 
     async def run():
@@ -175,14 +178,17 @@ def test_rank_token_momentum(monkeypatch):
     mp_scanner._ROLLING_STATS.clear()
     import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
-    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 1.0)
+    monkeypatch.setattr(om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0))
+    monkeypatch.setattr(om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 1.0))
     rates = [1.0, 3.0]
 
     def fake_insights(t, u):
         return {"tx_rate": rates.pop(0), "whale_activity": 0.0, "avg_swap_size": 1.0}
 
-    monkeypatch.setattr(om, "collect_onchain_insights", fake_insights)
+    async def fake_insights_async(t, u):
+        return fake_insights(t, u)
+
+    monkeypatch.setattr(om, "collect_onchain_insights_async", fake_insights_async)
 
     async def run():
         first = await mp_scanner.rank_token("tok", "rpc")
