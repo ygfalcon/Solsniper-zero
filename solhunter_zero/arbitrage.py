@@ -111,7 +111,7 @@ _EDGE_CACHE = LRUCache(maxsize=1024)
 _LAST_DEPTH: dict[str, float] = {}
 
 # shared HTTP session and price cache
-PRICE_CACHE_TTL = 30  # seconds
+PRICE_CACHE_TTL = float(os.getenv("PRICE_CACHE_TTL", "30") or 30)
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
 
 def _route_key(token: str, amount: float, fees: Mapping[str, float], gas: Mapping[str, float], latency: Mapping[str, float]) -> tuple:

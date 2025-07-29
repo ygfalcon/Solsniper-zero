@@ -62,7 +62,7 @@ else:
 OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 
 # cache for trending token results
-TREND_CACHE_TTL = 60  # seconds
+TREND_CACHE_TTL = float(os.getenv("TREND_CACHE_TTL", "60") or 60)
 TREND_CACHE = TTLCache(maxsize=1, ttl=TREND_CACHE_TTL)
 
 
