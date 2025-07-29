@@ -5,8 +5,8 @@ from typing import List, Dict, Any, Iterable
 from . import BaseAgent
 from ..portfolio import Portfolio
 from ..scanner_common import fetch_trending_tokens_async
-from ..simulation import async_fetch_token_metrics
-from ..news import fetch_sentiment
+from ..simulation import fetch_token_metrics_async
+from ..news import fetch_sentiment_async
 
 
 class TrendAgent(BaseAgent):
@@ -32,7 +32,7 @@ class TrendAgent(BaseAgent):
         if not (self.feeds or self.twitter_feeds or self.discord_feeds):
             return 0.0
         try:
-            return fetch_sentiment(
+            return await fetch_sentiment_async(
                 self.feeds,
                 twitter_urls=self.twitter_feeds,
                 discord_urls=self.discord_feeds,
@@ -51,7 +51,7 @@ class TrendAgent(BaseAgent):
         trending = await fetch_trending_tokens_async()
         if token not in trending:
             return []
-        metrics = await async_fetch_token_metrics(token)
+        metrics = await fetch_token_metrics_async(token)
         volume = float(metrics.get("volume", 0.0))
         sentiment = await self._current_sentiment()
         if volume >= self.volume_threshold and sentiment >= self.sentiment_threshold:

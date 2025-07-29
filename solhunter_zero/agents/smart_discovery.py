@@ -62,7 +62,7 @@ class SmartDiscoveryAgent(BaseAgent):
         sentiment = 0.0
         if self.feeds or self.twitter_feeds or self.discord_feeds:
             try:
-                sentiment = news.fetch_sentiment(
+                sentiment = await news.fetch_sentiment_async(
                     self.feeds,
                     twitter_urls=self.twitter_feeds,
                     discord_urls=self.discord_feeds,

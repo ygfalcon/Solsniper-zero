@@ -37,10 +37,10 @@ def test_trend_agent_buy(monkeypatch):
         "solhunter_zero.agents.trend.fetch_trending_tokens_async", fake_trend
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.trend.async_fetch_token_metrics", fake_metrics
+        "solhunter_zero.agents.trend.fetch_token_metrics_async", fake_metrics
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.trend.fetch_sentiment", lambda *a, **k: 0.5
+        "solhunter_zero.agents.trend.fetch_sentiment_async", lambda *a, **k: 0.5
     )
 
     agent = TrendAgent(volume_threshold=100.0, sentiment_threshold=0.1, feeds=["f"])
@@ -59,10 +59,10 @@ def test_agent_manager_trend_integration(monkeypatch):
         "solhunter_zero.agents.trend.fetch_trending_tokens_async", fake_trend
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.trend.async_fetch_token_metrics", fake_metrics
+        "solhunter_zero.agents.trend.fetch_token_metrics_async", fake_metrics
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.trend.fetch_sentiment", lambda *a, **k: 0.5
+        "solhunter_zero.agents.trend.fetch_sentiment_async", lambda *a, **k: 0.5
     )
 
     captured = {}

@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 import aiohttp
+import asyncio
 from typing import List
 
 from sklearn.linear_model import LinearRegression
@@ -16,6 +17,7 @@ except Exception:  # pragma: no cover - when xgboost is missing
 
 import numpy as np
 from . import onchain_metrics, models
+from .http import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -93,40 +95,16 @@ class SimulationResult:
 
 
 
-def fetch_token_metrics(token: str) -> dict:
-    """Fetch historical return metrics for ``token``.
-
-    The function tries to retrieve data from a remote API. When the call fails
-    for any reason, default values are returned.  The metrics include the mean
-    daily return and the standard deviation of daily returns.
-    """
+async def fetch_token_metrics_async(token: str) -> dict:
+    """Asynchronously fetch historical return metrics for ``token``."""
 
     base_url = os.getenv("METRICS_BASE_URL", DEFAULT_METRICS_BASE_URL)
     url = f"{base_url.rstrip('/')}/token/{token}/metrics"
+    session = await get_session()
     try:
-        async def _fetch() -> dict:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=5) as resp:
-                    resp.raise_for_status()
-                    return await resp.json()
-
-        data = asyncio.run(_fetch())
-        metrics = {
-            "mean": float(data.get("mean_return", 0.0)),
-            "volatility": float(data.get("volatility", 0.02)),
-            "volume": float(data.get("volume_24h", 0.0)),
-            "liquidity": float(data.get("liquidity", 0.0)),
-            "slippage": float(data.get("slippage", 0.0)),
-            "depth": float(data.get("depth", 0.0)),
-            "price_history": data.get("price_history", []),
-            "liquidity_history": data.get("liquidity_history", []),
-            "depth_history": data.get("depth_history", []),
-            "slippage_history": data.get("slippage_history", []),
-            "volume_history": data.get("volume_history", []),
-            "token_age": float(data.get("token_age", 0.0)),
-            "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
-            "tx_count_history": data.get("tx_count_history", []),
-        }
+        async with session.get(url, timeout=5) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch metrics for %s: %s", token, exc)
         metrics = {
@@ -145,33 +123,43 @@ def fetch_token_metrics(token: str) -> dict:
             "initial_liquidity": 0.0,
             "tx_count_history": [],
         }
+    else:
+        metrics = {
+            "mean": float(data.get("mean_return", 0.0)),
+            "volatility": float(data.get("volatility", 0.02)),
+            "volume": float(data.get("volume_24h", 0.0)),
+            "liquidity": float(data.get("liquidity", 0.0)),
+            "slippage": float(data.get("slippage", 0.0)),
+            "depth": float(data.get("depth", 0.0)),
+            "price_history": data.get("price_history", []),
+            "liquidity_history": data.get("liquidity_history", []),
+            "depth_history": data.get("depth_history", []),
+            "slippage_history": data.get("slippage_history", []),
+            "volume_history": data.get("volume_history", []),
+            "token_age": float(data.get("token_age", 0.0)),
+            "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
+            "tx_count_history": data.get("tx_count_history", []),
+        }
 
     dex_urls = [u.strip() for u in os.getenv("DEX_METRIC_URLS", "").split(",") if u.strip()]
     depth_vals = []
     slip_vals = []
+    session = await get_session()
     for base in dex_urls:
         d_url = f"{base.rstrip('/')}/v1/depth?token={token}"
         try:
-            async def _fetch_d() -> dict:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(d_url, timeout=5) as resp:
-                        resp.raise_for_status()
-                        return await resp.json()
-
-            val = asyncio.run(_fetch_d()).get("depth")
+            async with session.get(d_url, timeout=5) as resp:
+                resp.raise_for_status()
+                val = (await resp.json()).get("depth")
             if isinstance(val, (int, float)):
                 depth_vals.append(float(val))
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch depth from %s: %s", base, exc)
         s_url = f"{base.rstrip('/')}/v1/slippage?token={token}"
         try:
-            async def _fetch_s() -> dict:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(s_url, timeout=5) as resp:
-                        resp.raise_for_status()
-                        return await resp.json()
-
-            val = asyncio.run(_fetch_s()).get("slippage")
+            async with session.get(s_url, timeout=5) as resp:
+                resp.raise_for_status()
+                val = (await resp.json()).get("slippage")
             if isinstance(val, (int, float)):
                 slip_vals.append(float(val))
         except Exception as exc:  # pragma: no cover - network errors
@@ -192,42 +180,13 @@ def fetch_token_metrics(token: str) -> dict:
 
 
 async def async_fetch_token_metrics(token: str) -> dict:
-    """Asynchronously fetch token metrics via ``aiohttp``."""
+    """Deprecated compatibility wrapper for :func:`fetch_token_metrics_async`."""
+    return await fetch_token_metrics_async(token)
 
-    base_url = os.getenv("METRICS_BASE_URL", DEFAULT_METRICS_BASE_URL)
-    url = f"{base_url.rstrip('/')}/token/{token}/metrics"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=5) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch metrics for %s: %s", token, exc)
-            return {
-                "mean": 0.0,
-                "volatility": 0.02,
-                "volume": 0.0,
-                "liquidity": 0.0,
-                "slippage": 0.0,
-                "slippage_history": [],
-                "volume_history": [],
-                "token_age": 0.0,
-                "initial_liquidity": 0.0,
-                "tx_count_history": [],
-            }
 
-    return {
-        "mean": float(data.get("mean_return", 0.0)),
-        "volatility": float(data.get("volatility", 0.02)),
-        "volume": float(data.get("volume_24h", 0.0)),
-        "liquidity": float(data.get("liquidity", 0.0)),
-        "slippage": float(data.get("slippage", 0.0)),
-        "slippage_history": data.get("slippage_history", []),
-        "volume_history": data.get("volume_history", []),
-        "token_age": float(data.get("token_age", 0.0)),
-        "initial_liquidity": float(data.get("initial_liquidity", 0.0)),
-        "tx_count_history": data.get("tx_count_history", []),
-    }
+def fetch_token_metrics(token: str) -> dict:
+    """Synchronous wrapper for :func:`fetch_token_metrics_async`."""
+    return asyncio.run(fetch_token_metrics_async(token))
 
 
 def predict_price_movement(

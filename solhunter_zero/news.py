@@ -6,6 +6,8 @@ import asyncio
 import xml.etree.ElementTree as ET
 from typing import Iterable, List
 
+from .http import get_session
+
 from transformers import pipeline
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,7 @@ def get_pipeline() -> pipeline:
         )
     return _pipeline
 
-def fetch_headlines(
+async def fetch_headlines_async(
     feed_urls: Iterable[str],
     allowed: Iterable[str] | None = None,
     *,
@@ -38,19 +40,16 @@ def fetch_headlines(
     """
     allowed_set = {url for url in allowed} if allowed is not None else None
     headlines: List[str] = []
+    session = await get_session()
 
     for url in feed_urls:
         if allowed_set is not None and url not in allowed_set:
             logger.warning("Blocked RSS feed: %s", url)
             continue
         try:
-            async def _get() -> str:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=10) as resp:
-                        resp.raise_for_status()
-                        return await resp.text()
-
-            text = asyncio.run(_get())
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                text = await resp.text()
         except aiohttp.ClientError as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch feed %s: %s", url, exc)
             continue
@@ -65,13 +64,9 @@ def fetch_headlines(
 
     for url in twitter_urls or []:
         try:
-            async def _get() -> dict:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=10) as resp:
-                        resp.raise_for_status()
-                        return await resp.json()
-
-            data = asyncio.run(_get())
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
         except (aiohttp.ClientError, ValueError) as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch twitter feed %s: %s", url, exc)
             continue
@@ -82,13 +77,9 @@ def fetch_headlines(
 
     for url in discord_urls or []:
         try:
-            async def _get() -> dict:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=10) as resp:
-                        resp.raise_for_status()
-                        return await resp.json()
-
-            data = asyncio.run(_get())
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
         except (aiohttp.ClientError, ValueError) as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch discord feed %s: %s", url, exc)
             continue
@@ -98,6 +89,24 @@ def fetch_headlines(
                 headlines.append(msg.strip())
 
     return headlines
+
+
+def fetch_headlines(
+    feed_urls: Iterable[str],
+    allowed: Iterable[str] | None = None,
+    *,
+    twitter_urls: Iterable[str] | None = None,
+    discord_urls: Iterable[str] | None = None,
+) -> List[str]:
+    """Synchronous wrapper for :func:`fetch_headlines_async`."""
+    return asyncio.run(
+        fetch_headlines_async(
+            feed_urls,
+            allowed,
+            twitter_urls=twitter_urls,
+            discord_urls=discord_urls,
+        )
+    )
 
 def compute_sentiment(text: str) -> float:
     """Return a sentiment score for ``text`` between -1 and 1 using DistilBERT."""
@@ -115,7 +124,7 @@ def compute_sentiment(text: str) -> float:
         return -score
     return score
 
-def fetch_sentiment(
+async def fetch_sentiment_async(
     feed_urls: Iterable[str],
     allowed: Iterable[str] | None = None,
     *,
@@ -123,7 +132,7 @@ def fetch_sentiment(
     discord_urls: Iterable[str] | None = None,
 ) -> float:
     """Return overall sentiment for provided sources."""
-    headlines = fetch_headlines(
+    headlines = await fetch_headlines_async(
         feed_urls,
         allowed,
         twitter_urls=twitter_urls,
@@ -133,3 +142,21 @@ def fetch_sentiment(
         return 0.0
     text = " ".join(headlines)
     return compute_sentiment(text)
+
+
+def fetch_sentiment(
+    feed_urls: Iterable[str],
+    allowed: Iterable[str] | None = None,
+    *,
+    twitter_urls: Iterable[str] | None = None,
+    discord_urls: Iterable[str] | None = None,
+) -> float:
+    """Synchronous wrapper for :func:`fetch_sentiment_async`."""
+    return asyncio.run(
+        fetch_sentiment_async(
+            feed_urls,
+            allowed,
+            twitter_urls=twitter_urls,
+            discord_urls=discord_urls,
+        )
+    )

@@ -31,6 +31,7 @@ from .scanner_onchain import (
     fetch_average_swap_size,
 )
 from .exchange import DEX_BASE_URL
+from .http import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
     return [t for t, _v in vol_list[:limit]]
 
 
-def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, float]:
+async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Dict[str, float]:
     """Return real-time liquidity, orderbook depth and volume for ``token``.
 
     Parameters
@@ -102,6 +103,7 @@ def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, floa
     if not token:
         return metrics
 
+    session = await get_session()
     for path, key in (
         (LIQ_PATH, "liquidity"),
         (DEPTH_PATH, "depth"),
@@ -109,13 +111,9 @@ def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, floa
     ):
         url = f"{base.rstrip('/')}{path}?token={token}"
         try:
-            async def _fetch() -> dict:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=5) as resp:
-                        resp.raise_for_status()
-                        return await resp.json()
-
-            data = asyncio.run(_fetch())
+            async with session.get(url, timeout=5) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
             val = data.get(key)
             if isinstance(val, (int, float)):
                 metrics[key] = float(val)
@@ -123,6 +121,11 @@ def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, floa
             logger.warning("Failed to fetch %s for %s: %s", key, token, exc)
 
     return metrics
+
+
+def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, float]:
+    """Synchronous wrapper for :func:`fetch_dex_metrics_async`."""
+    return asyncio.run(fetch_dex_metrics_async(token, base_url))
 
 
 def fetch_liquidity_onchain(token: str, rpc_url: str) -> float:

@@ -3,11 +3,12 @@ import asyncio
 import requests
 import aiohttp
 from solhunter_zero import prices
+from solhunter_zero import http
 
 
 # reset global state before each test
 def setup_function(_):
-    prices._session = None
+    http._session = None
     prices.PRICE_CACHE = prices.TTLCache(maxsize=256, ttl=prices.PRICE_CACHE_TTL)
 
 
