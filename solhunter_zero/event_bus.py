@@ -1,6 +1,12 @@
 import asyncio
 import inspect
-import json
+
+try:
+    import orjson as json  # type: ignore
+    _USE_ORJSON = True
+except Exception:  # pragma: no cover - optional dependency
+    import json  # type: ignore
+    _USE_ORJSON = False
 import os
 from contextlib import contextmanager
 from collections import defaultdict
@@ -19,6 +25,18 @@ _PB_MAP = {
     "depth_service_status": pb.DepthServiceStatus,
     "heartbeat": pb.Heartbeat,
 }
+
+
+def _dumps(obj: Any) -> str | bytes:
+    if _USE_ORJSON:
+        return json.dumps(obj).decode()
+    return json.dumps(obj)
+
+
+def _loads(data: Any) -> Any:
+    if _USE_ORJSON and isinstance(data, str):
+        data = data.encode()
+    return json.loads(data)
 
 
 def _get_bus_url(cfg=None):
@@ -44,14 +62,14 @@ _watch_task = None
 def _encode_event(topic: str, payload: Any) -> Any:
     cls = _PB_MAP.get(topic)
     if cls is None:
-        return json.dumps({"topic": topic, "payload": to_dict(payload)})
+        return _dumps({"topic": topic, "payload": to_dict(payload)})
 
     if topic == "action_executed":
         event = pb.Event(
             topic=topic,
             action_executed=pb.ActionExecuted(
-                action_json=json.dumps(payload.action),
-                result_json=json.dumps(payload.result),
+                action_json=_dumps(payload.action),
+                result_json=_dumps(payload.result),
             ),
         )
     elif topic == "weights_updated":
@@ -66,7 +84,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
     elif topic == "portfolio_updated":
         event = pb.Event(topic=topic, portfolio_updated=pb.PortfolioUpdated(balances=payload.balances))
     elif topic == "depth_update":
-        return json.dumps({"topic": topic, "payload": to_dict(payload)})
+        return _dumps({"topic": topic, "payload": to_dict(payload)})
     elif topic == "depth_service_status":
         event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
     elif topic == "heartbeat":
@@ -75,7 +93,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
             service = payload.get("service")
         event = pb.Event(topic=topic, heartbeat=pb.Heartbeat(service=service or ""))
     else:
-        return json.dumps({"topic": topic, "payload": to_dict(payload)})
+        return _dumps({"topic": topic, "payload": to_dict(payload)})
     return event.SerializeToString()
 
 def _decode_payload(ev: pb.Event) -> Any:
@@ -85,8 +103,8 @@ def _decode_payload(ev: pb.Event) -> Any:
     msg = getattr(ev, field)
     if field == "action_executed":
         return {
-            "action": json.loads(msg.action_json),
-            "result": json.loads(msg.result_json),
+            "action": _loads(msg.action_json),
+            "result": _loads(msg.result_json),
         }
     if field == "weights_updated":
         return {"weights": dict(msg.weights)}
@@ -198,7 +216,7 @@ async def _receiver(ws) -> None:
                     publish(ev.topic, payload, _broadcast=False)
                     await broadcast_ws(msg, to_server=False)
                 else:
-                    data = json.loads(msg)
+                    data = _loads(msg)
                     topic = data.get("topic")
                     payload = data.get("payload")
                     publish(topic, payload, _broadcast=False)
@@ -225,7 +243,7 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
                         ev.ParseFromString(msg)
                         publish(ev.topic, _decode_payload(ev), _broadcast=False)
                     else:
-                        data = json.loads(msg)
+                        data = _loads(msg)
                         publish(data.get("topic"), data.get("payload"), _broadcast=False)
                 except Exception:  # pragma: no cover - malformed message
                     continue
