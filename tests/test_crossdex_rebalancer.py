@@ -38,3 +38,41 @@ def test_crossdex_split(monkeypatch):
 
     assert exec_agent.actions
     assert exec_agent.actions[0]["venue"] == "dexA"
+
+
+def test_crossdex_feed(monkeypatch):
+    pf = Portfolio(path=None)
+
+    async def fake_opt(self, token, pf, *, depth=None, imbalance=None):
+        return [{"token": token, "side": "buy", "amount": 10.0, "price": 1.0}]
+
+    monkeypatch.setattr(
+        PortfolioOptimizer,
+        "propose_trade",
+        fake_opt,
+    )
+
+    def fail_snapshot(t):
+        raise AssertionError("snapshot called")
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.crossdex_rebalancer.snapshot",
+        fail_snapshot,
+    )
+
+    monkeypatch.setenv("USE_DEPTH_FEED", "True")
+    exec_agent = DummyExec()
+    agent = CrossDEXRebalancer(executor=exec_agent, rebalance_interval=0)
+
+    from solhunter_zero.event_bus import publish
+
+    publish(
+        "depth_update",
+        {"tok": {"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}}},
+    )
+
+    asyncio.run(agent.propose_trade("tok", pf))
+    agent.close()
+
+    assert exec_agent.actions
+    assert exec_agent.actions[0]["venue"] == "dexA"

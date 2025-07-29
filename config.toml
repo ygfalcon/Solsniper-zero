@@ -17,6 +17,7 @@ depth_service = false    # start the Rust depth_service automatically when true
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
 use_depth_stream = true  # set to false to disable depth-stream IPC
+use_depth_feed = false   # set to true to publish depth snapshots via event bus
 use_rust_exec = true     # set to false to execute swaps in Python
 use_service_exec = true  # set to false to bypass depth_service execution
 orca_dex_url = "https://dex.orca.so"

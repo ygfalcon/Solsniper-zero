@@ -6,7 +6,9 @@ from typing import List, Dict, Any
 from . import BaseAgent
 from .portfolio_optimizer import PortfolioOptimizer
 from .execution import ExecutionAgent
+import os
 from ..depth_client import snapshot
+from ..event_bus import subscribe
 from ..arbitrage import _prepare_service_tx, VENUE_URLS, DEX_BASE_URL
 from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
@@ -25,6 +27,7 @@ class CrossDEXRebalancer(BaseAgent):
         rebalance_interval: int = 30,
         slippage_threshold: float = 0.05,
         use_mev_bundles: bool = False,
+        use_depth_feed: bool | None = None,
     ) -> None:
         self.optimizer = optimizer or PortfolioOptimizer()
         self.executor = executor or ExecutionAgent(rate_limit=0)
@@ -32,6 +35,21 @@ class CrossDEXRebalancer(BaseAgent):
         self.slippage_threshold = float(slippage_threshold)
         self.use_mev_bundles = bool(use_mev_bundles)
         self._last = 0.0
+        if use_depth_feed is None:
+            use_depth_feed = os.getenv("USE_DEPTH_FEED", "0").lower() in {"1", "true", "yes"}
+        self.use_depth_feed = bool(use_depth_feed)
+        self._depth_cache: Dict[str, Dict[str, Dict[str, float]]] = {}
+        self._unsub = None
+        if self.use_depth_feed:
+            self._unsub = subscribe("depth_update", self._handle_depth)
+
+    # ------------------------------------------------------------------
+    def _handle_depth(self, payload: Dict[str, Dict[str, Any]]) -> None:
+        self._depth_cache.update(payload)
+
+    def close(self) -> None:
+        if self._unsub:
+            self._unsub()
 
     # ------------------------------------------------------------------
     async def _split_action(
@@ -87,7 +105,12 @@ class CrossDEXRebalancer(BaseAgent):
         if not base_actions:
             return []
 
-        depth_data, _ = snapshot(token)
+        if self.use_depth_feed:
+            depth_data = self._depth_cache.get(token)
+            if depth_data is None:
+                depth_data, _ = snapshot(token)
+        else:
+            depth_data, _ = snapshot(token)
         all_actions: List[Dict[str, Any]] = []
         for act in base_actions:
             all_actions.extend(await self._split_action(act, depth_data))
