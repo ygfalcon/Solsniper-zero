@@ -12,36 +12,45 @@ from aiohttp import web
 @pytest.mark.asyncio
 async def test_depth_service_event_bus(tmp_path):
     # Build the service
-    subprocess.run([
-        "cargo",
-        "build",
-        "--manifest-path",
-        "depth_service/Cargo.toml",
-    ], check=True)
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            "depth_service/Cargo.toml",
+        ],
+        check=True,
+    )
 
     # Start dummy RPC server
     async def rpc_handler(request):
         data = await request.json()
         method = data.get("method")
         if method == "getLatestBlockhash":
-            return web.json_response({
-                "jsonrpc": "2.0",
-                "result": {
-                    "context": {"slot": 1},
-                    "value": {
-                        "blockhash": "11111111111111111111111111111111",
-                        "lastValidBlockHeight": 1,
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "context": {"slot": 1},
+                        "value": {
+                            "blockhash": "11111111111111111111111111111111",
+                            "lastValidBlockHeight": 1,
+                        },
                     },
-                },
-                "id": data.get("id"),
-            })
+                    "id": data.get("id"),
+                }
+            )
         elif method == "getVersion":
-            return web.json_response({
-                "jsonrpc": "2.0",
-                "result": {"solana-core": "1.18.0"},
-                "id": data.get("id"),
-            })
-        return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {"solana-core": "1.18.0"},
+                    "id": data.get("id"),
+                }
+            )
+        return web.json_response(
+            {"jsonrpc": "2.0", "result": None, "id": data.get("id")}
+        )
 
     rpc_app = web.Application()
     rpc_app.router.add_post("/", rpc_handler)
@@ -73,10 +82,12 @@ async def test_depth_service_event_bus(tmp_path):
     feed_port = feed_server.sockets[0].getsockname()[1]
 
     env = os.environ.copy()
-    env.update({
-        "EVENT_BUS_URL": f"ws://localhost:{bus_port}",
-        "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
-    })
+    env.update(
+        {
+            "EVENT_BUS_URL": f"ws://localhost:{bus_port}",
+            "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
+        }
+    )
 
     proc = await asyncio.create_subprocess_exec(
         "depth_service/target/debug/depth_service",
@@ -109,35 +120,44 @@ async def test_depth_service_event_bus(tmp_path):
 
 @pytest.mark.asyncio
 async def test_depth_service_event_bus_reconnect(tmp_path):
-    subprocess.run([
-        "cargo",
-        "build",
-        "--manifest-path",
-        "depth_service/Cargo.toml",
-    ], check=True)
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            "depth_service/Cargo.toml",
+        ],
+        check=True,
+    )
 
     async def rpc_handler(request):
         data = await request.json()
         method = data.get("method")
         if method == "getLatestBlockhash":
-            return web.json_response({
-                "jsonrpc": "2.0",
-                "result": {
-                    "context": {"slot": 1},
-                    "value": {
-                        "blockhash": "11111111111111111111111111111111",
-                        "lastValidBlockHeight": 1,
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "context": {"slot": 1},
+                        "value": {
+                            "blockhash": "11111111111111111111111111111111",
+                            "lastValidBlockHeight": 1,
+                        },
                     },
-                },
-                "id": data.get("id"),
-            })
+                    "id": data.get("id"),
+                }
+            )
         elif method == "getVersion":
-            return web.json_response({
-                "jsonrpc": "2.0",
-                "result": {"solana-core": "1.18.0"},
-                "id": data.get("id"),
-            })
-        return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {"solana-core": "1.18.0"},
+                    "id": data.get("id"),
+                }
+            )
+        return web.json_response(
+            {"jsonrpc": "2.0", "result": None, "id": data.get("id")}
+        )
 
     rpc_app = web.Application()
     rpc_app.router.add_post("/", rpc_handler)
@@ -168,10 +188,12 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
     feed_port = feed_server.sockets[0].getsockname()[1]
 
     env = os.environ.copy()
-    env.update({
-        "EVENT_BUS_URL": f"ws://localhost:{bus_port}",
-        "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
-    })
+    env.update(
+        {
+            "EVENT_BUS_URL": f"ws://localhost:{bus_port}",
+            "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
+        }
+    )
 
     proc = await asyncio.create_subprocess_exec(
         "depth_service/target/debug/depth_service",
@@ -217,35 +239,44 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
 
 @pytest.mark.asyncio
 async def test_depth_service_route_search(tmp_path):
-    subprocess.run([
-        "cargo",
-        "build",
-        "--manifest-path",
-        "depth_service/Cargo.toml",
-    ], check=True)
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            "depth_service/Cargo.toml",
+        ],
+        check=True,
+    )
 
     async def rpc_handler(request):
         data = await request.json()
         method = data.get("method")
         if method == "getLatestBlockhash":
-            return web.json_response({
-                "jsonrpc": "2.0",
-                "result": {
-                    "context": {"slot": 1},
-                    "value": {
-                        "blockhash": "11111111111111111111111111111111",
-                        "lastValidBlockHeight": 1,
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "context": {"slot": 1},
+                        "value": {
+                            "blockhash": "11111111111111111111111111111111",
+                            "lastValidBlockHeight": 1,
+                        },
                     },
-                },
-                "id": data.get("id"),
-            })
+                    "id": data.get("id"),
+                }
+            )
         elif method == "getVersion":
-            return web.json_response({
-                "jsonrpc": "2.0",
-                "result": {"solana-core": "1.18.0"},
-                "id": data.get("id"),
-            })
-        return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {"solana-core": "1.18.0"},
+                    "id": data.get("id"),
+                }
+            )
+        return web.json_response(
+            {"jsonrpc": "2.0", "result": None, "id": data.get("id")}
+        )
 
     rpc_app = web.Application()
     rpc_app.router.add_post("/", rpc_handler)
@@ -301,3 +332,96 @@ async def test_depth_service_route_search(tmp_path):
     assert profit == pytest.approx(0.1666, rel=1e-2)
     assert slip == pytest.approx(0.1833, rel=1e-2)
 
+
+@pytest.mark.asyncio
+async def test_depth_service_ws_snapshot(tmp_path):
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            "depth_service/Cargo.toml",
+        ],
+        check=True,
+    )
+
+    async def rpc_handler(request):
+        data = await request.json()
+        method = data.get("method")
+        if method == "getLatestBlockhash":
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "context": {"slot": 1},
+                        "value": {
+                            "blockhash": "11111111111111111111111111111111",
+                            "lastValidBlockHeight": 1,
+                        },
+                    },
+                    "id": data.get("id"),
+                }
+            )
+        elif method == "getVersion":
+            return web.json_response(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {"solana-core": "1.18.0"},
+                    "id": data.get("id"),
+                }
+            )
+        return web.json_response(
+            {"jsonrpc": "2.0", "result": None, "id": data.get("id")}
+        )
+
+    rpc_app = web.Application()
+    rpc_app.router.add_post("/", rpc_handler)
+    rpc_runner = web.AppRunner(rpc_app)
+    await rpc_runner.setup()
+    rpc_site = web.TCPSite(rpc_runner, "localhost", 0)
+    await rpc_site.start()
+    rpc_port = rpc_site._server.sockets[0].getsockname()[1]
+
+    async def feed_handler(ws):
+        await ws.send(json.dumps({"token": "TOK", "bids": 1, "asks": 2}))
+        await asyncio.sleep(0.2)
+
+    feed_server = await websockets.serve(feed_handler, "localhost", 0)
+    feed_port = feed_server.sockets[0].getsockname()[1]
+
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("localhost", 0))
+    ws_port = sock.getsockname()[1]
+    sock.close()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
+            "DEPTH_WS_ADDR": "127.0.0.1",
+            "DEPTH_WS_PORT": str(ws_port),
+        }
+    )
+
+    proc = await asyncio.create_subprocess_exec(
+        "depth_service/target/debug/depth_service",
+        "--serum",
+        f"ws://localhost:{feed_port}",
+        env=env,
+    )
+
+    await asyncio.sleep(0.5)
+
+    async with websockets.connect(f"ws://127.0.0.1:{ws_port}") as ws:
+        msg = await asyncio.wait_for(ws.recv(), 2)
+        data = json.loads(msg)
+        assert "TOK" in data
+
+    proc.kill()
+    await proc.wait()
+
+    await rpc_runner.cleanup()
+    feed_server.close()
+    await feed_server.wait_closed()

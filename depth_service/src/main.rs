@@ -87,6 +87,7 @@ type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 type SharedMmap = Arc<Mutex<MmapMut>>;
 
 type WsSender = broadcast::Sender<String>;
+type LatestSnap = Arc<Mutex<String>>;
 
 #[derive(Serialize, Deserialize)]
 struct EventMessage<T> {
@@ -264,6 +265,7 @@ async fn update_mmap(
     mmap: &SharedMmap,
     ws: &WsSender,
     bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
+    latest: &LatestSnap,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
     let mem = mem.lock().await;
@@ -296,6 +298,7 @@ async fn update_mmap(
     mmap.flush()?;
     let text = String::from_utf8_lossy(&json).to_string();
     let _ = ws.send(text.clone());
+    *latest.lock().await = text.clone();
     if let Some(bus) = bus {
         let entries: HashMap<String, pb::TokenAgg> = agg
             .iter()
@@ -342,6 +345,7 @@ async fn connect_feed(
     mmap: SharedMmap,
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    latest: LatestSnap,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -362,7 +366,7 @@ async fn connect_feed(
                 let entry = dexes.entry(dex.to_string()).or_default();
                 entry.insert(token.clone(), TokenInfo { bids, asks, tx_rate: 0.0 });
                 drop(dexes);
-                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref()).await;
+                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref(), &latest).await;
             }
         }
     }
@@ -377,6 +381,7 @@ async fn connect_price_feed(
     mmap: SharedMmap,
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    latest: LatestSnap,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -392,7 +397,7 @@ async fn connect_price_feed(
                 let entry = dexes.entry(dex.to_string()).or_default();
                 entry.insert(token.clone(), TokenInfo { bids: price, asks: price, tx_rate: 0.0 });
                 drop(dexes);
-                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref()).await;
+                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref(), &latest).await;
             }
         }
     }
@@ -406,6 +411,7 @@ async fn connect_mempool(
     mmap: SharedMmap,
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    latest: LatestSnap,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -420,7 +426,7 @@ async fn connect_mempool(
                 let mut mem_lock = mem.lock().await;
                 mem_lock.insert(token, rate);
                 drop(mem_lock);
-                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref()).await;
+                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref(), &latest).await;
             }
         }
     }
@@ -639,14 +645,19 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
     }
 }
 
-async fn ws_server(addr: &str, port: u16, tx: WsSender) -> Result<()> {
+async fn ws_server(addr: &str, port: u16, tx: WsSender, latest: LatestSnap) -> Result<()> {
     let listener = TcpListener::bind((addr, port)).await?;
     loop {
         let (stream, _) = listener.accept().await?;
         let tx = tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
             if let Ok(ws) = accept_async(stream).await {
                 let (mut write, _) = ws.split();
+                let snapshot = latest.lock().await.clone();
+                if !snapshot.is_empty() {
+                    let _ = write.send(WsMessage::Text(snapshot)).await;
+                }
                 let mut rx = tx.subscribe();
                 while let Ok(msg) = rx.recv().await {
                     if write.send(WsMessage::Text(msg)).await.is_err() {
@@ -741,6 +752,7 @@ async fn main() -> Result<()> {
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
+    let latest: LatestSnap = Arc::new(Mutex::new(String::new()));
     let bus_tx = if let Some(url) = event_bus_url(&cfg) {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         tokio::spawn(async move {
@@ -789,8 +801,9 @@ async fn main() -> Result<()> {
     {
         let tx = ws_tx.clone();
         let addr = ws_addr.clone();
+        let latest_snap = latest.clone();
         tokio::spawn(async move {
-            let _ = ws_server(&addr, ws_port, tx).await;
+            let _ = ws_server(&addr, ws_port, tx, latest_snap).await;
         });
     }
 
@@ -800,8 +813,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_feed("serum", &url, d, m, mm, tx, bus).await;
+            let _ = connect_feed("serum", &url, d, m, mm, tx, bus, latest).await;
         });
     }
     if let Some(url) = raydium {
@@ -810,8 +824,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("raydium", &url, d, m, mm, tx, bus).await;
+            let _ = connect_price_feed("raydium", &url, d, m, mm, tx, bus, latest).await;
         });
     }
     if let Some(url) = orca {
@@ -820,8 +835,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("orca", &url, d, m, mm, tx, bus).await;
+            let _ = connect_price_feed("orca", &url, d, m, mm, tx, bus, latest).await;
         });
     }
     if let Some(url) = jupiter {
@@ -830,8 +846,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("jupiter", &url, d, m, mm, tx, bus).await;
+            let _ = connect_price_feed("jupiter", &url, d, m, mm, tx, bus, latest).await;
         });
     }
     if let Some(url) = phoenix {
@@ -840,8 +857,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("phoenix", &url, d, m, mm, tx, bus).await;
+            let _ = connect_price_feed("phoenix", &url, d, m, mm, tx, bus, latest).await;
         });
     }
     if let Some(url) = meteora {
@@ -850,8 +868,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("meteora", &url, d, m, mm, tx, bus).await;
+            let _ = connect_price_feed("meteora", &url, d, m, mm, tx, bus, latest).await;
         });
     }
     if let Some(url) = mempool {
@@ -860,8 +879,9 @@ async fn main() -> Result<()> {
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
+        let latest = latest.clone();
         tokio::spawn(async move {
-            let _ = connect_mempool(&url, m, d, mm, tx, bus).await;
+            let _ = connect_mempool(&url, m, d, mm, tx, bus, latest).await;
         });
     }
 

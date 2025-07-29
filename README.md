@@ -142,8 +142,6 @@ direct transaction submission to the Solana RPC.
    - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
      When set, depth updates are forwarded using the topic `depth_update`.
      The same value can be provided via `event_bus_url` in your config.
-   - `USE_DEPTH_FEED` – publish depth snapshots from the mmap to
-     `depth_update` without using the websocket feed.
    - `--config <path>` – load these options from the given configuration file.
 3. **Route transactions through the service**
    Python code signs transactions locally and forwards them via
