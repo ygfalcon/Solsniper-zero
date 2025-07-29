@@ -54,6 +54,7 @@ ENV_VARS = {
     "min_delay": "MIN_DELAY",
     "max_delay": "MAX_DELAY",
     "offline_data_limit_gb": "OFFLINE_DATA_LIMIT_GB",
+    "dl_workers": "DL_WORKERS",
     "strategies": "STRATEGIES",
     "token_suffix": "TOKEN_SUFFIX",
     "token_keywords": "TOKEN_KEYWORDS",

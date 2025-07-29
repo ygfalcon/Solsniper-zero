@@ -147,11 +147,12 @@ def _metrics(trades: Iterable, snaps: Iterable) -> Tuple[float, float, float]:
 
 
 def _train_dqn(model: _DQN, data: Dataset, device: torch.device) -> None:
+    workers = int(os.getenv("DL_WORKERS", os.cpu_count() or 1))
     loader = DataLoader(
         data,
         batch_size=32,
         shuffle=True,
-        num_workers=os.cpu_count() or 1,
+        num_workers=workers,
     )
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = nn.MSELoss()
@@ -172,11 +173,12 @@ def _train_dqn(model: _DQN, data: Dataset, device: torch.device) -> None:
 
 
 def _train_ppo(model: _PPO, data: Dataset, device: torch.device) -> None:
+    workers = int(os.getenv("DL_WORKERS", os.cpu_count() or 1))
     loader = DataLoader(
         data,
         batch_size=32,
         shuffle=True,
-        num_workers=os.cpu_count() or 1,
+        num_workers=workers,
     )
     opt = torch.optim.Adam(list(model.actor.parameters()) + list(model.critic.parameters()), lr=3e-4)
     model.train()

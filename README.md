@@ -765,11 +765,12 @@ solhunter-train --daemon --device cuda
 Set `rl_auto_train = true` in `config.toml` to enable automatic hyperparameter
 tuning. When enabled the RL daemon starts automatically with the trading loop.
 It spawns `scripts/auto_train_rl.py` which periodically retrains the PPO model
+
 from `offline_data.db`. Control how often tuning runs via `rl_tune_interval`
-(seconds).
-The RL agents also take the current market regime as an additional input.
-Adjust the influence of this indicator with the new `regime_weight` setting
-(defaults to `1.0`).
+(seconds). The RL agents also take the current market regime as an additional
+input. Adjust the influence of this indicator with the new `regime_weight`
+setting (defaults to `1.0`). Set `DL_WORKERS` to control the number of worker
+processes used by the RL `DataLoader` (defaults to the CPU count).
 
 `solhunter_zero.backtest_cli` now supports Bayesian optimisation of agent
 weights. Optimisation runs the backtester repeatedly while a Gaussian process
