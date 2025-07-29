@@ -19,3 +19,8 @@ async def close_session() -> None:
         if callable(close) and not getattr(_session, "closed", False):
             await close()
     _session = None
+    try:
+        from .depth_client import close_mmap
+        close_mmap()
+    except Exception:
+        pass
