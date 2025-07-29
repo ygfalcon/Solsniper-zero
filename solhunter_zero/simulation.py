@@ -41,6 +41,56 @@ _PRICE_MTIME = 0.0
 TOKEN_METRICS_CACHE_TTL = 30  # seconds
 TOKEN_METRICS_CACHE = TTLCache(maxsize=256, ttl=TOKEN_METRICS_CACHE_TTL)
 
+# Cache for trained ROI models keyed by (token, model_type, params)
+SIM_MODEL_CACHE_TTL = 300  # seconds
+SIM_MODEL_CACHE = TTLCache(maxsize=64, ttl=SIM_MODEL_CACHE_TTL)
+
+
+def invalidate_simulation_models(token: str | None = None) -> None:
+    """Remove cached simulation models.
+
+    Parameters
+    ----------
+    token:
+        If provided, only models for the given token are removed. Otherwise the
+        entire cache is cleared.
+    """
+
+    if token is None:
+        SIM_MODEL_CACHE.clear()
+        return
+    for key in list(SIM_MODEL_CACHE._cache.keys()):
+        if isinstance(key, tuple) and key and key[0] == token:
+            SIM_MODEL_CACHE._cache.pop(key, None)
+
+
+def _metrics_signature(metrics: dict) -> tuple:
+    """Return a short signature describing metric history state."""
+
+    def _last(val: list) -> float:
+        return float(val[-1]) if val else 0.0
+
+    return (
+        len(metrics.get("price_history") or []),
+        _last(metrics.get("price_history") or []),
+        len(metrics.get("liquidity_history") or []),
+        _last(metrics.get("liquidity_history") or []),
+        len(metrics.get("depth_history") or []),
+        _last(metrics.get("depth_history") or []),
+        len(metrics.get("slippage_history") or []),
+        _last(metrics.get("slippage_history") or []),
+        len(metrics.get("tx_count_history") or []),
+        _last(metrics.get("tx_count_history") or []),
+        float(metrics.get("token_age", 0.0)),
+        float(metrics.get("initial_liquidity", 0.0)),
+    )
+
+
+def _model_cache_key(token: str, model_type: str, metrics: dict, days: int) -> tuple:
+    """Return hashable key for ``SIM_MODEL_CACHE``."""
+
+    return (token, model_type, days, _metrics_signature(metrics))
+
 
 def get_price_model(model_path: str | None = None):
     """Return cached price model reloading when the file changes."""
@@ -186,6 +236,7 @@ async def fetch_token_metrics_async(token: str) -> dict:
         metrics["slippage_per_dex"] = []
 
     TOKEN_METRICS_CACHE.set(token, metrics)
+    invalidate_simulation_models(token)
     return metrics
 
 
@@ -403,16 +454,21 @@ def run_simulations(
             cols.append(np.full(n, token_age))
             cols.append(np.full(n, initial_liquidity))
             X = np.column_stack(cols)
-            if XGBRegressor is not None:
-                model = XGBRegressor(
-                    n_estimators=50,
-                    learning_rate=0.1,
-                    max_depth=3,
-                    objective="reg:squarederror",
-                )
-            else:
-                model = RandomForestRegressor(n_estimators=50, random_state=42)
-            model = model.fit(X, returns[:n])
+            model_type = "xgb" if XGBRegressor is not None else "rf"
+            cache_key = _model_cache_key(token, model_type, metrics, days)
+            model = SIM_MODEL_CACHE.get(cache_key)
+            if model is None:
+                if XGBRegressor is not None:
+                    model = XGBRegressor(
+                        n_estimators=50,
+                        learning_rate=0.1,
+                        max_depth=3,
+                        objective="reg:squarederror",
+                    )
+                else:
+                    model = RandomForestRegressor(n_estimators=50, random_state=42)
+                model = model.fit(X, returns[:n])
+                SIM_MODEL_CACHE.set(cache_key, model)
             feat = (
                 [liquidity, depth, slippage, tx_trend]
                 + depth_features
@@ -444,7 +500,11 @@ def run_simulations(
             for val in slip_features:
                 cols.append(np.full(n, val))
             X = np.column_stack(cols)
-            model = GradientBoostingRegressor().fit(X, returns[:n])
+            cache_key = _model_cache_key(token, "gbr", metrics, days)
+            model = SIM_MODEL_CACHE.get(cache_key)
+            if model is None:
+                model = GradientBoostingRegressor().fit(X, returns[:n])
+                SIM_MODEL_CACHE.set(cache_key, model)
             feat = [liquidity, depth, slippage] + depth_features + slip_features
             predicted_mean = float(model.predict([feat])[0])
         except Exception as exc:  # pragma: no cover - numeric issues
@@ -467,7 +527,11 @@ def run_simulations(
             for val in slip_features:
                 cols.append(np.full(n, val))
             X = np.column_stack(cols)
-            model = LinearRegression().fit(X, returns[:n])
+            cache_key = _model_cache_key(token, "lin", metrics, days)
+            model = SIM_MODEL_CACHE.get(cache_key)
+            if model is None:
+                model = LinearRegression().fit(X, returns[:n])
+                SIM_MODEL_CACHE.set(cache_key, model)
             feat = [liquidity, depth, sigma] + depth_features + slip_features
             predicted_mean = float(model.predict([feat])[0])
         except Exception as exc:  # pragma: no cover - numeric issues
