@@ -53,6 +53,44 @@ def test_snapshot(tmp_path, monkeypatch):
     }
 
 
+def test_snapshot_cache(tmp_path, monkeypatch):
+    data = {
+        "tok": {"tx_rate": 1.0, "dex": {"bids": 1, "asks": 1}}
+    }
+    path = tmp_path / "depth.mmap"
+    path.write_text(json.dumps(data))
+    monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
+    depth_client.SNAPSHOT_CACHE.clear()
+    monkeypatch.setattr(depth_client, "DEPTH_CACHE_TTL", 0.5)
+
+    import builtins
+
+    calls = []
+
+    original_open = builtins.open
+
+    def fake_open(file, *args, **kwargs):
+        if file == str(path):
+            calls.append(1)
+        return original_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    times = [0.0, 0.1]
+
+    def fake_monotonic():
+        return times.pop(0)
+
+    monkeypatch.setattr(depth_client.time, "monotonic", fake_monotonic)
+
+    venues1, rate1 = depth_client.snapshot("tok")
+    venues2, rate2 = depth_client.snapshot("tok")
+    monkeypatch.setattr(builtins, "open", original_open)
+
+    assert venues1 == venues2
+    assert rate1 == rate2
+    assert len(calls) == 1
+
+
 def test_submit_signed_tx(monkeypatch):
     captured = {}
 
