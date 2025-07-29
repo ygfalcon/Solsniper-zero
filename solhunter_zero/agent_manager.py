@@ -43,7 +43,9 @@ class StrategySelector:
     def _roi_by_agent(self, names: Iterable[str]) -> Dict[str, float]:
         rois = {n: 0.0 for n in names}
         trades = (
-            self.memory_agent.memory.list_trades() if self.memory_agent else []
+            self.memory_agent.memory.list_trades(limit=1000)
+            if self.memory_agent
+            else []
         )
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
@@ -281,7 +283,7 @@ class AgentManager:
         if not self.memory_agent:
             return
 
-        trades = self.memory_agent.memory.list_trades()
+        trades = self.memory_agent.memory.list_trades(limit=1000)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             name = t.reason or ""
@@ -324,7 +326,7 @@ class AgentManager:
     def _roi_by_agent(self, names: Iterable[str]) -> Dict[str, float]:
         if not self.memory_agent:
             return {n: 0.0 for n in names}
-        trades = self.memory_agent.memory.list_trades()
+        trades = self.memory_agent.memory.list_trades(limit=1000)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             if t.reason not in names:

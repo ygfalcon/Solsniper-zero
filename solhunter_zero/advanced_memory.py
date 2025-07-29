@@ -190,9 +190,24 @@ class AdvancedMemory(BaseMemory):
         return trade.id
 
     # ------------------------------------------------------------------
-    def list_trades(self) -> List[Trade]:
+    def list_trades(
+        self,
+        *,
+        token: str | None = None,
+        limit: int | None = None,
+        since_id: int | None = None,
+    ) -> List[Trade]:
+        """Return trades optionally filtered by token or id."""
         with self.Session() as session:
-            return session.query(Trade).all()
+            q = session.query(Trade)
+            if token is not None:
+                q = q.filter_by(token=token)
+            if since_id is not None:
+                q = q.filter(Trade.id > since_id)
+            q = q.order_by(Trade.id)
+            if limit is not None:
+                q = q.limit(limit)
+            return list(q)
 
     # ------------------------------------------------------------------
     def simulation_success_rate(self, token: str, *, agent: str | None = None) -> float:

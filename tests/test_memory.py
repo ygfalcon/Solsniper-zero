@@ -15,6 +15,18 @@ def test_log_and_list_trades():
     assert trades[1].direction == 'sell'
 
 
+def test_list_trades_filters():
+    mem = Memory('sqlite:///:memory:')
+    a = mem.log_trade(token='A', direction='buy', amount=1.0, price=1.0)
+    b = mem.log_trade(token='B', direction='sell', amount=1.0, price=1.0)
+    c = mem.log_trade(token='A', direction='sell', amount=2.0, price=1.0)
+
+    assert len(mem.list_trades(token='A')) == 2
+    assert len(mem.list_trades(limit=2)) == 2
+    ids = [t.id for t in mem.list_trades(since_id=b)]
+    assert ids == [c]
+
+
 def test_log_and_list_vars():
     mem = Memory('sqlite:///:memory:')
     mem.log_var(0.1)

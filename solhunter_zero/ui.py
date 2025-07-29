@@ -464,7 +464,7 @@ def trades() -> dict:
             "price": t.price,
             "timestamp": t.timestamp.isoformat(),
         }
-        for t in mem.list_trades()[-50:]
+        for t in mem.list_trades(limit=50)
     ]
     return jsonify(recents)
 

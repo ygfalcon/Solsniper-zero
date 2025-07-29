@@ -54,6 +54,7 @@ class DQNAgent(BaseAgent):
         self.device = torch.device(device)
         self._last_mtime = 0.0
         self._seen_ids: set[int] = set()
+        self._last_id: int = 0
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class DQNAgent(BaseAgent):
         return predict_price_movement(token, model_path=self.price_model_path)
 
     def train(self, portfolio: Portfolio, regime: str | None = None) -> None:
-        trades = self.memory_agent.memory.list_trades()
+        trades = self.memory_agent.memory.list_trades(since_id=self._last_id)
         prices: dict[str, list[float]] = {}
         for t in trades:
             tid = getattr(t, "id", None)
@@ -109,6 +110,8 @@ class DQNAgent(BaseAgent):
                 continue
             if tid is not None:
                 self._seen_ids.add(tid)
+                if tid > self._last_id:
+                    self._last_id = tid
             reward = float(t.amount) * float(t.price)
             if t.direction == "buy":
                 reward = -reward
