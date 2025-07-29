@@ -2,6 +2,7 @@ import os
 import json
 import mmap
 import asyncio
+import time
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
@@ -15,6 +16,10 @@ DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.soc
 
 MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
 DEPTH_WS_ADDR, DEPTH_WS_PORT = get_depth_ws_addr()
+
+# Depth snapshot caching
+DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
+SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
 
 
 def _reload_depth(cfg) -> None:
@@ -106,8 +111,9 @@ async def stream_depth_ws(
             count += 1
             if max_updates is not None and count >= max_updates:
                 return
-            if rate_limit > 0:
-                await asyncio.sleep(rate_limit)
+            sleep_time = max(rate_limit, DEPTH_CACHE_TTL)
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
         else:
             if was_connected:
                 publish("depth_service_status", {"status": "disconnected"})
@@ -154,6 +160,10 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
 
 def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
     """Return order book depth per venue and mempool rate."""
+    now = time.monotonic()
+    cached = SNAPSHOT_CACHE.get(token)
+    if cached and now - cached[0] < DEPTH_CACHE_TTL:
+        return cached[2], cached[1]
     try:
         with open(MMAP_PATH, "rb") as f:
             with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
@@ -173,6 +183,7 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
                         "bids": float(info.get("bids", 0.0)),
                         "asks": float(info.get("asks", 0.0)),
                     }
+                SNAPSHOT_CACHE[token] = (now, rate, venues)
                 return venues, rate
     except Exception:
         return {}, 0.0
