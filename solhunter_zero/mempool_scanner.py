@@ -8,7 +8,30 @@ import statistics
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
-from solana.publickey import PublicKey
+try:
+    from solana.publickey import PublicKey
+except Exception:  # pragma: no cover - minimal stub when solana is missing
+    class PublicKey(str):
+        def __new__(cls, value: str):
+            obj = str.__new__(cls, value)
+            try:
+                from solders.pubkey import Pubkey
+
+                obj._solder = Pubkey.from_string(value)
+            except Exception:
+                obj._solder = value
+            return obj
+
+        @property
+        def _key(self):  # mimic solana-py attribute
+            return getattr(self, "_solder", self)
+
+    import types, sys
+
+    mod = types.ModuleType("solana.publickey")
+    mod.PublicKey = PublicKey
+    sys.modules.setdefault("solana.publickey", mod)
+
 from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
@@ -129,14 +152,10 @@ async def stream_mempool_tokens(
 async def rank_token(token: str, rpc_url: str) -> tuple[float, Dict[str, float]]:
     """Return ranking score and metrics for ``token``."""
 
-    volume = await asyncio.to_thread(
-        onchain_metrics.fetch_volume_onchain, token, rpc_url
-    )
-    liquidity = await asyncio.to_thread(
-        onchain_metrics.fetch_liquidity_onchain, token, rpc_url
-    )
-    insights = await asyncio.to_thread(
-        onchain_metrics.collect_onchain_insights, token, rpc_url
+    volume, liquidity, insights = await asyncio.gather(
+        onchain_metrics.fetch_volume_onchain_async(token, rpc_url),
+        onchain_metrics.fetch_liquidity_onchain_async(token, rpc_url),
+        onchain_metrics.collect_onchain_insights_async(token, rpc_url),
     )
     tx_rate = insights.get("tx_rate", 0.0)
     whale_activity = insights.get("whale_activity", 0.0)
@@ -194,11 +213,23 @@ async def stream_ranked_mempool_tokens(
     keywords: Iterable[str] | None = None,
     include_pools: bool = True,
     threshold: float | None = None,
+    max_concurrency: int = 5,
 ) -> AsyncGenerator[Dict[str, float], None]:
     """Yield ranked token events from the mempool."""
 
     if threshold is None:
         threshold = MEMPOOL_SCORE_THRESHOLD
+
+    sem = asyncio.Semaphore(max_concurrency)
+    queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
+    tasks: set[asyncio.Task] = set()
+
+    async def worker(addr: str) -> None:
+        async with sem:
+            score, data = await rank_token(addr, rpc_url)
+            if score >= threshold:
+                combined = data["momentum"] * (1.0 - data["whale_activity"])
+                await queue.put({"address": addr, **data, "combined_score": combined})
 
     async for tok in stream_mempool_tokens(
         rpc_url,
@@ -207,10 +238,16 @@ async def stream_ranked_mempool_tokens(
         include_pools=include_pools,
     ):
         address = tok["address"] if isinstance(tok, dict) else tok
-        score, data = await rank_token(address, rpc_url)
-        if score >= threshold:
-            combined = data["momentum"] * (1.0 - data["whale_activity"])
-            yield {"address": address, **data, "combined_score": combined}
+        task = asyncio.create_task(worker(address))
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
+        while not queue.empty():
+            yield queue.get_nowait()
+
+    if tasks:
+        await asyncio.gather(*tasks)
+    while not queue.empty():
+        yield queue.get_nowait()
 
 
 async def stream_ranked_mempool_tokens_with_depth(

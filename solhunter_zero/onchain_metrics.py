@@ -175,6 +175,34 @@ def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, floa
     return asyncio.run(fetch_dex_metrics_async(token, base_url))
 
 
+async def fetch_liquidity_onchain_async(token: str, rpc_url: str) -> float:
+    """Asynchronously return token liquidity computed from on-chain data."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    async with AsyncClient(rpc_url) as client:
+        try:
+            resp = await client.get_token_largest_accounts(PublicKey(token))
+            accounts = resp.get("result", {}).get("value", [])
+            total = 0.0
+            for acc in accounts:
+                val = acc.get("uiAmount")
+                if isinstance(val, (int, float)):
+                    total += float(val)
+                else:
+                    val = acc.get("amount")
+                    if isinstance(val, (int, float, str)):
+                        try:
+                            total += float(val)
+                        except Exception:
+                            pass
+            return total
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch liquidity for %s: %s", token, exc)
+            return 0.0
+
+
 def fetch_liquidity_onchain(token: str, rpc_url: str) -> float:
     """Return token liquidity computed from on-chain data.
 
@@ -205,6 +233,22 @@ def fetch_liquidity_onchain(token: str, rpc_url: str) -> float:
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch liquidity for %s: %s", token, exc)
         return 0.0
+
+
+async def fetch_volume_onchain_async(token: str, rpc_url: str) -> float:
+    """Asynchronously return transaction volume for ``token``."""
+
+    if not rpc_url:
+        raise ValueError("rpc_url is required")
+
+    async with AsyncClient(rpc_url) as client:
+        try:
+            resp = await client.get_signatures_for_address(PublicKey(token))
+            entries = resp.get("result", [])
+            return _tx_volume(entries)
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch volume for %s: %s", token, exc)
+            return 0.0
 
 
 def fetch_volume_onchain(token: str, rpc_url: str) -> float:
@@ -292,5 +336,25 @@ def collect_onchain_insights(
         "tx_rate": fetch_mempool_tx_rate(token, rpc_url),
         "whale_activity": fetch_whale_wallet_activity(token, rpc_url),
         "avg_swap_size": fetch_average_swap_size(token, rpc_url),
+    }
+
+
+async def collect_onchain_insights_async(
+    token: str, rpc_url: str, base_url: str | None = None
+) -> Dict[str, float]:
+    """Asynchronously collect on-chain insights."""
+
+    depth_change, tx_rate, whale_activity, avg_swap = await asyncio.gather(
+        asyncio.to_thread(order_book_depth_change, token, base_url),
+        asyncio.to_thread(fetch_mempool_tx_rate, token, rpc_url),
+        asyncio.to_thread(fetch_whale_wallet_activity, token, rpc_url),
+        asyncio.to_thread(fetch_average_swap_size, token, rpc_url),
+    )
+
+    return {
+        "depth_change": float(depth_change),
+        "tx_rate": float(tx_rate),
+        "whale_activity": float(whale_activity),
+        "avg_swap_size": float(avg_swap),
     }
 
