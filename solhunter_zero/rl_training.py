@@ -156,7 +156,12 @@ class TradeDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         if self.dataset is None:
             self.setup()
-        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(
+            self.dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=os.cpu_count() or 1,
+        )
 
 
 class LightningPPO(pl.LightningModule):
@@ -357,6 +362,7 @@ def fit(
 
     dataset = _TradeDataset(trades, snaps, regime_weight=regime_weight)
     if len(dataset) == 0:
+        Path(model_path).touch()
         return
 
     if algo == "dqn":
@@ -384,6 +390,11 @@ def fit(
     if acc != "cpu":
         kwargs["devices"] = 1
     trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
-    loader = DataLoader(dataset, batch_size=64, shuffle=True)
+    loader = DataLoader(
+        dataset,
+        batch_size=64,
+        shuffle=True,
+        num_workers=os.cpu_count() or 1,
+    )
     trainer.fit(model, train_dataloaders=loader)
     torch.save(model.state_dict(), path)
