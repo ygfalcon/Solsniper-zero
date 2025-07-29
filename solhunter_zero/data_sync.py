@@ -32,13 +32,14 @@ def _prune_db(data: OfflineData, db_path: str, limit_gb: float) -> None:
             session.commit()
 
 
-def sync_snapshots(
+async def sync_snapshots(
     tokens: Sequence[str],
     *,
     days: int = 3,
     db_path: str = "offline_data.db",
     base_url: str | None = None,
     limit_gb: float | None = None,
+    concurrency: int = 5,
 ) -> None:
     """Download order-book snapshots and insert them into ``db_path``."""
 
@@ -64,16 +65,18 @@ def sync_snapshots(
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("failed to fetch sentiment: %s", exc)
 
-    for token in tokens:
-        url = f"{base_url.rstrip('/')}/token/{token}/history?days={days}"
-        try:
-            async def _fetch() -> dict:
-                async with aiohttp.ClientSession() as session:
+    sem = asyncio.Semaphore(concurrency)
+    async with aiohttp.ClientSession() as session:
+        async def fetch_and_log(token: str) -> None:
+            url = f"{base_url.rstrip('/')}/token/{token}/history?days={days}"
+            try:
+                async with sem:
                     async with session.get(url, timeout=10) as resp:
                         resp.raise_for_status()
-                        return await resp.json()
-
-            resp_data = asyncio.run(_fetch())
+                        resp_data = await resp.json()
+            except Exception as exc:  # pragma: no cover - network errors
+                logger.warning("failed to fetch snapshots for %s: %s", token, exc)
+                return
             for snap in resp_data.get("snapshots", []):
                 try:
                     data.log_snapshot(
@@ -88,8 +91,8 @@ def sync_snapshots(
                     )
                 except Exception as exc:  # pragma: no cover - bad data
                     logger.warning("invalid snapshot for %s: %s", token, exc)
-        except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("failed to fetch snapshots for %s: %s", token, exc)
+
+        await asyncio.gather(*(fetch_and_log(token) for token in tokens))
 
     _prune_db(data, db_path, limit_gb)
 
@@ -101,5 +104,5 @@ async def sync_recent(days: int = 3, db_path: str = "offline_data.db") -> None:
         offline=False, token_file=None, method=os.getenv("DISCOVERY_METHOD", "websocket")
     )
     if tokens:
-        sync_snapshots(tokens, days=days, db_path=db_path)
+        await sync_snapshots(tokens, days=days, db_path=db_path)
 
