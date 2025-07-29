@@ -280,6 +280,31 @@ async def test_event_bus_url_connect(monkeypatch):
     importlib.reload(ev)
 
 
+def test_event_bus_fallback_json(monkeypatch):
+    import builtins
+    import importlib
+    orig_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "orjson":
+            raise ModuleNotFoundError
+        return orig_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+
+    seen = []
+    ev.subscribe("x", lambda p: seen.append(p))
+    ev.publish("x", {"a": 1})
+
+    assert seen == [{"a": 1}]
+    assert not ev._USE_ORJSON
+
+    importlib.reload(ev)
+
+
 def test_publish_invalid_payload():
     from solhunter_zero.event_bus import publish
     with pytest.raises(ValueError):
