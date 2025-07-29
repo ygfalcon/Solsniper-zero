@@ -4,6 +4,7 @@ import mmap
 import asyncio
 import time
 import atexit
+import struct
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
@@ -215,7 +216,43 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         m = open_mmap()
         if m is None:
             return {}, 0.0
-        raw = m[:].rstrip(b"\x00")
+        buf = memoryview(m)
+        if len(buf) >= 8 and bytes(buf[:4]) == b"IDX1":
+            count = int.from_bytes(buf[4:8], "little")
+            off = 8
+            for _ in range(count):
+                if off + 2 > len(buf):
+                    break
+                tlen = int.from_bytes(buf[off : off + 2], "little")
+                off += 2
+                if off + tlen > len(buf):
+                    break
+                t = bytes(buf[off : off + tlen]).decode()
+                off += tlen
+                if off + 8 > len(buf):
+                    break
+                data_off = int.from_bytes(buf[off : off + 4], "little")
+                data_len = int.from_bytes(buf[off + 4 : off + 8], "little")
+                off += 8
+                if t == token:
+                    slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
+                    if not slice_bytes:
+                        return {}, 0.0
+                    entry = json.loads(slice_bytes.decode())
+                    rate = float(entry.get("tx_rate", 0.0))
+                    venues = {
+                        d: {
+                            "bids": float(i.get("bids", 0.0)),
+                            "asks": float(i.get("asks", 0.0)),
+                        }
+                        for d, i in entry.items()
+                        if isinstance(i, dict)
+                    }
+                    SNAPSHOT_CACHE[token] = (now, rate, venues)
+                    return venues, rate
+            return {}, 0.0
+        # Fallback to legacy JSON structure
+        raw = bytes(buf).rstrip(b"\x00")
         if not raw:
             return {}, 0.0
         data = json.loads(raw.decode())
@@ -223,14 +260,14 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         if not entry:
             return {}, 0.0
         rate = float(entry.get("tx_rate", 0.0))
-        venues = {}
-        for dex, info in entry.items():
-            if dex == "tx_rate" or not isinstance(info, dict):
-                continue
-            venues[dex] = {
-                "bids": float(info.get("bids", 0.0)),
-                "asks": float(info.get("asks", 0.0)),
+        venues = {
+            d: {
+                "bids": float(i.get("bids", 0.0)),
+                "asks": float(i.get("asks", 0.0)),
             }
+            for d, i in entry.items()
+            if isinstance(i, dict)
+        }
         SNAPSHOT_CACHE[token] = (now, rate, venues)
         return venues, rate
     except Exception:
