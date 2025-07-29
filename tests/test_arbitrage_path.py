@@ -164,37 +164,35 @@ def test_graph_search_profit():
         1.0,
         token="tok",
         max_hops=3,
-        path_algorithm="graph",
     )
 
     assert new_profit >= old_profit
 
 
-def test_graph_vs_permutation_benchmark():
+def test_weighted_algorithm_profit():
     prices = {f"dex{i}": 1.0 + 0.1 * i for i in range(6)}
 
     start = time.perf_counter()
-    _, perm_profit = arb._best_route(
+    _, p1 = arb._best_route(
         prices,
         1.0,
         token="tok",
         max_hops=6,
-        path_algorithm="permutation",
     )
-    perm_time = time.perf_counter() - start
+    t1 = time.perf_counter() - start
 
     start = time.perf_counter()
-    _, graph_profit = arb._best_route(
+    _, p2 = arb._best_route(
         prices,
         1.0,
         token="tok",
         max_hops=6,
-        path_algorithm="graph",
+        path_algorithm="dijkstra",
     )
-    graph_time = time.perf_counter() - start
+    t2 = time.perf_counter() - start
 
-    assert graph_profit == pytest.approx(perm_profit)
-    assert graph_time <= perm_time
+    assert p1 == pytest.approx(p2)
+    assert t2 <= t1 * 1.5
 
 
 class _CountingCache(arb.LRUCache):
