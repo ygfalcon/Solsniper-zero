@@ -42,6 +42,9 @@ pub fn best_route(
     let mut best_path: Option<Vec<String>> = None;
     let mut best_profit = f64::NEG_INFINITY;
     let mut best_slip = 0.0;
+    let max_price = prices.values().fold(f64::MIN, |a, v| a.max(*v));
+    let min_price = prices.values().fold(f64::MAX, |a, v| a.min(*v));
+    let max_diff = (max_price - min_price).abs();
     let mut paths: Vec<(String, Vec<String>, f64, f64)> = venues
         .iter()
         .map(|v| (v.clone(), vec![v.clone()], 0.0, 0.0))
@@ -49,6 +52,10 @@ pub fn best_route(
     for _ in 1..max_hops {
         let mut new_paths = Vec::new();
         for (last, path, profit, slip) in paths.iter() {
+            let remaining = max_hops.saturating_sub(path.len());
+            if *profit + (remaining as f64) * max_diff * amount < best_profit {
+                continue;
+            }
             for nxt in venues.iter() {
                 if path.contains(nxt) {
                     continue;
@@ -68,7 +75,12 @@ pub fn best_route(
                     best_path = Some(new_path.clone());
                     best_slip = new_slip;
                 }
-                new_paths.push((nxt.clone(), new_path, new_profit, new_slip));
+                if new_profit
+                    + (max_hops.saturating_sub(new_path.len()) as f64) * max_diff * amount
+                    >= best_profit
+                {
+                    new_paths.push((nxt.clone(), new_path, new_profit, new_slip));
+                }
             }
         }
         paths = new_paths;

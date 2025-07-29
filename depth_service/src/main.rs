@@ -616,7 +616,11 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             val.get("amount").and_then(|v| v.as_f64()),
                         ) {
                             let dexes = dex_map.lock().await;
-                            if let Some(res) = route::best_route(&dexes, token, amount, 4) {
+                            let hops = val
+                                .get("max_hops")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(4) as usize;
+                            if let Some(res) = route::best_route(&dexes, token, amount, hops) {
                                 let resp = serde_json::json!({
                                     "path": res.path,
                                     "profit": res.profit,

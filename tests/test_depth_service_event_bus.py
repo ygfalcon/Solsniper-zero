@@ -214,3 +214,90 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
         len([e for e in events[:initial_len] if e.get("topic") == "depth_update"])
     )
 
+
+@pytest.mark.asyncio
+async def test_depth_service_route_search(tmp_path):
+    subprocess.run([
+        "cargo",
+        "build",
+        "--manifest-path",
+        "depth_service/Cargo.toml",
+    ], check=True)
+
+    async def rpc_handler(request):
+        data = await request.json()
+        method = data.get("method")
+        if method == "getLatestBlockhash":
+            return web.json_response({
+                "jsonrpc": "2.0",
+                "result": {
+                    "context": {"slot": 1},
+                    "value": {
+                        "blockhash": "11111111111111111111111111111111",
+                        "lastValidBlockHeight": 1,
+                    },
+                },
+                "id": data.get("id"),
+            })
+        elif method == "getVersion":
+            return web.json_response({
+                "jsonrpc": "2.0",
+                "result": {"solana-core": "1.18.0"},
+                "id": data.get("id"),
+            })
+        return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+
+    rpc_app = web.Application()
+    rpc_app.router.add_post("/", rpc_handler)
+    rpc_runner = web.AppRunner(rpc_app)
+    await rpc_runner.setup()
+    rpc_site = web.TCPSite(rpc_runner, "localhost", 0)
+    await rpc_site.start()
+    rpc_port = rpc_site._server.sockets[0].getsockname()[1]
+
+    async def feed_handler_1(ws):
+        await ws.send(json.dumps({"token": "TOK", "price": 10}))
+        await asyncio.sleep(0.2)
+
+    async def feed_handler_2(ws):
+        await ws.send(json.dumps({"token": "TOK", "price": 12}))
+        await asyncio.sleep(0.2)
+
+    feed_server_1 = await websockets.serve(feed_handler_1, "localhost", 0)
+    port1 = feed_server_1.sockets[0].getsockname()[1]
+    feed_server_2 = await websockets.serve(feed_handler_2, "localhost", 0)
+    port2 = feed_server_2.sockets[0].getsockname()[1]
+
+    env = os.environ.copy()
+    env.update({"SOLANA_RPC_URL": f"http://localhost:{rpc_port}"})
+
+    proc = await asyncio.create_subprocess_exec(
+        "depth_service/target/debug/depth_service",
+        "--raydium",
+        f"ws://localhost:{port1}",
+        "--orca",
+        f"ws://localhost:{port2}",
+        env=env,
+    )
+
+    await asyncio.sleep(1.0)
+
+    from solhunter_zero import depth_client
+
+    res = await depth_client.best_route("TOK", 1.0, max_hops=4)
+
+    proc.kill()
+    await proc.wait()
+
+    await rpc_runner.cleanup()
+    feed_server_1.close()
+    await feed_server_1.wait_closed()
+    feed_server_2.close()
+    await feed_server_2.wait_closed()
+
+    assert res is not None
+    path, profit, slip = res
+    assert path == ["raydium", "orca"]
+    assert profit == pytest.approx(0.1666, rel=1e-2)
+    assert slip == pytest.approx(0.1833, rel=1e-2)
+
