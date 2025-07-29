@@ -30,6 +30,7 @@ def _reload_depth(cfg) -> None:
 
 subscription("config_updated", _reload_depth).__enter__()
 
+
 async def stream_depth(
     token: str,
     *,
@@ -58,42 +59,42 @@ async def stream_depth_ws(
         try:
             session = await get_session()
             async with session.ws_connect(url) as ws:
-                    publish(
-                        "depth_service_status",
-                        {"status": "reconnected" if was_connected else "connected"},
-                    )
-                    was_connected = True
-                    async for msg in ws:
-                        if msg.type != aiohttp.WSMsgType.TEXT:
-                            continue
-                        try:
-                            data = json.loads(msg.data)
-                        except Exception:
-                            continue
-                        entry = data.get(token)
-                        if not entry:
-                            continue
-                        bids = float(entry.get("bids", 0.0)) if "bids" in entry else 0.0
-                        asks = float(entry.get("asks", 0.0)) if "asks" in entry else 0.0
-                        rate = float(entry.get("tx_rate", 0.0))
-                        for v in entry.values():
-                            if isinstance(v, dict):
-                                bids += float(v.get("bids", 0.0))
-                                asks += float(v.get("asks", 0.0))
-                        depth = bids + asks
-                        imb = (bids - asks) / depth if depth else 0.0
-                        yield {
-                            "token": token,
-                            "depth": depth,
-                            "imbalance": imb,
-                            "tx_rate": rate,
-                        }
-                        count += 1
-                        if max_updates is not None and count >= max_updates:
-                            publish("depth_service_status", {"status": "disconnected"})
-                            return
-                        if rate_limit > 0:
-                            await asyncio.sleep(rate_limit)
+                publish(
+                    "depth_service_status",
+                    {"status": "reconnected" if was_connected else "connected"},
+                )
+                was_connected = True
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = json.loads(msg.data)
+                    except Exception:
+                        continue
+                    entry = data.get(token)
+                    if not entry:
+                        continue
+                    bids = float(entry.get("bids", 0.0)) if "bids" in entry else 0.0
+                    asks = float(entry.get("asks", 0.0)) if "asks" in entry else 0.0
+                    rate = float(entry.get("tx_rate", 0.0))
+                    for v in entry.values():
+                        if isinstance(v, dict):
+                            bids += float(v.get("bids", 0.0))
+                            asks += float(v.get("asks", 0.0))
+                    depth = bids + asks
+                    imb = (bids - asks) / depth if depth else 0.0
+                    yield {
+                        "token": token,
+                        "depth": depth,
+                        "imbalance": imb,
+                        "tx_rate": rate,
+                    }
+                    count += 1
+                    if max_updates is not None and count >= max_updates:
+                        publish("depth_service_status", {"status": "disconnected"})
+                        return
+                    if rate_limit > 0:
+                        await asyncio.sleep(rate_limit)
         except Exception:
             if was_connected:
                 publish("depth_service_status", {"status": "disconnected"})
@@ -131,23 +132,23 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
         try:
             session = await get_session()
             async with session.ws_connect(url) as ws:
-                    publish(
-                        "depth_service_status",
-                        {"status": "reconnected" if was_connected else "connected"},
-                    )
-                    was_connected = True
-                    async for msg in ws:
-                        if msg.type != aiohttp.WSMsgType.TEXT:
-                            continue
-                        try:
-                            data = json.loads(msg.data)
-                        except Exception:
-                            continue
-                        publish("depth_update", data)
-                        count += 1
-                        if max_updates is not None and count >= max_updates:
-                            publish("depth_service_status", {"status": "disconnected"})
-                            return
+                publish(
+                    "depth_service_status",
+                    {"status": "reconnected" if was_connected else "connected"},
+                )
+                was_connected = True
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = json.loads(msg.data)
+                    except Exception:
+                        continue
+                    publish("depth_update", data)
+                    count += 1
+                    if max_updates is not None and count >= max_updates:
+                        publish("depth_service_status", {"status": "disconnected"})
+                        return
         except Exception:
             if was_connected:
                 publish("depth_service_status", {"status": "disconnected"})
@@ -188,29 +189,6 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
                 return venues, rate
     except Exception:
         return {}, 0.0
-
-
-async def depth_feed(*, rate_limit: float = 0.5, max_updates: Optional[int] = None) -> None:
-    """Publish aggregated depth snapshots via the event bus."""
-
-    count = 0
-    while True:
-        data: Dict[str, Any] = {}
-        try:
-            with open(MMAP_PATH, "rb") as f:
-                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
-                    raw = bytes(m).rstrip(b"\x00")
-                    if raw:
-                        data = json.loads(raw.decode())
-        except Exception:
-            data = {}
-
-        publish("depth_update", data)
-        count += 1
-        if max_updates is not None and count >= max_updates:
-            return
-        if rate_limit > 0:
-            await asyncio.sleep(rate_limit)
 
 
 async def submit_signed_tx(
