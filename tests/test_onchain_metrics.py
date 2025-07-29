@@ -213,7 +213,9 @@ def test_fetch_dex_metrics(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
 
-    metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+    metrics = asyncio.run(
+        onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
+    )
 
     assert metrics == {"liquidity": 10.0, "depth": 0.5, "volume": 20.0}
     assert urls[0] == "http://dex/v1/liquidity?token=tok"
@@ -254,8 +256,12 @@ def test_dex_metrics_cache(monkeypatch):
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     onchain_metrics.DEX_METRICS_CACHE.ttl = 60
 
-    metrics1 = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
-    metrics2 = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+    metrics1 = asyncio.run(
+        onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
+    )
+    metrics2 = asyncio.run(
+        onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
+    )
 
     assert metrics1 == {"liquidity": 1.0, "depth": 0.1, "volume": 2.0}
     assert metrics2 == metrics1
@@ -276,7 +282,9 @@ def test_fetch_dex_metrics_error(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", fake_session)
 
-    metrics = onchain_metrics.fetch_dex_metrics("tok", base_url="http://dex")
+    metrics = asyncio.run(
+        onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
+    )
 
     assert metrics == {"liquidity": 0.0, "depth": 0.0, "volume": 0.0}
 
@@ -340,7 +348,7 @@ def test_order_book_depth_change(monkeypatch):
     def fake_fetch(token, base_url=None):
         return {"depth": vals.pop(0)}
 
-    monkeypatch.setattr(onchain_metrics, "fetch_dex_metrics", fake_fetch)
+    monkeypatch.setattr(onchain_metrics, "fetch_dex_metrics_async", fake_fetch)
 
     first = onchain_metrics.order_book_depth_change("tok", base_url="http://dex")
     second = onchain_metrics.order_book_depth_change("tok", base_url="http://dex")

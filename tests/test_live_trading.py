@@ -65,7 +65,14 @@ def test_live_trading(monkeypatch):
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
-    monkeypatch.setattr(main_module, "fetch_dex_metrics", lambda *a, **k: {"liquidity": 0.0, "volume": 0.0})
+    async def fake_fetch(*_a, **_k):
+        return {"liquidity": 0.0, "volume": 0.0}
+
+    monkeypatch.setattr(
+        main_module,
+        "fetch_dex_metrics_async",
+        fake_fetch,
+    )
     monkeypatch.setattr(main_module, "_start_depth_service", lambda cfg: None)
 
     # Capture Memory usage

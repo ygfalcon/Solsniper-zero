@@ -53,7 +53,11 @@ def test_run_simulations_uses_metrics(monkeypatch):
         return np.full(size, mean)
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", fake_dex_metrics)
+    monkeypatch.setattr(
+        simulation.onchain_metrics,
+        "fetch_dex_metrics_async",
+        fake_dex_metrics,
+    )
     monkeypatch.setattr(simulation.np.random, "normal", fake_normal)
 
     results = simulation.run_simulations("tok", count=1, days=2)
@@ -199,7 +203,12 @@ def test_run_simulations_volume_filter(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    async def fake_fetch(_t):
+        return {}
+
+    monkeypatch.setattr(
+        simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
+    )
 
     results = simulation.run_simulations("tok", count=1, min_volume=100.0)
     assert results == []
@@ -216,7 +225,12 @@ def test_run_simulations_recent_volume(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    async def fake_fetch(_t):
+        return {}
+
+    monkeypatch.setattr(
+        simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
+    )
 
     results = simulation.run_simulations("tok", count=1, recent_volume=150.0)
     assert results[0].volume == pytest.approx(150.0)
@@ -252,7 +266,12 @@ def test_run_simulations_with_history(monkeypatch):
             return np.array([0.07])
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    async def fake_fetch(_t):
+        return {}
+
+    monkeypatch.setattr(
+        simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
+    )
     monkeypatch.setattr(simulation, "GradientBoostingRegressor", lambda: FakeGBR())
     monkeypatch.setattr(
         simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
@@ -297,7 +316,12 @@ def test_run_simulations_with_tx_trend(monkeypatch):
             return np.array([0.09])
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    async def fake_fetch(_t):
+        return {}
+
+    monkeypatch.setattr(
+        simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
+    )
     monkeypatch.setattr(simulation, "RandomForestRegressor", lambda **kw: FakeRF())
     monkeypatch.setattr(simulation, "XGBRegressor", None)
     monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
@@ -320,7 +344,12 @@ def test_run_simulations_optional_inputs(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    async def fake_fetch(_t):
+        return {}
+
+    monkeypatch.setattr(
+        simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
+    )
     monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
 
     res = simulation.run_simulations(
@@ -349,7 +378,12 @@ def test_run_simulations_additional_metrics(monkeypatch):
 
     monkeypatch.setenv("SOLANA_RPC_URL", "http://node")
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
-    monkeypatch.setattr(simulation.onchain_metrics, "fetch_dex_metrics", lambda _t: {})
+    async def fake_fetch(_t):
+        return {}
+
+    monkeypatch.setattr(
+        simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
+    )
     monkeypatch.setattr(
         simulation.onchain_metrics,
         "collect_onchain_insights",

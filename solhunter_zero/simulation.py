@@ -301,7 +301,7 @@ def predict_price_movement(
     return sims[0].expected_roi if sims else 0.0
 
 
-def run_simulations(
+async def run_simulations_async(
     token: str,
     count: int = 1000,
     days: int = 30,
@@ -313,19 +313,16 @@ def run_simulations(
     sentiment: float | None = None,
     order_book_strength: float | None = None,
 ) -> List[SimulationResult]:
-    """Run ROI simulations using a simple regression-based model."""
+    """Asynchronously run ROI simulations using a simple regression-based model."""
 
-    metrics = fetch_token_metrics(token)
+    metrics = await fetch_token_metrics_async(token)
     bias = bias_correction()
-    depth_features = metrics.get("depth_per_dex", [])
-    slip_features = metrics.get("slippage_per_dex", [])
-
     depth_features = metrics.get("depth_per_dex", []) or []
     slip_features = metrics.get("slippage_per_dex", []) or []
 
     results: List[SimulationResult] = []
 
-    dex_metrics = onchain_metrics.fetch_dex_metrics(token)
+    dex_metrics = await onchain_metrics.fetch_dex_metrics_async(token)
     for key in ("volume", "liquidity", "depth"):
         val = dex_metrics.get(key)
         if isinstance(val, (int, float)):
@@ -338,21 +335,22 @@ def run_simulations(
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url:
         try:
-            metrics["liquidity"] = onchain_metrics.fetch_liquidity_onchain(
+            metrics["liquidity"] = await onchain_metrics.fetch_liquidity_onchain_async(
                 token, rpc_url
             )
-            metrics["volume"] = onchain_metrics.fetch_volume_onchain(token, rpc_url)
+            metrics["volume"] = await onchain_metrics.fetch_volume_onchain_async(
+                token, rpc_url
+            )
             metrics["slippage"] = onchain_metrics.fetch_slippage_onchain(
                 token, rpc_url
             )
-            insights = onchain_metrics.collect_onchain_insights(token, rpc_url)
+            insights = await onchain_metrics.collect_onchain_insights_async(token, rpc_url)
             depth_change = insights.get("depth_change", 0.0)
             tx_rate = insights.get("tx_rate", 0.0)
             whale_activity = insights.get("whale_activity", 0.0)
         except Exception as exc:  # pragma: no cover - unexpected errors
             logger.warning("On-chain metric fetch failed: %s", exc)
 
-    
     depth_features = metrics.get("depth_per_dex", [])
     slip_features = metrics.get("slippage_per_dex", [])
     if metrics.get("volume", 0.0) < min_volume:
@@ -387,11 +385,7 @@ def run_simulations(
     depth_features = metrics.get("depth_per_dex", [])[:2]
     slip_features = metrics.get("slippage_per_dex", [])[:2]
 
-
-
-
     depth = metrics.get("depth", 0.0)
-
 
     sentiment_val = float(sentiment) if sentiment is not None else float(
         metrics.get("sentiment", 0.0)
@@ -399,9 +393,6 @@ def run_simulations(
     order_strength = float(order_book_strength) if order_book_strength is not None else float(
         metrics.get("order_book_strength", 0.0)
     )
-
-
-    results: List[SimulationResult] = []
 
     price_hist = metrics.get("price_history")
     liq_hist = metrics.get("liquidity_history")
@@ -414,15 +405,11 @@ def run_simulations(
     model = get_price_model()
     if model and price_hist and liq_hist and depth_hist and tx_hist:
         try:
-            seq = np.column_stack(
-                [price_hist, liq_hist, depth_hist, tx_hist]
-            )[-30:]
+            seq = np.column_stack([price_hist, liq_hist, depth_hist, tx_hist])[-30:]
             predicted_mean = float(model.predict(seq))
             used_ml = True
         except Exception as exc:  # pragma: no cover - model errors
             logger.warning("Failed to load ML model: %s", exc)
-
-    results: List[SimulationResult] = []
 
     if (
         not used_ml
@@ -537,13 +524,8 @@ def run_simulations(
         except Exception as exc:  # pragma: no cover - numeric issues
             logger.warning("ROI model training failed: %s", exc)
 
-    # Apply bias adjustments after model prediction
     predicted_mean += bias.get("mean", 0.0)
     sigma = max(0.0, sigma + bias.get("volatility", 0.0))
-
-
-
-
 
     daily_returns = np.random.normal(predicted_mean, sigma, (count, days))
     rois = np.prod(1 + daily_returns, axis=1) - 1
@@ -568,9 +550,37 @@ def run_simulations(
                 depth_change=depth_change,
                 tx_rate=tx_rate,
                 whale_activity=whale_activity,
-
             )
         )
 
-
     return results
+
+
+
+def run_simulations(
+    token: str,
+    count: int = 1000,
+    days: int = 30,
+    *,
+    min_volume: float = 0.0,
+    recent_volume: float | None = None,
+    recent_slippage: float | None = None,
+    gas_cost: float = 0.0,
+    sentiment: float | None = None,
+    order_book_strength: float | None = None,
+) -> List[SimulationResult]:
+    """Synchronous wrapper for :func:`run_simulations_async`."""
+
+    return asyncio.run(
+        run_simulations_async(
+            token,
+            count=count,
+            days=days,
+            min_volume=min_volume,
+            recent_volume=recent_volume,
+            recent_slippage=recent_slippage,
+            gas_cost=gas_cost,
+            sentiment=sentiment,
+            order_book_strength=order_book_strength,
+        )
+    )
