@@ -5,28 +5,30 @@ use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use futures_util::{StreamExt, SinkExt};
+use futures_util::{SinkExt, StreamExt};
 use memmap2::{MmapMut, MmapOptions};
+use prost::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use prost::Message;
 use toml::value::Table as TomlTable;
 pub mod solhunter_zero;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solhunter_zero as pb;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, UnixListener},
     sync::{broadcast, mpsc},
 };
-use tokio_tungstenite::{connect_async, accept_async, tungstenite::Message as WsMessage};
-use solana_client::nonblocking::rpc_client::RpcClient;
+use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message as WsMessage};
 
 fn cfg_str(cfg: &TomlTable, key: &str) -> Option<String> {
     cfg.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
 fn event_bus_url(cfg: &TomlTable) -> Option<String> {
-    std::env::var("EVENT_BUS_URL").ok().filter(|v| !v.is_empty())
+    std::env::var("EVENT_BUS_URL")
+        .ok()
+        .filter(|v| !v.is_empty())
         .or_else(|| cfg_str(cfg, "event_bus_url"))
         .filter(|v| !v.is_empty())
 }
@@ -46,6 +48,23 @@ fn depth_ws_addr(cfg: &TomlTable) -> (String, u16) {
     (addr, port)
 }
 
+fn update_threshold(cfg: &TomlTable) -> f64 {
+    std::env::var("DEPTH_UPDATE_THRESHOLD")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(|| cfg_str(cfg, "depth_update_threshold").and_then(|v| v.parse().ok()))
+        .unwrap_or(0.0)
+}
+
+fn send_interval(cfg: &TomlTable) -> Duration {
+    let ms = std::env::var("DEPTH_MIN_SEND_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(|| cfg_str(cfg, "depth_min_send_interval").and_then(|v| v.parse().ok()))
+        .unwrap_or(100u64);
+    Duration::from_millis(ms)
+}
+
 fn load_config(path: &str) -> Result<TomlTable> {
     let data = std::fs::read_to_string(path)?;
     let val: toml::Value = toml::from_str(&data)?;
@@ -53,17 +72,17 @@ fn load_config(path: &str) -> Result<TomlTable> {
 }
 
 mod route;
+use base64::{Engine, engine::general_purpose::STANDARD};
+use bincode::{deserialize, serialize};
+use chrono::Utc;
+use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_sdk::{
     commitment_config::CommitmentLevel,
     message::VersionedMessage,
-    signature::{read_keypair_file, Keypair, Signer},
+    signature::{Keypair, Signer, read_keypair_file},
     system_instruction,
     transaction::{Transaction, VersionedTransaction},
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
-use bincode::{deserialize, serialize};
-use solana_client::rpc_config::RpcSendTransactionConfig;
-use chrono::Utc;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 struct TokenInfo {
@@ -88,6 +107,8 @@ type SharedMmap = Arc<Mutex<MmapMut>>;
 
 type WsSender = broadcast::Sender<String>;
 type LatestSnap = Arc<Mutex<String>>;
+type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
+type LastSent = Arc<Mutex<Instant>>;
 
 #[derive(Serialize, Deserialize)]
 struct EventMessage<T> {
@@ -192,15 +213,8 @@ impl ExecContext {
         self.send_raw_tx(tx_b64).await
     }
 
-    async fn sign_template(
-        &self,
-        msg_b64: &str,
-        priority_fee: Option<u64>,
-    ) -> Result<String> {
-        use solana_sdk::{
-            compute_budget::ComputeBudgetInstruction,
-            message::MessageHeader,
-        };
+    async fn sign_template(&self, msg_b64: &str, priority_fee: Option<u64>) -> Result<String> {
+        use solana_sdk::{compute_budget::ComputeBudgetInstruction, message::MessageHeader};
 
         let mut msg: VersionedMessage = deserialize(&STANDARD.decode(msg_b64)?)?;
 
@@ -211,14 +225,13 @@ impl ExecContext {
                 ixs: &mut Vec<solana_sdk::instruction::CompiledInstruction>,
                 fee: u64,
             ) {
-                use solana_sdk::{compute_budget, message::v0::LoadedAddresses};
                 use solana_program::message::AccountKeys;
+                use solana_sdk::{compute_budget, message::v0::LoadedAddresses};
                 let pid = compute_budget::id();
                 if keys.iter().position(|k| *k == pid).is_none() {
                     keys.push(pid);
-                    header.num_readonly_unsigned_accounts = header
-                        .num_readonly_unsigned_accounts
-                        .saturating_add(1);
+                    header.num_readonly_unsigned_accounts =
+                        header.num_readonly_unsigned_accounts.saturating_add(1);
                 };
                 let accounts = AccountKeys::new(keys, None::<&LoadedAddresses>);
                 let mut add_ix = |ix: solana_sdk::instruction::Instruction| {
@@ -259,6 +272,21 @@ impl ExecContext {
     }
 }
 
+fn change_ratio(a: f64, b: f64) -> f64 {
+    if a == 0.0 && b == 0.0 {
+        0.0
+    } else {
+        (a - b).abs() / a.abs().max(b.abs()).max(1.0)
+    }
+}
+
+fn significant_change(old: &TokenAgg, new: &TokenAgg, th: f64) -> bool {
+    let diff = change_ratio(old.bids, new.bids)
+        .max(change_ratio(old.asks, new.asks))
+        .max(change_ratio(old.tx_rate, new.tx_rate));
+    diff > th
+}
+
 async fn update_mmap(
     dex_map: &DexMap,
     mem: &MempoolMap,
@@ -266,6 +294,10 @@ async fn update_mmap(
     ws: &WsSender,
     bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
     latest: &LatestSnap,
+    last_map: &LastAggMap,
+    last_sent: &LastSent,
+    threshold: f64,
+    min_interval: Duration,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
     let mem = mem.lock().await;
@@ -286,6 +318,15 @@ async fn update_mmap(
         entry.tx_rate = *rate;
         entry.ts = Utc::now().timestamp_millis();
     }
+    let now = Instant::now();
+    let send_needed = {
+        let last = last_map.lock().await;
+        agg.iter().any(|(k, v)| match last.get(k) {
+            Some(old) => significant_change(old, v, threshold),
+            None => true,
+        }) || last.len() != agg.len()
+    };
+
     let mut json = serde_json::to_vec(&agg)?;
     let mut mmap = mmap.lock().await;
     if json.len() > mmap.len() {
@@ -296,6 +337,14 @@ async fn update_mmap(
         mmap[i] = 0;
     }
     mmap.flush()?;
+
+    if !send_needed && now.duration_since(*last_sent.lock().await) < min_interval {
+        return Ok(());
+    }
+
+    *last_map.lock().await = agg.clone();
+    *last_sent.lock().await = now;
+
     let text = String::from_utf8_lossy(&json).to_string();
     let _ = ws.send(text.clone());
     *latest.lock().await = text.clone();
@@ -346,6 +395,10 @@ async fn connect_feed(
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
     latest: LatestSnap,
+    last_map: LastAggMap,
+    last_sent: LastSent,
+    threshold: f64,
+    min_interval: Duration,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -354,19 +407,36 @@ async fn connect_feed(
             continue;
         }
         if let Ok(val) = serde_json::from_str::<Value>(&msg.to_string()) {
-            if let (Some(token), Some(bids), Some(asks)) = (
-                val.get("token"),
-                val.get("bids"),
-                val.get("asks"),
-            ) {
+            if let (Some(token), Some(bids), Some(asks)) =
+                (val.get("token"), val.get("bids"), val.get("asks"))
+            {
                 let token = token.as_str().unwrap_or("").to_string();
                 let bids = bids.as_f64().unwrap_or(0.0);
                 let asks = asks.as_f64().unwrap_or(0.0);
                 let mut dexes = dex_map.lock().await;
                 let entry = dexes.entry(dex.to_string()).or_default();
-                entry.insert(token.clone(), TokenInfo { bids, asks, tx_rate: 0.0 });
+                entry.insert(
+                    token.clone(),
+                    TokenInfo {
+                        bids,
+                        asks,
+                        tx_rate: 0.0,
+                    },
+                );
                 drop(dexes);
-                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref(), &latest).await;
+                let _ = update_mmap(
+                    &dex_map,
+                    &mem,
+                    &mmap,
+                    &ws,
+                    bus.as_ref(),
+                    &latest,
+                    &last_map,
+                    &last_sent,
+                    threshold,
+                    min_interval,
+                )
+                .await;
             }
         }
     }
@@ -382,6 +452,10 @@ async fn connect_price_feed(
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
     latest: LatestSnap,
+    last_map: LastAggMap,
+    last_sent: LastSent,
+    threshold: f64,
+    min_interval: Duration,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -395,9 +469,28 @@ async fn connect_price_feed(
                 let price = price.as_f64().unwrap_or(0.0);
                 let mut dexes = dex_map.lock().await;
                 let entry = dexes.entry(dex.to_string()).or_default();
-                entry.insert(token.clone(), TokenInfo { bids: price, asks: price, tx_rate: 0.0 });
+                entry.insert(
+                    token.clone(),
+                    TokenInfo {
+                        bids: price,
+                        asks: price,
+                        tx_rate: 0.0,
+                    },
+                );
                 drop(dexes);
-                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref(), &latest).await;
+                let _ = update_mmap(
+                    &dex_map,
+                    &mem,
+                    &mmap,
+                    &ws,
+                    bus.as_ref(),
+                    &latest,
+                    &last_map,
+                    &last_sent,
+                    threshold,
+                    min_interval,
+                )
+                .await;
             }
         }
     }
@@ -412,6 +505,10 @@ async fn connect_mempool(
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
     latest: LatestSnap,
+    last_map: LastAggMap,
+    last_sent: LastSent,
+    threshold: f64,
+    min_interval: Duration,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -426,14 +523,31 @@ async fn connect_mempool(
                 let mut mem_lock = mem.lock().await;
                 mem_lock.insert(token, rate);
                 drop(mem_lock);
-                let _ = update_mmap(&dex_map, &mem, &mmap, &ws, bus.as_ref(), &latest).await;
+                let _ = update_mmap(
+                    &dex_map,
+                    &mem,
+                    &mmap,
+                    &ws,
+                    bus.as_ref(),
+                    &latest,
+                    &last_map,
+                    &last_sent,
+                    threshold,
+                    min_interval,
+                )
+                .await;
             }
         }
     }
     Ok(())
 }
 
-async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<ExecContext>) -> Result<()> {
+async fn ipc_server(
+    socket: &Path,
+    dex_map: DexMap,
+    mem: MempoolMap,
+    exec: Arc<ExecContext>,
+) -> Result<()> {
     if socket.exists() {
         let _ = std::fs::remove_file(socket);
     }
@@ -472,7 +586,9 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                 }
                 if !remove.is_empty() {
                     let mut lock = a.lock().await;
-                    for t in remove { lock.remove(&t); }
+                    for t in remove {
+                        lock.remove(&t);
+                    }
                 }
             }
         });
@@ -502,14 +618,18 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             if let Some(rate) = mem.get(token) {
                                 entry.tx_rate = *rate;
                             }
-                            let _ = stream.write_all(serde_json::to_string(&entry).unwrap().as_bytes()).await;
+                            let _ = stream
+                                .write_all(serde_json::to_string(&entry).unwrap().as_bytes())
+                                .await;
                         }
                     } else if val.get("cmd") == Some(&Value::String("signed_tx".into())) {
                         if let Some(tx) = val.get("tx").and_then(|v| v.as_str()) {
                             match exec.submit_signed_tx(tx).await {
                                 Ok(sig) => {
                                     let _ = stream
-                                        .write_all(format!("{{\"signature\":\"{}\"}}", sig).as_bytes())
+                                        .write_all(
+                                            format!("{{\"signature\":\"{}\"}}", sig).as_bytes(),
+                                        )
                                         .await;
                                 }
                                 Err(e) => {
@@ -537,7 +657,10 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                         }
                     } else if val.get("cmd") == Some(&Value::String("batch".into())) {
                         if let Some(arr) = val.get("txs").and_then(|v| v.as_array()) {
-                            let txs: Vec<String> = arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                            let txs: Vec<String> = arr
+                                .iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect();
                             match exec.send_batch(&txs).await {
                                 Ok(sigs) => {
                                     let _ = stream
@@ -553,18 +676,20 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                         }
                     } else if val.get("cmd") == Some(&Value::String("raw_tx".into())) {
                         if let Some(tx) = val.get("tx").and_then(|v| v.as_str()) {
-                            let pri = val
-                                .get("priority_rpc")
-                                .and_then(|v| v.as_array())
-                                .map(|arr| {
-                                    arr.iter()
-                                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                                        .collect::<Vec<String>>()
-                                });
+                            let pri =
+                                val.get("priority_rpc")
+                                    .and_then(|v| v.as_array())
+                                    .map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                            .collect::<Vec<String>>()
+                                    });
                             match exec.send_raw_tx_priority(tx, pri).await {
                                 Ok(sig) => {
                                     let _ = stream
-                                        .write_all(format!("{{\"signature\":\"{}\"}}", sig).as_bytes())
+                                        .write_all(
+                                            format!("{{\"signature\":\"{}\"}}", sig).as_bytes(),
+                                        )
                                         .await;
                                 }
                                 Err(e) => {
@@ -579,7 +704,9 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             match exec.send_raw_tx(tx).await {
                                 Ok(sig) => {
                                     let _ = stream
-                                        .write_all(format!("{{\"signature\":\"{}\"}}", sig).as_bytes())
+                                        .write_all(
+                                            format!("{{\"signature\":\"{}\"}}", sig).as_bytes(),
+                                        )
                                         .await;
                                 }
                                 Err(e) => {
@@ -610,10 +737,10 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                                 .iter()
                                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                                 .collect();
-                            auto_map.lock().await.insert(
-                                token.to_string(),
-                                AutoExecEntry { threshold: th, txs },
-                            );
+                            auto_map
+                                .lock()
+                                .await
+                                .insert(token.to_string(), AutoExecEntry { threshold: th, txs });
                             let _ = stream.write_all(b"{\"ok\":true}").await;
                         }
                     } else if val.get("cmd") == Some(&Value::String("route".into())) {
@@ -622,10 +749,8 @@ async fn ipc_server(socket: &Path, dex_map: DexMap, mem: MempoolMap, exec: Arc<E
                             val.get("amount").and_then(|v| v.as_f64()),
                         ) {
                             let dexes = dex_map.lock().await;
-                            let hops = val
-                                .get("max_hops")
-                                .and_then(|v| v.as_u64())
-                                .unwrap_or(4) as usize;
+                            let hops =
+                                val.get("max_hops").and_then(|v| v.as_u64()).unwrap_or(4) as usize;
                             if let Some(res) = route::best_route(&dexes, token, amount, hops) {
                                 let resp = serde_json::json!({
                                     "path": res.path,
@@ -703,25 +828,39 @@ async fn main() -> Result<()> {
         TomlTable::new()
     };
     if serum.is_none() {
-        serum = std::env::var("SERUM_WS_URL").ok().or_else(|| cfg_str(&cfg, "serum_ws_url"));
+        serum = std::env::var("SERUM_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "serum_ws_url"));
     }
     if raydium.is_none() {
-        raydium = std::env::var("RAYDIUM_WS_URL").ok().or_else(|| cfg_str(&cfg, "raydium_ws_url"));
+        raydium = std::env::var("RAYDIUM_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "raydium_ws_url"));
     }
     if orca.is_none() {
-        orca = std::env::var("ORCA_WS_URL").ok().or_else(|| cfg_str(&cfg, "orca_ws_url"));
+        orca = std::env::var("ORCA_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "orca_ws_url"));
     }
     if jupiter.is_none() {
-        jupiter = std::env::var("JUPITER_WS_URL").ok().or_else(|| cfg_str(&cfg, "jupiter_ws_url"));
+        jupiter = std::env::var("JUPITER_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "jupiter_ws_url"));
     }
     if phoenix.is_none() {
-        phoenix = std::env::var("PHOENIX_WS_URL").ok().or_else(|| cfg_str(&cfg, "phoenix_ws_url"));
+        phoenix = std::env::var("PHOENIX_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "phoenix_ws_url"));
     }
     if meteora.is_none() {
-        meteora = std::env::var("METEORA_WS_URL").ok().or_else(|| cfg_str(&cfg, "meteora_ws_url"));
+        meteora = std::env::var("METEORA_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "meteora_ws_url"));
     }
     if mempool.is_none() {
-        mempool = std::env::var("MEMPOOL_WS_URL").ok().or_else(|| cfg_str(&cfg, "mempool_ws_url"));
+        mempool = std::env::var("MEMPOOL_WS_URL")
+            .ok()
+            .or_else(|| cfg_str(&cfg, "mempool_ws_url"));
     }
     if rpc.is_empty() {
         if let Ok(env_rpc) = std::env::var("SOLANA_RPC_URL") {
@@ -753,6 +892,10 @@ async fn main() -> Result<()> {
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
     let latest: LatestSnap = Arc::new(Mutex::new(String::new()));
+    let last_map: LastAggMap = Arc::new(Mutex::new(HashMap::new()));
+    let min_interval = send_interval(&cfg);
+    let threshold = update_threshold(&cfg);
+    let last_sent: LastSent = Arc::new(Mutex::new(Instant::now() - min_interval));
     let bus_tx = if let Some(url) = event_bus_url(&cfg) {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         tokio::spawn(async move {
@@ -767,22 +910,40 @@ async fn main() -> Result<()> {
                         // Notify bus that the service is online
                         let online = pb::Event {
                             topic: "depth_service_status".to_string(),
-                            kind: Some(pb::event::Kind::DepthServiceStatus(pb::DepthServiceStatus { status: "online".to_string() })),
+                            kind: Some(pb::event::Kind::DepthServiceStatus(
+                                pb::DepthServiceStatus {
+                                    status: "online".to_string(),
+                                },
+                            )),
                         };
-                        let _ = write.lock().await.send(WsMessage::Binary(online.encode_to_vec())).await;
+                        let _ = write
+                            .lock()
+                            .await
+                            .send(WsMessage::Binary(online.encode_to_vec()))
+                            .await;
                         tokio::spawn(async move {
                             while let Some(Ok(msg)) = read.next().await {
                                 if let WsMessage::Binary(data) = msg {
                                     if let Ok(ev) = pb::Event::decode(&*data) {
                                         if ev.topic == "heartbeat" {
-                                            let _ = write_read.lock().await.send(WsMessage::Binary(data)).await;
+                                            let _ = write_read
+                                                .lock()
+                                                .await
+                                                .send(WsMessage::Binary(data))
+                                                .await;
                                         }
                                     }
                                 }
                             }
                         });
                         while let Some(msg) = rx.recv().await {
-                            if write.lock().await.send(WsMessage::Binary(msg)).await.is_err() {
+                            if write
+                                .lock()
+                                .await
+                                .send(WsMessage::Binary(msg))
+                                .await
+                                .is_err()
+                            {
                                 break;
                             }
                         }
@@ -814,8 +975,24 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_feed("serum", &url, d, m, mm, tx, bus, latest).await;
+            let _ = connect_feed(
+                "serum",
+                &url,
+                d,
+                m,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
     if let Some(url) = raydium {
@@ -825,8 +1002,24 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("raydium", &url, d, m, mm, tx, bus, latest).await;
+            let _ = connect_price_feed(
+                "raydium",
+                &url,
+                d,
+                m,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
     if let Some(url) = orca {
@@ -836,8 +1029,24 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("orca", &url, d, m, mm, tx, bus, latest).await;
+            let _ = connect_price_feed(
+                "orca",
+                &url,
+                d,
+                m,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
     if let Some(url) = jupiter {
@@ -847,8 +1056,24 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("jupiter", &url, d, m, mm, tx, bus, latest).await;
+            let _ = connect_price_feed(
+                "jupiter",
+                &url,
+                d,
+                m,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
     if let Some(url) = phoenix {
@@ -858,8 +1083,24 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("phoenix", &url, d, m, mm, tx, bus, latest).await;
+            let _ = connect_price_feed(
+                "phoenix",
+                &url,
+                d,
+                m,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
     if let Some(url) = meteora {
@@ -869,8 +1110,24 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_price_feed("meteora", &url, d, m, mm, tx, bus, latest).await;
+            let _ = connect_price_feed(
+                "meteora",
+                &url,
+                d,
+                m,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
     if let Some(url) = mempool {
@@ -880,8 +1137,23 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let last_map_c = last_map.clone();
+        let last_sent_c = last_sent.clone();
         tokio::spawn(async move {
-            let _ = connect_mempool(&url, m, d, mm, tx, bus, latest).await;
+            let _ = connect_mempool(
+                &url,
+                m,
+                d,
+                mm,
+                tx,
+                bus,
+                latest,
+                last_map_c,
+                last_sent_c,
+                threshold,
+                min_interval,
+            )
+            .await;
         });
     }
 

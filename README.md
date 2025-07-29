@@ -139,10 +139,14 @@ direct transaction submission to the Solana RPC.
      websocket server (defaults to `0.0.0.0:8765`).
    - `SOLANA_RPC_URL` and `SOLANA_KEYPAIR` – RPC endpoint and keypair for
      transaction submission.
-   - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
-     When set, depth updates are forwarded using the topic `depth_update`.
-     The same value can be provided via `event_bus_url` in your config.
-   - `--config <path>` – load these options from the given configuration file.
+  - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
+    When set, depth updates are forwarded using the topic `depth_update`.
+    The same value can be provided via `event_bus_url` in your config.
+  - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
+    new snapshot (defaults to `0`).
+  - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between
+    broadcasts (defaults to `100`).
+  - `--config <path>` – load these options from the given configuration file.
 3. **Route transactions through the service**
    Python code signs transactions locally and forwards them via
    ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
