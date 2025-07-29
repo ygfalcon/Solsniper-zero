@@ -168,11 +168,8 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
         return metrics
 
     session = await get_session()
-    for path, metric_key in (
-        (LIQ_PATH, "liquidity"),
-        (DEPTH_PATH, "depth"),
-        (VOLUME_PATH, "volume"),
-    ):
+
+    async def fetch_metric(path: str, metric_key: str) -> None:
         url = f"{base.rstrip('/')}{path}?token={token}"
         try:
             async with session.get(url, timeout=5) as resp:
@@ -183,6 +180,12 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
                 metrics[metric_key] = float(val)
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch %s for %s: %s", metric_key, token, exc)
+
+    await asyncio.gather(
+        fetch_metric(LIQ_PATH, "liquidity"),
+        fetch_metric(DEPTH_PATH, "depth"),
+        fetch_metric(VOLUME_PATH, "volume"),
+    )
 
     DEX_METRICS_CACHE.set(cache_key, metrics)
     return metrics
