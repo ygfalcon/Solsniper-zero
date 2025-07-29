@@ -27,10 +27,11 @@ class ReinforcementAgent(BaseAgent):
         self.epsilon = epsilon
         self.discount = discount
         self.q: Dict[str, Dict[str, float]] = defaultdict(lambda: {"buy": 0.0, "sell": 0.0})
+        self._last_id: int = 0
 
     def train(self) -> None:
         """Update Q-values from trade history."""
-        trades = self.memory_agent.memory.list_trades()
+        trades = self.memory_agent.memory.list_trades(since_id=self._last_id)
         profits: Dict[str, float] = defaultdict(float)
         for t in trades:
             value = float(t.amount) * float(t.price)
@@ -38,6 +39,9 @@ class ReinforcementAgent(BaseAgent):
                 profits[t.token] -= value
             else:
                 profits[t.token] += value
+            tid = getattr(t, "id", None)
+            if tid is not None and tid > self._last_id:
+                self._last_id = tid
         for token, reward in profits.items():
             q = self.q[token]
             q["buy"] += self.learning_rate * (reward - q["buy"])

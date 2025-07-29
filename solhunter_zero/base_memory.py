@@ -12,8 +12,14 @@ class BaseMemory(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_trades(self) -> List[Any]:
-        """Return all logged trades."""
+    def list_trades(
+        self,
+        *,
+        token: str | None = None,
+        limit: int | None = None,
+        since_id: int | None = None,
+    ) -> List[Any]:
+        """Return logged trades with optional filtering."""
         raise NotImplementedError
 
     def search(self, query: str, k: int = 5) -> List[Any]:

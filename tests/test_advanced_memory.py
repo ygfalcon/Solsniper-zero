@@ -32,6 +32,20 @@ def test_insert_search_persist(tmp_path):
     assert results2 and results2[0].id == trades[0].id
 
 
+def test_advanced_list_filters(tmp_path):
+    db = tmp_path / "mem.db"
+    idx = tmp_path / "idx.faiss"
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
+    a = mem.log_trade(token="X", direction="buy", amount=1, price=1)
+    b = mem.log_trade(token="Y", direction="sell", amount=2, price=1)
+    c = mem.log_trade(token="X", direction="sell", amount=3, price=1)
+
+    assert len(mem.list_trades(token="X")) == 2
+    assert len(mem.list_trades(limit=2)) == 2
+    ids = [t.id for t in mem.list_trades(since_id=b)]
+    assert ids == [c]
+
+
 def test_replicated_trade_dedup(tmp_path):
     db = tmp_path / "rep.db"
     idx = tmp_path / "rep.index"

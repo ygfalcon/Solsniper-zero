@@ -63,9 +63,24 @@ class Memory(BaseMemory):
             session.add(rec)
             session.commit()
 
-    def list_trades(self) -> list[Trade]:
+    def list_trades(
+        self,
+        *,
+        token: str | None = None,
+        limit: int | None = None,
+        since_id: int | None = None,
+    ) -> list[Trade]:
+        """Return trades optionally filtered by ``token`` or ``since_id``."""
         with self.Session() as session:
-            return session.query(Trade).all()
+            q = session.query(Trade)
+            if token is not None:
+                q = q.filter_by(token=token)
+            if since_id is not None:
+                q = q.filter(Trade.id > since_id)
+            q = q.order_by(Trade.id)
+            if limit is not None:
+                q = q.limit(limit)
+            return list(q)
 
     def list_vars(self):
         with self.Session() as session:

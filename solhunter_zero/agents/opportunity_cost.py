@@ -25,7 +25,11 @@ class OpportunityCostAgent(BaseAgent):
         mem = getattr(self.memory_agent, "memory", None)
         if not mem or not hasattr(mem, "list_trades"):
             return 0
-        trades = [t for t in mem.list_trades() if getattr(t, "token", "") == token and hasattr(t, "emotion")]
+        trades = [
+            t
+            for t in mem.list_trades(token=token, limit=100)
+            if hasattr(t, "emotion")
+        ]
         if not trades:
             return 0
         trades.sort(key=lambda t: getattr(t, "timestamp", 0))
@@ -53,7 +57,7 @@ class OpportunityCostAgent(BaseAgent):
         sims = run_simulations(token, count=1)
         roi = sims[0].expected_roi if sims else 0.0
         mem = getattr(self.memory_agent, "memory", None) if self.memory_agent else None
-        if mem and hasattr(mem, "list_trades") and any(t.token == token for t in mem.list_trades()):
+        if mem and hasattr(mem, "list_trades") and mem.list_trades(token=token, limit=1):
             roi += 0.01 * self._emotion_streak(token)
         return roi
 

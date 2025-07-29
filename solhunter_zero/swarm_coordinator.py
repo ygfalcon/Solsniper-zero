@@ -23,7 +23,7 @@ class SwarmCoordinator:
         rois = {name: 0.0 for name in agent_names}
         if not self.memory_agent:
             return rois
-        trades = self.memory_agent.memory.list_trades()
+        trades = self.memory_agent.memory.list_trades(limit=1000)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             if t.reason not in rois:

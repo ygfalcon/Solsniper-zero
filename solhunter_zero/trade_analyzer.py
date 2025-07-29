@@ -14,7 +14,7 @@ class TradeAnalyzer:
     # --------------------------------------------------------------
     def roi_by_agent(self) -> Dict[str, float]:
         """Return ROI aggregated by agent name."""
-        trades = self.memory.list_trades()
+        trades = self.memory.list_trades(limit=1000)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             name = t.reason or ""

@@ -38,7 +38,7 @@ class FractalAgent(BaseAgent):
         trades = []
         if self.memory is not None:
             try:
-                trades = [t for t in self.memory.list_trades() if t.token == token]
+                trades = self.memory.list_trades(token=token)
             except Exception:
                 trades = []
         if not trades and self.offline_data is not None:
@@ -93,7 +93,7 @@ class FractalAgent(BaseAgent):
         tokens: set[str] = set()
         if self.memory is not None:
             try:
-                for t in self.memory.list_trades():
+                for t in self.memory.list_trades(limit=1000):
                     tokens.add(t.token)
             except Exception:
                 pass
