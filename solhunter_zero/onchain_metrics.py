@@ -188,9 +188,10 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
     return metrics
 
 
-def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, float]:
-    """Synchronous wrapper for :func:`fetch_dex_metrics_async`."""
-    return asyncio.run(fetch_dex_metrics_async(token, base_url))
+async def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, float]:
+    """Awaitable wrapper for :func:`fetch_dex_metrics_async`."""
+
+    return await fetch_dex_metrics_async(token, base_url)
 
 
 async def fetch_liquidity_onchain_async(token: str, rpc_url: str) -> float:
@@ -335,7 +336,7 @@ def fetch_slippage_onchain(token: str, rpc_url: str) -> float:
 def order_book_depth_change(token: str, base_url: str | None = None) -> float:
     """Return the recent change in order-book depth for ``token``."""
 
-    metrics = fetch_dex_metrics(token, base_url)
+    metrics = asyncio.run(fetch_dex_metrics(token, base_url))
     depth = metrics.get("depth", 0.0)
     prev = _DEPTH_CACHE.get(token)
     _DEPTH_CACHE[token] = depth

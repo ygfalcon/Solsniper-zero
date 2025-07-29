@@ -573,10 +573,13 @@ def test_scheduler_adjusts_delay(monkeypatch):
         main_module._LAST_TOKENS = ["tok"]
 
     monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
+    async def fake_fetch(t, base_url=None):
+        return metrics.pop(0)
+
     monkeypatch.setattr(
         main_module,
-        "fetch_dex_metrics",
-        lambda t, base_url=None: metrics.pop(0),
+        "fetch_dex_metrics_async",
+        fake_fetch,
     )
 
     sleeps = []
@@ -632,7 +635,10 @@ def test_agent_manager_evolves(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module, "AgentManager", DummyManager)
     monkeypatch.setattr(main_module, "StrategyManager", lambda *a, **k: None)
     monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
-    monkeypatch.setattr(main_module, "fetch_dex_metrics", lambda *a, **k: {})
+    async def fake_fetch(*_a, **_k):
+        return {}
+
+    monkeypatch.setattr(main_module, "fetch_dex_metrics_async", fake_fetch)
 
     async def fake_sleep(_):
         pass

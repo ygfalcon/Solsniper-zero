@@ -72,7 +72,14 @@ def test_run_auto_integration(monkeypatch, tmp_path):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
-    monkeypatch.setattr(main_module, "fetch_dex_metrics", lambda *a, **k: {"liquidity": 0.0, "volume": 0.0})
+    async def fake_fetch(*_a, **_k):
+        return {"liquidity": 0.0, "volume": 0.0}
+
+    monkeypatch.setattr(
+        main_module,
+        "fetch_dex_metrics_async",
+        fake_fetch,
+    )
 
     mem_path = tmp_path / "mem.db"
     pf_path = tmp_path / "pf.json"

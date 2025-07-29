@@ -98,7 +98,7 @@ set_env_from_config(_cfg)
 
 
 from .token_scanner import scan_tokens_async
-from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics
+from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics_async
 from .market_ws import listen_and_trade
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -721,7 +721,7 @@ def main(
                     agent_manager=agent_manager,
                 )
                 if _LAST_TOKENS:
-                    metrics = fetch_dex_metrics(
+                    metrics = await fetch_dex_metrics_async(
                         _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
                     )
                     adjust_delay(metrics)
@@ -757,7 +757,7 @@ def main(
                     agent_manager=agent_manager,
                 )
                 if _LAST_TOKENS:
-                    metrics = fetch_dex_metrics(
+                    metrics = await fetch_dex_metrics_async(
                         _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
                     )
                     adjust_delay(metrics)
