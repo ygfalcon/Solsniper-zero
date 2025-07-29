@@ -108,6 +108,8 @@ type SharedMmap = Arc<Mutex<MmapMut>>;
 type WsSender = broadcast::Sender<String>;
 type LatestSnap = Arc<Mutex<String>>;
 type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
+/// Aggregated state of all tokens
+type AggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 type LastSent = Arc<Mutex<Instant>>;
 
 #[derive(Serialize, Deserialize)]
@@ -288,8 +290,10 @@ fn significant_change(old: &TokenAgg, new: &TokenAgg, th: f64) -> bool {
 }
 
 async fn update_mmap(
+    token: &str,
     dex_map: &DexMap,
     mem: &MempoolMap,
+    agg: &AggMap,
     mmap: &SharedMmap,
     ws: &WsSender,
     bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
@@ -300,45 +304,52 @@ async fn update_mmap(
     min_interval: Duration,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
-    let mem = mem.lock().await;
-    let mut agg: HashMap<String, TokenAgg> = HashMap::new();
+    let mem_map = mem.lock().await;
+
+    let mut entry = TokenAgg::default();
     for (dex_name, dex) in dexes.iter() {
-        for (tok, info) in dex {
-            let entry = agg.entry(tok.clone()).or_default();
+        if let Some(info) = dex.get(token) {
             entry.dex.insert(dex_name.clone(), info.clone());
             entry.bids += info.bids;
             entry.asks += info.asks;
-            if entry.ts == 0 {
-                entry.ts = Utc::now().timestamp_millis();
-            }
         }
     }
-    for (tok, rate) in mem.iter() {
-        let entry = agg.entry(tok.clone()).or_default();
+    if let Some(rate) = mem_map.get(token) {
         entry.tx_rate = *rate;
-        entry.ts = Utc::now().timestamp_millis();
     }
+    entry.ts = Utc::now().timestamp_millis();
+
+    drop(dexes);
+    drop(mem_map);
+
+    let mut agg_lock = agg.lock().await;
+    agg_lock.insert(token.to_string(), entry.clone());
+    let snapshot = agg_lock.clone();
+    let current_len = snapshot.len();
+    drop(agg_lock);
+
     let now = Instant::now();
     let send_needed = {
         let last = last_map.lock().await;
-        agg.iter().any(|(k, v)| match last.get(k) {
-            Some(old) => significant_change(old, v, threshold),
+        let changed = match last.get(token) {
+            Some(old) => significant_change(old, &entry, threshold),
             None => true,
-        }) || last.len() != agg.len()
+        };
+        changed || last.len() != current_len
     };
 
     // Serialize snapshot as a token-indexed binary structure for fast lookups
     // Format: "IDX1" | u32 count | [u16 token_len | token_bytes | u32 offset | u32 len]* | data...
     let header_size: usize = 8
-        + agg
+        + snapshot
             .iter()
             .map(|(t, _)| 2 + t.as_bytes().len() + 8)
             .sum::<usize>();
     let mut header = Vec::with_capacity(header_size);
     header.extend_from_slice(b"IDX1");
-    header.extend_from_slice(&(agg.len() as u32).to_le_bytes());
+    header.extend_from_slice(&(snapshot.len() as u32).to_le_bytes());
     let mut data = Vec::new();
-    for (token, entry) in agg.iter() {
+    for (token, entry) in snapshot.iter() {
         let json = serde_json::to_vec(entry)?;
         header.extend_from_slice(&(token.len() as u16).to_le_bytes());
         header.extend_from_slice(token.as_bytes());
@@ -362,14 +373,14 @@ async fn update_mmap(
         return Ok(());
     }
 
-    *last_map.lock().await = agg.clone();
+    *last_map.lock().await = snapshot.clone();
     *last_sent.lock().await = now;
 
-    let text = serde_json::to_string(&agg)?;
+    let text = serde_json::to_string(&snapshot)?;
     let _ = ws.send(text.clone());
     *latest.lock().await = text.clone();
     if let Some(bus) = bus {
-        let entries: HashMap<String, pb::TokenAgg> = agg
+        let entries: HashMap<String, pb::TokenAgg> = snapshot
             .iter()
             .map(|(k, v)| {
                 (
@@ -411,6 +422,7 @@ async fn connect_feed(
     url: &str,
     dex_map: DexMap,
     mem: MempoolMap,
+    agg: AggMap,
     mmap: SharedMmap,
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
@@ -445,8 +457,10 @@ async fn connect_feed(
                 );
                 drop(dexes);
                 let _ = update_mmap(
+                    &token,
                     &dex_map,
                     &mem,
+                    &agg,
                     &mmap,
                     &ws,
                     bus.as_ref(),
@@ -468,6 +482,7 @@ async fn connect_price_feed(
     url: &str,
     dex_map: DexMap,
     mem: MempoolMap,
+    agg: AggMap,
     mmap: SharedMmap,
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
@@ -499,8 +514,10 @@ async fn connect_price_feed(
                 );
                 drop(dexes);
                 let _ = update_mmap(
+                    &token,
                     &dex_map,
                     &mem,
+                    &agg,
                     &mmap,
                     &ws,
                     bus.as_ref(),
@@ -521,6 +538,7 @@ async fn connect_mempool(
     url: &str,
     mem: MempoolMap,
     dex_map: DexMap,
+    agg: AggMap,
     mmap: SharedMmap,
     ws: WsSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
@@ -544,8 +562,10 @@ async fn connect_mempool(
                 mem_lock.insert(token, rate);
                 drop(mem_lock);
                 let _ = update_mmap(
+                    &token,
                     &dex_map,
                     &mem,
+                    &agg,
                     &mmap,
                     &ws,
                     bus.as_ref(),
@@ -566,6 +586,7 @@ async fn ipc_server(
     socket: &Path,
     dex_map: DexMap,
     mem: MempoolMap,
+    agg: AggMap,
     exec: Arc<ExecContext>,
 ) -> Result<()> {
     if socket.exists() {
@@ -617,6 +638,7 @@ async fn ipc_server(
         let (mut stream, _) = listener.accept().await?;
         let dex_map = dex_map.clone();
         let mem = mem.clone();
+        let agg_map = agg.clone();
         let exec = exec.clone();
         let auto_map = auto_map.clone();
         tokio::spawn(async move {
@@ -625,19 +647,8 @@ async fn ipc_server(
                 if let Ok(val) = serde_json::from_slice::<Value>(&buf) {
                     if val.get("cmd") == Some(&Value::String("snapshot".into())) {
                         if let Some(token) = val.get("token").and_then(|v| v.as_str()) {
-                            let dexes = dex_map.lock().await;
-                            let mem = mem.lock().await;
-                            let mut entry = TokenAgg::default();
-                            for (dex_name, dex) in dexes.iter() {
-                                if let Some(info) = dex.get(token) {
-                                    entry.bids += info.bids;
-                                    entry.asks += info.asks;
-                                    entry.dex.insert(dex_name.clone(), info.clone());
-                                }
-                            }
-                            if let Some(rate) = mem.get(token) {
-                                entry.tx_rate = *rate;
-                            }
+                            let agg = agg_map.lock().await;
+                            let entry = agg.get(token).cloned().unwrap_or_default();
                             let _ = stream
                                 .write_all(serde_json::to_string(&entry).unwrap().as_bytes())
                                 .await;
@@ -910,6 +921,7 @@ async fn main() -> Result<()> {
     let mmap = Arc::new(Mutex::new(mmap));
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
+    let agg_map: AggMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
     let latest: LatestSnap = Arc::new(Mutex::new(String::new()));
     let last_map: LastAggMap = Arc::new(Mutex::new(HashMap::new()));
@@ -991,6 +1003,7 @@ async fn main() -> Result<()> {
     if let Some(url) = serum {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1003,6 +1016,7 @@ async fn main() -> Result<()> {
                 &url,
                 d,
                 m,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1018,6 +1032,7 @@ async fn main() -> Result<()> {
     if let Some(url) = raydium {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1030,6 +1045,7 @@ async fn main() -> Result<()> {
                 &url,
                 d,
                 m,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1045,6 +1061,7 @@ async fn main() -> Result<()> {
     if let Some(url) = orca {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1057,6 +1074,7 @@ async fn main() -> Result<()> {
                 &url,
                 d,
                 m,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1072,6 +1090,7 @@ async fn main() -> Result<()> {
     if let Some(url) = jupiter {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1084,6 +1103,7 @@ async fn main() -> Result<()> {
                 &url,
                 d,
                 m,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1099,6 +1119,7 @@ async fn main() -> Result<()> {
     if let Some(url) = phoenix {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1111,6 +1132,7 @@ async fn main() -> Result<()> {
                 &url,
                 d,
                 m,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1126,6 +1148,7 @@ async fn main() -> Result<()> {
     if let Some(url) = meteora {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1138,6 +1161,7 @@ async fn main() -> Result<()> {
                 &url,
                 d,
                 m,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1153,6 +1177,7 @@ async fn main() -> Result<()> {
     if let Some(url) = mempool {
         let d = dex_map.clone();
         let m = mem_map.clone();
+        let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
         let bus = bus_tx.clone();
@@ -1164,6 +1189,7 @@ async fn main() -> Result<()> {
                 &url,
                 m,
                 d,
+                a,
                 mm,
                 tx,
                 bus,
@@ -1191,6 +1217,6 @@ async fn main() -> Result<()> {
         .ok()
         .or_else(|| cfg_str(&cfg, "DEPTH_SERVICE_SOCKET"))
         .unwrap_or_else(|| "/tmp/depth_service.sock".into());
-    ipc_server(Path::new(&sock_path), dex_map, mem_map, exec).await?;
+    ipc_server(Path::new(&sock_path), dex_map, mem_map, agg_map, exec).await?;
     Ok(())
 }
