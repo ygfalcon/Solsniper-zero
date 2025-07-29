@@ -189,14 +189,12 @@ async def broadcast_ws(
 ) -> None:
     """Send ``message`` to websocket peers."""
     if to_clients:
-        to_remove = []
-        for ws in list(_ws_clients):
-            try:
-                await ws.send(message)
-            except Exception:  # pragma: no cover - network errors
-                to_remove.append(ws)
-        for ws in to_remove:
-            _ws_clients.discard(ws)
+        clients = list(_ws_clients)
+        coros = [ws.send(message) for ws in clients]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+        for ws, res in zip(clients, results):
+            if isinstance(res, Exception):  # pragma: no cover - network errors
+                _ws_clients.discard(ws)
     if to_server and _ws_client is not None:
         try:
             await _ws_client.send(message)
