@@ -1,5 +1,7 @@
 from argparse import ArgumentParser
+import asyncio
 from . import wallet
+from .http import close_session
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,4 +42,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    finally:
+        asyncio.run(close_session())

@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 from .rl_daemon import RLDaemon
+from .http import close_session
 
 async def main() -> None:
     p = argparse.ArgumentParser(description="Run RL training daemon")
@@ -31,4 +32,7 @@ async def main() -> None:
         await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        asyncio.run(close_session())

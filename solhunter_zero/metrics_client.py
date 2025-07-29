@@ -10,6 +10,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     aiohttp = None
 
+if aiohttp is not None:  # pragma: no cover - optional dependency
+    from .http import get_session
+else:  # pragma: no cover - optional dependency
+    get_session = None
+
 from .event_bus import subscribe
 
 logger = logging.getLogger(__name__)
@@ -39,12 +44,12 @@ def start_metrics_exporter(url: str | None = None) -> Callable[[], None]:
         return lambda: None
 
     async def _post(payload: dict[str, float]) -> None:
-        if aiohttp is None:
+        if aiohttp is None or get_session is None:
             return
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=5) as resp:
-                    resp.raise_for_status()
+            session = await get_session()
+            async with session.post(url, json=payload, timeout=5) as resp:
+                resp.raise_for_status()
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("failed to export metrics: %s", exc)
 

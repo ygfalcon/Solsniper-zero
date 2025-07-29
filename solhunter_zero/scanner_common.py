@@ -4,6 +4,7 @@ import asyncio
 from typing import Dict, List, Optional, Iterable
 
 import aiohttp
+from .http import get_session
 
 from pathlib import Path
 
@@ -147,14 +148,14 @@ def fetch_trending_tokens() -> List[str]:
 
 async def fetch_trending_tokens_async() -> List[str]:
     """Asynchronously fetch trending token addresses from Jupiter."""
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch trending tokens: %s", exc)
-            return []
+    session = await get_session()
+    try:
+        async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch trending tokens: %s", exc)
+        return []
 
     return parse_trending_tokens(data)
 
@@ -178,14 +179,14 @@ def fetch_raydium_listings() -> List[str]:
 
 
 async def fetch_raydium_listings_async() -> List[str]:
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(RAYDIUM_LISTINGS_API, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch Raydium listings: %s", exc)
-            return []
+    session = await get_session()
+    try:
+        async with session.get(RAYDIUM_LISTINGS_API, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Raydium listings: %s", exc)
+        return []
     return parse_listing_tokens(data)
 
 
@@ -195,14 +196,14 @@ def fetch_orca_listings() -> List[str]:
 
 
 async def fetch_orca_listings_async() -> List[str]:
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(ORCA_LISTINGS_API, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch Orca listings: %s", exc)
-            return []
+    session = await get_session()
+    try:
+        async with session.get(ORCA_LISTINGS_API, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Orca listings: %s", exc)
+        return []
     return parse_listing_tokens(data)
 
 
@@ -212,14 +213,14 @@ def fetch_phoenix_listings() -> List[str]:
 
 
 async def fetch_phoenix_listings_async() -> List[str]:
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(PHOENIX_LISTINGS_API, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch Phoenix listings: %s", exc)
-            return []
+    session = await get_session()
+    try:
+        async with session.get(PHOENIX_LISTINGS_API, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Phoenix listings: %s", exc)
+        return []
     return parse_listing_tokens(data)
 
 
@@ -229,14 +230,14 @@ def fetch_meteora_listings() -> List[str]:
 
 
 async def fetch_meteora_listings_async() -> List[str]:
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(METEORA_LISTINGS_API, timeout=10) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch Meteora listings: %s", exc)
-            return []
+    session = await get_session()
+    try:
+        async with session.get(METEORA_LISTINGS_API, timeout=10) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+        logger.warning("Failed to fetch Meteora listings: %s", exc)
+        return []
     return parse_listing_tokens(data)
 
 

@@ -6,6 +6,9 @@ from argparse import ArgumentParser
 from typing import Dict, List
 from datetime import datetime
 import tomllib
+import asyncio
+
+from .http import close_session
 
 from .trade_analyzer import analyze_trades
 
@@ -181,4 +184,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    finally:
+        asyncio.run(close_session())

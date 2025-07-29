@@ -8,6 +8,8 @@ import socket
 from collections import deque
 from typing import Any
 import time
+
+from .http import close_session
 from flask import Flask, jsonify, request
 from .event_bus import subscription, publish
 try:
@@ -947,4 +949,7 @@ if __name__ == "__main__":
         threading.Thread(target=_start_rl_ws, daemon=True).start()
         threading.Thread(target=_start_event_ws, daemon=True).start()
 
-    app.run()
+    try:
+        app.run()
+    finally:
+        asyncio.run(close_session())

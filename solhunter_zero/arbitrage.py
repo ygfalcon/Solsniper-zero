@@ -14,6 +14,7 @@ from typing import (
 )
 
 import aiohttp
+from .http import get_session
 from .scanner_common import JUPITER_WS_URL
 
 from .exchange import (
@@ -110,15 +111,8 @@ _EDGE_CACHE = LRUCache(maxsize=1024)
 _LAST_DEPTH: dict[str, float] = {}
 
 # shared HTTP session and price cache
-_SESSION: aiohttp.ClientSession | None = None
 PRICE_CACHE_TTL = 30  # seconds
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
-
-async def _get_session() -> aiohttp.ClientSession:
-    global _SESSION
-    if _SESSION is None or getattr(_SESSION, "closed", False):
-        _SESSION = aiohttp.ClientSession()
-    return _SESSION
 
 def _route_key(token: str, amount: float, fees: Mapping[str, float], gas: Mapping[str, float], latency: Mapping[str, float]) -> tuple:
     def _norm(m: Mapping[str, float]) -> tuple:
@@ -175,15 +169,15 @@ async def _prepare_service_tx(
         "price": price,
         "cluster": "mainnet-beta",
     }
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(
-                f"{base_url}{SWAP_PATH}", json=payload, timeout=10
-            ) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except aiohttp.ClientError:
-            return None
+    session = await get_session()
+    try:
+        async with session.post(
+            f"{base_url}{SWAP_PATH}", json=payload, timeout=10
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+    except aiohttp.ClientError:
+        return None
 
     tx_b64 = data.get("swapTransaction")
     if not tx_b64:
@@ -204,7 +198,7 @@ async def fetch_orca_price_async(token: str) -> float:
         return cached
 
     url = f"{ORCA_API_URL}/price?token={token}"
-    session = await _get_session()
+    session = await get_session()
     try:
         async with session.get(url, timeout=10) as resp:
             resp.raise_for_status()
@@ -233,7 +227,7 @@ async def fetch_raydium_price_async(token: str) -> float:
         return cached
 
     url = f"{RAYDIUM_API_URL}/price?token={token}"
-    session = await _get_session()
+    session = await get_session()
     try:
         async with session.get(url, timeout=10) as resp:
             resp.raise_for_status()
@@ -262,7 +256,7 @@ async def fetch_phoenix_price_async(token: str) -> float:
         return cached
 
     url = f"{PHOENIX_API_URL}/price?token={token}"
-    session = await _get_session()
+    session = await get_session()
     try:
         async with session.get(url, timeout=10) as resp:
             resp.raise_for_status()
@@ -291,7 +285,7 @@ async def fetch_meteora_price_async(token: str) -> float:
         return cached
 
     url = f"{METEORA_API_URL}/price?token={token}"
-    session = await _get_session()
+    session = await get_session()
     try:
         async with session.get(url, timeout=10) as resp:
             resp.raise_for_status()
@@ -324,7 +318,7 @@ async def fetch_jupiter_price_async(token: str) -> float:
         return cached
 
     url = f"{JUPITER_API_URL}?ids={token}"
-    session = await _get_session()
+    session = await get_session()
     try:
         async with session.get(url, timeout=10) as resp:
             resp.raise_for_status()
@@ -362,7 +356,7 @@ def make_api_price_fetch(url: str, name: str | None = None) -> PriceFeed:
             return cached
 
         req = f"{url.rstrip('/')}/price?token={token}"
-        session = await _get_session()
+        session = await get_session()
         try:
             async with session.get(req, timeout=10) as resp:
                 resp.raise_for_status()
@@ -389,8 +383,8 @@ async def stream_orca_prices(
     if not url:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             try:
                 await ws.send_str(json.dumps({"token": token}))
             except Exception:  # pragma: no cover - send failures
@@ -415,8 +409,8 @@ async def stream_raydium_prices(
     if not url:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             try:
                 await ws.send_str(json.dumps({"token": token}))
             except Exception:  # pragma: no cover - send failures
@@ -441,8 +435,8 @@ async def stream_phoenix_prices(
     if not url:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             try:
                 await ws.send_str(json.dumps({"token": token}))
             except Exception:  # pragma: no cover - send failures
@@ -467,8 +461,8 @@ async def stream_meteora_prices(
     if not url:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             try:
                 await ws.send_str(json.dumps({"token": token}))
             except Exception:  # pragma: no cover - send failures
@@ -493,8 +487,8 @@ async def stream_jupiter_prices(
     if not url:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.ws_connect(url) as ws:
+    session = await get_session()
+    async with session.ws_connect(url) as ws:
             try:
                 await ws.send_str(json.dumps({"token": token}))
             except Exception:  # pragma: no cover - send failures
@@ -517,8 +511,8 @@ def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
     async def _stream(token: str, url: str = url) -> AsyncGenerator[float, None]:
         if not url:
             return
-        async with aiohttp.ClientSession() as session:
-            async with session.ws_connect(url) as ws:
+        session = await get_session()
+        async with session.ws_connect(url) as ws:
                 try:
                     await ws.send_str(json.dumps({"token": token}))
                 except Exception:  # pragma: no cover - send failures
