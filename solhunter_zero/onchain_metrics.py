@@ -52,6 +52,10 @@ DEX_METRICS_CACHE = TTLCache(maxsize=256, ttl=DEX_METRICS_CACHE_TTL)
 TOKEN_VOLUME_CACHE_TTL = 30  # seconds
 TOKEN_VOLUME_CACHE = TTLCache(maxsize=1024, ttl=TOKEN_VOLUME_CACHE_TTL)
 
+# cache of computed top volume token lists
+TOP_VOLUME_TOKENS_CACHE_TTL = 60  # seconds
+TOP_VOLUME_TOKENS_CACHE = TTLCache(maxsize=32, ttl=TOP_VOLUME_TOKENS_CACHE_TTL)
+
 
 def _tx_volume(entries: List[dict]) -> float:
     """Return the total volume represented by ``entries``.
@@ -77,6 +81,11 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
     if not rpc_url:
         raise ValueError("rpc_url is required")
 
+    cache_key = (rpc_url, limit)
+    cached = TOP_VOLUME_TOKENS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     tokens = scan_tokens_onchain(rpc_url)
     if not tokens:
         return []
@@ -94,7 +103,9 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
         vol_list.append((tok, volume))
 
     vol_list.sort(key=lambda x: x[1], reverse=True)
-    return [t for t, _v in vol_list[:limit]]
+    result = [t for t, _v in vol_list[:limit]]
+    TOP_VOLUME_TOKENS_CACHE.set(cache_key, result)
+    return result
 
 
 async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
@@ -102,6 +113,11 @@ async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
 
     if not rpc_url:
         raise ValueError("rpc_url is required")
+
+    cache_key = (rpc_url, limit)
+    cached = TOP_VOLUME_TOKENS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
 
     tokens = scan_tokens_onchain(rpc_url)
     if not tokens:
@@ -125,7 +141,9 @@ async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
         vols = await asyncio.gather(*[_fetch(t) for t in tokens])
 
     vols.sort(key=lambda x: x[1], reverse=True)
-    return [t for t, _ in vols[:limit]]
+    result = [t for t, _ in vols[:limit]]
+    TOP_VOLUME_TOKENS_CACHE.set(cache_key, result)
+    return result
 
 
 async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Dict[str, float]:

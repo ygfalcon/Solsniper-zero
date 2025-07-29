@@ -118,6 +118,68 @@ def test_async_top_volume_tokens_cache(monkeypatch):
     assert calls["gets"] == 2
 
 
+def test_top_volume_tokens_cache(monkeypatch):
+    tokens = ["a", "b"]
+    tx_data = {"a": [{"amount": 1.0}], "b": [{"amount": 2.0}]}
+    calls = {"scan": 0, "gets": 0}
+
+    class CountingClient(FakeClient):
+        def get_signatures_for_address(self, addr):
+            calls["gets"] += 1
+            return super().get_signatures_for_address(addr)
+
+    def fake_scan(url):
+        calls["scan"] += 1
+        return tokens
+
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", fake_scan)
+    monkeypatch.setattr(onchain_metrics, "Client", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    onchain_metrics.TOP_VOLUME_TOKENS_CACHE.ttl = 60
+    onchain_metrics.TOP_VOLUME_TOKENS_CACHE.clear()
+
+    first = onchain_metrics.top_volume_tokens("node")
+    second = onchain_metrics.top_volume_tokens("node")
+
+    assert first == ["b", "a"]
+    assert second == first
+    assert calls["scan"] == 1
+    assert calls["gets"] == 2
+
+
+def test_async_top_volume_tokens_list_cache(monkeypatch):
+    tokens = ["a", "b"]
+    tx_data = {"a": [{"amount": 1.0}], "b": [{"amount": 2.0}]}
+    calls = {"scan": 0, "gets": 0}
+
+    class CountingClient(FakeAsyncClient):
+        async def get_signatures_for_address(self, addr):
+            calls["gets"] += 1
+            return await super().get_signatures_for_address(addr)
+
+    def fake_scan(url):
+        calls["scan"] += 1
+        return tokens
+
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", fake_scan)
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    onchain_metrics.TOP_VOLUME_TOKENS_CACHE.ttl = 60
+    onchain_metrics.TOP_VOLUME_TOKENS_CACHE.clear()
+    onchain_metrics.TOKEN_VOLUME_CACHE.ttl = 0
+    onchain_metrics.TOKEN_VOLUME_CACHE.clear()
+
+    first = asyncio.run(onchain_metrics.async_top_volume_tokens("node"))
+    second = asyncio.run(onchain_metrics.async_top_volume_tokens("node"))
+
+    assert first == ["b", "a"]
+    assert second == first
+    assert calls["scan"] == 1
+    assert calls["gets"] == 2
+
+
 def test_fetch_dex_metrics(monkeypatch):
     urls = []
 
