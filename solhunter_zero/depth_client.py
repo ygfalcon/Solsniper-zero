@@ -3,6 +3,7 @@ import json
 import mmap
 import asyncio
 import time
+import atexit
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
@@ -17,6 +18,50 @@ DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.soc
 
 MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
 DEPTH_WS_ADDR, DEPTH_WS_PORT = get_depth_ws_addr()
+
+# Persistent mmap for depth snapshots
+_MMAP: mmap.mmap | None = None
+_MMAP_SIZE: int = 0
+
+
+def open_mmap() -> mmap.mmap | None:
+    """Return a persistent mmap for :data:`MMAP_PATH`."""
+    global _MMAP, _MMAP_SIZE
+    try:
+        size = os.path.getsize(MMAP_PATH)
+    except OSError:
+        size = 0
+    if size == 0:
+        close_mmap()
+        return None
+    if _MMAP is not None:
+        if getattr(_MMAP, "closed", False) or _MMAP_SIZE != size:
+            try:
+                _MMAP.close()
+            except Exception:
+                pass
+            _MMAP = None
+    if _MMAP is None:
+        f = open(MMAP_PATH, "rb")
+        _MMAP = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        _MMAP_SIZE = size
+        f.close()
+    return _MMAP
+
+
+def close_mmap() -> None:
+    """Close the persistent depth mmap."""
+    global _MMAP, _MMAP_SIZE
+    if _MMAP is not None and not getattr(_MMAP, "closed", False):
+        try:
+            _MMAP.close()
+        except Exception:
+            pass
+    _MMAP = None
+    _MMAP_SIZE = 0
+
+
+atexit.register(close_mmap)
 
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
@@ -167,26 +212,27 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
     if cached and now - cached[0] < DEPTH_CACHE_TTL:
         return cached[2], cached[1]
     try:
-        with open(MMAP_PATH, "rb") as f:
-            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
-                raw = bytes(m).rstrip(b"\x00")
-                if not raw:
-                    return {}, 0.0
-                data = json.loads(raw.decode())
-                entry = data.get(token)
-                if not entry:
-                    return {}, 0.0
-                rate = float(entry.get("tx_rate", 0.0))
-                venues = {}
-                for dex, info in entry.items():
-                    if dex == "tx_rate" or not isinstance(info, dict):
-                        continue
-                    venues[dex] = {
-                        "bids": float(info.get("bids", 0.0)),
-                        "asks": float(info.get("asks", 0.0)),
-                    }
-                SNAPSHOT_CACHE[token] = (now, rate, venues)
-                return venues, rate
+        m = open_mmap()
+        if m is None:
+            return {}, 0.0
+        raw = m[:].rstrip(b"\x00")
+        if not raw:
+            return {}, 0.0
+        data = json.loads(raw.decode())
+        entry = data.get(token)
+        if not entry:
+            return {}, 0.0
+        rate = float(entry.get("tx_rate", 0.0))
+        venues = {}
+        for dex, info in entry.items():
+            if dex == "tx_rate" or not isinstance(info, dict):
+                continue
+            venues[dex] = {
+                "bids": float(info.get("bids", 0.0)),
+                "asks": float(info.get("asks", 0.0)),
+            }
+        SNAPSHOT_CACHE[token] = (now, rate, venues)
+        return venues, rate
     except Exception:
         return {}, 0.0
 
