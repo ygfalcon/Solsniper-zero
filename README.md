@@ -54,6 +54,13 @@ up automatically. Select this file from the UI or set
    loop latency on Unix-like systems. If available, it is enabled by calling
    `solhunter_zero.util.install_uvloop()` at startup.
 
+   The optional `fastjson` group installs [orjson](https://pypi.org/project/orjson/)
+   for faster JSON serialization and parsing:
+
+   ```bash
+   pip install .[fastjson]
+   ```
+
 For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live. You can also simply run `make start`.
 
 
