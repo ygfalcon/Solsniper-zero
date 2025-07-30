@@ -644,6 +644,23 @@ curl -X POST http://localhost:5000/memory/query \
   -d '{"sql":"SELECT token, direction, amount, price FROM trades"}'
 ```
 
+## Memory Batching
+
+`Memory` now supports buffering writes to reduce commit overhead. Pass
+`commit_interval` or `batch_size` when constructing the object:
+
+```python
+from solhunter_zero.memory import Memory
+
+# flush every 5 seconds or after 100 trades
+mem = Memory(commit_interval=5.0, batch_size=100)
+```
+
+Buffered rows are flushed by a periodic async task. Call ``mem.close()``
+to ensure remaining data is written on shutdown. Use
+``scripts/benchmark_memory.py`` to measure CPU usage and insert rate
+before and after batching.
+
 ## Additional Metrics
 
 Recent updates introduce new real-time metrics used by the simulator and risk
