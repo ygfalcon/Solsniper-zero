@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
+from typing import Callable
 try:
     import pytorch_lightning as pl
 except Exception:  # pragma: no cover - optional dependency
@@ -36,7 +37,56 @@ from .offline_data import OfflineData
 from .simulation import predict_price_movement
 from .news import fetch_sentiment
 from .regime import detect_regime
-from .event_bus import publish
+from .event_bus import publish, subscription
+
+
+_CPU_USAGE = 0.0
+_CPU_SUB = None
+
+
+def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
+    """Return latest CPU usage from callback or ``resource_update`` events."""
+    global _CPU_SUB, _CPU_USAGE
+    if callback is not None:
+        try:
+            return float(callback())
+        except Exception:
+            return 0.0
+    if _CPU_SUB is None:
+        def _update(payload: Any) -> None:
+            global _CPU_USAGE
+            try:
+                _CPU_USAGE = float(payload.get("cpu", payload.get("usage", payload)))
+            except Exception:
+                pass
+
+        sub = subscription("resource_update", _update)
+        sub.__enter__()
+        _CPU_SUB = sub
+    return _CPU_USAGE
+
+
+def _calc_num_workers(
+    size: int,
+    *,
+    dynamic: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
+) -> int:
+    env_val = os.getenv("RL_NUM_WORKERS")
+    if env_val is not None:
+        try:
+            return int(env_val)
+        except Exception:
+            pass
+    base = min(os.cpu_count() or 1, max(1, size // 100))
+    if dynamic:
+        usage = _get_cpu_usage(cpu_callback)
+        try:
+            frac = 1.0 - float(usage) / 100.0
+        except Exception:
+            frac = 1.0
+        base = max(1, int(base * max(0.1, frac)))
+    return base
 
 
 class _TradeDataset(Dataset):
@@ -159,6 +209,8 @@ class TradeDataModule(pl.LightningDataModule):
         num_workers: int | None = None,
         pin_memory: bool = True,
         persistent_workers: bool = True,
+        dynamic_workers: bool = False,
+        cpu_callback: Callable[[], float] | None = None,
     ) -> None:
         super().__init__()
         self.db_url = db_url
@@ -176,6 +228,8 @@ class TradeDataModule(pl.LightningDataModule):
             self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
+        self.dynamic_workers = dynamic_workers
+        self.cpu_callback = cpu_callback
         self.dataset: _TradeDataset | None = None
 
     def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
@@ -195,9 +249,10 @@ class TradeDataModule(pl.LightningDataModule):
             self.setup()
         num_workers = self.num_workers
         if num_workers is None:
-            num_workers = min(
-                os.cpu_count() or 1,
-                max(1, len(self.dataset) // 100),
+            num_workers = _calc_num_workers(
+                len(self.dataset),
+                dynamic=self.dynamic_workers,
+                cpu_callback=self.cpu_callback,
             )
         return DataLoader(
             self.dataset,
@@ -320,8 +375,14 @@ class RLTraining:
         metrics_url: str | None = None,
         pin_memory: bool | None = None,
         persistent_workers: bool | None = None,
+        dynamic_workers: bool | None = None,
+        cpu_callback: Callable[[], float] | None = None,
     ) -> None:
         self.model_path = Path(model_path)
+        dyn_workers = dynamic_workers
+        env_dyn = os.getenv("RL_DYNAMIC_WORKERS")
+        if env_dyn is not None:
+            dyn_workers = str(env_dyn).lower() in {"1", "true", "yes"}
         self.data = TradeDataModule(
             db_url,
             batch_size=batch_size,
@@ -331,6 +392,8 @@ class RLTraining:
             num_workers=num_workers,
             pin_memory=pin_memory if pin_memory is not None else True,
             persistent_workers=persistent_workers if persistent_workers is not None else True,
+            dynamic_workers=dyn_workers,
+            cpu_callback=cpu_callback,
         )
         if algo == "dqn":
             self.model: pl.LightningModule = LightningDQN()
@@ -394,6 +457,8 @@ def fit(
     algo: str = "ppo",
     regime_weight: float = 1.0,
     device: str | None = None,
+    dynamic_workers: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
 ) -> None:
     """Train a lightweight RL model from in-memory samples.
 
@@ -441,16 +506,11 @@ def fit(
     if acc != "cpu":
         kwargs["devices"] = 1
     trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
-    env_val = os.getenv("RL_NUM_WORKERS")
-    if env_val is not None:
-        try:
-            num_workers: int | None = int(env_val)
-        except Exception:
-            num_workers = None
-    else:
-        num_workers = None
-    if num_workers is None:
-        num_workers = min(os.cpu_count() or 1, max(1, len(dataset) // 100))
+    num_workers = _calc_num_workers(
+        len(dataset),
+        dynamic=dynamic_workers,
+        cpu_callback=cpu_callback,
+    )
     loader = DataLoader(
         dataset,
         batch_size=64,
