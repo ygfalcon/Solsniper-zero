@@ -215,19 +215,25 @@ async def fetch_token_metrics_async(token: str) -> dict:
             logger.warning("Failed to fetch %s from %s: %s", key, base, exc)
             return None
 
+    tasks: list[asyncio.Future] = []
+    kinds: list[str] = []
+
     for base in dex_urls:
         d_url = f"{base.rstrip('/')}/v1/depth?token={token}"
         s_url = f"{base.rstrip('/')}/v1/slippage?token={token}"
 
-        d_val, s_val = await asyncio.gather(
-            _fetch(d_url, "depth", base),
-            _fetch(s_url, "slippage", base),
-        )
+        tasks.append(_fetch(d_url, "depth", base))
+        kinds.append("depth")
+        tasks.append(_fetch(s_url, "slippage", base))
+        kinds.append("slippage")
 
-        if d_val is not None:
-            depth_vals.append(d_val)
-        if s_val is not None:
-            slip_vals.append(s_val)
+    for kind, result in zip(kinds, await asyncio.gather(*tasks)):
+        if result is None:
+            continue
+        if kind == "depth":
+            depth_vals.append(result)
+        else:
+            slip_vals.append(result)
 
     if depth_vals:
         metrics["depth_per_dex"] = depth_vals

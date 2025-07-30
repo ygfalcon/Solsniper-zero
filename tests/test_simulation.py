@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+import asyncio
+import time
 
 from solhunter_zero import simulation, http
 from solhunter_zero.simulation import SimulationResult
@@ -150,6 +152,47 @@ def test_fetch_token_metrics_multiple_dex(monkeypatch):
     assert metrics["slippage"] == pytest.approx(0.015)
     assert metrics["depth_per_dex"] == [1.0, 2.0]
     assert metrics["slippage_per_dex"] == [0.01, 0.02]
+
+
+def test_fetch_token_metrics_concurrent(monkeypatch):
+    calls = []
+
+    class FakeResp:
+        def __init__(self, url):
+            self.url = url
+
+        def raise_for_status(self):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def json(self):
+            await asyncio.sleep(0.05)
+            if "depth" in self.url:
+                return {"depth": 1.0}
+            if "slippage" in self.url:
+                return {"slippage": 0.1}
+            return {"mean_return": 0.0, "volatility": 0.02}
+
+    class FakeSession:
+        def get(self, url, timeout=5):
+            calls.append(url)
+            return FakeResp(url)
+
+    monkeypatch.setenv("DEX_METRIC_URLS", "http://d1,http://d2")
+    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+
+    start = time.perf_counter()
+    metrics = simulation.fetch_token_metrics("tok")
+    elapsed = time.perf_counter() - start
+
+    assert metrics["depth"] == pytest.approx(1.0)
+    assert metrics["slippage"] == pytest.approx(0.1)
+    assert elapsed < 0.12
 
 
 def test_token_metrics_cache(monkeypatch):
