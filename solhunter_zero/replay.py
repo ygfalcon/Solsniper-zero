@@ -7,6 +7,7 @@ from typing import Iterable, Tuple, List
 import asyncio
 
 from .http import close_session
+from .rpc import close_rpc_clients
 from .util import install_uvloop
 
 install_uvloop()
@@ -122,3 +123,4 @@ if __name__ == "__main__":  # pragma: no cover
         raise SystemExit(main())
     finally:
         asyncio.run(close_session())
+        asyncio.run(close_rpc_clients())

@@ -10,6 +10,7 @@ import pytest
 import asyncio
 
 from solhunter_zero.http import close_session
+from solhunter_zero.rpc import close_rpc_clients
 
 
 def pytest_addoption(parser):
@@ -35,3 +36,4 @@ def pytest_collection_modifyitems(config, items):
 def _close_http_session():
     yield
     asyncio.run(close_session())
+    asyncio.run(close_rpc_clients())

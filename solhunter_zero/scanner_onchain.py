@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover - fallback when solana lacks PublicKey
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
 from solana.rpc.api import Client
+from .rpc import get_rpc_client
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def fetch_mempool_tx_rate(token: str, rpc_url: str, limit: int = 20) -> float:
     if cached is not None:
         return cached
 
-    client = Client(rpc_url)
+    client = get_rpc_client(rpc_url)
     try:
         resp = client.get_signatures_for_address(PublicKey(token), limit=limit)
         entries = resp.get("result", [])
@@ -135,7 +136,7 @@ def fetch_whale_wallet_activity(
     if cached is not None:
         return cached
 
-    client = Client(rpc_url)
+    client = get_rpc_client(rpc_url)
     try:
         resp = client.get_token_largest_accounts(PublicKey(token))
         accounts = resp.get("result", {}).get("value", [])
@@ -170,7 +171,7 @@ def fetch_average_swap_size(token: str, rpc_url: str, limit: int = 20) -> float:
     if cached is not None:
         return cached
 
-    client = Client(rpc_url)
+    client = get_rpc_client(rpc_url)
     try:
         resp = client.get_signatures_for_address(PublicKey(token), limit=limit)
         entries = resp.get("result", [])

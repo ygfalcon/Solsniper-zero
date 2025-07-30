@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import aiohttp
+from .rpc import close_rpc_clients
 
 _session: aiohttp.ClientSession | None = None
 
@@ -23,5 +24,9 @@ async def close_session() -> None:
         from .depth_client import close_mmap, close_ipc_clients
         close_mmap()
         await close_ipc_clients()
+    except Exception:
+        pass
+    try:
+        await close_rpc_clients()
     except Exception:
         pass

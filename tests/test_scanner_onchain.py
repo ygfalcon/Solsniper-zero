@@ -90,7 +90,7 @@ def test_mempool_tx_rate(monkeypatch):
         def get_signatures_for_address(self, addr, limit=20):
             return {"result": [{"blockTime": 1}, {"blockTime": 3}, {"blockTime": 4}]}
 
-    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "get_rpc_client", lambda url: Client(url))
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
     rate = scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
     assert rate == pytest.approx(3 / 3)
@@ -104,7 +104,7 @@ def test_whale_wallet_activity(monkeypatch):
         def get_token_largest_accounts(self, addr):
             return {"result": {"value": [{"uiAmount": 2000.0}, {"uiAmount": 50.0}]}}
 
-    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "get_rpc_client", lambda url: Client(url))
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
     activity = scanner_onchain.fetch_whale_wallet_activity(
         "tok", "http://node", threshold=1000.0
@@ -120,7 +120,7 @@ def test_average_swap_size(monkeypatch):
         def get_signatures_for_address(self, addr, limit=20):
             return {"result": [{"amount": 2.0}, {"amount": 4.0}]}
 
-    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "get_rpc_client", lambda url: Client(url))
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
     size = scanner_onchain.fetch_average_swap_size("tok", "http://node")
     assert size == pytest.approx(3.0)
@@ -137,7 +137,7 @@ def test_mempool_tx_rate_cache(monkeypatch):
             calls["count"] += 1
             return {"result": [{"blockTime": 1}, {"blockTime": 2}]}
 
-    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "get_rpc_client", lambda url: Client(url))
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
 
     scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
@@ -157,7 +157,7 @@ def test_whale_wallet_activity_cache(monkeypatch):
             calls["count"] += 1
             return {"result": {"value": [{"uiAmount": 2000.0}, {"uiAmount": 50.0}]}}
 
-    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "get_rpc_client", lambda url: Client(url))
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
 
     scanner_onchain.fetch_whale_wallet_activity("tok", "http://node")
@@ -177,7 +177,7 @@ def test_average_swap_size_cache(monkeypatch):
             calls["count"] += 1
             return {"result": [{"amount": 2.0}, {"amount": 4.0}]}
 
-    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "get_rpc_client", lambda url: Client(url))
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
 
     scanner_onchain.fetch_average_swap_size("tok", "http://node")

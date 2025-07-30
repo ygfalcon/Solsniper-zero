@@ -10,6 +10,7 @@ from typing import Any
 import time
 
 from .http import close_session
+from .rpc import close_rpc_clients
 from .util import install_uvloop
 
 install_uvloop()
@@ -957,3 +958,4 @@ if __name__ == "__main__":
         app.run()
     finally:
         asyncio.run(close_session())
+        asyncio.run(close_rpc_clients())

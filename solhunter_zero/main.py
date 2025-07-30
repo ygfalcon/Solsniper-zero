@@ -24,6 +24,7 @@ from .config import (
     CONFIG_DIR,
 )
 from .http import close_session
+from .rpc import close_rpc_clients
 from . import wallet
 
 _SERVICE_MANIFEST = (
@@ -1108,3 +1109,4 @@ if __name__ == "__main__":
                 main(**kwargs)
     finally:
         asyncio.run(close_session())
+        asyncio.run(close_rpc_clients())
