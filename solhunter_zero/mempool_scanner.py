@@ -8,7 +8,7 @@ import statistics
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
-import psutil
+from .event_bus import subscription
 
 try:
     from solana.publickey import PublicKey
@@ -50,6 +50,23 @@ MEMPOOL_STATS_WINDOW = int(os.getenv("MEMPOOL_STATS_WINDOW", "5") or 5)
 MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0)
 
 _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
+_CPU_PERCENT: float = 0.0
+
+def _on_resource_update(msg: Any) -> None:
+    """Update :data:`_CPU_PERCENT` from a ``resource_update`` event."""
+    cpu = getattr(msg, "cpu", None)
+    if isinstance(msg, dict):
+        cpu = msg.get("cpu", cpu)
+    if cpu is None:
+        return
+    try:
+        global _CPU_PERCENT
+        _CPU_PERCENT = float(cpu)
+    except Exception:
+        pass
+
+_resource_sub = subscription("resource_update", _on_resource_update)
+_resource_sub.__enter__()
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
@@ -245,7 +262,7 @@ async def stream_ranked_mempool_tokens(
         include_pools=include_pools,
     ):
         if cpu_usage_threshold is not None:
-            while psutil.cpu_percent() > cpu_usage_threshold:
+            while _CPU_PERCENT > cpu_usage_threshold:
                 await asyncio.sleep(0.05)
         address = tok["address"] if isinstance(tok, dict) else tok
         task = asyncio.create_task(worker(address))

@@ -1,7 +1,7 @@
 import asyncio
 
 import solhunter_zero.mempool_scanner as mp_scanner
-from solhunter_zero import scanner_common
+from solhunter_zero import scanner_common, event_bus
 
 scanner_common.TOKEN_SUFFIX = ""
 
@@ -115,10 +115,10 @@ def test_stream_mempool_tokens_with_metrics(monkeypatch):
     import solhunter_zero.onchain_metrics as om
 
     monkeypatch.setattr(
-        om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0)
+        om, "fetch_volume_onchain", lambda t, u: 1.0
     )
     monkeypatch.setattr(
-        om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 2.0)
+        om, "fetch_liquidity_onchain", lambda t, u: 2.0
     )
 
     async def run():
@@ -247,7 +247,7 @@ def test_stream_ranked_with_depth(monkeypatch):
 
 def test_default_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", lambda: 0.0)
+    mp_scanner._CPU_PERCENT = 0.0
 
     async def fake_stream(_url, **__):
         for t in ("a", "b", "c", "d"):
@@ -279,12 +279,16 @@ def test_default_concurrency(monkeypatch):
 
 def test_cpu_threshold_reduces_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    cpu_vals = [90.0, 10.0]
+    mp_scanner._CPU_PERCENT = 90.0
 
-    def fake_cpu():
-        return cpu_vals.pop(0) if cpu_vals else 10.0
+    orig_sleep = asyncio.sleep
 
-    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", fake_cpu)
+    async def fake_sleep(delay):
+        if delay == 0.05:
+            event_bus.publish("resource_update", {"cpu": 10.0})
+        await orig_sleep(0)
+
+    monkeypatch.setattr(mp_scanner.asyncio, "sleep", fake_sleep)
 
     async def fake_stream(_url, **__):
         for t in ("a", "b"):
