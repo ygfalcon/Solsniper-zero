@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import atexit
+import asyncio
 import aiohttp
+from contextlib import asynccontextmanager
 
 try:
     import orjson as _json  # type: ignore
@@ -46,3 +49,16 @@ async def close_session() -> None:
         await close_ipc_clients()
     except Exception:
         pass
+
+
+@asynccontextmanager
+async def session_context() -> aiohttp.ClientSession:
+    """Async context manager yielding the shared session."""
+    session = await get_session()
+    try:
+        yield session
+    finally:
+        await close_session()
+
+
+atexit.register(lambda: asyncio.run(close_session()))
