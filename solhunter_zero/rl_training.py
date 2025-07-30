@@ -46,7 +46,7 @@ _CPU_SUB = None
 
 
 def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
-    """Return latest CPU usage from callback or ``resource_update`` events."""
+    """Return latest CPU usage from callback or ``system_metrics`` events."""
     global _CPU_SUB, _CPU_USAGE
     if callback is not None:
         try:
@@ -61,7 +61,7 @@ def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
             except Exception:
                 pass
 
-        sub = subscription("resource_update", _update)
+        sub = subscription("system_metrics", _update)
         sub.__enter__()
         _CPU_SUB = sub
     return _CPU_USAGE

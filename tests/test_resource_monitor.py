@@ -13,7 +13,7 @@ async def test_resource_monitor_publish(monkeypatch):
     monkeypatch.setattr(rm.psutil, 'virtual_memory', lambda: types.SimpleNamespace(percent=42.0))
 
     received = []
-    unsub = event_bus.subscribe('resource_update', lambda p: received.append(p))
+    unsub = event_bus.subscribe('system_metrics', lambda p: received.append(p))
 
     rm.start_monitor(0.01)
     await asyncio.sleep(0.03)
@@ -21,5 +21,5 @@ async def test_resource_monitor_publish(monkeypatch):
     unsub()
 
     assert received
-    assert received[0]['cpu'] == 5.0
-    assert received[0]['memory'] == 42.0
+    assert received[0].cpu == 5.0
+    assert received[0].memory == 42.0

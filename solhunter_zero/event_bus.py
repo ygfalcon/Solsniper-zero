@@ -16,7 +16,6 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
-import psutil
 
 from .schemas import validate_message, to_dict
 from . import event_pb2 as pb
@@ -484,20 +483,10 @@ async def send_heartbeat(
 ) -> None:
     """Publish heartbeat for ``service`` every ``interval`` seconds."""
     if metrics_interval:
-        asyncio.create_task(publish_metrics(metrics_interval))
+        from . import resource_monitor
+
+        resource_monitor.start_monitor(metrics_interval)
     while True:
         publish("heartbeat", {"service": service})
-        await asyncio.sleep(interval)
-
-
-async def publish_metrics(interval: float = 30.0) -> None:
-    """Publish system CPU and memory usage every ``interval`` seconds."""
-    while True:
-        try:
-            cpu = psutil.cpu_percent()
-            mem = psutil.virtual_memory().percent
-            publish("system_metrics", {"cpu": cpu, "memory": mem})
-        except Exception:
-            pass
         await asyncio.sleep(interval)
 
