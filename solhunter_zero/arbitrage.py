@@ -37,6 +37,9 @@ from solders.keypair import Keypair
 
 logger = logging.getLogger(__name__)
 
+# rate limit for depth streams (seconds between updates)
+DEPTH_RATE_LIMIT = 0.1
+
 DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 
 PriceFeed = Callable[[str], Awaitable[float]]
@@ -1173,7 +1176,7 @@ async def detect_and_execute_arbitrage(
             if not url:
                 continue
             if name == "service":
-                auto.append(order_book_ws.stream_order_book(url))
+                auto.append(order_book_ws.stream_order_book(url, rate_limit=DEPTH_RATE_LIMIT))
                 names.append(name)
                 continue
             if fn is not None:
