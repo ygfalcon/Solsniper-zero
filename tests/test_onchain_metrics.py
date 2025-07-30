@@ -13,15 +13,30 @@ def setup_function(_):
     onchain_metrics.DEX_METRICS_CACHE = onchain_metrics.TTLCache(
         maxsize=256, ttl=onchain_metrics.DEX_METRICS_CACHE_TTL
     )
+    onchain_metrics.TOKEN_VOLUME_CACHE = onchain_metrics.TTLCache(
+        maxsize=1024, ttl=onchain_metrics.TOKEN_VOLUME_CACHE_TTL
+    )
+    onchain_metrics.TOP_VOLUME_TOKENS_CACHE = onchain_metrics.TTLCache(
+        maxsize=32, ttl=onchain_metrics.TOP_VOLUME_TOKENS_CACHE_TTL
+    )
 
 
-class FakeClient:
+class FakeAsyncClient:
     def __init__(self, url, data):
         self.url = url
         self._data = data
 
-    def get_signatures_for_address(self, addr):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+    async def get_signatures_for_address(self, addr):
         return {"result": self._data.get(str(addr), [])}
+
+
+
 
 
 def test_top_volume_tokens(monkeypatch):
@@ -39,10 +54,10 @@ def test_top_volume_tokens(monkeypatch):
         return tokens
 
     def fake_client(url):
-        return FakeClient(url, tx_data)
+        return FakeAsyncClient(url, tx_data)
 
     monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", fake_scan)
-    monkeypatch.setattr(onchain_metrics, "Client", fake_client)
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: fake_client(url))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
     result = onchain_metrics.top_volume_tokens("http://node", limit=2)
@@ -55,32 +70,23 @@ class ErrorClient:
     def __init__(self, url):
         self.url = url
 
-    def get_signatures_for_address(self, addr):
-        raise Exception("boom")
-
-
-def test_top_volume_tokens_error(monkeypatch):
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", lambda url: ["a"])
-    monkeypatch.setattr(onchain_metrics, "Client", lambda url: ErrorClient(url))
-    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
-
-    result = onchain_metrics.top_volume_tokens("rpc", limit=1)
-    assert result == ["a"]
-
-
-class FakeAsyncClient:
-    def __init__(self, url, data):
-        self.url = url
-        self._data = data
-
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         pass
 
-    async def get_signatures_for_address(self, addr):
-        return {"result": self._data.get(str(addr), [])}
+    def get_signatures_for_address(self, addr):
+        raise Exception("boom")
+
+
+def test_top_volume_tokens_error(monkeypatch):
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", lambda url: ["a"])
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: ErrorClient(url))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    result = onchain_metrics.top_volume_tokens("rpc", limit=1)
+    assert result == ["a"]
 
 
 def test_async_top_volume_tokens(monkeypatch):
@@ -123,17 +129,17 @@ def test_top_volume_tokens_cache(monkeypatch):
     tx_data = {"a": [{"amount": 1.0}], "b": [{"amount": 2.0}]}
     calls = {"scan": 0, "gets": 0}
 
-    class CountingClient(FakeClient):
-        def get_signatures_for_address(self, addr):
+    class CountingClient(FakeAsyncClient):
+        async def get_signatures_for_address(self, addr):
             calls["gets"] += 1
-            return super().get_signatures_for_address(addr)
+            return await super().get_signatures_for_address(addr)
 
-    async def fake_scan(url):
+    def fake_scan(url):
         calls["scan"] += 1
         return tokens
 
     monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", fake_scan)
-    monkeypatch.setattr(onchain_metrics, "Client", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
     onchain_metrics.TOP_VOLUME_TOKENS_CACHE.ttl = 60
@@ -158,7 +164,7 @@ def test_async_top_volume_tokens_list_cache(monkeypatch):
             calls["gets"] += 1
             return await super().get_signatures_for_address(addr)
 
-    def fake_scan(url):
+    async def fake_scan(url):
         calls["scan"] += 1
         return tokens
 
@@ -211,7 +217,7 @@ def test_fetch_dex_metrics(monkeypatch):
         def get(self, url, timeout=5):
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     metrics = asyncio.run(
         onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
@@ -253,7 +259,7 @@ def test_dex_metrics_cache(monkeypatch):
             calls["gets"] += 1
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     onchain_metrics.DEX_METRICS_CACHE.ttl = 60
 
     metrics1 = asyncio.run(
@@ -345,7 +351,7 @@ def test_onchain_metric_functions_error(monkeypatch):
 def test_order_book_depth_change(monkeypatch):
     vals = [1.0, 2.0]
 
-    def fake_fetch(token, base_url=None):
+    async def fake_fetch(token, base_url=None):
         return {"depth": vals.pop(0)}
 
     monkeypatch.setattr(onchain_metrics, "fetch_dex_metrics_async", fake_fetch)
@@ -409,7 +415,7 @@ def test_fetch_dex_metrics_concurrent(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     import time
 
@@ -425,4 +431,29 @@ def test_fetch_dex_metrics_concurrent(monkeypatch):
         "http://dex/v1/depth?token=tok",
         "http://dex/v1/volume?token=tok",
     }
+    assert elapsed < 0.12
+
+
+def test_top_volume_tokens_concurrent(monkeypatch):
+    tokens = ["a", "b", "c"]
+    calls = []
+
+    class SlowClient(FakeAsyncClient):
+        async def get_signatures_for_address(self, addr):
+            calls.append(str(addr))
+            await asyncio.sleep(0.05)
+            return {"result": [{"amount": 1.0}]}
+
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", lambda url: tokens)
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: SlowClient(url, {}))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    import time
+
+    start = time.perf_counter()
+    result = onchain_metrics.top_volume_tokens("node")
+    elapsed = time.perf_counter() - start
+
+    assert set(calls) == set(tokens)
+    assert result == tokens  # volumes equal so order preserved
     assert elapsed < 0.12

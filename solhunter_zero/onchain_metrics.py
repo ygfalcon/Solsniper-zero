@@ -91,17 +91,25 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
     if not tokens:
         return []
 
-    client = Client(rpc_url)
-    vol_list: list[tuple[str, float]] = []
-    for tok in tokens:
-        try:
-            resp = client.get_signatures_for_address(PublicKey(tok))
-            entries = resp.get("result", [])
-            volume = _tx_volume(entries)
-        except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch tx for %s: %s", tok, exc)
-            volume = 0.0
-        vol_list.append((tok, volume))
+    async def _gather_vols() -> list[tuple[str, float]]:
+        async with AsyncClient(rpc_url) as client:
+            async def _fetch(tok: str) -> tuple[str, float]:
+                cached = TOKEN_VOLUME_CACHE.get(tok)
+                if cached is not None:
+                    return tok, cached
+                try:
+                    resp = await client.get_signatures_for_address(PublicKey(tok))
+                    entries = resp.get("result", [])
+                    volume = _tx_volume(entries)
+                except Exception as exc:  # pragma: no cover - network errors
+                    logger.warning("Failed to fetch tx for %s: %s", tok, exc)
+                    volume = 0.0
+                TOKEN_VOLUME_CACHE.set(tok, volume)
+                return tok, volume
+
+            return await asyncio.gather(*[_fetch(t) for t in tokens])
+
+    vol_list = asyncio.run(_gather_vols())
 
     vol_list.sort(key=lambda x: x[1], reverse=True)
     result = [t for t, _v in vol_list[:limit]]
