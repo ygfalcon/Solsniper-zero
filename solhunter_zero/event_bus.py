@@ -28,6 +28,8 @@ _PB_MAP = {
     "depth_update": pb.DepthUpdate,
     "depth_service_status": pb.DepthServiceStatus,
     "heartbeat": pb.Heartbeat,
+    "trade_logged": pb.TradeLogged,
+    "rl_metrics": pb.RLMetrics,
 }
 
 
@@ -125,6 +127,32 @@ def _encode_event(topic: str, payload: Any) -> Any:
         if service is None and isinstance(payload, dict):
             service = payload.get("service")
         event = pb.Event(topic=topic, heartbeat=pb.Heartbeat(service=service or ""))
+    elif topic == "trade_logged":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            trade_logged=pb.TradeLogged(
+                token=str(data.get("token", "")),
+                direction=str(data.get("direction", "")),
+                amount=float(data.get("amount", 0.0)),
+                price=float(data.get("price", 0.0)),
+                reason=str(data.get("reason", "")),
+                context=str(data.get("context", "")),
+                emotion=str(data.get("emotion", "")),
+                simulation_id=int(data.get("simulation_id", 0) or 0),
+                uuid=str(data.get("uuid", "")),
+                trade_id=int(data.get("trade_id", 0) or 0),
+            ),
+        )
+    elif topic == "rl_metrics":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            rl_metrics=pb.RLMetrics(
+                loss=float(data.get("loss", 0.0)),
+                reward=float(data.get("reward", 0.0)),
+            ),
+        )
     else:
         return _dumps({"topic": topic, "payload": to_dict(payload)})
     return event.SerializeToString()
@@ -167,6 +195,21 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"status": msg.status}
     if field == "heartbeat":
         return {"service": msg.service}
+    if field == "trade_logged":
+        return {
+            "token": msg.token,
+            "direction": msg.direction,
+            "amount": msg.amount,
+            "price": msg.price,
+            "reason": msg.reason,
+            "context": msg.context,
+            "emotion": msg.emotion,
+            "simulation_id": msg.simulation_id,
+            "uuid": msg.uuid,
+            "trade_id": msg.trade_id,
+        }
+    if field == "rl_metrics":
+        return {"loss": msg.loss, "reward": msg.reward}
     return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):

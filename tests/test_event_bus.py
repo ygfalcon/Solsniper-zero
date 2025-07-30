@@ -8,22 +8,50 @@ import websockets
 # Stub heavy optional dependencies to keep import lightweight
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
+import importlib.machinery
+dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
 if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
 if importlib.util.find_spec("sentence_transformers") is None:
-    sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
+    st_mod = types.ModuleType("sentence_transformers")
+    st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
+    sys.modules.setdefault("sentence_transformers", st_mod)
 if importlib.util.find_spec("faiss") is None:
-    sys.modules.setdefault("faiss", types.ModuleType("faiss"))
+    faiss_mod = types.ModuleType("faiss")
+    faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
+    sys.modules.setdefault("faiss", faiss_mod)
 if importlib.util.find_spec("torch") is None:
-    sys.modules.setdefault("torch", types.ModuleType("torch"))
-    sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
-    sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
+    torch_mod = types.ModuleType("torch")
+    torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+    torch_mod.__path__ = []
+    torch_mod.Tensor = object
+    sys.modules.setdefault("torch", torch_mod)
+    torch_nn = types.ModuleType("torch.nn")
+    torch_nn.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
+    torch_nn.__path__ = []
+    torch_nn.Module = type("Module", (), {})
+    sys.modules.setdefault("torch.nn", torch_nn)
+    torch_opt = types.ModuleType("torch.optim")
+    torch_opt.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+    torch_opt.__path__ = []
+    sys.modules.setdefault("torch.optim", torch_opt)
+    torch_utils = types.ModuleType("torch.utils")
+    torch_utils.__spec__ = importlib.machinery.ModuleSpec("torch.utils", None)
+    torch_utils.__path__ = []
+    sys.modules.setdefault("torch.utils", torch_utils)
+    tud = types.ModuleType("torch.utils.data")
+    tud.__spec__ = importlib.machinery.ModuleSpec("torch.utils.data", None)
+    tud.Dataset = object
+    tud.DataLoader = object
+    sys.modules.setdefault("torch.utils.data", tud)
 if importlib.util.find_spec("numpy") is None:
     sys.modules.setdefault("numpy", types.ModuleType("numpy"))
 if importlib.util.find_spec("aiohttp") is None:
     sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
 if importlib.util.find_spec("aiofiles") is None:
-    sys.modules.setdefault("aiofiles", types.ModuleType("aiofiles"))
+    aiof_mod = types.ModuleType("aiofiles")
+    aiof_mod.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
+    sys.modules.setdefault("aiofiles", aiof_mod)
 if importlib.util.find_spec("sqlalchemy") is None:
     sa = types.ModuleType("sqlalchemy")
     sa.create_engine = lambda *a, **k: None
@@ -59,14 +87,18 @@ if importlib.util.find_spec("sqlalchemy") is None:
     orm.sessionmaker = lambda *a, **k: lambda **kw: DummySession()
     sys.modules.setdefault("sqlalchemy.orm", orm)
 if importlib.util.find_spec("solders") is None:
-    sys.modules.setdefault("solders", types.ModuleType("solders"))
+    s_mod = types.ModuleType("solders")
+    s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
+    sys.modules.setdefault("solders", s_mod)
     sys.modules["solders.keypair"] = types.SimpleNamespace(Keypair=type("Keypair", (), {}))
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
     sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
 if importlib.util.find_spec("solana") is None:
-    sys.modules.setdefault("solana", types.ModuleType("solana"))
+    sol_mod = types.ModuleType("solana")
+    sol_mod.__spec__ = importlib.machinery.ModuleSpec("solana", None)
+    sys.modules.setdefault("solana", sol_mod)
     sys.modules["solana.rpc"] = types.ModuleType("rpc")
     sys.modules["solana.rpc.api"] = types.SimpleNamespace(Client=object)
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
