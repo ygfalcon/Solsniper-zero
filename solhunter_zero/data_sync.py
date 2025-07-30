@@ -94,7 +94,8 @@ async def sync_snapshots(
             except Exception as exc:  # pragma: no cover - bad data
                 logger.warning("invalid snapshot for %s: %s", token, exc)
 
-        await asyncio.gather(*(fetch_and_log(token) for token in tokens))
+
+    await asyncio.gather(*(fetch_and_log(t) for t in tokens))
 
     _prune_db(data, db_path, limit_gb)
 
