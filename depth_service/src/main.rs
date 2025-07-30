@@ -106,7 +106,9 @@ type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 type SharedMmap = Arc<Mutex<MmapMut>>;
 
 type WsSender = broadcast::Sender<String>;
+type WsBinSender = broadcast::Sender<Vec<u8>>;
 type LatestSnap = Arc<Mutex<String>>;
+type LatestBin = Arc<Mutex<Vec<u8>>>;
 type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 /// Aggregated state of all tokens
 type AggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
@@ -296,8 +298,10 @@ async fn update_mmap(
     agg: &AggMap,
     mmap: &SharedMmap,
     ws: &WsSender,
+    ws_bin: &WsBinSender,
     bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
     latest: &LatestSnap,
+    latest_bin: &LatestBin,
     last_map: &LastAggMap,
     last_sent: &LastSent,
     threshold: f64,
@@ -370,6 +374,8 @@ async fn update_mmap(
     }
     mmap.flush()?;
 
+    let binary = buf.clone();
+
     if !send_needed && now.duration_since(*last_sent.lock().await) < min_interval {
         return Ok(());
     }
@@ -379,7 +385,9 @@ async fn update_mmap(
 
     let text = serde_json::to_string(&snapshot)?;
     let _ = ws.send(text.clone());
+    let _ = ws_bin.send(binary.clone());
     *latest.lock().await = text.clone();
+    *latest_bin.lock().await = binary;
     if let Some(bus) = bus {
         let entries: HashMap<String, pb::TokenAgg> = snapshot
             .iter()
@@ -429,8 +437,10 @@ async fn connect_feed(
     agg: AggMap,
     mmap: SharedMmap,
     ws: WsSender,
+    ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
     latest: LatestSnap,
+    latest_bin: LatestBin,
     last_map: LastAggMap,
     last_sent: LastSent,
     threshold: f64,
@@ -468,8 +478,10 @@ async fn connect_feed(
                     &agg,
                     &mmap,
                     &ws,
+                    &ws_bin,
                     bus.as_ref(),
                     &latest,
+                    &latest_bin,
                     &last_map,
                     &last_sent,
                     threshold,
@@ -491,8 +503,10 @@ async fn connect_price_feed(
     agg: AggMap,
     mmap: SharedMmap,
     ws: WsSender,
+    ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
     latest: LatestSnap,
+    latest_bin: LatestBin,
     last_map: LastAggMap,
     last_sent: LastSent,
     threshold: f64,
@@ -527,8 +541,10 @@ async fn connect_price_feed(
                     &agg,
                     &mmap,
                     &ws,
+                    &ws_bin,
                     bus.as_ref(),
                     &latest,
+                    &latest_bin,
                     &last_map,
                     &last_sent,
                     threshold,
@@ -549,8 +565,10 @@ async fn connect_mempool(
     agg: AggMap,
     mmap: SharedMmap,
     ws: WsSender,
+    ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
     latest: LatestSnap,
+    latest_bin: LatestBin,
     last_map: LastAggMap,
     last_sent: LastSent,
     threshold: f64,
@@ -577,8 +595,10 @@ async fn connect_mempool(
                     &agg,
                     &mmap,
                     &ws,
+                    &ws_bin,
                     bus.as_ref(),
                     &latest,
+                    &latest_bin,
                     &last_map,
                     &last_sent,
                     threshold,
@@ -812,12 +832,21 @@ async fn ipc_server(
     }
 }
 
-async fn ws_server(addr: &str, port: u16, tx: WsSender, latest: LatestSnap) -> Result<()> {
+async fn ws_server(
+    addr: &str,
+    port: u16,
+    tx: WsSender,
+    bin_tx: WsBinSender,
+    latest: LatestSnap,
+    latest_bin: LatestBin,
+) -> Result<()> {
     let listener = TcpListener::bind((addr, port)).await?;
     loop {
         let (stream, _) = listener.accept().await?;
         let tx = tx.clone();
+        let bin_tx = bin_tx.clone();
         let latest = latest.clone();
+        let latest_bin = latest_bin.clone();
         tokio::spawn(async move {
             if let Ok(ws) = accept_async(stream).await {
                 let (mut write, _) = ws.split();
@@ -825,10 +854,24 @@ async fn ws_server(addr: &str, port: u16, tx: WsSender, latest: LatestSnap) -> R
                 if !snapshot.is_empty() {
                     let _ = write.send(WsMessage::Text(snapshot)).await;
                 }
+                let snap_bin = latest_bin.lock().await.clone();
+                if !snap_bin.is_empty() {
+                    let _ = write.send(WsMessage::Binary(snap_bin)).await;
+                }
                 let mut rx = tx.subscribe();
-                while let Ok(msg) = rx.recv().await {
-                    if write.send(WsMessage::Text(msg)).await.is_err() {
-                        break;
+                let mut rx_bin = bin_tx.subscribe();
+                loop {
+                    tokio::select! {
+                        Ok(msg) = rx.recv() => {
+                            if write.send(WsMessage::Text(msg)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(msg) = rx_bin.recv() => {
+                            if write.send(WsMessage::Binary(msg)).await.is_err() {
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -934,7 +977,9 @@ async fn main() -> Result<()> {
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let agg_map: AggMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
+    let (ws_bin_tx, _) = broadcast::channel(16);
     let latest: LatestSnap = Arc::new(Mutex::new(String::new()));
+    let latest_bin: LatestBin = Arc::new(Mutex::new(Vec::new()));
     let last_map: LastAggMap = Arc::new(Mutex::new(HashMap::new()));
     let min_interval = send_interval(&cfg);
     let threshold = update_threshold(&cfg);
@@ -1005,10 +1050,12 @@ async fn main() -> Result<()> {
     let (ws_addr, ws_port) = depth_ws_addr(&cfg);
     {
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let addr = ws_addr.clone();
         let latest_snap = latest.clone();
+        let latest_bin_snap = latest_bin.clone();
         tokio::spawn(async move {
-            let _ = ws_server(&addr, ws_port, tx, latest_snap).await;
+            let _ = ws_server(&addr, ws_port, tx, bin_tx, latest_snap, latest_bin_snap).await;
         });
     }
 
@@ -1018,8 +1065,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1032,8 +1081,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,
@@ -1049,8 +1100,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1063,8 +1116,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,
@@ -1080,8 +1135,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1094,8 +1151,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,
@@ -1111,8 +1170,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1125,8 +1186,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,
@@ -1142,8 +1205,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1156,8 +1221,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,
@@ -1173,8 +1240,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1187,8 +1256,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,
@@ -1204,8 +1275,10 @@ async fn main() -> Result<()> {
         let a = agg_map.clone();
         let mm = mmap.clone();
         let tx = ws_tx.clone();
+        let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
         let latest = latest.clone();
+        let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let notify = notify_tx.clone();
@@ -1217,8 +1290,10 @@ async fn main() -> Result<()> {
                 a,
                 mm,
                 tx,
+                bin_tx,
                 bus,
                 latest,
+                latest_bin_c,
                 last_map_c,
                 last_sent_c,
                 threshold,

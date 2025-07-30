@@ -102,6 +102,7 @@ def _build_token_offsets(buf: memoryview) -> None:
         TOKEN_OFFSETS[tok] = (data_off, data_len)
     _TOKEN_MAP_SIZE = _MMAP_SIZE
 
+
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
 SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
@@ -119,14 +120,13 @@ class _IPCClient:
         self.writer: asyncio.StreamWriter | None = None
 
     async def _ensure(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-        if (
-            self.writer is None
-            or getattr(self.writer, "is_closing", lambda: False)()
-        ):
+        if self.writer is None or getattr(self.writer, "is_closing", lambda: False)():
             self.reader, self.writer = await asyncio.open_unix_connection(self.path)
         return self.reader, self.writer
 
-    async def request(self, payload: Dict[str, Any], timeout: float | None = None) -> bytes:
+    async def request(
+        self, payload: Dict[str, Any], timeout: float | None = None
+    ) -> bytes:
         reader, writer = await self._ensure()
         writer.write(dumps(payload).encode())
         await writer.drain()
@@ -137,7 +137,10 @@ class _IPCClient:
         return data
 
     async def close(self) -> None:
-        if self.writer is not None and not getattr(self.writer, "is_closing", lambda: False)():
+        if (
+            self.writer is not None
+            and not getattr(self.writer, "is_closing", lambda: False)()
+        ):
             self.writer.close()
             with suppress(Exception):
                 await self.writer.wait_closed()
@@ -202,15 +205,49 @@ async def stream_depth_ws(
                 )
                 was_connected = True
                 async for msg in ws:
-                    if msg.type != aiohttp.WSMsgType.TEXT:
+                    if msg.type == aiohttp.WSMsgType.BINARY and msg.data.startswith(
+                        b"IDX1"
+                    ):
+                        buf = msg.data
+                        count = int.from_bytes(buf[4:8], "little")
+                        off = 8
+                        offsets = {}
+                        for _ in range(count):
+                            if off + 2 > len(buf):
+                                break
+                            tlen = int.from_bytes(buf[off : off + 2], "little")
+                            off += 2
+                            if off + tlen > len(buf):
+                                break
+                            tok = buf[off : off + tlen].decode()
+                            off += tlen
+                            if off + 8 > len(buf):
+                                break
+                            data_off = int.from_bytes(buf[off : off + 4], "little")
+                            data_len = int.from_bytes(buf[off + 4 : off + 8], "little")
+                            off += 8
+                            offsets[tok] = (data_off, data_len)
+                        entry_off = offsets.get(token)
+                        if not entry_off:
+                            continue
+                        data_off, data_len = entry_off
+                        if data_off + data_len > len(buf):
+                            continue
+                        try:
+                            entry = loads(buf[data_off : data_off + data_len].decode())
+                        except Exception:
+                            continue
+                    elif msg.type == aiohttp.WSMsgType.TEXT:
+                        try:
+                            data = loads(msg.data)
+                        except Exception:
+                            continue
+                        entry = data.get(token)
+                        if not entry:
+                            continue
+                    else:
                         continue
-                    try:
-                        data = loads(msg.data)
-                    except Exception:
-                        continue
-                    entry = data.get(token)
-                    if not entry:
-                        continue
+
                     bids = float(entry.get("bids", 0.0)) if "bids" in entry else 0.0
                     asks = float(entry.get("asks", 0.0)) if "asks" in entry else 0.0
                     rate = float(entry.get("tx_rate", 0.0))
