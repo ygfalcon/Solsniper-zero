@@ -12,6 +12,7 @@ from .http import get_session, loads, dumps
 
 from .event_bus import publish, subscription
 from .config import get_depth_ws_addr
+from . import event_pb2 as pb
 
 from . import order_book_ws
 
@@ -237,13 +238,25 @@ async def stream_depth_ws(
                             entry = loads(buf[data_off : data_off + data_len].decode())
                         except Exception:
                             continue
-                    elif msg.type == aiohttp.WSMsgType.TEXT:
+                    elif msg.type == aiohttp.WSMsgType.BINARY:
                         try:
-                            data = loads(msg.data)
+                            ev = pb.Event()
+                            ev.ParseFromString(msg.data)
+                            if ev.topic != "depth_update" or not ev.HasField("depth_update"):
+                                continue
+                            e = ev.depth_update.entries.get(token)
+                            if e is None:
+                                continue
+                            entry = {
+                                "bids": e.bids,
+                                "asks": e.asks,
+                                "tx_rate": e.tx_rate,
+                                "dex": {
+                                    d: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate}
+                                    for d, di in e.dex.items()
+                                },
+                            }
                         except Exception:
-                            continue
-                        entry = data.get(token)
-                        if not entry:
                             continue
                     else:
                         continue
@@ -312,12 +325,27 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                 )
                 was_connected = True
                 async for msg in ws:
-                    if msg.type != aiohttp.WSMsgType.TEXT:
+                    if msg.type != aiohttp.WSMsgType.BINARY:
                         continue
                     try:
-                        data = loads(msg.data)
+                        ev = pb.Event()
+                        ev.ParseFromString(msg.data)
+                        if ev.topic != "depth_update" or not ev.HasField("depth_update"):
+                            continue
                     except Exception:
                         continue
+                    data = {
+                        tok: {
+                            "bids": e.bids,
+                            "asks": e.asks,
+                            "tx_rate": e.tx_rate,
+                            "dex": {
+                                d: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate}
+                                for d, di in e.dex.items()
+                            },
+                        }
+                        for tok, e in ev.depth_update.entries.items()
+                    }
                     publish("depth_update", data)
                     count += 1
                     if max_updates is not None and count >= max_updates:
