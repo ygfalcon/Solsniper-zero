@@ -215,10 +215,17 @@ _sys_metrics_ws_sub.__enter__()
 
 depth_service_connected = False
 last_heartbeat = 0.0
+rl_daemon_heartbeat = 0.0
+depth_service_heartbeat = 0.0
 
 def _heartbeat(_payload: Any) -> None:
-    global last_heartbeat
+    global last_heartbeat, rl_daemon_heartbeat, depth_service_heartbeat
+    service = getattr(_payload, "service", None)
     last_heartbeat = time.time()
+    if service == "rl_daemon":
+        rl_daemon_heartbeat = last_heartbeat
+    elif service == "depth_service":
+        depth_service_heartbeat = last_heartbeat
 
 _heartbeat_sub = subscription("heartbeat", _heartbeat)
 _heartbeat_sub.__enter__()
@@ -615,8 +622,8 @@ def rl_status() -> dict:
 def status() -> dict:
     """Return status of background components."""
     trading_alive = trading_thread.is_alive() if trading_thread else False
-    rl_alive = rl_daemon is not None
-    depth_alive = depth_service_connected
+    rl_alive = rl_daemon is not None or time.time() - rl_daemon_heartbeat < 120
+    depth_alive = depth_service_connected or time.time() - depth_service_heartbeat < 120
     heartbeat_alive = time.time() - last_heartbeat < 120
     event_alive = False
     url = get_event_bus_url()

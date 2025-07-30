@@ -20,7 +20,7 @@ from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .risk import average_correlation
-from .event_bus import subscription, publish
+from .event_bus import subscription, publish, send_heartbeat
 from .schemas import ActionExecuted, RLCheckpoint, RLWeights
 
 logger = logging.getLogger(__name__)
@@ -271,6 +271,7 @@ class RLDaemon:
         self.model.to(self.device)
         self.agents: List[Any] = list(agents) if agents else []
         self._task: asyncio.Task | None = None
+        self._hb_task: asyncio.Task | None = None
         self._proc: subprocess.Popen | None = None
         self._last_trade_id = 0
         self._last_snap_id = 0
@@ -323,6 +324,10 @@ class RLDaemon:
     def close(self) -> None:
         for sub in self._subscriptions:
             sub.__exit__(None, None, None)
+        if self._task:
+            self._task.cancel()
+        if self._hb_task:
+            self._hb_task.cancel()
 
     def _cpu(self) -> float:
         if self._cpu_callback:
@@ -502,6 +507,8 @@ class RLDaemon:
                 t = threading.Thread(target=loop.run_forever, daemon=True)
                 t.start()
             self._task = loop.create_task(self._watch_external(interval))
+            if self._hb_task is None:
+                self._hb_task = loop.create_task(send_heartbeat("rl_daemon"))
             return self._task
 
         try:
@@ -511,5 +518,7 @@ class RLDaemon:
             t = threading.Thread(target=loop.run_forever, daemon=True)
             t.start()
         self._task = loop.create_task(self._loop(interval))
+        if self._hb_task is None:
+            self._hb_task = loop.create_task(send_heartbeat("rl_daemon"))
         return self._task
 
