@@ -334,13 +334,16 @@ async fn update_mmap(
     drop(agg_lock);
 
     let now = Instant::now();
-    let send_needed = {
-        let last = last_map.lock().await;
+    let (send_needed, delta_changed) = {
+        let mut last = last_map.lock().await;
         let changed = match last.get(token) {
             Some(old) => significant_change(old, &entry, threshold),
             None => true,
         };
-        changed || last.len() != current_len
+        if changed {
+            last.insert(token.to_string(), entry.clone());
+        }
+        (changed || last.len() != current_len, changed)
     };
 
     // Serialize snapshot as a token-indexed binary structure for fast lookups
@@ -375,6 +378,69 @@ async fn update_mmap(
     mmap.flush()?;
 
     let binary = buf.clone();
+
+    if delta_changed {
+        let mut delta_map = HashMap::new();
+        delta_map.insert(token.to_string(), entry.clone());
+        let delta_text = serde_json::to_string(&delta_map)?;
+        let _ = ws.send(delta_text.clone());
+        // binary delta
+        let header_size: usize = 8
+            + delta_map
+                .iter()
+                .map(|(t, _)| 2 + t.as_bytes().len() + 8)
+                .sum::<usize>();
+        let mut header = Vec::with_capacity(header_size);
+        header.extend_from_slice(b"IDX1");
+        header.extend_from_slice(&(delta_map.len() as u32).to_le_bytes());
+        let mut data = Vec::new();
+        for (token, entry) in delta_map.iter() {
+            let json = serde_json::to_vec(entry)?;
+            header.extend_from_slice(&(token.len() as u16).to_le_bytes());
+            header.extend_from_slice(token.as_bytes());
+            header.extend_from_slice(&((header_size + data.len()) as u32).to_le_bytes());
+            header.extend_from_slice(&(json.len() as u32).to_le_bytes());
+            data.extend_from_slice(&json);
+        }
+        let mut delta_buf = header;
+        delta_buf.extend_from_slice(&data);
+        let _ = ws_bin.send(delta_buf.clone());
+        if let Some(bus) = bus {
+            let entries: HashMap<String, pb::TokenAgg> = delta_map
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        pb::TokenAgg {
+                            dex: v
+                                .dex
+                                .iter()
+                                .map(|(dk, di)| {
+                                    (
+                                        dk.clone(),
+                                        pb::TokenInfo {
+                                            bids: di.bids,
+                                            asks: di.asks,
+                                            tx_rate: di.tx_rate,
+                                        },
+                                    )
+                                })
+                                .collect(),
+                            bids: v.bids,
+                            asks: v.asks,
+                            tx_rate: v.tx_rate,
+                            ts: v.ts,
+                        },
+                    )
+                })
+                .collect();
+            let event = pb::Event {
+                topic: "depth_delta".to_string(),
+                kind: Some(pb::event::Kind::DepthDelta(pb::DepthDelta { entries })),
+            };
+            let _ = bus.send(event.encode_to_vec());
+        }
+    }
 
     if !send_needed && now.duration_since(*last_sent.lock().await) < min_interval {
         return Ok(());

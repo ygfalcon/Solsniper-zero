@@ -42,6 +42,10 @@ message DepthUpdate {
   map<string, TokenAgg> entries = 1;
 }
 
+message DepthDelta {
+  map<string, TokenAgg> entries = 1;
+}
+
 message DepthServiceStatus {
   string status = 1;
 }
@@ -81,5 +85,6 @@ message Event {
     Heartbeat heartbeat = 9;
     TradeLogged trade_logged = 10;
     RLMetrics rl_metrics = 11;
+    DepthDelta depth_delta = 12;
   }
 }

@@ -106,6 +106,8 @@ def _build_token_offsets(buf: memoryview) -> None:
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
 SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
+# Keep the last full snapshot across mmap or websocket updates
+_FULL_SNAPSHOT: Dict[str, Dict[str, Any]] = {}
 
 # IPC connection pooling
 _CONNECTIONS: Dict[str, "_IPCClient"] = {}
@@ -195,6 +197,7 @@ async def stream_depth_ws(
     url = f"ws://{DEPTH_WS_ADDR}:{DEPTH_WS_PORT}"
     count = 0
     was_connected = False
+    snapshot: Dict[str, Any] = {}
     while True:
         try:
             session = await get_session()
@@ -205,47 +208,44 @@ async def stream_depth_ws(
                 )
                 was_connected = True
                 async for msg in ws:
-                    if msg.type == aiohttp.WSMsgType.BINARY and msg.data.startswith(
-                        b"IDX1"
-                    ):
+                    updates = {}
+                    if msg.type == aiohttp.WSMsgType.BINARY and msg.data.startswith(b"IDX1"):
                         buf = msg.data
                         count = int.from_bytes(buf[4:8], "little")
                         off = 8
-                        offsets = {}
                         for _ in range(count):
                             if off + 2 > len(buf):
                                 break
-                            tlen = int.from_bytes(buf[off : off + 2], "little")
+                            tlen = int.from_bytes(buf[off:off+2], "little")
                             off += 2
                             if off + tlen > len(buf):
                                 break
-                            tok = buf[off : off + tlen].decode()
+                            tok = buf[off:off+tlen].decode()
                             off += tlen
                             if off + 8 > len(buf):
                                 break
-                            data_off = int.from_bytes(buf[off : off + 4], "little")
-                            data_len = int.from_bytes(buf[off + 4 : off + 8], "little")
+                            data_off = int.from_bytes(buf[off:off+4], "little")
+                            data_len = int.from_bytes(buf[off+4:off+8], "little")
                             off += 8
-                            offsets[tok] = (data_off, data_len)
-                        entry_off = offsets.get(token)
-                        if not entry_off:
-                            continue
-                        data_off, data_len = entry_off
-                        if data_off + data_len > len(buf):
-                            continue
-                        try:
-                            entry = loads(buf[data_off : data_off + data_len].decode())
-                        except Exception:
-                            continue
+                            if data_off + data_len > len(buf):
+                                continue
+                            try:
+                                entry = loads(buf[data_off:data_off+data_len].decode())
+                            except Exception:
+                                continue
+                            updates[tok] = entry
                     elif msg.type == aiohttp.WSMsgType.TEXT:
                         try:
-                            data = loads(msg.data)
+                            updates = loads(msg.data)
                         except Exception:
                             continue
-                        entry = data.get(token)
-                        if not entry:
-                            continue
                     else:
+                        continue
+
+                    if updates:
+                        snapshot.update(updates)
+                    entry = snapshot.get(token)
+                    if not entry:
                         continue
 
                     bids = float(entry.get("bids", 0.0)) if "bids" in entry else 0.0
@@ -302,6 +302,8 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
     url = f"ws://{DEPTH_WS_ADDR}:{DEPTH_WS_PORT}"
     count = 0
     was_connected = False
+    snapshot: Dict[str, Any] = {}
+    first = True
     while True:
         try:
             session = await get_session()
@@ -318,7 +320,13 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                         data = loads(msg.data)
                     except Exception:
                         continue
-                    publish("depth_update", data)
+                    if first:
+                        snapshot.update(data)
+                        publish("depth_update", snapshot.copy())
+                        first = False
+                    else:
+                        snapshot.update(data)
+                        publish("depth_delta", data)
                     count += 1
                     if max_updates is not None and count >= max_updates:
                         publish("depth_service_status", {"status": "disconnected"})
@@ -345,30 +353,47 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         if m is None:
             return {}, 0.0
         buf = memoryview(m)
-        if _TOKEN_MAP_SIZE != _MMAP_SIZE or not TOKEN_OFFSETS:
-            _build_token_offsets(buf)
-        offset = TOKEN_OFFSETS.get(token)
-        if offset:
-            data_off, data_len = offset
-            if data_off + data_len <= len(buf):
-                slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
-                if not slice_bytes:
-                    return {}, 0.0
-                entry = loads(slice_bytes.decode())
-                rate = float(entry.get("tx_rate", 0.0))
-                venues = {
-                    d: {
-                        "bids": float(i.get("bids", 0.0)),
-                        "asks": float(i.get("asks", 0.0)),
-                    }
-                    for d, i in entry.items()
-                    if isinstance(i, dict)
-                }
-                SNAPSHOT_CACHE[token] = (now, rate, venues)
-                return venues, rate
-            return {}, 0.0
         if len(buf) >= 8 and bytes(buf[:4]) == b"IDX1":
-            return {}, 0.0
+            count = int.from_bytes(buf[4:8], "little")
+            off = 8
+            updates: Dict[str, Any] = {}
+            for _ in range(count):
+                if off + 2 > len(buf):
+                    break
+                tlen = int.from_bytes(buf[off: off + 2], "little")
+                off += 2
+                if off + tlen > len(buf):
+                    break
+                tok = bytes(buf[off: off + tlen]).decode()
+                off += tlen
+                if off + 8 > len(buf):
+                    break
+                data_off = int.from_bytes(buf[off: off + 4], "little")
+                data_len = int.from_bytes(buf[off + 4: off + 8], "little")
+                off += 8
+                if data_off + data_len > len(buf):
+                    continue
+                try:
+                    entry = loads(bytes(buf[data_off: data_off + data_len]))
+                except Exception:
+                    continue
+                updates[tok] = entry
+            if updates:
+                _FULL_SNAPSHOT.update(updates)
+            entry = _FULL_SNAPSHOT.get(token)
+            if not entry:
+                return {}, 0.0
+            rate = float(entry.get("tx_rate", 0.0))
+            venues = {
+                d: {
+                    "bids": float(i.get("bids", 0.0)),
+                    "asks": float(i.get("asks", 0.0)),
+                }
+                for d, i in entry.items()
+                if isinstance(i, dict)
+            }
+            SNAPSHOT_CACHE[token] = (now, rate, venues)
+            return venues, rate
         # Fallback to legacy JSON structure
         raw = bytes(buf).rstrip(b"\x00")
         if not raw:

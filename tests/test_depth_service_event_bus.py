@@ -120,9 +120,9 @@ async def test_depth_service_event_bus(tmp_path):
 
     assert events
     topics = [e.get("topic") for e in events]
-    assert "depth_update" in topics
+    assert any(t in ("depth_update", "depth_delta") for t in topics)
     assert "depth_service_status" in topics
-    first_update = next(e for e in events if e.get("topic") == "depth_update")
+    first_update = next(e for e in events if e.get("topic") in ("depth_update", "depth_delta"))
     assert "TOK" in first_update["payload"]
 
 
@@ -248,8 +248,8 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
 
     new_events = events[initial_len:]
     assert any(e.get("topic") == "depth_service_status" for e in new_events)
-    assert len([e for e in events if e.get("topic") == "depth_update"]) > (
-        len([e for e in events[:initial_len] if e.get("topic") == "depth_update"])
+    assert len([e for e in events if e.get("topic") in ("depth_update", "depth_delta")]) > (
+        len([e for e in events[:initial_len] if e.get("topic") in ("depth_update", "depth_delta")])
     )
 
 
