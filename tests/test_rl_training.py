@@ -87,5 +87,5 @@ async def test_rl_training_runs(tmp_path):
 
     model_path = tmp_path / "ppo_model.pt"
     trainer = RLTraining(db_url=db, model_path=model_path)
-    trainer.train()
+    await trainer.train()
     assert model_path.exists()
