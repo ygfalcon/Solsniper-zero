@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import datetime
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
 import time
@@ -108,19 +109,44 @@ class _TradeDataset(Dataset):
         regime_weight: float = 1.0,
     ) -> None:
         start_time = time.time()
-        self.samples: List[Tuple[List[float], int, float]] = []
         self.price_model_path = price_model_path
         self.regime_weight = float(regime_weight)
 
+        trade_list = list(trades)
+        n = len(trade_list)
+
+        tokens = np.array([t.token for t in trade_list])
+        prices = np.array([float(t.price) for t in trade_list], dtype=np.float32)
+        amounts = np.array(
+            [float(getattr(t, "amount", 0.0)) for t in trade_list], dtype=np.float32
+        )
+        timestamps = np.array(
+            [getattr(t, "timestamp", datetime.datetime.utcnow()).timestamp() for t in trade_list],
+            dtype=np.float64,
+        )
+        sides = [getattr(t, "side", getattr(t, "direction", "buy")) for t in trade_list]
+        actions = np.array([0 if s == "buy" else 1 for s in sides], dtype=np.int64)
+
         snap_map: dict[str, List[Any]] = {}
-        snap_ts_map: dict[str, np.ndarray] = {}
         for s in snaps:
             snap_map.setdefault(s.token, []).append(s)
+
+        snap_data: dict[str, dict[str, np.ndarray]] = {}
         for token, seq in snap_map.items():
             seq.sort(key=lambda x: x.timestamp)
-            snap_ts_map[token] = np.array(
-                [s.timestamp.timestamp() for s in seq], dtype=np.float64
-            )
+            snap_data[token] = {
+                "ts": np.array([s.timestamp.timestamp() for s in seq], dtype=np.float64),
+                "depth": np.array([float(getattr(s, "depth", 0.0)) for s in seq], dtype=np.float32),
+                "slippage": np.array(
+                    [float(getattr(s, "slippage", 0.0)) for s in seq], dtype=np.float32
+                ),
+                "imbalance": np.array(
+                    [float(getattr(s, "imbalance", 0.0)) for s in seq], dtype=np.float32
+                ),
+                "tx_rate": np.array(
+                    [float(getattr(s, "tx_rate", 0.0)) for s in seq], dtype=np.float32
+                ),
+            }
 
         feeds = [u for u in os.getenv("NEWS_FEEDS", "").split(",") if u]
         twitter = [u for u in os.getenv("TWITTER_FEEDS", "").split(",") if u]
@@ -136,69 +162,75 @@ class _TradeDataset(Dataset):
             except Exception:
                 sentiment = 0.0
 
-        price_hist: dict[str, List[float]] = {}
+        depth = np.zeros(n, dtype=np.float32)
+        slippage = np.zeros(n, dtype=np.float32)
+        imbalance = np.zeros(n, dtype=np.float32)
+        tx_rate = np.zeros(n, dtype=np.float32)
+
+        for token, data in snap_data.items():
+            mask = tokens == token
+            if not np.any(mask):
+                continue
+            tts = timestamps[mask]
+            idx = np.searchsorted(data["ts"], tts, side="right") - 1
+            idx[idx < 0] = 0
+            depth[mask] = data["depth"][idx]
+            slippage[mask] = data["slippage"][idx]
+            imbalance[mask] = data["imbalance"][idx]
+            tx_rate[mask] = data["tx_rate"][idx]
+
+        unique_tokens = np.unique(tokens)
         pred_cache: dict[str, float] = {}
-        for t in trades:
-            if t.token in pred_cache:
-                pred = pred_cache[t.token]
-            else:
-                try:
-                    pred = predict_price_movement(t.token, model_path=price_model_path)
-                except Exception:
-                    pred = 0.0
-                pred_cache[t.token] = pred
-            depth = slippage = imbalance = tx_rate = 0.0
-            seq = snap_map.get(t.token)
-            if seq:
-                ts_arr = snap_ts_map[t.token]
-                ts = getattr(t, "timestamp", None)
-                if ts is None:
-                    idx = len(seq) - 1
-                else:
-                    idx = np.searchsorted(ts_arr, ts.timestamp(), side="right") - 1
-                    if idx < 0:
-                        idx = 0
-                snap = seq[idx]
-                depth = float(getattr(snap, "depth", 0.0))
-                slippage = float(getattr(snap, "slippage", 0.0))
-                imbalance = float(getattr(snap, "imbalance", 0.0))
-                tx_rate = float(getattr(snap, "tx_rate", 0.0))
-            hist = price_hist.setdefault(t.token, [])
+        for tok in unique_tokens:
+            try:
+                pred_cache[tok] = predict_price_movement(tok, model_path=price_model_path)
+            except Exception:
+                pred_cache[tok] = 0.0
+        preds = np.array([pred_cache.get(tok, 0.0) for tok in tokens], dtype=np.float32)
+
+        price_hist: dict[str, List[float]] = {}
+        regimes = np.zeros(n, dtype=np.float32)
+        for i, (tok, p) in enumerate(zip(tokens, prices)):
+            hist = price_hist.setdefault(tok, [])
             regime = detect_regime(hist)
-            r = {"bull": 1.0, "bear": -1.0}.get(regime, 0.0) * self.regime_weight
-            state = [
-                float(t.price),
-                float(getattr(t, "amount", 0.0)),
+            regimes[i] = {
+                "bull": 1.0,
+                "bear": -1.0,
+            }.get(regime, 0.0) * self.regime_weight
+            hist.append(float(p))
+
+        rewards = prices * amounts
+        rewards[actions == 0] *= -1
+        states = np.column_stack(
+            [
+                prices,
+                amounts,
                 depth,
                 slippage,
                 tx_rate,
-                sentiment,
+                np.full(n, float(sentiment), dtype=np.float32),
                 imbalance,
-                pred,
-                r,
+                preds,
+                regimes,
             ]
-            reward = float(t.amount) * float(t.price)
-            side = getattr(t, "side", getattr(t, "direction", "buy"))
-            action = 0 if side == "buy" else 1
-            if side == "buy":
-                reward = -reward
-            self.samples.append((state, action, reward))
-            hist.append(float(t.price))
+        )
 
+        self.states = states
+        self.actions = actions
+        self.rewards = rewards
         self.build_time = time.time() - start_time
         logging.getLogger(__name__).debug(
             "constructed trade dataset in %.3fs", self.build_time
         )
 
     def __len__(self) -> int:
-        return len(self.samples)
+        return len(self.states)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        state, action, reward = self.samples[idx]
         return (
-            torch.tensor(state, dtype=torch.float32),
-            torch.tensor(action, dtype=torch.long),
-            torch.tensor(reward, dtype=torch.float32),
+            torch.tensor(self.states[idx], dtype=torch.float32),
+            torch.tensor(self.actions[idx], dtype=torch.long),
+            torch.tensor(self.rewards[idx], dtype=torch.float32),
         )
 
 
