@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fs::OpenOptions, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::OpenOptions,
+    path::Path,
+    sync::{Arc, atomic::{AtomicU64, Ordering}},
+};
 
 use tokio::sync::Mutex;
 
@@ -20,6 +25,7 @@ use tokio::{
     sync::{broadcast, mpsc},
 };
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message as WsMessage};
+use sysinfo::System;
 
 fn cfg_str(cfg: &TomlTable, key: &str) -> Option<String> {
     cfg.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
@@ -62,6 +68,15 @@ fn send_interval(cfg: &TomlTable) -> Duration {
         .and_then(|v| v.parse().ok())
         .or_else(|| cfg_str(cfg, "depth_min_send_interval").and_then(|v| v.parse().ok()))
         .unwrap_or(100u64);
+    Duration::from_millis(ms)
+}
+
+fn metrics_interval(cfg: &TomlTable) -> Duration {
+    let ms = std::env::var("DEPTH_METRICS_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(|| cfg_str(cfg, "depth_metrics_interval").and_then(|v| v.parse().ok()))
+        .unwrap_or(5000u64);
     Duration::from_millis(ms)
 }
 
@@ -113,6 +128,7 @@ type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 /// Aggregated state of all tokens
 type AggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 type LastSent = Arc<Mutex<Instant>>;
+type UpdateCounter = Arc<AtomicU64>;
 
 #[derive(Serialize, Deserialize)]
 struct EventMessage<T> {
@@ -299,7 +315,8 @@ async fn update_mmap(
     mmap: &SharedMmap,
     ws: &WsSender,
     ws_bin: &WsBinSender,
-    bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
+    bus_opt: Option<&mpsc::UnboundedSender<Vec<u8>>>,
+    counter: &UpdateCounter,
     latest: &LatestSnap,
     latest_bin: &LatestBin,
     last_map: &LastAggMap,
@@ -388,8 +405,7 @@ async fn update_mmap(
     let _ = ws_bin.send(binary.clone());
     *latest.lock().await = text.clone();
     *latest_bin.lock().await = binary;
-    if let Some(bus) = bus {
-        let entries: HashMap<String, pb::TokenAgg> = snapshot
+    let entries: HashMap<String, pb::TokenAgg> = snapshot
             .iter()
             .map(|(k, v)| {
                 (
@@ -417,12 +433,14 @@ async fn update_mmap(
                 )
             })
             .collect();
-        let event = pb::Event {
-            topic: "depth_update".to_string(),
-            kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
-        };
+    let event = pb::Event {
+        topic: "depth_update".to_string(),
+        kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
+    };
+    if let Some(bus) = bus_opt {
         let _ = bus.send(event.encode_to_vec());
     }
+    counter.fetch_add(1, Ordering::Relaxed);
     if let Some(tx) = notify {
         let _ = tx.send(());
     }
@@ -439,6 +457,7 @@ async fn connect_feed(
     ws: WsSender,
     ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    update_counter: UpdateCounter,
     latest: LatestSnap,
     latest_bin: LatestBin,
     last_map: LastAggMap,
@@ -480,6 +499,7 @@ async fn connect_feed(
                     &ws,
                     &ws_bin,
                     bus.as_ref(),
+                    &update_counter,
                     &latest,
                     &latest_bin,
                     &last_map,
@@ -505,6 +525,7 @@ async fn connect_price_feed(
     ws: WsSender,
     ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    update_counter: UpdateCounter,
     latest: LatestSnap,
     latest_bin: LatestBin,
     last_map: LastAggMap,
@@ -543,6 +564,7 @@ async fn connect_price_feed(
                     &ws,
                     &ws_bin,
                     bus.as_ref(),
+                    &update_counter,
                     &latest,
                     &latest_bin,
                     &last_map,
@@ -567,6 +589,7 @@ async fn connect_mempool(
     ws: WsSender,
     ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    update_counter: UpdateCounter,
     latest: LatestSnap,
     latest_bin: LatestBin,
     last_map: LastAggMap,
@@ -597,6 +620,7 @@ async fn connect_mempool(
                     &ws,
                     &ws_bin,
                     bus.as_ref(),
+                    &update_counter,
                     &latest,
                     &latest_bin,
                     &last_map,
@@ -984,6 +1008,8 @@ async fn main() -> Result<()> {
     let min_interval = send_interval(&cfg);
     let threshold = update_threshold(&cfg);
     let last_sent: LastSent = Arc::new(Mutex::new(Instant::now() - min_interval));
+    let metrics_int = metrics_interval(&cfg);
+    let update_counter: UpdateCounter = Arc::new(AtomicU64::new(0));
     let (notify_tx, notify_rx) = tokio::sync::watch::channel(());
     let bus_tx = if let Some(url) = event_bus_url(&cfg) {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
@@ -1059,6 +1085,47 @@ async fn main() -> Result<()> {
         });
     }
 
+    if metrics_int.as_millis() > 0 {
+        let bus = bus_tx.clone();
+        let tx = ws_tx.clone();
+        let counter = update_counter.clone();
+        tokio::spawn(async move {
+            let mut sys = System::new();
+            loop {
+                sys.refresh_cpu();
+                sys.refresh_memory();
+                let cpu = sys.global_cpu_info().cpu_usage() as f64;
+                let mem = if sys.total_memory() > 0 {
+                    sys.used_memory() as f64 * 100.0 / sys.total_memory() as f64
+                } else { 0.0 };
+                let count = counter.swap(0, Ordering::Relaxed);
+                let rate = count as f64 / metrics_int.as_secs_f64();
+                let msg_json = serde_json::to_string(&EventMessage {
+                    topic: "depth_service_metrics".to_string(),
+                    payload: serde_json::json!({
+                        "cpu_usage": cpu,
+                        "memory_usage": mem,
+                        "update_rate": rate,
+                    }),
+                })
+                .unwrap();
+                let _ = tx.send(msg_json);
+                if let Some(bus) = bus.as_ref() {
+                    let event = pb::Event {
+                        topic: "depth_service_metrics".to_string(),
+                        kind: Some(pb::event::Kind::DepthServiceMetrics(pb::DepthServiceMetrics {
+                            cpu_usage: cpu,
+                            memory_usage: mem,
+                            update_rate: rate,
+                        })),
+                    };
+                    let _ = bus.send(event.encode_to_vec());
+                }
+                tokio::time::sleep(metrics_int).await;
+            }
+        });
+    }
+
     if let Some(url) = serum {
         let d = dex_map.clone();
         let m = mem_map.clone();
@@ -1071,6 +1138,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_feed(
@@ -1083,6 +1151,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,
@@ -1106,6 +1175,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1118,6 +1188,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,
@@ -1141,6 +1212,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1153,6 +1225,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,
@@ -1176,6 +1249,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1188,6 +1262,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,
@@ -1211,6 +1286,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1223,6 +1299,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,
@@ -1246,6 +1323,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1258,6 +1336,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,
@@ -1281,6 +1360,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let counter = update_counter.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_mempool(
@@ -1292,6 +1372,7 @@ async fn main() -> Result<()> {
                 tx,
                 bin_tx,
                 bus,
+                counter,
                 latest,
                 latest_bin_c,
                 last_map_c,

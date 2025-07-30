@@ -318,7 +318,12 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                         data = loads(msg.data)
                     except Exception:
                         continue
-                    publish("depth_update", data)
+                    if isinstance(data, dict) and data.get("topic") == "depth_service_metrics":
+                        publish("depth_service_metrics", data.get("payload", {}))
+                    elif isinstance(data, dict) and data.get("topic"):
+                        publish(str(data.get("topic")), data.get("payload"))
+                    else:
+                        publish("depth_update", data)
                     count += 1
                     if max_updates is not None and count >= max_updates:
                         publish("depth_service_status", {"status": "disconnected"})

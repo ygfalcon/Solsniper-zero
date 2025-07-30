@@ -27,6 +27,7 @@ _PB_MAP = {
     "portfolio_updated": pb.PortfolioUpdated,
     "depth_update": pb.DepthUpdate,
     "depth_service_status": pb.DepthServiceStatus,
+    "depth_service_metrics": pb.DepthServiceMetrics,
     "heartbeat": pb.Heartbeat,
     "trade_logged": pb.TradeLogged,
     "rl_metrics": pb.RLMetrics,
@@ -122,6 +123,15 @@ def _encode_event(topic: str, payload: Any) -> Any:
         return event.SerializeToString()
     elif topic == "depth_service_status":
         event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
+    elif topic == "depth_service_metrics":
+        event = pb.Event(
+            topic=topic,
+            depth_service_metrics=pb.DepthServiceMetrics(
+                cpu_usage=float(payload.get("cpu_usage", 0.0)),
+                memory_usage=float(payload.get("memory_usage", 0.0)),
+                update_rate=float(payload.get("update_rate", 0.0)),
+            ),
+        )
     elif topic == "heartbeat":
         service = getattr(payload, "service", None)
         if service is None and isinstance(payload, dict):
@@ -193,6 +203,12 @@ def _decode_payload(ev: pb.Event) -> Any:
         return result
     if field == "depth_service_status":
         return {"status": msg.status}
+    if field == "depth_service_metrics":
+        return {
+            "cpu_usage": msg.cpu_usage,
+            "memory_usage": msg.memory_usage,
+            "update_rate": msg.update_rate,
+        }
     if field == "heartbeat":
         return {"service": msg.service}
     if field == "trade_logged":
