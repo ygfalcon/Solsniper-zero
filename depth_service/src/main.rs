@@ -297,7 +297,7 @@ async fn update_mmap(
     mem: &MempoolMap,
     agg: &AggMap,
     mmap: &SharedMmap,
-    ws: &WsSender,
+    _ws: &WsSender,
     ws_bin: &WsBinSender,
     bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
     latest: &LatestSnap,
@@ -383,45 +383,46 @@ async fn update_mmap(
     *last_map.lock().await = snapshot.clone();
     *last_sent.lock().await = now;
 
-    let text = serde_json::to_string(&snapshot)?;
-    let _ = ws.send(text.clone());
+    // Build protobuf event for websocket clients and the event bus
+    let entries: HashMap<String, pb::TokenAgg> = snapshot
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                pb::TokenAgg {
+                    dex: v
+                        .dex
+                        .iter()
+                        .map(|(dk, di)| {
+                            (
+                                dk.clone(),
+                                pb::TokenInfo {
+                                    bids: di.bids,
+                                    asks: di.asks,
+                                    tx_rate: di.tx_rate,
+                                },
+                            )
+                        })
+                        .collect(),
+                    bids: v.bids,
+                    asks: v.asks,
+                    tx_rate: v.tx_rate,
+                    ts: v.ts,
+                },
+            )
+        })
+        .collect();
+    let event = pb::Event {
+        topic: "depth_update".to_string(),
+        kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
+    };
+    let proto = event.encode_to_vec();
+    let _ = ws_bin.send(proto.clone());
     let _ = ws_bin.send(binary.clone());
-    *latest.lock().await = text.clone();
+    *latest.lock().await = String::new();
     *latest_bin.lock().await = binary;
     if let Some(bus) = bus {
-        let entries: HashMap<String, pb::TokenAgg> = snapshot
-            .iter()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    pb::TokenAgg {
-                        dex: v
-                            .dex
-                            .iter()
-                            .map(|(dk, di)| {
-                                (
-                                    dk.clone(),
-                                    pb::TokenInfo {
-                                        bids: di.bids,
-                                        asks: di.asks,
-                                        tx_rate: di.tx_rate,
-                                    },
-                                )
-                            })
-                            .collect(),
-                        bids: v.bids,
-                        asks: v.asks,
-                        tx_rate: v.tx_rate,
-                        ts: v.ts,
-                    },
-                )
-            })
-            .collect();
-        let event = pb::Event {
-            topic: "depth_update".to_string(),
-            kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
-        };
-        let _ = bus.send(event.encode_to_vec());
+        let _ = bus.send(proto);
     }
     if let Some(tx) = notify {
         let _ = tx.send(());
