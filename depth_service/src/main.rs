@@ -302,6 +302,7 @@ async fn update_mmap(
     last_sent: &LastSent,
     threshold: f64,
     min_interval: Duration,
+    notify: Option<&tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
     let mem_map = mem.lock().await;
@@ -414,6 +415,9 @@ async fn update_mmap(
         };
         let _ = bus.send(event.encode_to_vec());
     }
+    if let Some(tx) = notify {
+        let _ = tx.send(());
+    }
     Ok(())
 }
 
@@ -431,6 +435,7 @@ async fn connect_feed(
     last_sent: LastSent,
     threshold: f64,
     min_interval: Duration,
+    notify: Option<tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -469,6 +474,7 @@ async fn connect_feed(
                     &last_sent,
                     threshold,
                     min_interval,
+                    notify.as_ref(),
                 )
                 .await;
             }
@@ -491,6 +497,7 @@ async fn connect_price_feed(
     last_sent: LastSent,
     threshold: f64,
     min_interval: Duration,
+    notify: Option<tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -526,6 +533,7 @@ async fn connect_price_feed(
                     &last_sent,
                     threshold,
                     min_interval,
+                    notify.as_ref(),
                 )
                 .await;
             }
@@ -547,6 +555,7 @@ async fn connect_mempool(
     last_sent: LastSent,
     threshold: f64,
     min_interval: Duration,
+    notify: Option<tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
     let (_write, mut read) = socket.split();
@@ -559,7 +568,7 @@ async fn connect_mempool(
                 let token = token.as_str().unwrap_or("").to_string();
                 let rate = rate.as_f64().unwrap_or(0.0);
                 let mut mem_lock = mem.lock().await;
-                mem_lock.insert(token, rate);
+                mem_lock.insert(token.clone(), rate);
                 drop(mem_lock);
                 let _ = update_mmap(
                     &token,
@@ -574,6 +583,7 @@ async fn connect_mempool(
                     &last_sent,
                     threshold,
                     min_interval,
+                    notify.as_ref(),
                 )
                 .await;
             }
@@ -588,6 +598,7 @@ async fn ipc_server(
     mem: MempoolMap,
     agg: AggMap,
     exec: Arc<ExecContext>,
+    notify_rx: tokio::sync::watch::Receiver<()>,
 ) -> Result<()> {
     if socket.exists() {
         let _ = std::fs::remove_file(socket);
@@ -600,9 +611,9 @@ async fn ipc_server(
         let m = mem.clone();
         let exec = exec.clone();
         let a = auto_map.clone();
+        let mut rx = notify_rx.clone();
         tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_millis(200)).await;
+            while rx.changed().await.is_ok() {
                 let entries = { a.lock().await.clone() };
                 if entries.is_empty() {
                     continue;
@@ -637,7 +648,7 @@ async fn ipc_server(
     loop {
         let (mut stream, _) = listener.accept().await?;
         let dex_map = dex_map.clone();
-        let mem = mem.clone();
+        let _mem = mem.clone();
         let agg_map = agg.clone();
         let exec = exec.clone();
         let auto_map = auto_map.clone();
@@ -928,6 +939,7 @@ async fn main() -> Result<()> {
     let min_interval = send_interval(&cfg);
     let threshold = update_threshold(&cfg);
     let last_sent: LastSent = Arc::new(Mutex::new(Instant::now() - min_interval));
+    let (notify_tx, notify_rx) = tokio::sync::watch::channel(());
     let bus_tx = if let Some(url) = event_bus_url(&cfg) {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         tokio::spawn(async move {
@@ -1010,6 +1022,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_feed(
                 "serum",
@@ -1025,6 +1038,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1039,6 +1053,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
                 "raydium",
@@ -1054,6 +1069,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1068,6 +1084,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
                 "orca",
@@ -1083,6 +1100,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1097,6 +1115,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
                 "jupiter",
@@ -1112,6 +1131,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1126,6 +1146,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
                 "phoenix",
@@ -1141,6 +1162,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1155,6 +1177,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
                 "meteora",
@@ -1170,6 +1193,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1184,6 +1208,7 @@ async fn main() -> Result<()> {
         let latest = latest.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_mempool(
                 &url,
@@ -1198,6 +1223,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                Some(notify),
             )
             .await;
         });
@@ -1217,6 +1243,14 @@ async fn main() -> Result<()> {
         .ok()
         .or_else(|| cfg_str(&cfg, "DEPTH_SERVICE_SOCKET"))
         .unwrap_or_else(|| "/tmp/depth_service.sock".into());
-    ipc_server(Path::new(&sock_path), dex_map, mem_map, agg_map, exec).await?;
+    ipc_server(
+        Path::new(&sock_path),
+        dex_map,
+        mem_map,
+        agg_map,
+        exec,
+        notify_rx,
+    )
+    .await?;
     Ok(())
 }
