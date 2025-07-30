@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 from typing import AsyncGenerator, Dict, Any, Optional
 
 import aiohttp
-from .http import get_session
+from .http import get_session, loads
 from .util import install_uvloop
 
 from .simulation import run_simulations
@@ -27,7 +26,7 @@ async def subscribe_events(url: str) -> AsyncGenerator[Dict[str, Any], None]:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     try:
-                        data = json.loads(msg.data)
+                        data = loads(msg.data)
                     except Exception:  # pragma: no cover - invalid data
                         continue
                     yield data

@@ -3,12 +3,11 @@ import base64
 import logging
 from typing import Optional, Dict, Any
 import asyncio
-import json
 
 from .util import install_uvloop
 
 import aiohttp
-from .http import get_session
+from .http import get_session, loads, dumps
 
 IPC_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 USE_RUST_EXEC = os.getenv("USE_RUST_EXEC", "True").lower() in {"1", "true", "yes"}
@@ -79,7 +78,7 @@ async def _place_order_ipc(
         try:
             reader, writer = await asyncio.open_unix_connection(socket_path)
             payload = {"cmd": "submit", "tx": tx_b64, "testnet": testnet}
-            writer.write(json.dumps(payload).encode())
+            writer.write(dumps(payload).encode())
             await writer.drain()
             if timeout:
                 data = await asyncio.wait_for(reader.read(), timeout)
@@ -88,7 +87,7 @@ async def _place_order_ipc(
             writer.close()
             await writer.wait_closed()
             if data:
-                return json.loads(data.decode())
+                return loads(data.decode())
             return None
         except asyncio.TimeoutError:
             logger.warning("IPC order timed out, retrying")

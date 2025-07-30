@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import mmap
 import os
@@ -9,7 +8,7 @@ import time
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
-from .http import get_session
+from .http import get_session, loads, dumps
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
                 raw = bytes(m).rstrip(b"\x00")
                 if not raw:
                     return 0.0, 0.0, 0.0
-                data = json.loads(raw.decode())
+                data = loads(raw.decode())
                 entry = data.get(token)
                 if not entry:
                     return 0.0, 0.0, 0.0
@@ -87,13 +86,13 @@ async def stream_order_book(
         while True:
             try:
                 reader, writer = await asyncio.open_unix_connection(path)
-                writer.write(json.dumps({"cmd": "snapshot", "token": token}).encode())
+                writer.write(dumps({"cmd": "snapshot", "token": token}).encode())
                 await writer.drain()
                 data = await reader.read()
                 writer.close()
                 await writer.wait_closed()
                 try:
-                    info = json.loads(data.decode())
+                    info = loads(data.decode())
                     if "bids" in info and "asks" in info:
                         bids = float(info.get("bids", 0.0))
                         asks = float(info.get("asks", 0.0))
@@ -139,7 +138,7 @@ async def stream_order_book(
                             if msg.type != aiohttp.WSMsgType.TEXT:
                                 continue
                             try:
-                                data = json.loads(msg.data)
+                                data = loads(msg.data)
                             except Exception as exc:
                                 logger.error("Failed to parse depth message: %s", exc)
                                 continue
