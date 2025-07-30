@@ -1,5 +1,4 @@
 import os
-import json
 import mmap
 import asyncio
 import time
@@ -9,7 +8,7 @@ import struct
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
-from .http import get_session
+from .http import get_session, loads, dumps
 
 from .event_bus import publish, subscription
 from .config import get_depth_ws_addr
@@ -129,7 +128,7 @@ class _IPCClient:
 
     async def request(self, payload: Dict[str, Any], timeout: float | None = None) -> bytes:
         reader, writer = await self._ensure()
-        writer.write(json.dumps(payload).encode())
+        writer.write(dumps(payload).encode())
         await writer.drain()
         if timeout is not None:
             data = await asyncio.wait_for(reader.read(), timeout)
@@ -206,7 +205,7 @@ async def stream_depth_ws(
                     if msg.type != aiohttp.WSMsgType.TEXT:
                         continue
                     try:
-                        data = json.loads(msg.data)
+                        data = loads(msg.data)
                     except Exception:
                         continue
                     entry = data.get(token)
@@ -279,7 +278,7 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                     if msg.type != aiohttp.WSMsgType.TEXT:
                         continue
                     try:
-                        data = json.loads(msg.data)
+                        data = loads(msg.data)
                     except Exception:
                         continue
                     publish("depth_update", data)
@@ -318,7 +317,7 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
                 slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
                 if not slice_bytes:
                     return {}, 0.0
-                entry = json.loads(slice_bytes.decode())
+                entry = loads(slice_bytes.decode())
                 rate = float(entry.get("tx_rate", 0.0))
                 venues = {
                     d: {
@@ -337,7 +336,7 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         raw = bytes(buf).rstrip(b"\x00")
         if not raw:
             return {}, 0.0
-        data = json.loads(raw.decode())
+        data = loads(raw.decode())
         entry = data.get(token)
         if not entry:
             return {}, 0.0
@@ -370,7 +369,7 @@ async def submit_signed_tx(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = loads(data.decode())
     except Exception:
         return None
     return resp.get("signature")
@@ -393,7 +392,7 @@ async def prepare_signed_tx(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = loads(data.decode())
     except Exception:
         return None
     return resp.get("tx")
@@ -413,7 +412,7 @@ async def submit_tx_batch(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = loads(data.decode())
     except Exception:
         return None
     if isinstance(resp, list):
@@ -441,7 +440,7 @@ async def submit_raw_tx(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = loads(data.decode())
     except Exception:
         return None
     return resp.get("signature")
@@ -468,7 +467,7 @@ async def auto_exec(
     if not data:
         return False
     try:
-        resp = json.loads(data.decode())
+        resp = loads(data.decode())
     except Exception:
         return False
     return bool(resp.get("ok"))
@@ -492,7 +491,7 @@ async def best_route(
     if not data:
         return None
     try:
-        resp = json.loads(data.decode())
+        resp = loads(data.decode())
         path = [str(p) for p in resp.get("path", [])]
         profit = float(resp.get("profit", 0.0))
         slippage = float(resp.get("slippage", 0.0))
