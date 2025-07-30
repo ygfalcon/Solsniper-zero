@@ -12,15 +12,15 @@ jupiter_ws_url = ""
 phoenix_ws_url = ""
 meteora_ws_url = ""
 order_book_ws_url = ""
-depth_service = false    # start the Rust depth_service automatically when true
+depth_service = false  # start the Rust depth_service automatically when true
 # IPC paths for the depth_service (change if running on another host)
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
 # depth_update_threshold = 0.0  # minimum relative change before broadcasting
 # depth_min_send_interval = 100 # min interval between snapshots in ms
 use_depth_stream = true  # set to false to disable depth-stream IPC
-use_depth_feed = false   # deprecated, depth snapshots are sent over websocket
-use_rust_exec = true     # set to false to execute swaps in Python
+use_depth_feed = false  # deprecated, depth snapshots are sent over websocket
+use_rust_exec = true  # set to false to execute swaps in Python
 use_service_exec = true  # set to false to bypass depth_service execution
 orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
@@ -53,34 +53,36 @@ min_delay = 10
 max_delay = 300
 cpu_low_threshold = 20.0
 cpu_high_threshold = 80.0
+max_concurrency = 0  # use half the available CPUs when 0
+cpu_usage_threshold = 0  # reduce concurrency when above this percent
 depth_freq_low = 1.0
 depth_freq_high = 10.0
 offline_data_limit_gb = 50
 min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
-use_flash_loans = true   # set to false to disable flash-loan arbitrage
+use_flash_loans = true  # set to false to disable flash-loan arbitrage
 max_flash_amount = 0.02
 dex_priorities = "phoenix,meteora,orca,raydium,jupiter"
 dex_fees = "{}"
 dex_gas = "{}"
 dex_latency = "{}"
-use_mev_bundles = true # submit swap bundles via MEVExecutor when true
-max_hops = 3          # maximum hops to consider when searching arbitrage paths
+use_mev_bundles = true  # submit swap bundles via MEVExecutor when true
+max_hops = 3  # maximum hops to consider when searching arbitrage paths
 path_algorithm = "graph"  # "graph" or "permutation"
 # CrossDEXRebalancer options
-rebalance_interval = 30     # seconds between venue rebalances
-slippage_threshold = 0.05   # ignore venues with higher expected slippage
+rebalance_interval = 30  # seconds between venue rebalances
+slippage_threshold = 0.05  # ignore venues with higher expected slippage
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
 priority_rpc = "https://rpc.example"
-jito_rpc_url = ""       # Jito block-engine endpoint
-jito_auth = ""          # authentication token for Jito
-jito_ws_url = ""       # Jito searcher websocket
-jito_ws_auth = ""      # websocket auth token
-event_bus_url = ""    # external event bus websocket
-replicate_trades = false # subscribe to trade_logged events when true
+jito_rpc_url = ""  # Jito block-engine endpoint
+jito_auth = ""  # authentication token for Jito
+jito_ws_url = ""  # Jito searcher websocket
+jito_ws_auth = ""  # websocket auth token
+event_bus_url = ""  # external event bus websocket
+replicate_trades = false  # subscribe to trade_logged events when true
 weights_path = "weights.json"
 evolve_interval = 1
 mutation_threshold = 0.0
@@ -90,14 +92,29 @@ token_keywords = ""
 mempool_score_threshold = 0.0
 mempool_stats_window = 5
 mempool_threshold = 0.0
-depth_threshold = 0.0      # minimum depth for ranked mempool tokens
+depth_threshold = 0.0  # minimum depth for ranked mempool tokens
 bundle_size = 1
 volume_threshold = 0
 trend_volume_threshold = 0
 trend_sentiment_threshold = 0.0
 
 # Enable built-in agents for trading
-agents = ["simulation", "conviction", "arbitrage", "exit", "smart_discovery", "trend", "momentum", "vanta", "inferna", "portfolio_optimizer", "crossdex_rebalancer", "mev_sandwich", "flashloan_sandwich", "sac"]
+agents = [
+    "simulation",
+    "conviction",
+    "arbitrage",
+    "exit",
+    "smart_discovery",
+    "trend",
+    "momentum",
+    "vanta",
+    "inferna",
+    "portfolio_optimizer",
+    "crossdex_rebalancer",
+    "mev_sandwich",
+    "flashloan_sandwich",
+    "sac",
+]
 
 [agent_weights]
 simulation = 1.0
@@ -118,4 +135,3 @@ sac = 1.0
 rl_auto_train = false
 rl_tune_interval = 3600
 regime_weight = 1.0
-

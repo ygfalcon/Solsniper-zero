@@ -90,6 +90,8 @@ ENV_VARS = {
     "depth_min_send_interval": "DEPTH_MIN_SEND_INTERVAL",
     "cpu_low_threshold": "CPU_LOW_THRESHOLD",
     "cpu_high_threshold": "CPU_HIGH_THRESHOLD",
+    "max_concurrency": "MAX_CONCURRENCY",
+    "cpu_usage_threshold": "CPU_USAGE_THRESHOLD",
     "depth_freq_low": "DEPTH_FREQ_LOW",
     "depth_freq_high": "DEPTH_FREQ_HIGH",
     "max_hops": "MAX_HOPS",
@@ -294,6 +296,7 @@ def reload_active_config() -> dict:
 
 
 from . import event_bus as _event_bus
+
 _sub = _event_bus.subscription("config_updated", _update_active)
 _sub.__enter__()
 try:

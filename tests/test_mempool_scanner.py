@@ -114,8 +114,12 @@ def test_stream_mempool_tokens_with_metrics(monkeypatch):
 
     import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0))
-    monkeypatch.setattr(om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 2.0))
+    monkeypatch.setattr(
+        om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0)
+    )
+    monkeypatch.setattr(
+        om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 2.0)
+    )
 
     async def run():
         gen = mp_scanner.stream_mempool_tokens("ws://node", return_metrics=True)
@@ -141,10 +145,14 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
     import solhunter_zero.onchain_metrics as om
 
     monkeypatch.setattr(
-        om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 10.0 if t == "tok1" else 1.0)
+        om,
+        "fetch_volume_onchain_async",
+        lambda t, u: asyncio.sleep(0, 10.0 if t == "tok1" else 1.0),
     )
     monkeypatch.setattr(
-        om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 5.0 if t == "tok1" else 0.5)
+        om,
+        "fetch_liquidity_onchain_async",
+        lambda t, u: asyncio.sleep(0, 5.0 if t == "tok1" else 0.5),
     )
     monkeypatch.setattr(
         om,
@@ -178,8 +186,12 @@ def test_rank_token_momentum(monkeypatch):
     mp_scanner._ROLLING_STATS.clear()
     import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0))
-    monkeypatch.setattr(om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 1.0))
+    monkeypatch.setattr(
+        om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0)
+    )
+    monkeypatch.setattr(
+        om, "fetch_liquidity_onchain_async", lambda t, u: asyncio.sleep(0, 1.0)
+    )
     rates = [1.0, 3.0]
 
     def fake_insights(t, u):
@@ -231,3 +243,72 @@ def test_stream_ranked_with_depth(monkeypatch):
 
     first, second = asyncio.run(run())
     assert second["combined_score"] > first["combined_score"]
+
+
+def test_default_concurrency(monkeypatch):
+    monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", lambda: 0.0)
+
+    async def fake_stream(_url, **__):
+        for t in ("a", "b", "c", "d"):
+            yield t
+
+    monkeypatch.setattr(mp_scanner, "stream_mempool_tokens", fake_stream)
+
+    running = 0
+    max_running = 0
+
+    async def fake_rank(_t, _u):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0)
+        running -= 1
+        return 0.0, {"whale_activity": 0.0, "momentum": 0.0}
+
+    monkeypatch.setattr(mp_scanner, "rank_token", fake_rank)
+
+    async def run():
+        gen = mp_scanner.stream_ranked_mempool_tokens("rpc")
+        async for _ in gen:
+            pass
+
+    asyncio.run(run())
+    assert max_running <= 2
+
+
+def test_cpu_threshold_reduces_concurrency(monkeypatch):
+    monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
+    cpu_vals = [90.0, 10.0]
+
+    def fake_cpu():
+        return cpu_vals.pop(0) if cpu_vals else 10.0
+
+    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", fake_cpu)
+
+    async def fake_stream(_url, **__):
+        for t in ("a", "b"):
+            yield t
+
+    monkeypatch.setattr(mp_scanner, "stream_mempool_tokens", fake_stream)
+
+    running = 0
+    max_running = 0
+
+    async def fake_rank(_t, _u):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0)
+        running -= 1
+        return 0.0, {"whale_activity": 0.0, "momentum": 0.0}
+
+    monkeypatch.setattr(mp_scanner, "rank_token", fake_rank)
+
+    async def run():
+        gen = mp_scanner.stream_ranked_mempool_tokens("rpc", cpu_usage_threshold=80.0)
+        async for _ in gen:
+            pass
+
+    asyncio.run(run())
+    assert max_running <= 1
