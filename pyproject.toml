@@ -36,6 +36,7 @@ dev = [
     "flake8",
 ]
 numba = ["numba"]
+fastjson = ["orjson"]
 
 [project.scripts]
 solhunter-wallet = "solhunter_zero.wallet_cli:main"
