@@ -6,6 +6,30 @@ from typing import Mapping, Sequence
 import logging
 import numpy as np
 
+try:  # pragma: no cover - optional dependency
+    from numba import njit as _numba_njit
+except Exception:  # pragma: no cover - numba not available
+    def njit(*args, **kwargs):  # type: ignore
+        if args and callable(args[0]):
+            return args[0]
+
+        def wrapper(func):
+            return func
+
+        return wrapper
+else:  # pragma: no cover - numba available
+    def njit(*args, **kwargs):  # type: ignore
+        def decorator(func):
+            try:
+                return _numba_njit(*args, **kwargs)(func)
+            except Exception:
+                return func
+
+        if args and callable(args[0]):
+            return decorator(args[0])
+
+        return decorator
+
 from .memory import Memory
 
 logger = logging.getLogger(__name__)
@@ -50,6 +74,7 @@ def leverage_scaling(current: float, target: float) -> float:
     return target / current
 
 
+@njit
 def value_at_risk(
     prices: Sequence[float], confidence: float = 0.95, memory: Memory | None = None
 ) -> float:
@@ -80,6 +105,7 @@ def value_at_risk(
     return var
 
 
+@njit
 def conditional_value_at_risk(
     returns: Sequence[float], confidence: float = 0.95
 ) -> float:
@@ -95,6 +121,7 @@ def conditional_value_at_risk(
     return max(cvar, 0.0)
 
 
+@njit
 def entropic_value_at_risk(
     returns: Sequence[float], confidence: float = 0.95, *, steps: int = 100
 ) -> float:
@@ -123,6 +150,7 @@ def entropic_value_at_risk(
     return max(bound, 0.0)
 
 
+@njit
 def covariance_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
     """Return covariance matrix of token returns."""
 
@@ -140,6 +168,7 @@ def covariance_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
     return np.cov(mat)
 
 
+@njit
 def portfolio_cvar(
     prices: Mapping[str, Sequence[float]],
     weights: Mapping[str, float],
@@ -166,6 +195,7 @@ def portfolio_cvar(
     return conditional_value_at_risk(port_rets, confidence)
 
 
+@njit
 def portfolio_evar(
     prices: Mapping[str, Sequence[float]],
     weights: Mapping[str, float],
@@ -209,6 +239,7 @@ def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
     return float(w @ cov @ w.T)
 
 
+@njit
 def correlation_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
     """Return correlation matrix of token returns."""
 

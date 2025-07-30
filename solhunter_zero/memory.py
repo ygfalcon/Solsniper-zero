@@ -46,13 +46,19 @@ class VaRLog(Base):
 
 class Memory(BaseMemory):
     def __init__(self, url: str = 'sqlite:///memory.db'):
+        if url.startswith('sqlite:///'):
+            url = url.replace('sqlite://', 'sqlite+aiosqlite://', 1)
         self.engine = create_async_engine(url, echo=False, future=True)
         self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
         import asyncio
         async def _init_models():
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         if loop.is_running():
             loop.create_task(_init_models())
         else:
@@ -69,12 +75,16 @@ class Memory(BaseMemory):
             except Exception:
                 pass
         return trade.id
-    async def log_var(self, value: float) -> None:
-        """Record a value-at-risk measurement."""
+    async def _log_var_async(self, value: float) -> None:
         async with self.Session() as session:
             rec = VaRLog(value=value)
             session.add(rec)
             await session.commit()
+
+    def log_var(self, value: float) -> None:
+        """Record a value-at-risk measurement."""
+        import asyncio
+        asyncio.run(self._log_var_async(value))
 
     async def list_trades(
         self,
@@ -96,7 +106,11 @@ class Memory(BaseMemory):
             result = await session.execute(q)
             return list(result.scalars().all())
 
-    async def list_vars(self):
+    async def _list_vars_async(self):
         async with self.Session() as session:
             result = await session.execute(select(VaRLog))
             return list(result.scalars().all())
+
+    def list_vars(self):
+        import asyncio
+        return asyncio.run(self._list_vars_async())
