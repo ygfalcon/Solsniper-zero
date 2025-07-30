@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Sequence, Callable, Awaitable, Mapping
 from . import BaseAgent
 from .. import arbitrage
 from ..arbitrage import _best_route, refresh_costs
+from ..event_bus import subscribe
 from ..depth_client import snapshot as depth_snapshot
 from ..portfolio import Portfolio
 
@@ -69,6 +70,24 @@ class ArbitrageAgent(BaseAgent):
             }
         # Cache of latest known prices per token and feed
         self.price_cache: Dict[str, Dict[str, float]] = {}
+        self._unsub_price = subscribe("price_update", self._handle_price)
+
+    # ------------------------------------------------------------------
+    def _handle_price(self, payload: Mapping[str, Any]) -> None:
+        token = payload.get("token")
+        venue = payload.get("venue")
+        price = payload.get("price")
+        if not token or not venue:
+            return
+        try:
+            value = float(price)
+        except Exception:
+            return
+        self.price_cache.setdefault(str(token), {})[str(venue)] = value
+
+    def close(self) -> None:
+        if self._unsub_price:
+            self._unsub_price()
 
     async def propose_trade(
         self,
@@ -82,19 +101,21 @@ class ArbitrageAgent(BaseAgent):
             return []
         token_cache = self.price_cache.setdefault(token, {})
 
-        # Fetch prices from main feeds
-        names = list(self.feeds.keys())
-        prices = await asyncio.gather(*(f(token) for f in self.feeds.values()))
+        valid: Dict[str, float] = {
+            n: p for n, p in token_cache.items() if isinstance(p, (int, float)) and p > 0
+        }
 
-        valid: Dict[str, float] = {}
-        for name, price in zip(names, prices):
-            if price > 0:
-                token_cache[name] = price
-                valid[name] = price
-            elif name in token_cache:
-                valid[name] = token_cache[name]
+        if len(valid) < 2 and self.feeds:
+            names = list(self.feeds.keys())
+            prices = await asyncio.gather(*(f(token) for f in self.feeds.values()))
+            for name, price in zip(names, prices):
+                if price > 0:
+                    token_cache[name] = price
+                    valid[name] = price
+                elif name in token_cache:
+                    valid[name] = token_cache[name]
 
-        # If all feeds failed, try backup feeds
+        # If not enough data, try backup feeds
         if len(valid) < 2 and self.backup_feeds:
             b_names = list(self.backup_feeds.keys())
             b_prices = await asyncio.gather(

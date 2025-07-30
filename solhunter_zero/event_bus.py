@@ -32,6 +32,7 @@ _PB_MAP = {
     "trade_logged": pb.TradeLogged,
     "rl_metrics": pb.RLMetrics,
     "system_metrics": pb.SystemMetrics,
+    "price_update": pb.PriceUpdate,
 }
 
 
@@ -164,6 +165,16 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 memory=float(data.get("memory", 0.0)),
             ),
         )
+    elif topic == "price_update":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            price_update=pb.PriceUpdate(
+                venue=str(data.get("venue", "")),
+                token=str(data.get("token", "")),
+                price=float(data.get("price", 0.0)),
+            ),
+        )
     else:
         return _dumps({"topic": topic, "payload": to_dict(payload)})
     return event.SerializeToString()
@@ -223,6 +234,12 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"loss": msg.loss, "reward": msg.reward}
     if field == "system_metrics":
         return {"cpu": msg.cpu, "memory": msg.memory}
+    if field == "price_update":
+        return {
+            "venue": msg.venue,
+            "token": msg.token,
+            "price": msg.price,
+        }
     return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
