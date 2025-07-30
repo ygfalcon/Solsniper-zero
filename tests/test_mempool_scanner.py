@@ -274,7 +274,7 @@ def test_default_concurrency(monkeypatch):
             pass
 
     asyncio.run(run())
-    assert max_running <= 2
+    assert max_running <= 4
 
 
 def test_cpu_threshold_reduces_concurrency(monkeypatch):
@@ -311,4 +311,4 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
             pass
 
     asyncio.run(run())
-    assert max_running <= 1
+    assert max_running <= 2

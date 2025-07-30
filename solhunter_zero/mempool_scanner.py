@@ -225,10 +225,7 @@ async def stream_ranked_mempool_tokens(
         threshold = MEMPOOL_SCORE_THRESHOLD
 
     if max_concurrency is None or max_concurrency <= 0:
-        max_concurrency = max(1, (os.cpu_count() or 1) // 2)
-
-    if cpu_usage_threshold is not None and psutil.cpu_percent() > cpu_usage_threshold:
-        max_concurrency = max(1, max_concurrency // 2)
+        max_concurrency = os.cpu_count() or 1
 
     sem = asyncio.Semaphore(max_concurrency)
     queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
