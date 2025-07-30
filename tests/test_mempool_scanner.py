@@ -316,3 +316,37 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
 
     asyncio.run(run())
     assert max_running <= 2
+
+
+def test_dynamic_concurrency(monkeypatch):
+    monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
+    mp_scanner._CPU_PERCENT = 90.0
+    mp_scanner._DYN_INTERVAL = 0.01
+
+    async def fake_stream(_url, **__):
+        await asyncio.sleep(0)
+        for t in ("a", "b", "c", "d"):
+            yield t
+
+    monkeypatch.setattr(mp_scanner, "stream_mempool_tokens", fake_stream)
+
+    running = 0
+    max_running = 0
+
+    async def fake_rank(_t, _u):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0)
+        running -= 1
+        return 0.0, {"whale_activity": 0.0, "momentum": 0.0}
+
+    monkeypatch.setattr(mp_scanner, "rank_token", fake_rank)
+
+    async def run():
+        gen = mp_scanner.stream_ranked_mempool_tokens("rpc", dynamic_concurrency=True)
+        async for _ in gen:
+            pass
+
+    asyncio.run(run())
+    assert max_running <= 2

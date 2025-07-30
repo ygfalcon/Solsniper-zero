@@ -5,6 +5,7 @@ import logging
 import re
 import os
 import statistics
+import contextlib
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
@@ -51,6 +52,7 @@ MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0
 
 _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 _CPU_PERCENT: float = 0.0
+_DYN_INTERVAL: float = 2.0
 
 def _on_system_metrics(msg: Any) -> None:
     """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
@@ -235,6 +237,7 @@ async def stream_ranked_mempool_tokens(
     threshold: float | None = None,
     max_concurrency: int | None = None,
     cpu_usage_threshold: float | None = None,
+    dynamic_concurrency: bool = False,
 ) -> AsyncGenerator[Dict[str, float], None]:
     """Yield ranked token events from the mempool."""
 
@@ -245,6 +248,38 @@ async def stream_ranked_mempool_tokens(
         max_concurrency = os.cpu_count() or 1
 
     sem = asyncio.Semaphore(max_concurrency)
+    current_limit = max_concurrency
+    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
+    high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
+    low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+    adjust_task: asyncio.Task | None = None
+
+    async def _set_limit(new_limit: int) -> None:
+        nonlocal current_limit
+        diff = new_limit - current_limit
+        if diff > 0:
+            for _ in range(diff):
+                sem.release()
+        elif diff < 0:
+            for _ in range(-diff):
+                await sem.acquire()
+        current_limit = new_limit
+
+    if dynamic_concurrency:
+        async def _adjust() -> None:
+            nonlocal current_limit
+            try:
+                while True:
+                    await asyncio.sleep(_dyn_interval)
+                    cpu = _CPU_PERCENT
+                    if cpu > high and current_limit == max_concurrency:
+                        await _set_limit(max(1, max_concurrency // 2))
+                    elif cpu < low and current_limit < max_concurrency:
+                        await _set_limit(max_concurrency)
+            except asyncio.CancelledError:
+                pass
+
+        adjust_task = asyncio.create_task(_adjust())
     queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
     tasks: set[asyncio.Task] = set()
 
@@ -275,6 +310,10 @@ async def stream_ranked_mempool_tokens(
         await asyncio.gather(*tasks)
     while not queue.empty():
         yield queue.get_nowait()
+    if adjust_task:
+        adjust_task.cancel()
+        with contextlib.suppress(Exception):
+            await adjust_task
 
 
 async def stream_ranked_mempool_tokens_with_depth(
