@@ -3,6 +3,7 @@ import logging
 import os
 import json
 import heapq
+import time
 from typing import (
     Callable,
     Awaitable,
@@ -96,6 +97,75 @@ DEX_LATENCY = _DEX_CFG.latency
 EXTRA_API_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_API_URLS").items()}
 EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").items()}
 
+# Measure DEX latency on import unless disabled via environment variable
+MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {"0", "false", "no"}
+
+
+async def _ping_url(session: aiohttp.ClientSession, url: str, attempts: int = 3) -> float:
+    """Return the average latency for ``url`` in seconds."""
+
+    times = []
+    for _ in range(max(1, attempts)):
+        start = time.perf_counter()
+        try:
+            if url.startswith("ws"):
+                async with session.ws_connect(url, timeout=5):
+                    pass
+            else:
+                async with session.get(url, timeout=5) as resp:
+                    await resp.read()
+        except Exception:  # pragma: no cover - network failures
+            continue
+        times.append(time.perf_counter() - start)
+    if times:
+        return sum(times) / len(times)
+    return 0.0
+
+
+async def measure_dex_latency_async(urls: Mapping[str, str], attempts: int = 3) -> dict[str, float]:
+    """Asynchronously measure latency for each URL in ``urls``."""
+
+    session = await get_session()
+
+    async def _measure(name: str, url: str) -> tuple[str, float]:
+        value = await _ping_url(session, url, attempts)
+        return name, value
+
+    coros = [_measure(n, u) for n, u in urls.items() if u]
+    results = await asyncio.gather(*coros, return_exceptions=True)
+    latency = {}
+    for res in results:
+        if isinstance(res, tuple):
+            n, v = res
+            latency[n] = v
+    return latency
+
+
+def measure_dex_latency(urls: Mapping[str, str] | None = None, attempts: int = 3) -> dict[str, float]:
+    """Synchronously measure latency for DEX endpoints."""
+
+    if urls is None:
+        urls = {**VENUE_URLS, **EXTRA_API_URLS, **EXTRA_WS_URLS}
+        ws_map = {
+            "orca": ORCA_WS_URL,
+            "raydium": RAYDIUM_WS_URL,
+            "phoenix": PHOENIX_WS_URL,
+            "meteora": METEORA_WS_URL,
+            "jupiter": JUPITER_WS_URL,
+        }
+        for name, url in ws_map.items():
+            if url:
+                urls.setdefault(name, url)
+
+    return asyncio.run(measure_dex_latency_async(urls, attempts))
+
+
+if MEASURE_DEX_LATENCY:
+    try:
+        DEX_LATENCY.update(measure_dex_latency())
+    except Exception as exc:  # pragma: no cover - measurement failures
+        logger.debug("DEX latency measurement failed: %s", exc)
+
 # Flash loan configuration
 USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
 MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
@@ -167,7 +237,17 @@ subscribe("depth_update", _on_depth_update)
 def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Return updated fee, gas and latency mappings from the environment."""
     cfg = load_dex_config()
-    return cfg.fees, cfg.gas, cfg.latency
+    latency = dict(cfg.latency)
+    if MEASURE_DEX_LATENCY:
+        try:
+            latency.update(measure_dex_latency())
+        except Exception as exc:  # pragma: no cover - measurement failures
+            logger.debug("DEX latency measurement failed: %s", exc)
+    global DEX_FEES, DEX_GAS, DEX_LATENCY
+    DEX_FEES = cfg.fees
+    DEX_GAS = cfg.gas
+    DEX_LATENCY = latency
+    return DEX_FEES, DEX_GAS, DEX_LATENCY
 
 
 async def _prepare_service_tx(
