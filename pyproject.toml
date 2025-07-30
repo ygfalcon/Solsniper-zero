@@ -35,6 +35,7 @@ dev = [
     "pytest-asyncio",
     "flake8",
 ]
+numba = ["numba"]
 
 [project.scripts]
 solhunter-wallet = "solhunter_zero.wallet_cli:main"
