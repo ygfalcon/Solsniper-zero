@@ -1,15 +1,20 @@
 from __future__ import annotations
 import datetime
 from sqlalchemy import (
-    create_engine,
     Column,
     Integer,
     Float,
     String,
     DateTime,
     Text,
+    select,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+    AsyncSession,
+)
 
 from .base_memory import BaseMemory
 from .event_bus import publish
@@ -41,29 +46,37 @@ class VaRLog(Base):
 
 class Memory(BaseMemory):
     def __init__(self, url: str = 'sqlite:///memory.db'):
-        self.engine = create_engine(url, echo=False, future=True)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.engine = create_async_engine(url, echo=False, future=True)
+        self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
+        import asyncio
+        async def _init_models():
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_init_models())
+        else:
+            loop.run_until_complete(_init_models())
 
-    def log_trade(self, *, _broadcast: bool = True, **kwargs) -> int | None:
-        with self.Session() as session:
+    async def log_trade(self, *, _broadcast: bool = True, **kwargs) -> int | None:
+        async with self.Session() as session:
             trade = Trade(**kwargs)
             session.add(trade)
-            session.commit()
+            await session.commit()
         if _broadcast:
             try:
                 publish("trade_logged", TradeLogged(**kwargs))
             except Exception:
                 pass
         return trade.id
-    def log_var(self, value: float) -> None:
+    async def log_var(self, value: float) -> None:
         """Record a value-at-risk measurement."""
-        with self.Session() as session:
+        async with self.Session() as session:
             rec = VaRLog(value=value)
             session.add(rec)
-            session.commit()
+            await session.commit()
 
-    def list_trades(
+    async def list_trades(
         self,
         *,
         token: str | None = None,
@@ -71,17 +84,19 @@ class Memory(BaseMemory):
         since_id: int | None = None,
     ) -> list[Trade]:
         """Return trades optionally filtered by ``token`` or ``since_id``."""
-        with self.Session() as session:
-            q = session.query(Trade)
+        async with self.Session() as session:
+            q = select(Trade)
             if token is not None:
-                q = q.filter_by(token=token)
+                q = q.filter(Trade.token == token)
             if since_id is not None:
                 q = q.filter(Trade.id > since_id)
             q = q.order_by(Trade.id)
             if limit is not None:
                 q = q.limit(limit)
-            return list(q)
+            result = await session.execute(q)
+            return list(result.scalars().all())
 
-    def list_vars(self):
-        with self.Session() as session:
-            return session.query(VaRLog).all()
+    async def list_vars(self):
+        async with self.Session() as session:
+            result = await session.execute(select(VaRLog))
+            return list(result.scalars().all())

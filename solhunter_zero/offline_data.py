@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import datetime
 from sqlalchemy import (
-    create_engine,
     Column,
     Integer,
     Float,
     String,
     DateTime,
+    select,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+)
 
 Base = declarative_base()
 
@@ -51,11 +55,19 @@ class OfflineData:
     """Store order book snapshots and trade metrics for offline training."""
 
     def __init__(self, url: str = "sqlite:///offline_data.db") -> None:
-        self.engine = create_engine(url, echo=False, future=True)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.engine = create_async_engine(url, echo=False, future=True)
+        self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
+        import asyncio
+        async def _init_models():
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_init_models())
+        else:
+            loop.run_until_complete(_init_models())
 
-    def log_snapshot(
+    async def log_snapshot(
         self,
         token: str,
         price: float,
@@ -69,7 +81,7 @@ class OfflineData:
         spread: float = 0.0,
         sentiment: float = 0.0,
     ) -> None:
-        with self.Session() as session:
+        async with self.Session() as session:
             snap = MarketSnapshot(
                 token=token,
                 price=price,
@@ -84,9 +96,9 @@ class OfflineData:
                 sentiment=sentiment,
             )
             session.add(snap)
-            session.commit()
+            await session.commit()
 
-    def log_trade(
+    async def log_trade(
         self,
         token: str,
         side: str,
@@ -94,7 +106,7 @@ class OfflineData:
         amount: float,
     ) -> None:
         """Record an executed trade for offline learning."""
-        with self.Session() as session:
+        async with self.Session() as session:
             trade = MarketTrade(
                 token=token,
                 side=side,
@@ -102,18 +114,22 @@ class OfflineData:
                 amount=amount,
             )
             session.add(trade)
-            session.commit()
+            await session.commit()
 
-    def list_snapshots(self, token: str | None = None):
-        with self.Session() as session:
-            q = session.query(MarketSnapshot)
+    async def list_snapshots(self, token: str | None = None):
+        async with self.Session() as session:
+            q = select(MarketSnapshot)
             if token:
-                q = q.filter_by(token=token)
-            return list(q.order_by(MarketSnapshot.timestamp))
+                q = q.filter(MarketSnapshot.token == token)
+            q = q.order_by(MarketSnapshot.timestamp)
+            result = await session.execute(q)
+            return list(result.scalars().all())
 
-    def list_trades(self, token: str | None = None):
-        with self.Session() as session:
-            q = session.query(MarketTrade)
+    async def list_trades(self, token: str | None = None):
+        async with self.Session() as session:
+            q = select(MarketTrade)
             if token:
-                q = q.filter_by(token=token)
-            return list(q.order_by(MarketTrade.timestamp))
+                q = q.filter(MarketTrade.token == token)
+            q = q.order_by(MarketTrade.timestamp)
+            result = await session.execute(q)
+            return list(result.scalars().all())

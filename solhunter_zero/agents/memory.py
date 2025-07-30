@@ -36,7 +36,7 @@ class MemoryAgent(BaseAgent):
                     "emotion": action.get("emotion", ""),
                     "simulation_id": action.get("simulation_id"),
                 }
-            self.memory.log_trade(
+            await self.memory.log_trade(
                 token=action.get("token"),
                 direction=action.get("side"),
                 amount=action.get("amount", 0.0),
@@ -45,7 +45,7 @@ class MemoryAgent(BaseAgent):
                 **extra,
             )
             if self.offline_data:
-                self.offline_data.log_trade(
+                await self.offline_data.log_trade(
                     token=action.get("token", ""),
                     side=action.get("side", ""),
                     price=float(action.get("price", 0.0)),
