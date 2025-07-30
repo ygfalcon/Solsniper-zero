@@ -793,11 +793,12 @@ Alternatively start the trainer manually using the dedicated CLI:
 solhunter-train --daemon --device cuda
 ```
 
-The dataloader defaults to one worker per CPU core. Override this using the
-`RL_NUM_WORKERS` environment variable or the `--num-workers` flag on
-`solhunter-train` and `python -m solhunter_zero.multi_rl`. On a 4‑core test
-machine throughput increased from about 250 samples/s with a single worker to
-around 700 samples/s with four workers.
+The dataloader now chooses the worker count automatically based on the dataset
+size: roughly one worker per hundred samples, up to the available CPU cores. You
+can override this using the `RL_NUM_WORKERS` environment variable or the
+`--num-workers` flag on `solhunter-train` and `python -m solhunter_zero.multi_rl`.
+On a 4‑core test machine throughput increased from about 250 samples/s with a
+single worker to around 700 samples/s with four workers.
 
 Set `rl_auto_train = true` in `config.toml` to enable automatic hyperparameter
 tuning. When enabled the RL daemon starts automatically with the trading loop.
