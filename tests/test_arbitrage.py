@@ -445,7 +445,7 @@ def test_price_cache(monkeypatch):
             calls["gets"] += 1
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     arb.PRICE_CACHE.ttl = 60
     prices.PRICE_CACHE.ttl = 60
 

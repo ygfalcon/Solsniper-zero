@@ -54,7 +54,7 @@ class FakeSession:
 def test_stream_listed_tokens(monkeypatch):
     msgs = [{"address": "tokbonk", "name": "xbonk"}]
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession(msgs))
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession(msgs))
 
     async def run():
         gen = dex_ws.stream_listed_tokens("ws://dex", suffix="bonk")
@@ -93,7 +93,7 @@ def test_scan_tokens_async_includes_dex_ws(monkeypatch):
         def get(self, url, headers=None, timeout=10):
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeHTTP())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeHTTP())
 
     async def fake_trend():
         return []

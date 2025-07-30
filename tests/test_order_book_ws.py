@@ -59,7 +59,7 @@ class FakeSession:
 
 def test_stream_order_book(monkeypatch):
     msgs = [{"token": "tok", "bids": 60, "asks": 40}]
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession(msgs))
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession(msgs))
 
     async def run():
         gen = order_book_ws.stream_order_book("ws://dex", rate_limit=0, max_updates=1)
@@ -112,7 +112,7 @@ def test_agents_use_depth(monkeypatch):
 
 def test_swarm_integration(monkeypatch):
     msgs = [{"token": "tok", "bids": 90, "asks": 10}]
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession(msgs))
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession(msgs))
 
     captured = {}
 

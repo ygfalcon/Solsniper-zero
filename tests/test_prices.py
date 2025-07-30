@@ -45,7 +45,7 @@ def test_fetch_token_prices(monkeypatch):
             captured["gets"] = captured.get("gets", 0) + 1
             return FakeResponse(data)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     result = prices.fetch_token_prices(["tok", "bad"])
     assert result == {"tok": 2.0}
     assert set(captured["url"].split("?ids=")[1].split(",")) == {"tok", "bad"}
@@ -74,7 +74,7 @@ def test_fetch_token_prices_async(monkeypatch):
             captured["gets"] = captured.get("gets", 0) + 1
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
     assert result == {"tok": 1.5}
     assert "tok" in captured["url"]
@@ -94,7 +94,7 @@ def test_fetch_token_prices_async_error(monkeypatch):
         warnings['msg'] = msg
 
     monkeypatch.setattr(prices.logger, "warning", fake_warning)
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
     assert result == {}
     assert 'msg' in warnings
@@ -123,7 +123,7 @@ def test_price_cache_and_session_reuse(monkeypatch):
             calls["gets"] += 1
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     prices.PRICE_CACHE.ttl = 60
 
     result1 = prices.fetch_token_prices(["tok"])

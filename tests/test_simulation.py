@@ -100,7 +100,7 @@ def test_fetch_token_metrics_base_url(monkeypatch):
             return FakeResp()
 
     monkeypatch.setenv("METRICS_BASE_URL", "http://metrics.local")
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     metrics = simulation.fetch_token_metrics("tok")
     assert captured["url"] == "http://metrics.local/token/tok/metrics"
@@ -142,7 +142,7 @@ def test_fetch_token_metrics_multiple_dex(monkeypatch):
             return FakeResp(url)
 
     monkeypatch.setenv("DEX_METRIC_URLS", "http://dex1,http://dex2")
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     metrics = simulation.fetch_token_metrics("tok")
 
@@ -184,7 +184,7 @@ def test_fetch_token_metrics_concurrent(monkeypatch):
             return FakeResp(url)
 
     monkeypatch.setenv("DEX_METRIC_URLS", "http://d1,http://d2")
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     start = time.perf_counter()
     metrics = simulation.fetch_token_metrics("tok")
@@ -224,7 +224,7 @@ def test_token_metrics_cache(monkeypatch):
             return FakeResp(url)
 
     monkeypatch.setenv("DEX_METRIC_URLS", "")
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     simulation.TOKEN_METRICS_CACHE.ttl = 60
 
     metrics1 = simulation.fetch_token_metrics("tok")

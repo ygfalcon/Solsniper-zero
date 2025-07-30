@@ -30,7 +30,7 @@ def test_metrics_export(monkeypatch):
             return FakeResp()
 
     aiohttp_mod = types.ModuleType('aiohttp')
-    aiohttp_mod.ClientSession = lambda: FakeSession()
+    aiohttp_mod.ClientSession = lambda *a, **k: FakeSession()
     monkeypatch.setitem(sys.modules, 'aiohttp', aiohttp_mod)
 
     bus_mod = types.ModuleType('solhunter_zero.event_bus')

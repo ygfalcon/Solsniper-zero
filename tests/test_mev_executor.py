@@ -61,7 +61,7 @@ def test_mev_executor_jito(monkeypatch):
             captured["headers"] = headers
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(
         "solhunter_zero.mev_executor.snapshot", lambda tok: ({}, 5.0)
     )

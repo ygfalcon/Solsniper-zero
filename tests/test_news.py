@@ -30,7 +30,7 @@ def test_fetch_headlines(monkeypatch):
         def get(self, url, timeout=10):
             return FakeResp(SAMPLE_XML)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     headlines = news.fetch_headlines(["http://ok"], allowed=["http://ok"])
     assert headlines == ["Good gains ahead", "Market crash expected"]
 
@@ -47,7 +47,7 @@ def test_blocked_feed(monkeypatch):
             called["url"] = url
             return FakeResp(SAMPLE_XML)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     headlines = news.fetch_headlines(["http://bad"], allowed=["http://ok"])
     assert headlines == []
     assert "url" not in called
@@ -70,7 +70,7 @@ def test_fetch_sentiment(monkeypatch):
         def get(self, url, timeout=10):
             return FakeResp(SAMPLE_XML)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(news, "get_pipeline", lambda: DummyModel())
     score = news.fetch_sentiment(["http://ok"], allowed=["http://ok"])
     assert isinstance(score, float)

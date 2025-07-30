@@ -79,7 +79,7 @@ class FakeSession:
 def test_sync_snapshots_no_recursion(tmp_path, monkeypatch):
     db = tmp_path / "data.db"
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment_async", lambda *a, **k: 0.0)
 
     calls = {}

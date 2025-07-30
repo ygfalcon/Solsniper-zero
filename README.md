@@ -337,6 +337,13 @@ Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
 network requests and use a static token list, or `--token-list <file>`
 to load token addresses from a file.
 
+17. **HTTP session pooling**
+    Adjust connection pooling for heavy workloads:
+    ```bash
+    export HTTP_CONN_LIMIT=200
+    export HTTP_KEEPALIVE=120
+    ```
+
 ## MEV Bundles
 
 When `use_mev_bundles` is enabled (the default), swaps are submitted

@@ -44,7 +44,7 @@ def test_fetch_trending_tokens_cached(monkeypatch):
             calls["gets"] = calls.get("gets", 0) + 1
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     result1 = asyncio.run(scanner_common.fetch_trending_tokens_async())
     result2 = asyncio.run(scanner_common.fetch_trending_tokens_async())

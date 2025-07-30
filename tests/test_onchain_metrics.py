@@ -211,7 +211,7 @@ def test_fetch_dex_metrics(monkeypatch):
         def get(self, url, timeout=5):
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     metrics = asyncio.run(
         onchain_metrics.fetch_dex_metrics_async("tok", base_url="http://dex")
@@ -253,7 +253,7 @@ def test_dex_metrics_cache(monkeypatch):
             calls["gets"] += 1
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     onchain_metrics.DEX_METRICS_CACHE.ttl = 60
 
     metrics1 = asyncio.run(
@@ -409,7 +409,7 @@ def test_fetch_dex_metrics_concurrent(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
     import time
 

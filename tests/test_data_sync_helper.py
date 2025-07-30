@@ -76,7 +76,7 @@ async def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
         def get(self, url, timeout=10):
             return FakeResp(url)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment", lambda *a, **k: 0.0)
 
     await data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=0.0000001, base_url="http://api")
@@ -128,7 +128,7 @@ async def test_depth_snapshot_listener(tmp_path, monkeypatch):
             self.url = url
             return FakeWS(self.messages)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession([msg]))
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession([msg]))
 
     db = tmp_path / "data.db"
     data = OfflineData(f"sqlite:///{db}")
@@ -164,7 +164,7 @@ def test_sync_concurrency(tmp_path, monkeypatch):
         def get(self, url, timeout=10):
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment", lambda *a, **k: 0.0)
 
     async def run(conc):

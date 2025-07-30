@@ -372,7 +372,7 @@ def test_listen_depth_ws(monkeypatch):
             self.url = url
             return FakeWS(self.messages)
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession(msgs))
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession(msgs))
     events = []
     monkeypatch.setattr(depth_client, "publish", lambda t, d: events.append((t, d)))
 

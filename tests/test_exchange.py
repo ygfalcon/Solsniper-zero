@@ -129,7 +129,7 @@ def test_place_order_async(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
     monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", _no_fee_async)
     monkeypatch.setattr("solhunter_zero.exchange.USE_RUST_EXEC", False)
@@ -185,7 +185,7 @@ def test_place_order_async_deducts_gas(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
     async def fake_fee(*a, **k):
         return 1.0

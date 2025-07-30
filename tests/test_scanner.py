@@ -44,7 +44,7 @@ def test_scan_tokens_websocket(monkeypatch):
             captured['headers'] = headers
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     async def fake_trend():
         return ['trend']
     monkeypatch.setattr(scanner, 'fetch_trending_tokens_async', fake_trend)
@@ -144,7 +144,7 @@ def test_scan_tokens_async(monkeypatch):
         def get(self, url, headers=None, timeout=10):
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     async def fake_trend():
         return ['trend']
     import solhunter_zero.token_scanner as async_scanner_mod
