@@ -94,6 +94,7 @@ async def test_depth_service_event_bus(tmp_path):
         {
             "EVENT_BUS_URL": f"ws://localhost:{bus_port}",
             "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
+            "DEPTH_HEARTBEAT_INTERVAL": "1",
         }
     )
 
@@ -122,6 +123,7 @@ async def test_depth_service_event_bus(tmp_path):
     topics = [e.get("topic") for e in events]
     assert "depth_update" in topics
     assert "depth_service_status" in topics
+    assert "heartbeat" in topics
     first_update = next(e for e in events if e.get("topic") == "depth_update")
     assert "TOK" in first_update["payload"]
 
@@ -208,6 +210,7 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
         {
             "EVENT_BUS_URL": f"ws://localhost:{bus_port}",
             "SOLANA_RPC_URL": f"http://localhost:{rpc_port}",
+            "DEPTH_HEARTBEAT_INTERVAL": "1",
         }
     )
 
@@ -248,6 +251,7 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
 
     new_events = events[initial_len:]
     assert any(e.get("topic") == "depth_service_status" for e in new_events)
+    assert any(e.get("topic") == "heartbeat" for e in new_events)
     assert len([e for e in events if e.get("topic") == "depth_update"]) > (
         len([e for e in events[:initial_len] if e.get("topic") == "depth_update"])
     )

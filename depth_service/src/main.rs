@@ -66,6 +66,15 @@ fn send_interval(cfg: &TomlTable) -> Duration {
     Duration::from_millis(ms)
 }
 
+fn heartbeat_interval(cfg: &TomlTable) -> Duration {
+    let secs = std::env::var("DEPTH_HEARTBEAT_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(|| cfg_str(cfg, "depth_heartbeat_interval").and_then(|v| v.parse().ok()))
+        .unwrap_or(30u64);
+    Duration::from_secs(secs)
+}
+
 fn load_config(path: &str) -> Result<TomlTable> {
     let data = std::fs::read_to_string(path)?;
     let val: toml::Value = toml::from_str(&data)?;
@@ -985,6 +994,7 @@ async fn main() -> Result<()> {
     let last_map: LastAggMap = Arc::new(Mutex::new(HashMap::new()));
     let min_interval = send_interval(&cfg);
     let threshold = update_threshold(&cfg);
+    let hb_interval = heartbeat_interval(&cfg);
     let last_sent: LastSent = Arc::new(Mutex::new(Instant::now() - min_interval));
     let (notify_tx, notify_rx) = tokio::sync::watch::channel(());
     let bus_tx = if let Some(url) = event_bus_url(&cfg) {
@@ -1013,6 +1023,7 @@ async fn main() -> Result<()> {
                             .send(WsMessage::Binary(online.encode_to_vec()))
                             .await;
                         let tx_metrics = tx.clone();
+                        let tx_hb = tx.clone();
                         tokio::spawn(async move {
                             let mut sys = System::new();
                             loop {
@@ -1033,6 +1044,20 @@ async fn main() -> Result<()> {
                                     break;
                                 }
                                 tokio::time::sleep(Duration::from_secs(30)).await;
+                            }
+                        });
+                        tokio::spawn(async move {
+                            loop {
+                                let ev = pb::Event {
+                                    topic: "heartbeat".to_string(),
+                                    kind: Some(pb::event::Kind::Heartbeat(pb::Heartbeat {
+                                        service: "depth_service".to_string(),
+                                    })),
+                                };
+                                if tx_hb.send(ev.encode_to_vec()).is_err() {
+                                    break;
+                                }
+                                tokio::time::sleep(hb_interval).await;
                             }
                         });
                         tokio::spawn(async move {
