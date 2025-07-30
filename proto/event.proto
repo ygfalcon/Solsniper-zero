@@ -50,6 +50,24 @@ message Heartbeat {
   string service = 1;
 }
 
+message TradeLogged {
+  string token = 1;
+  string direction = 2;
+  double amount = 3;
+  double price = 4;
+  string reason = 5;
+  string context = 6;
+  string emotion = 7;
+  int64 simulation_id = 8;
+  string uuid = 9;
+  int64 trade_id = 10;
+}
+
+message RLMetrics {
+  double loss = 1;
+  double reward = 2;
+}
+
 message Event {
   string topic = 1;
   oneof kind {
@@ -61,5 +79,7 @@ message Event {
     DepthUpdate depth_update = 7;
     DepthServiceStatus depth_service_status = 8;
     Heartbeat heartbeat = 9;
+    TradeLogged trade_logged = 10;
+    RLMetrics rl_metrics = 11;
   }
 }
