@@ -84,7 +84,36 @@ def _encode_event(topic: str, payload: Any) -> Any:
     elif topic == "portfolio_updated":
         event = pb.Event(topic=topic, portfolio_updated=pb.PortfolioUpdated(balances=payload.balances))
     elif topic == "depth_update":
-        return _dumps({"topic": topic, "payload": to_dict(payload)})
+        entries = {}
+        for token, entry in to_dict(payload).items():
+            if not isinstance(entry, dict):
+                continue
+            dex_map = entry.get("dex") or {
+                k: v for k, v in entry.items() if isinstance(v, dict)
+            }
+            dex = {
+                str(d): pb.TokenInfo(
+                    bids=float(info.get("bids", 0.0)),
+                    asks=float(info.get("asks", 0.0)),
+                    tx_rate=float(info.get("tx_rate", 0.0)),
+                )
+                for d, info in dex_map.items()
+                if isinstance(info, dict)
+            }
+            bids = float(entry.get("bids", 0.0))
+            asks = float(entry.get("asks", 0.0))
+            if not bids and not asks and dex:
+                bids = sum(i.bids for i in dex.values())
+                asks = sum(i.asks for i in dex.values())
+            entries[str(token)] = pb.TokenAgg(
+                dex=dex,
+                bids=bids,
+                asks=asks,
+                tx_rate=float(entry.get("tx_rate", 0.0)),
+                ts=int(entry.get("ts", 0)),
+            )
+        event = pb.Event(topic=topic, depth_update=pb.DepthUpdate(entries=entries))
+        return event.SerializeToString()
     elif topic == "depth_service_status":
         event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
     elif topic == "heartbeat":
@@ -115,7 +144,21 @@ def _decode_payload(ev: pb.Event) -> Any:
     if field == "portfolio_updated":
         return {"balances": dict(msg.balances)}
     if field == "depth_update":
-        return {k: {"dex": {dk: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate} for dk, di in v.dex.items()}, "bids": v.bids, "asks": v.asks, "tx_rate": v.tx_rate, "ts": v.ts} for k, v in msg.entries.items()}
+        result = {}
+        for token, entry in msg.entries.items():
+            dex = {
+                dk: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate}
+                for dk, di in entry.dex.items()
+            }
+            result[token] = {
+                "dex": dex,
+                "bids": entry.bids,
+                "asks": entry.asks,
+                "tx_rate": entry.tx_rate,
+                "ts": entry.ts,
+                "depth": entry.bids + entry.asks,
+            }
+        return result
     if field == "depth_service_status":
         return {"status": msg.status}
     if field == "heartbeat":

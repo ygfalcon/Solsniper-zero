@@ -63,10 +63,18 @@ async def test_depth_service_event_bus(tmp_path):
     # Start event bus server
     events = []
 
+    from solhunter_zero import event_pb2
+    from solhunter_zero.event_bus import _decode_payload
+
     async def bus_handler(ws):
         async for msg in ws:
             try:
-                events.append(json.loads(msg))
+                if isinstance(msg, bytes):
+                    ev = event_pb2.Event()
+                    ev.ParseFromString(msg)
+                    events.append({"topic": ev.topic, "payload": _decode_payload(ev)})
+                else:
+                    events.append(json.loads(msg))
             except Exception:
                 pass
 
@@ -169,10 +177,18 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
 
     events = []
 
+    from solhunter_zero import event_pb2
+    from solhunter_zero.event_bus import _decode_payload
+
     async def bus_handler(ws):
         async for msg in ws:
             try:
-                events.append(json.loads(msg))
+                if isinstance(msg, bytes):
+                    ev = event_pb2.Event()
+                    ev.ParseFromString(msg)
+                    events.append({"topic": ev.topic, "payload": _decode_payload(ev)})
+                else:
+                    events.append(json.loads(msg))
             except Exception:
                 pass
 
