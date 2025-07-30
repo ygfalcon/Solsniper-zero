@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import random
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
+import time
 
 import numpy as np
 import torch
@@ -33,7 +33,7 @@ except Exception:  # pragma: no cover - optional dependency
     pl = _PL()
 
 from .offline_data import OfflineData
-from .simulation import run_simulations, predict_price_movement
+from .simulation import predict_price_movement
 from .news import fetch_sentiment
 from .regime import detect_regime
 from .event_bus import publish
@@ -50,15 +50,20 @@ class _TradeDataset(Dataset):
         price_model_path: str | None = None,
         regime_weight: float = 1.0,
     ) -> None:
+        start_time = time.time()
         self.samples: List[Tuple[List[float], int, float]] = []
         self.price_model_path = price_model_path
         self.regime_weight = float(regime_weight)
 
         snap_map: dict[str, List[Any]] = {}
+        snap_ts_map: dict[str, np.ndarray] = {}
         for s in snaps:
             snap_map.setdefault(s.token, []).append(s)
-        for seq in snap_map.values():
+        for token, seq in snap_map.items():
             seq.sort(key=lambda x: x.timestamp)
+            snap_ts_map[token] = np.array(
+                [s.timestamp.timestamp() for s in seq], dtype=np.float64
+            )
 
         feeds = [u for u in os.getenv("NEWS_FEEDS", "").split(",") if u]
         twitter = [u for u in os.getenv("TWITTER_FEEDS", "").split(",") if u]
@@ -75,21 +80,27 @@ class _TradeDataset(Dataset):
                 sentiment = 0.0
 
         price_hist: dict[str, List[float]] = {}
+        pred_cache: dict[str, float] = {}
         for t in trades:
-            try:
-                pred = predict_price_movement(t.token, model_path=price_model_path)
-            except Exception:
-                pred = 0.0
+            if t.token in pred_cache:
+                pred = pred_cache[t.token]
+            else:
+                try:
+                    pred = predict_price_movement(t.token, model_path=price_model_path)
+                except Exception:
+                    pred = 0.0
+                pred_cache[t.token] = pred
             depth = slippage = imbalance = tx_rate = 0.0
             seq = snap_map.get(t.token)
             if seq:
-                idx = 0
+                ts_arr = snap_ts_map[t.token]
                 ts = getattr(t, "timestamp", None)
-                for i, s in enumerate(seq):
-                    if ts is None or s.timestamp <= ts:
-                        idx = i
-                    else:
-                        break
+                if ts is None:
+                    idx = len(seq) - 1
+                else:
+                    idx = np.searchsorted(ts_arr, ts.timestamp(), side="right") - 1
+                    if idx < 0:
+                        idx = 0
                 snap = seq[idx]
                 depth = float(getattr(snap, "depth", 0.0))
                 slippage = float(getattr(snap, "slippage", 0.0))
@@ -116,6 +127,11 @@ class _TradeDataset(Dataset):
                 reward = -reward
             self.samples.append((state, action, reward))
             hist.append(float(t.price))
+
+        self.build_time = time.time() - start_time
+        logging.getLogger(__name__).debug(
+            "constructed trade dataset in %.3fs", self.build_time
+        )
 
     def __len__(self) -> int:
         return len(self.samples)
