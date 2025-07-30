@@ -303,23 +303,29 @@ profit calculation so routes are ranked based on the borrowed size.
     export TOP_VOLUME_TOKENS_CACHE_TTL=90
     export DEPTH_CACHE_TTL=1
     ```
-13. **Auto-execution**
+13. **HTTP connector limits**
+   Tune the aiohttp connector:
+   ```bash
+   export HTTP_CONNECTOR_LIMIT=0
+   export HTTP_CONNECTOR_LIMIT_PER_HOST=0
+   ```
+14. **Auto-execution**
     Register tokens and pre-signed transactions so the depth service
     dispatches them when thresholds are crossed:
     ```bash
     export AUTO_EXEC='{"TOKEN":{"threshold":1.0,"txs":["BASE64"]}}'
     ```
-14. **Run the bot**
+15. **Run the bot**
    ```bash
    ./run.sh --auto
    ```
-15. **External event bus**
+16. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
    ```bash
    export EVENT_BUS_URL=wss://bus.example.com
    ```
    Alternatively specify `event_bus_url` in the configuration file.
-16. **Full system startup**
+17. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
    python scripts/start_all.py
