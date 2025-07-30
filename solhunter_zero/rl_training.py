@@ -156,12 +156,14 @@ class TradeDataModule(pl.LightningDataModule):
         *,
         price_model_path: str | None = None,
         regime_weight: float = 1.0,
+        mmap_path: str | None = None,
         num_workers: int | None = None,
         pin_memory: bool = True,
         persistent_workers: bool = True,
     ) -> None:
         super().__init__()
         self.db_url = db_url
+        self.mmap_path = mmap_path
         self.batch_size = batch_size
         self.sims_per_token = sims_per_token
         self.price_model_path = price_model_path
@@ -178,10 +180,45 @@ class TradeDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.dataset: _TradeDataset | None = None
 
-    def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
-        data = OfflineData(self.db_url)
-        trades = data.list_trades()
-        snaps = data.list_snapshots()
+    async def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
+        if self.mmap_path and Path(self.mmap_path).exists():
+            mem = np.load(self.mmap_path, mmap_mode="r")
+            snaps_arr = mem["snapshots"]
+            trades_arr = mem["trades"]
+            from types import SimpleNamespace
+            from datetime import datetime
+
+            trades = [
+                SimpleNamespace(
+                    token=str(r["token"]),
+                    side=str(r["side"]),
+                    price=float(r["price"]),
+                    amount=float(r["amount"]),
+                    timestamp=datetime.fromtimestamp(float(r["timestamp"])),
+                )
+                for r in trades_arr
+            ]
+            snaps = [
+                SimpleNamespace(
+                    token=str(r["token"]),
+                    price=float(r["price"]),
+                    depth=float(r["depth"]),
+                    total_depth=float(r["total_depth"]),
+                    slippage=float(r["slippage"]),
+                    volume=float(r["volume"]),
+                    imbalance=float(r["imbalance"]),
+                    tx_rate=float(r["tx_rate"]),
+                    whale_share=float(r["whale_share"]),
+                    spread=float(r["spread"]),
+                    sentiment=float(r["sentiment"]),
+                    timestamp=datetime.fromtimestamp(float(r["timestamp"])),
+                )
+                for r in snaps_arr
+            ]
+        else:
+            data = OfflineData(self.db_url)
+            trades = await data.list_trades()
+            snaps = await data.list_snapshots()
         self.dataset = _TradeDataset(
             trades,
             snaps,
@@ -315,6 +352,7 @@ class RLTraining:
         sims_per_token: int = 10,
         price_model_path: str | None = None,
         regime_weight: float = 1.0,
+        mmap_path: str | None = None,
         num_workers: int | None = None,
         device: str | None = None,
         metrics_url: str | None = None,
@@ -328,6 +366,7 @@ class RLTraining:
             sims_per_token=sims_per_token,
             price_model_path=price_model_path,
             regime_weight=regime_weight,
+            mmap_path=mmap_path,
             num_workers=num_workers,
             pin_memory=pin_memory if pin_memory is not None else True,
             persistent_workers=persistent_workers if persistent_workers is not None else True,
@@ -365,16 +404,16 @@ class RLTraining:
         except Exception:
             pass
 
-    def train(self) -> None:
+    async def train(self) -> None:
         """Run one training cycle and persist weights."""
-        self.data.setup()
+        await self.data.setup()
         self.trainer.fit(self.model, self.data)
         torch.save(self.model.state_dict(), self.model_path)
 
     async def _loop(self, interval: float) -> None:
         while True:
             try:
-                self.train()
+                await self.train()
             except Exception as exc:  # pragma: no cover - logging
                 self._logger.error("periodic training failed: %s", exc)
             await asyncio.sleep(interval)

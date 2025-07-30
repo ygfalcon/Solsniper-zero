@@ -55,6 +55,8 @@ class OfflineData:
     """Store order book snapshots and trade metrics for offline training."""
 
     def __init__(self, url: str = "sqlite:///offline_data.db") -> None:
+        if url.startswith("sqlite:///") and "+" not in url:
+            url = url.replace("sqlite:///", "sqlite+aiosqlite:///")
         self.engine = create_async_engine(url, echo=False, future=True)
         self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
         import asyncio
@@ -63,9 +65,11 @@ class OfflineData:
                 await conn.run_sync(Base.metadata.create_all)
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            loop.create_task(_init_models())
+            self._init_task = loop.create_task(_init_models())
         else:
             loop.run_until_complete(_init_models())
+            self._init_task = loop.create_future()
+            self._init_task.set_result(None)
 
     async def log_snapshot(
         self,
@@ -81,6 +85,7 @@ class OfflineData:
         spread: float = 0.0,
         sentiment: float = 0.0,
     ) -> None:
+        await self._init_task
         async with self.Session() as session:
             snap = MarketSnapshot(
                 token=token,
@@ -106,6 +111,7 @@ class OfflineData:
         amount: float,
     ) -> None:
         """Record an executed trade for offline learning."""
+        await self._init_task
         async with self.Session() as session:
             trade = MarketTrade(
                 token=token,
@@ -117,6 +123,7 @@ class OfflineData:
             await session.commit()
 
     async def list_snapshots(self, token: str | None = None):
+        await self._init_task
         async with self.Session() as session:
             q = select(MarketSnapshot)
             if token:
@@ -126,6 +133,7 @@ class OfflineData:
             return list(result.scalars().all())
 
     async def list_trades(self, token: str | None = None):
+        await self._init_task
         async with self.Session() as session:
             q = select(MarketTrade)
             if token:
@@ -133,3 +141,76 @@ class OfflineData:
             q = q.order_by(MarketTrade.timestamp)
             result = await session.execute(q)
             return list(result.scalars().all())
+
+    async def export_npz(self, out_path: str, token: str | None = None):
+        """Export snapshots and trades to a compressed ``.npz`` file.
+
+        Parameters
+        ----------
+        out_path:
+            Destination ``.npz`` file.
+        token:
+            Optional token filter.
+        """
+        import numpy as np
+
+        snaps = await self.list_snapshots(token)
+        trades = await self.list_trades(token)
+
+        snap_arr = np.array(
+            [
+                (
+                    s.token,
+                    float(s.price),
+                    float(s.depth),
+                    float(getattr(s, "total_depth", 0.0)),
+                    float(getattr(s, "slippage", 0.0)),
+                    float(getattr(s, "volume", 0.0)),
+                    float(s.imbalance),
+                    float(getattr(s, "tx_rate", 0.0)),
+                    float(getattr(s, "whale_share", 0.0)),
+                    float(getattr(s, "spread", 0.0)),
+                    float(getattr(s, "sentiment", 0.0)),
+                    s.timestamp.timestamp(),
+                )
+                for s in snaps
+            ],
+            dtype=
+            [
+                ("token", "U32"),
+                ("price", "f4"),
+                ("depth", "f4"),
+                ("total_depth", "f4"),
+                ("slippage", "f4"),
+                ("volume", "f4"),
+                ("imbalance", "f4"),
+                ("tx_rate", "f4"),
+                ("whale_share", "f4"),
+                ("spread", "f4"),
+                ("sentiment", "f4"),
+                ("timestamp", "f8"),
+            ],
+        )
+
+        trade_arr = np.array(
+            [
+                (
+                    t.token,
+                    t.side,
+                    float(t.price),
+                    float(t.amount),
+                    t.timestamp.timestamp(),
+                )
+                for t in trades
+            ],
+            dtype=[
+                ("token", "U32"),
+                ("side", "U8"),
+                ("price", "f4"),
+                ("amount", "f4"),
+                ("timestamp", "f8"),
+            ],
+        )
+
+        np.savez_compressed(out_path, snapshots=snap_arr, trades=trade_arr)
+        return np.load(out_path, mmap_mode="r")

@@ -743,6 +743,17 @@ data can be exported from `offline_data.db` using `scripts/build_tick_dataset.py
 python scripts/build_tick_dataset.py --db offline_data.db --out datasets/tick_history.json
 ```
 
+For faster reinforcement learning training you can export the offline tables to
+a compressed NumPy archive and memory‑map it:
+
+```bash
+python scripts/build_mmap_dataset.py --db offline_data.db --out datasets/offline_data.npz
+```
+
+When this file exists `TradeDataModule` loads it instead of querying SQLite.
+On a small dataset this lowered preparation time from around 3&nbsp;s to under
+half a second.
+
 Offline snapshots can also be used to train a transformer-based price model:
 
 ```bash
