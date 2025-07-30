@@ -313,7 +313,7 @@ class RLDaemon:
                 except Exception:
                     pass
 
-            cpu_sub = subscription("resource_update", _update_cpu)
+            cpu_sub = subscription("system_metrics", _update_cpu)
             cpu_sub.__enter__()
             self._cpu_sub = cpu_sub
             self._subscriptions.append(cpu_sub)

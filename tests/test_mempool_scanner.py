@@ -285,7 +285,7 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
 
     async def fake_sleep(delay):
         if delay == 0.05:
-            event_bus.publish("resource_update", {"cpu": 10.0})
+            event_bus.publish("system_metrics", {"cpu": 10.0, "memory": 50.0})
         await orig_sleep(0)
 
     monkeypatch.setattr(mp_scanner.asyncio, "sleep", fake_sleep)

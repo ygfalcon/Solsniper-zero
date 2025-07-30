@@ -11,12 +11,12 @@ _TASK: Optional[asyncio.Task] = None
 
 
 async def _monitor(interval: float) -> None:
-    """Publish CPU and memory usage every ``interval`` seconds."""
+    """Publish system metrics every ``interval`` seconds."""
     try:
         while True:
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory().percent
-            publish("resource_update", {"cpu": float(cpu), "memory": float(mem)})
+            publish("system_metrics", {"cpu": float(cpu), "memory": float(mem)})
             await asyncio.sleep(interval)
     except asyncio.CancelledError:  # pragma: no cover - cancellation
         pass

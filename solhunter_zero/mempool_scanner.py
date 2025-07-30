@@ -52,8 +52,8 @@ MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0
 _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 _CPU_PERCENT: float = 0.0
 
-def _on_resource_update(msg: Any) -> None:
-    """Update :data:`_CPU_PERCENT` from a ``resource_update`` event."""
+def _on_system_metrics(msg: Any) -> None:
+    """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
     cpu = getattr(msg, "cpu", None)
     if isinstance(msg, dict):
         cpu = msg.get("cpu", cpu)
@@ -65,7 +65,7 @@ def _on_resource_update(msg: Any) -> None:
     except Exception:
         pass
 
-_resource_sub = subscription("resource_update", _on_resource_update)
+_resource_sub = subscription("system_metrics", _on_system_metrics)
 _resource_sub.__enter__()
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
