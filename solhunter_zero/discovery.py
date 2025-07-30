@@ -36,7 +36,7 @@ async def merge_sources(
 
     trend_task = asyncio.create_task(fetch_trending_tokens_async())
     onchain_task = asyncio.create_task(
-        asyncio.to_thread(scan_tokens_onchain, rpc_url, return_metrics=True)
+        scan_tokens_onchain(rpc_url, return_metrics=True)
     )
 
     mp_gen = stream_ranked_mempool_tokens_with_depth(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import time
+import asyncio
 from typing import List, Dict, Any
 
 from .lru import TTLCache
@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover - fallback when solana lacks PublicKey
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
 from solana.rpc.api import Client
+from solana.rpc.async_api import AsyncClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ AVG_SWAP_SIZE_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
 
 
 
-def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> List[str] | List[Dict[str, Any]]:
+async def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> List[str] | List[Dict[str, Any]]:
     """Query recent token accounts from the blockchain and return mints whose
     names end with ``bonk``.
 
@@ -47,28 +48,28 @@ def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> List[s
     if not rpc_url:
         raise ValueError("rpc_url is required")
 
-    client = Client(rpc_url)
     from . import onchain_metrics
 
     backoff = 1
     max_backoff = 60
     attempts = 0
-    while True:
-        try:
-            resp = client.get_program_accounts(
-                TOKEN_PROGRAM_ID, encoding="jsonParsed"
-            )
-            break
-        except Exception as exc:  # pragma: no cover - network errors
-            attempts += 1
-            if attempts >= 5:
-                logger.error("On-chain scan failed: %s", exc)
-                return []
-            logger.warning(
-                "RPC error: %s. Sleeping %s seconds before retry", exc, backoff
-            )
-            time.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)
+    async with AsyncClient(rpc_url) as client:
+        while True:
+            try:
+                resp = await client.get_program_accounts(
+                    TOKEN_PROGRAM_ID, encoding="jsonParsed"
+                )
+                break
+            except Exception as exc:  # pragma: no cover - network errors
+                attempts += 1
+                if attempts >= 5:
+                    logger.error("On-chain scan failed: %s", exc)
+                    return []
+                logger.warning(
+                    "RPC error: %s. Sleeping %s seconds before retry", exc, backoff
+                )
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
 
     tokens: List[str] | List[Dict[str, Any]] = []
     for acc in resp.get("result", []):
@@ -81,14 +82,24 @@ def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> List[s
         name = info.get("name", "")
         mint = info.get("mint")
         if name and name.lower().endswith("bonk"):
-            volume = onchain_metrics.fetch_volume_onchain(mint, rpc_url)
-            liquidity = onchain_metrics.fetch_liquidity_onchain(mint, rpc_url)
+            volume = await asyncio.to_thread(
+                onchain_metrics.fetch_volume_onchain, mint, rpc_url
+            )
+            liquidity = await asyncio.to_thread(
+                onchain_metrics.fetch_liquidity_onchain, mint, rpc_url
+            )
             if return_metrics:
                 tokens.append({"address": mint, "volume": volume, "liquidity": liquidity})
             else:
                 tokens.append(mint)
     logger.info("Found %d candidate on-chain tokens", len(tokens))
     return tokens
+
+
+def scan_tokens_onchain_sync(rpc_url: str, *, return_metrics: bool = False) -> List[str] | List[Dict[str, Any]]:
+    """Synchronous wrapper for :func:`scan_tokens_onchain`."""
+
+    return asyncio.run(scan_tokens_onchain(rpc_url, return_metrics=return_metrics))
 
 
 def fetch_mempool_tx_rate(token: str, rpc_url: str, limit: int = 20) -> float:
