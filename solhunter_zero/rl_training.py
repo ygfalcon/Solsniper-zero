@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
 import time
+import psutil
 
 import numpy as np
 import torch
@@ -86,6 +87,12 @@ def _calc_num_workers(
         except Exception:
             frac = 1.0
         base = max(1, int(base * max(0.1, frac)))
+    try:
+        mem = float(psutil.virtual_memory().percent)
+    except Exception:
+        mem = 0.0
+    if mem > 80.0:
+        base = max(1, base // 2)
     return base
 
 

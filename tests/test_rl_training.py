@@ -71,6 +71,24 @@ if importlib.util.find_spec("google.protobuf") is None:
     sys.modules.setdefault("google.protobuf.internal", internal)
     sys.modules.setdefault("google.protobuf.internal.builder", internal.builder)
 
+event_pb2 = types.ModuleType("event_pb2")
+for name in [
+    "ActionExecuted",
+    "WeightsUpdated",
+    "RLWeights",
+    "RLCheckpoint",
+    "PortfolioUpdated",
+    "DepthUpdate",
+    "DepthServiceStatus",
+    "Heartbeat",
+    "TradeLogged",
+    "RLMetrics",
+    "SystemMetrics",
+    "Event",
+]:
+    setattr(event_pb2, name, object())
+sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
+
 from solhunter_zero.rl_training import RLTraining
 from solhunter_zero.offline_data import OfflineData
 import pytest
@@ -132,4 +150,48 @@ def test_dynamic_worker_count(monkeypatch, tmp_path):
         cpu_callback=lambda: 10.0,
     )
     low = counts[-1]
+    assert low > high
+
+
+def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
+    import solhunter_zero.rl_training as rl_training
+
+    class DummyDataset(rl_training.Dataset):
+        def __len__(self):
+            return 400
+
+        def __getitem__(self, idx):
+            return (
+                rl_training.torch.zeros(9),
+                rl_training.torch.tensor(0, dtype=rl_training.torch.long),
+                rl_training.torch.tensor(0.0),
+            )
+
+    counts = []
+
+    class DummyLoader:
+        def __init__(self, *a, **kw):
+            counts.append(kw.get("num_workers"))
+
+    monkeypatch.setattr(rl_training, "DataLoader", DummyLoader)
+    monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
+    monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(rl_training.torch, "save", lambda *a, **k: None)
+
+    monkeypatch.setattr(
+        rl_training.psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(percent=90.0),
+    )
+    rl_training.fit([], [], model_path=tmp_path / "m.pt")
+    high = counts[-1]
+
+    monkeypatch.setattr(
+        rl_training.psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(percent=50.0),
+    )
+    rl_training.fit([], [], model_path=tmp_path / "m.pt")
+    low = counts[-1]
+
     assert low > high
