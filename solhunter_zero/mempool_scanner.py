@@ -8,9 +8,12 @@ import statistics
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
+import psutil
+
 try:
     from solana.publickey import PublicKey
 except Exception:  # pragma: no cover - minimal stub when solana is missing
+
     class PublicKey(str):
         def __new__(cls, value: str):
             obj = str.__new__(cls, value)
@@ -213,12 +216,19 @@ async def stream_ranked_mempool_tokens(
     keywords: Iterable[str] | None = None,
     include_pools: bool = True,
     threshold: float | None = None,
-    max_concurrency: int = 5,
+    max_concurrency: int | None = None,
+    cpu_usage_threshold: float | None = None,
 ) -> AsyncGenerator[Dict[str, float], None]:
     """Yield ranked token events from the mempool."""
 
     if threshold is None:
         threshold = MEMPOOL_SCORE_THRESHOLD
+
+    if max_concurrency is None or max_concurrency <= 0:
+        max_concurrency = max(1, (os.cpu_count() or 1) // 2)
+
+    if cpu_usage_threshold is not None and psutil.cpu_percent() > cpu_usage_threshold:
+        max_concurrency = max(1, max_concurrency // 2)
 
     sem = asyncio.Semaphore(max_concurrency)
     queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
@@ -237,6 +247,9 @@ async def stream_ranked_mempool_tokens(
         keywords=keywords,
         include_pools=include_pools,
     ):
+        if cpu_usage_threshold is not None:
+            while psutil.cpu_percent() > cpu_usage_threshold:
+                await asyncio.sleep(0.05)
         address = tok["address"] if isinstance(tok, dict) else tok
         task = asyncio.create_task(worker(address))
         tasks.add(task)

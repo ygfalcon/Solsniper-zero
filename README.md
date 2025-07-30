@@ -152,6 +152,10 @@ direct transaction submission to the Solana RPC.
     broadcasts (defaults to `100`).
   - `CPU_LOW_THRESHOLD` / `CPU_HIGH_THRESHOLD` – CPU usage percentages
     controlling delay adjustments (defaults to `20` and `80`).
+  - `MAX_CONCURRENCY` – maximum number of concurrent ranking tasks. When set
+    to `0` the scanner uses half the available CPUs.
+  - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
+    percentage.
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
     updates per second (defaults to `1` and `10`).
   - `--config <path>` – load these options from the given configuration file.
