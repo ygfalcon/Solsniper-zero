@@ -600,6 +600,65 @@ def test_scheduler_adjusts_delay(monkeypatch):
     assert sleeps == [4, 2, 4]
 
 
+def test_delay_adjusts_with_cpu_and_updates(monkeypatch):
+    metrics = [
+        {"liquidity": 1.0, "volume": 1.0},
+        {"liquidity": 50.0, "volume": 50.0},
+        {"liquidity": 1.0, "volume": 1.0},
+        {"liquidity": 1.0, "volume": 1.0},
+    ]
+    cpu = [10.0, 30.0, 10.0]
+    updates = [0, 12, 0]
+    handlers = []
+
+    def fake_subscribe(topic, handler):
+        handlers.append(handler)
+        return lambda: None
+
+    monkeypatch.setattr(main_module.event_bus, "subscribe", fake_subscribe)
+
+    async def fake_run_iteration(*_a, **_k):
+        main_module._LAST_TOKENS = ["tok"]
+        h = handlers[0]
+        for _ in range(updates.pop(0)):
+            h(None)
+
+    monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
+
+    async def fake_fetch(_t, base_url=None):
+        return metrics.pop(0)
+
+    monkeypatch.setattr(main_module, "fetch_dex_metrics_async", fake_fetch)
+
+    def fake_cpu():
+        return cpu.pop(0)
+
+    monkeypatch.setattr(main_module.psutil, "cpu_percent", fake_cpu)
+
+    sleeps = []
+
+    async def fake_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(main_module.asyncio, "sleep", fake_sleep)
+
+    main_module.arbitrage.DEPTH_RATE_LIMIT = 0.1
+    main_module.main(
+        memory_path="sqlite:///:memory:",
+        loop_delay=4,
+        iterations=4,
+        min_delay=1,
+        max_delay=8,
+        depth_freq_low=1.0,
+        depth_freq_high=10.0,
+        cpu_low_threshold=20.0,
+        cpu_high_threshold=80.0,
+    )
+
+    assert sleeps == [4, 2, 4]
+    assert main_module.arbitrage.DEPTH_RATE_LIMIT == 0.1
+
+
 def test_agent_manager_evolves(monkeypatch, tmp_path):
     cfg_file = tmp_path / "cfg.toml"
     cfg_file.write_text('agents=["dummy"]')

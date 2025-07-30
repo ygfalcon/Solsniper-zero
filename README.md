@@ -150,6 +150,10 @@ direct transaction submission to the Solana RPC.
     new snapshot (defaults to `0`).
   - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between
     broadcasts (defaults to `100`).
+  - `CPU_LOW_THRESHOLD` / `CPU_HIGH_THRESHOLD` – CPU usage percentages
+    controlling delay adjustments (defaults to `20` and `80`).
+  - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
+    updates per second (defaults to `1` and `10`).
   - `--config <path>` – load these options from the given configuration file.
 3. **Route transactions through the service**
    Python code signs transactions locally and forwards them via

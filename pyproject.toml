@@ -24,6 +24,7 @@ dependencies = [
     "faiss-cpu",
     "sentence-transformers",
     "transformers",
+    "psutil",
     "tomli-w",
 ]
 

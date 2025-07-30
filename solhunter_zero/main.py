@@ -5,6 +5,7 @@ import sys
 import contextlib
 import subprocess
 import time
+import psutil
 from argparse import ArgumentParser
 import cProfile
 from typing import Sequence
@@ -443,6 +444,11 @@ def main(
     loop_delay: int = 60,
     min_delay: int | None = None,
     max_delay: int | None = None,
+    cpu_low_threshold: float | None = None,
+    cpu_high_threshold: float | None = None,
+    depth_freq_low: float | None = None,
+    depth_freq_high: float | None = None,
+    depth_rate_limit: float = 0.1,
     *,
     iterations: int | None = None,
     testnet: bool = False,
@@ -574,6 +580,14 @@ def main(
         min_delay = int(cfg.get("min_delay", 1))
     if max_delay is None:
         max_delay = int(cfg.get("max_delay", loop_delay))
+    if cpu_low_threshold is None:
+        cpu_low_threshold = float(cfg.get("cpu_low_threshold", 20.0))
+    if cpu_high_threshold is None:
+        cpu_high_threshold = float(cfg.get("cpu_high_threshold", 80.0))
+    if depth_freq_low is None:
+        depth_freq_low = float(cfg.get("depth_freq_low", 1.0))
+    if depth_freq_high is None:
+        depth_freq_high = float(cfg.get("depth_freq_high", 10.0))
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
@@ -600,6 +614,14 @@ def main(
         book_task = None
         arb_task = None
         depth_task = None
+        depth_updates = 0
+        prev_count = 0
+        prev_ts = time.monotonic()
+        nonlocal depth_rate_limit
+        def _count(_p):
+            nonlocal depth_updates
+            depth_updates += 1
+        unsub_counter = event_bus.subscribe("depth_update", _count)
         bus_started = False
         if get_event_bus_url() is None:
             await event_bus.start_ws_server()
@@ -620,14 +642,29 @@ def main(
         iteration_idx = 0
 
         def adjust_delay(metrics: dict) -> None:
-            nonlocal loop_delay, prev_activity
+            nonlocal loop_delay, prev_activity, prev_count, prev_ts, depth_rate_limit
             activity = metrics.get("liquidity", 0.0) + metrics.get("volume", 0.0)
-            if prev_activity:
-                if activity > prev_activity * 1.5:
-                    loop_delay = max(min_delay, max(1, loop_delay // 2))
-                elif activity < prev_activity * 0.5:
-                    loop_delay = min(max_delay, loop_delay * 2)
+            cpu = psutil.cpu_percent()
+            now = time.monotonic()
+            freq = (depth_updates - prev_count) / (now - prev_ts) if now > prev_ts else 0.0
+            if (
+                activity > prev_activity * 1.5
+                or freq > depth_freq_high
+                or cpu > cpu_high_threshold
+            ):
+                loop_delay = max(min_delay, max(1, loop_delay // 2))
+                depth_rate_limit = max(0.01, depth_rate_limit / 2)
+            elif (
+                activity < prev_activity * 0.5
+                and freq < depth_freq_low
+                and cpu < cpu_low_threshold
+            ):
+                loop_delay = min(max_delay, loop_delay * 2)
+                depth_rate_limit = min(1.0, depth_rate_limit * 2)
             prev_activity = activity
+            prev_count = depth_updates
+            prev_ts = now
+            arbitrage.DEPTH_RATE_LIMIT = depth_rate_limit
 
         if market_ws_url:
 
@@ -671,7 +708,8 @@ def main(
                 while True:
                     try:
                         async for _ in order_book_ws.stream_order_book(
-                            order_book_ws_url
+                            order_book_ws_url,
+                            rate_limit=depth_rate_limit
                         ):
                             pass
                     except Exception as exc:  # pragma: no cover - network errors
@@ -797,6 +835,7 @@ def main(
             stop_collector()
         if bus_started:
             await event_bus.stop_ws_server()
+        unsub_counter()
 
     try:
         asyncio.run(loop())
@@ -1043,6 +1082,11 @@ if __name__ == "__main__":
         ),
         min_delay=None,
         max_delay=None,
+        cpu_low_threshold=None,
+        cpu_high_threshold=None,
+        depth_freq_low=None,
+        depth_freq_high=None,
+        depth_rate_limit=0.1,
         rl_daemon=args.rl_daemon,
         rl_interval=args.rl_interval,
     )

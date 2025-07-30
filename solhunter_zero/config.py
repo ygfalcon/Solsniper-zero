@@ -88,6 +88,10 @@ ENV_VARS = {
     "depth_threshold": "DEPTH_THRESHOLD",
     "depth_update_threshold": "DEPTH_UPDATE_THRESHOLD",
     "depth_min_send_interval": "DEPTH_MIN_SEND_INTERVAL",
+    "cpu_low_threshold": "CPU_LOW_THRESHOLD",
+    "cpu_high_threshold": "CPU_HIGH_THRESHOLD",
+    "depth_freq_low": "DEPTH_FREQ_LOW",
+    "depth_freq_high": "DEPTH_FREQ_HIGH",
     "max_hops": "MAX_HOPS",
     "path_algorithm": "PATH_ALGORITHM",
 }
