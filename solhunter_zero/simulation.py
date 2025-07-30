@@ -18,7 +18,7 @@ except Exception:  # pragma: no cover - when xgboost is missing
 import numpy as np
 from . import onchain_metrics, models
 from .http import get_session
-from .lru import TTLCache
+from solhunter_zero.lru import TTLCache
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import logging
 import asyncio
 from typing import Dict, List, Optional, Iterable
 
-from .lru import TTLCache
+from solhunter_zero.lru import TTLCache
 
 import aiohttp
 from .http import get_session

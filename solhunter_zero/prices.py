@@ -5,7 +5,7 @@ import asyncio
 
 from typing import Iterable, Dict
 
-from .lru import TTLCache
+from solhunter_zero.lru import TTLCache
 from .http import get_session
 
 logger = logging.getLogger(__name__)

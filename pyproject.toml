@@ -26,6 +26,7 @@ dependencies = [
     "transformers",
     "psutil",
     "tomli-w",
+    "cachetools",
 ]
 
 [project.optional-dependencies]
