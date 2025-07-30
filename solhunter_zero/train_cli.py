@@ -10,10 +10,14 @@ async def main() -> None:
     p.add_argument("--model", default="ppo_model.pt")
     p.add_argument("--algo", default="ppo", choices=["ppo", "dqn"])
     p.add_argument("--interval", type=float, default=3600.0)
+    p.add_argument("--num-workers", type=int, default=None, help="Data loader workers")
     p.add_argument("--device", default=None)
     p.add_argument("--daemon", action="store_true", help="Run in background")
     args = p.parse_args()
 
+    if args.num_workers is not None:
+        import os
+        os.environ["RL_NUM_WORKERS"] = str(args.num_workers)
     daemon = RLDaemon(
         memory_path=args.memory,
         data_path=args.data,
