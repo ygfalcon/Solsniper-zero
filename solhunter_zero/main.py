@@ -500,6 +500,7 @@ def main(
     strategies: list[str] | None = None,
     rl_daemon: bool = False,
     rl_interval: float = 3600.0,
+    dynamic_concurrency: bool = False,
 ) -> None:
     """Run the trading loop.
 
@@ -1067,6 +1068,11 @@ if __name__ == "__main__":
         help="Seconds between RL training cycles",
     )
     parser.add_argument(
+        "--dynamic-concurrency",
+        action="store_true",
+        help="Dynamically adjust ranking concurrency based on CPU usage",
+    )
+    parser.add_argument(
         "--profile",
         action="store_true",
         help="Profile the trading loop and write stats to profile.out",
@@ -1114,6 +1120,7 @@ if __name__ == "__main__":
         depth_rate_limit=0.1,
         rl_daemon=args.rl_daemon,
         rl_interval=args.rl_interval,
+        dynamic_concurrency=args.dynamic_concurrency,
     )
 
     try:
