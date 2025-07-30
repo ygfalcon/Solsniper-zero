@@ -175,7 +175,7 @@ USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "ye
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
 PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 
-from .lru import LRUCache, TTLCache
+from solhunter_zero.lru import LRUCache, TTLCache
 from .event_bus import subscribe
 from .prices import get_cached_price, update_price_cache
 

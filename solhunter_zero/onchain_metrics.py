@@ -34,7 +34,7 @@ from .scanner_onchain import (
 )
 from .exchange import DEX_BASE_URL
 from .http import get_session
-from .lru import TTLCache
+from solhunter_zero.lru import TTLCache
 
 logger = logging.getLogger(__name__)
 

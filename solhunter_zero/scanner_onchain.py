@@ -4,7 +4,7 @@ import logging
 import asyncio
 from typing import List, Dict, Any
 
-from .lru import TTLCache
+from solhunter_zero.lru import TTLCache
 
 
 try:
