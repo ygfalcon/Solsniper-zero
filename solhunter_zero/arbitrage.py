@@ -4,6 +4,34 @@ import os
 import json
 import heapq
 import time
+from typing import List
+
+try:  # pragma: no cover - optional dependency
+    from numba import njit as _numba_njit
+    _HAS_NUMBA = True
+except Exception:  # pragma: no cover - numba not available
+    _HAS_NUMBA = False
+
+    def njit(*args, **kwargs):  # type: ignore
+        if args and callable(args[0]):
+            return args[0]
+
+        def wrapper(func):
+            return func
+
+        return wrapper
+else:  # pragma: no cover - numba available
+    def njit(*args, **kwargs):  # type: ignore
+        def decorator(func):
+            try:
+                return _numba_njit(*args, **kwargs)(func)
+            except Exception:
+                return func
+
+        if args and callable(args[0]):
+            return decorator(args[0])
+
+        return decorator
 from typing import (
     Callable,
     Awaitable,
@@ -174,6 +202,7 @@ USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "ye
 # Path search configuration
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
 PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
+USE_NUMBA_ROUTE = os.getenv("USE_NUMBA_ROUTE", "0").lower() in {"1", "true", "yes"}
 
 from solhunter_zero.lru import LRUCache, TTLCache
 from .event_bus import subscribe
@@ -248,6 +277,101 @@ def refresh_costs() -> tuple[dict[str, float], dict[str, float], dict[str, float
     DEX_GAS = cfg.gas
     DEX_LATENCY = latency
     return DEX_FEES, DEX_GAS, DEX_LATENCY
+
+
+def _build_adjacency(
+    prices: Mapping[str, float],
+    trade_amount: float,
+    fees: Mapping[str, float],
+    gas: Mapping[str, float],
+    latency: Mapping[str, float],
+    depth: Mapping[str, Mapping[str, float]] | None,
+    token: str | None,
+) -> tuple[list[str], dict[str, dict[str, float]]]:
+    """Return adjacency map for the search graph with caching."""
+
+    venues = list(prices.keys())
+    adj_key = token if token is not None else None
+    adjacency: dict[str, dict[str, float]] | None = None
+    if adj_key is not None:
+        adjacency = _EDGE_CACHE.get(adj_key)
+    if adjacency is None:
+        def step_cost(a: str, b: str) -> float:
+            return (
+                prices[a] * trade_amount * fees.get(a, 0.0)
+                + prices[b] * trade_amount * fees.get(b, 0.0)
+                + gas.get(a, 0.0)
+                + gas.get(b, 0.0)
+                + latency.get(a, 0.0)
+                + latency.get(b, 0.0)
+            )
+
+        def slip_cost(a: str, b: str) -> float:
+            if depth is None:
+                return 0.0
+            a_depth = depth.get(a, {}) if isinstance(depth, Mapping) else {}
+            b_depth = depth.get(b, {}) if isinstance(depth, Mapping) else {}
+            ask = float(a_depth.get("asks", 0.0))
+            bid = float(b_depth.get("bids", 0.0))
+            slip_a = trade_amount / ask if ask > 0 else 0.0
+            slip_b = trade_amount / bid if bid > 0 else 0.0
+            return prices[a] * trade_amount * slip_a + prices[b] * trade_amount * slip_b
+
+        adjacency = {}
+        for a in venues:
+            neigh = {}
+            for b in venues:
+                if a == b:
+                    continue
+                profit = (
+                    (prices[b] - prices[a]) * trade_amount
+                    - step_cost(a, b)
+                    - slip_cost(a, b)
+                )
+                neigh[b] = profit
+            adjacency[a] = neigh
+        if adj_key is not None:
+            _EDGE_CACHE.set(adj_key, adjacency)
+
+    return venues, adjacency
+
+
+@njit
+def _search_numba(matrix: "float[:, :]", max_hops: int) -> tuple[List[int], float]:
+    n = matrix.shape[0]
+    best_profit = -1e18
+    best_len = 0
+    best_path = [0] * max_hops
+    path = [0] * max_hops
+    visited = [0] * n
+
+    def dfs(last_idx: int, depth: int, profit: float):
+        nonlocal best_profit, best_len
+        if depth > 1 and profit > best_profit:
+            best_profit = profit
+            best_len = depth
+            for i in range(depth):
+                best_path[i] = path[i]
+        if depth >= max_hops:
+            return
+        for j in range(n):
+            if visited[j] or j == last_idx:
+                continue
+            val = matrix[last_idx, j]
+            if val == float("-inf"):
+                continue
+            visited[j] = 1
+            path[depth] = j
+            dfs(j, depth + 1, profit + val)
+            visited[j] = 0
+
+    for i in range(n):
+        visited[i] = 1
+        path[0] = i
+        dfs(i, 1, 0.0)
+        visited[i] = 0
+
+    return best_path[:best_len], best_profit
 
 
 async def _prepare_service_tx(
@@ -626,7 +750,7 @@ def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
     return _stream
 
 
-def _best_route(
+def _best_route_py(
     prices: Mapping[str, float],
     amount: float,
     *,
@@ -735,6 +859,75 @@ def _best_route(
             heapq.heappush(heap, (-new_profit, path + [nxt], visited | {nxt}))
 
     return best_path, best_profit
+
+
+def _best_route_numba(
+    prices: Mapping[str, float],
+    amount: float,
+    *,
+    token: str | None = None,
+    fees: Mapping[str, float] | None = None,
+    gas: Mapping[str, float] | None = None,
+    latency: Mapping[str, float] | None = None,
+    depth: Mapping[str, Mapping[str, float]] | None = None,
+    use_flash_loans: bool | None = None,
+    max_flash_amount: float | None = None,
+    max_hops: int | None = None,
+    path_algorithm: str | None = None,
+) -> tuple[list[str], float]:
+    fees = fees or {}
+    gas = gas or {}
+    latency = latency or {}
+    for v in prices.keys():
+        if v not in fees:
+            fees[v] = DEX_FEES.get(v, 0.0)
+        if v not in gas:
+            gas[v] = DEX_GAS.get(v, 0.0)
+        if v not in latency:
+            latency[v] = DEX_LATENCY.get(v, 0.0)
+    if use_flash_loans is None:
+        use_flash_loans = USE_FLASH_LOANS
+    if max_flash_amount is None:
+        max_flash_amount = MAX_FLASH_AMOUNT
+    if max_hops is None:
+        max_hops = MAX_HOPS
+    trade_amount = (
+        min(max_flash_amount or amount, amount) if use_flash_loans else amount
+    )
+
+    venues, adjacency = _build_adjacency(
+        prices,
+        trade_amount,
+        fees,
+        gas,
+        latency,
+        depth,
+        token,
+    )
+    index = {v: i for i, v in enumerate(venues)}
+    import numpy as np
+
+    n = len(venues)
+    matrix = np.full((n, n), float("-inf"), dtype=float)
+    for a, neigh in adjacency.items():
+        i = index[a]
+        for b, val in neigh.items():
+            j = index[b]
+            matrix[i, j] = float(val)
+
+    idx_path, profit = _search_numba(matrix, int(max_hops))
+    path = [venues[i] for i in idx_path]
+    return path, float(profit)
+
+
+def _best_route(
+    prices: Mapping[str, float],
+    amount: float,
+    **kwargs,
+) -> tuple[list[str], float]:
+    if USE_NUMBA_ROUTE and _HAS_NUMBA:
+        return _best_route_numba(prices, amount, **kwargs)
+    return _best_route_py(prices, amount, **kwargs)
 
 
 async def _compute_route(
