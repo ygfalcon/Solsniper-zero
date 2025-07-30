@@ -78,6 +78,7 @@ ENV_VARS = {
     "use_depth_feed": "USE_DEPTH_FEED",
     "use_rust_exec": "USE_RUST_EXEC",
     "use_service_exec": "USE_SERVICE_EXEC",
+    "use_service_route": "USE_SERVICE_ROUTE",
     "mempool_score_threshold": "MEMPOOL_SCORE_THRESHOLD",
     "mempool_stats_window": "MEMPOOL_STATS_WINDOW",
     "use_flash_loans": "USE_FLASH_LOANS",

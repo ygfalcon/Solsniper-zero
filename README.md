@@ -164,6 +164,10 @@ direct transaction submission to the Solana RPC.
    ``depth_client.submit_signed_tx`` or an ``EventExecutor`` from
    ``solhunter_zero.execution``. The service relays them using
    ``send_raw_tx`` for minimal latency.
+4. **Faster route search**
+   Path computation happens inside the Rust service when
+   `use_service_route` is enabled (default). This is roughly ten times faster
+   than the Python fallback.
 
 ## Flash-Loan Arbitrage
 
@@ -832,6 +836,8 @@ The best weight configuration found is printed as JSON.
 - **Service not running** — verify `depth_service` is running and that
   `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to
   `True`.
+- **Slow routing** — the Rust service computes paths much faster. Leave
+  `USE_SERVICE_ROUTE` enabled unless debugging the Python fallback.
 
 ## Testing
 
