@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import aiohttp
 
 try:
@@ -25,11 +26,18 @@ def loads(data: str | bytes) -> object:
 
 _session: aiohttp.ClientSession | None = None
 
+# Connector limits are configurable via environment variables.
+CONNECTOR_LIMIT = int(os.getenv("HTTP_CONNECTOR_LIMIT", "0") or 0)
+CONNECTOR_LIMIT_PER_HOST = int(os.getenv("HTTP_CONNECTOR_LIMIT_PER_HOST", "0") or 0)
+
 async def get_session() -> aiohttp.ClientSession:
     """Return a shared :class:`aiohttp.ClientSession`."""
     global _session
     if _session is None or getattr(_session, "closed", False):
-        _session = aiohttp.ClientSession()
+        connector = aiohttp.TCPConnector(
+            limit=CONNECTOR_LIMIT, limit_per_host=CONNECTOR_LIMIT_PER_HOST
+        )
+        _session = aiohttp.ClientSession(connector=connector)
     return _session
 
 async def close_session() -> None:
