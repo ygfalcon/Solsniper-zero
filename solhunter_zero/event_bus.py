@@ -16,6 +16,8 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
+import psutil
+
 from .schemas import validate_message, to_dict
 from . import event_pb2 as pb
 
@@ -30,6 +32,7 @@ _PB_MAP = {
     "heartbeat": pb.Heartbeat,
     "trade_logged": pb.TradeLogged,
     "rl_metrics": pb.RLMetrics,
+    "system_metrics": pb.SystemMetrics,
 }
 
 
@@ -153,6 +156,15 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 reward=float(data.get("reward", 0.0)),
             ),
         )
+    elif topic == "system_metrics":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            system_metrics=pb.SystemMetrics(
+                cpu=float(data.get("cpu", 0.0)),
+                memory=float(data.get("memory", 0.0)),
+            ),
+        )
     else:
         return _dumps({"topic": topic, "payload": to_dict(payload)})
     return event.SerializeToString()
@@ -210,6 +222,8 @@ def _decode_payload(ev: pb.Event) -> Any:
         }
     if field == "rl_metrics":
         return {"loss": msg.loss, "reward": msg.reward}
+    if field == "system_metrics":
+        return {"cpu": msg.cpu, "memory": msg.memory}
     return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
@@ -463,9 +477,27 @@ def _reload_bus(cfg) -> None:
 subscription("config_updated", _reload_bus).__enter__()
 
 
-async def send_heartbeat(service: str, interval: float = 30.0) -> None:
+async def send_heartbeat(
+    service: str,
+    interval: float = 30.0,
+    metrics_interval: float | None = None,
+) -> None:
     """Publish heartbeat for ``service`` every ``interval`` seconds."""
+    if metrics_interval:
+        asyncio.create_task(publish_metrics(metrics_interval))
     while True:
         publish("heartbeat", {"service": service})
+        await asyncio.sleep(interval)
+
+
+async def publish_metrics(interval: float = 30.0) -> None:
+    """Publish system CPU and memory usage every ``interval`` seconds."""
+    while True:
+        try:
+            cpu = psutil.cpu_percent()
+            mem = psutil.virtual_memory().percent
+            publish("system_metrics", {"cpu": cpu, "memory": mem})
+        except Exception:
+            pass
         await asyncio.sleep(interval)
 

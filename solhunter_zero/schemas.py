@@ -63,6 +63,14 @@ class TradeLogged:
     trade_id: int | None = None
 
 
+@dataclass
+class SystemMetrics:
+    """Payload with system CPU and memory usage."""
+
+    cpu: float
+    memory: float
+
+
 _EVENT_SCHEMAS: Dict[str, Type] = {
     "action_executed": ActionExecuted,
     "weights_updated": WeightsUpdated,
@@ -71,6 +79,7 @@ _EVENT_SCHEMAS: Dict[str, Type] = {
     "portfolio_updated": PortfolioUpdated,
     "trade_logged": TradeLogged,
     "heartbeat": Heartbeat,
+    "system_metrics": SystemMetrics,
 }
 
 

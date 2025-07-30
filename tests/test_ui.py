@@ -449,6 +449,7 @@ def test_status_endpoint(monkeypatch):
         "depth_service": True,
         "event_bus": True,
         "heartbeat": False,
+        "system_metrics": {"cpu": 0.0, "memory": 0.0},
     }
     assert called["url"] == "ws://bus"
 
