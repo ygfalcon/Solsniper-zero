@@ -150,7 +150,14 @@ class TradeDataModule(pl.LightningDataModule):
         self.sims_per_token = sims_per_token
         self.price_model_path = price_model_path
         self.regime_weight = float(regime_weight)
-        self.num_workers = num_workers if num_workers is not None else (os.cpu_count() or 1)
+        env_val = os.getenv("RL_NUM_WORKERS")
+        if env_val is not None:
+            try:
+                self.num_workers = int(env_val)
+            except Exception:
+                self.num_workers = num_workers if num_workers is not None else (os.cpu_count() or 1)
+        else:
+            self.num_workers = num_workers if num_workers is not None else (os.cpu_count() or 1)
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.dataset: _TradeDataset | None = None
@@ -286,6 +293,7 @@ class RLTraining:
         sims_per_token: int = 10,
         price_model_path: str | None = None,
         regime_weight: float = 1.0,
+        num_workers: int | None = None,
         device: str | None = None,
         metrics_url: str | None = None,
         pin_memory: bool | None = None,
@@ -298,6 +306,7 @@ class RLTraining:
             sims_per_token=sims_per_token,
             price_model_path=price_model_path,
             regime_weight=regime_weight,
+            num_workers=num_workers,
             pin_memory=pin_memory if pin_memory is not None else True,
             persistent_workers=persistent_workers if persistent_workers is not None else True,
         )
@@ -410,7 +419,14 @@ def fit(
     if acc != "cpu":
         kwargs["devices"] = 1
     trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
-    num_workers = os.cpu_count() or 1
+    env_val = os.getenv("RL_NUM_WORKERS")
+    if env_val is not None:
+        try:
+            num_workers = int(env_val)
+        except Exception:
+            num_workers = os.cpu_count() or 1
+    else:
+        num_workers = os.cpu_count() or 1
     loader = DataLoader(
         dataset,
         batch_size=64,

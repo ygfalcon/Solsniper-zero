@@ -106,3 +106,23 @@ class PopulationRL:
         self.population.sort(key=lambda x: x.get("score", 0.0), reverse=True)
         return self.population[0]
 
+
+if __name__ == "__main__":  # pragma: no cover - simple CLI
+    import argparse
+    from .memory import Memory
+
+    ap = argparse.ArgumentParser(description="Evolve RL population weights")
+    ap.add_argument("--memory", default="sqlite:///memory.db")
+    ap.add_argument("--weights", dest="weights_path", default="weights.json")
+    ap.add_argument("--population-size", type=int, default=4)
+    ap.add_argument("--num-workers", type=int, default=None)
+    args = ap.parse_args()
+
+    if args.num_workers is not None:
+        os.environ["RL_NUM_WORKERS"] = str(args.num_workers)
+
+    mgr = MemoryAgent(Memory(args.memory))
+    rl = PopulationRL(mgr, population_size=args.population_size, weights_path=args.weights_path)
+    best = rl.evolve()
+    print(json.dumps(best))
+
