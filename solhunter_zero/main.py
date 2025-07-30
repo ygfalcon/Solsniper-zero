@@ -9,6 +9,8 @@ from argparse import ArgumentParser
 import cProfile
 from typing import Sequence
 
+from .util import install_uvloop
+
 from pathlib import Path
 
 from .config import (
@@ -28,12 +30,7 @@ _SERVICE_MANIFEST = (
 )
 
 if sys.platform != "win32":
-    try:
-        import uvloop  # type: ignore
-    except Exception:
-        pass
-    else:
-        uvloop.install()
+    install_uvloop()
 
 
 def _start_depth_service(cfg: dict) -> subprocess.Popen | None:

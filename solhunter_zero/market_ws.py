@@ -7,6 +7,7 @@ from typing import AsyncGenerator, Dict, Any, Optional
 
 import aiohttp
 from .http import get_session
+from .util import install_uvloop
 
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
@@ -16,6 +17,7 @@ from .prices import fetch_token_prices_async
 from .exchange import place_order_async
 
 logger = logging.getLogger(__name__)
+install_uvloop()
 
 
 async def subscribe_events(url: str) -> AsyncGenerator[Dict[str, Any], None]:

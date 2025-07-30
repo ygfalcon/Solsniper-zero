@@ -2,6 +2,9 @@ from argparse import ArgumentParser
 import asyncio
 from . import wallet
 from .http import close_session
+from .util import install_uvloop
+
+install_uvloop()
 
 
 def main(argv: list[str] | None = None) -> int:

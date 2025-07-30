@@ -2,6 +2,9 @@ import argparse
 import asyncio
 from .rl_daemon import RLDaemon
 from .http import close_session
+from .util import install_uvloop
+
+install_uvloop()
 
 async def main() -> None:
     p = argparse.ArgumentParser(description="Run RL training daemon")

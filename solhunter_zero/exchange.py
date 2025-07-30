@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any
 import asyncio
 import json
 
+from .util import install_uvloop
+
 import aiohttp
 from .http import get_session
 
@@ -25,6 +27,7 @@ class OrderPlacementError(Exception):
 
 
 logger = logging.getLogger(__name__)
+install_uvloop()
 
 # Using Jupiter Aggregator REST API for token swaps.
 _DEX_CFG = load_dex_config()

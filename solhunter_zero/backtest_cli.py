@@ -9,6 +9,9 @@ import tomllib
 import asyncio
 
 from .http import close_session
+from .util import install_uvloop
+
+install_uvloop()
 
 from .trade_analyzer import analyze_trades
 

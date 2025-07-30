@@ -1,6 +1,10 @@
 import asyncio
 import inspect
 
+from .util import install_uvloop
+
+install_uvloop()
+
 try:
     import orjson as json  # type: ignore
     _USE_ORJSON = True
