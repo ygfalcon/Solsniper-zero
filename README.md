@@ -156,6 +156,8 @@ direct transaction submission to the Solana RPC.
     to `0` the scanner uses half the available CPUs.
   - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
     percentage.
+  - `resource_update` events are published with current CPU and memory usage
+    collected by a background monitor.
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
     updates per second (defaults to `1` and `10`).
   - `--config <path>` – load these options from the given configuration file.
