@@ -14,16 +14,17 @@ phoenix_ws_url = ""
 meteora_ws_url = ""
 order_book_ws_url = ""
 
-depth_service = true    # start the Rust depth_service automatically when true
+depth_service = true  # start the Rust depth_service automatically when true
 # IPC paths for the depth_service (change if running on another host)
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
 # depth_update_threshold = 0.0  # minimum relative change before broadcasting
 # depth_min_send_interval = 100 # min interval between snapshots in ms
 use_depth_stream = true  # set to false to disable depth-stream IPC
-use_depth_feed = false   # deprecated, depth snapshots are sent over websocket
-use_rust_exec = true     # set to false to execute swaps in Python
+use_depth_feed = false  # deprecated, depth snapshots are sent over websocket
+use_rust_exec = true  # set to false to execute swaps in Python
 use_service_exec = true  # set to false to bypass depth_service execution
+use_service_route = true  # set to false to compute routes in Python
 orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
 phoenix_dex_url = "https://dex.phoenix.trade"
@@ -115,4 +116,3 @@ flashloan_sandwich = 1.0
 rl_auto_train = true
 rl_tune_interval = 1800
 regime_weight = 1.0
-

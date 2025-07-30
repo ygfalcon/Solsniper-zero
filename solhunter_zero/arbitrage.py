@@ -67,7 +67,7 @@ DEX_PRIORITIES = [
 
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
 USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true", "yes"}
-USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "0").lower() in {"1", "true", "yes"}
+USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "1").lower() in {"1", "true", "yes"}
 
 
 def _parse_mapping_env(env: str) -> dict:
@@ -117,10 +117,19 @@ _LAST_DEPTH: dict[str, float] = {}
 PRICE_CACHE_TTL = float(os.getenv("PRICE_CACHE_TTL", "30") or 30)
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
 
-def _route_key(token: str, amount: float, fees: Mapping[str, float], gas: Mapping[str, float], latency: Mapping[str, float]) -> tuple:
+
+def _route_key(
+    token: str,
+    amount: float,
+    fees: Mapping[str, float],
+    gas: Mapping[str, float],
+    latency: Mapping[str, float],
+) -> tuple:
     def _norm(m: Mapping[str, float]) -> tuple:
         return tuple(sorted((k, float(v)) for k, v in m.items()))
+
     return (token, float(amount), _norm(fees), _norm(gas), _norm(latency))
+
 
 def invalidate_route(token: str | None = None) -> None:
     """Remove cached paths for ``token`` or clear the cache."""
@@ -131,12 +140,14 @@ def invalidate_route(token: str | None = None) -> None:
     for k in keys:
         ROUTE_CACHE._cache.pop(k, None)
 
+
 def invalidate_edges(token: str | None = None) -> None:
     """Remove cached adjacency data for ``token`` or clear the cache."""
     if token is None:
         _EDGE_CACHE.clear()
         return
     _EDGE_CACHE._cache.pop(token, None)
+
 
 def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
     for token, entry in payload.items():
@@ -148,6 +159,7 @@ def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
                 invalidate_route(token)
                 invalidate_edges(token)
         _LAST_DEPTH[token] = depth
+
 
 subscribe("depth_update", _on_depth_update)
 
@@ -388,20 +400,20 @@ async def stream_orca_prices(
 
     session = await get_session()
     async with session.ws_connect(url) as ws:
+        try:
+            await ws.send_str(json.dumps({"token": token}))
+        except Exception:  # pragma: no cover - send failures
+            pass
+        async for msg in ws:
+            if msg.type != aiohttp.WSMsgType.TEXT:
+                continue
             try:
-                await ws.send_str(json.dumps({"token": token}))
-            except Exception:  # pragma: no cover - send failures
-                pass
-            async for msg in ws:
-                if msg.type != aiohttp.WSMsgType.TEXT:
-                    continue
-                try:
-                    data = json.loads(msg.data)
-                except Exception:  # pragma: no cover - invalid message
-                    continue
-                price = data.get("price")
-                if isinstance(price, (int, float)):
-                    yield float(price)
+                data = json.loads(msg.data)
+            except Exception:  # pragma: no cover - invalid message
+                continue
+            price = data.get("price")
+            if isinstance(price, (int, float)):
+                yield float(price)
 
 
 async def stream_raydium_prices(
@@ -414,20 +426,20 @@ async def stream_raydium_prices(
 
     session = await get_session()
     async with session.ws_connect(url) as ws:
+        try:
+            await ws.send_str(json.dumps({"token": token}))
+        except Exception:  # pragma: no cover - send failures
+            pass
+        async for msg in ws:
+            if msg.type != aiohttp.WSMsgType.TEXT:
+                continue
             try:
-                await ws.send_str(json.dumps({"token": token}))
-            except Exception:  # pragma: no cover - send failures
-                pass
-            async for msg in ws:
-                if msg.type != aiohttp.WSMsgType.TEXT:
-                    continue
-                try:
-                    data = json.loads(msg.data)
-                except Exception:  # pragma: no cover - invalid message
-                    continue
-                price = data.get("price")
-                if isinstance(price, (int, float)):
-                    yield float(price)
+                data = json.loads(msg.data)
+            except Exception:  # pragma: no cover - invalid message
+                continue
+            price = data.get("price")
+            if isinstance(price, (int, float)):
+                yield float(price)
 
 
 async def stream_phoenix_prices(
@@ -440,20 +452,20 @@ async def stream_phoenix_prices(
 
     session = await get_session()
     async with session.ws_connect(url) as ws:
+        try:
+            await ws.send_str(json.dumps({"token": token}))
+        except Exception:  # pragma: no cover - send failures
+            pass
+        async for msg in ws:
+            if msg.type != aiohttp.WSMsgType.TEXT:
+                continue
             try:
-                await ws.send_str(json.dumps({"token": token}))
-            except Exception:  # pragma: no cover - send failures
-                pass
-            async for msg in ws:
-                if msg.type != aiohttp.WSMsgType.TEXT:
-                    continue
-                try:
-                    data = json.loads(msg.data)
-                except Exception:  # pragma: no cover - invalid message
-                    continue
-                price = data.get("price")
-                if isinstance(price, (int, float)):
-                    yield float(price)
+                data = json.loads(msg.data)
+            except Exception:  # pragma: no cover - invalid message
+                continue
+            price = data.get("price")
+            if isinstance(price, (int, float)):
+                yield float(price)
 
 
 async def stream_meteora_prices(
@@ -466,20 +478,20 @@ async def stream_meteora_prices(
 
     session = await get_session()
     async with session.ws_connect(url) as ws:
+        try:
+            await ws.send_str(json.dumps({"token": token}))
+        except Exception:  # pragma: no cover - send failures
+            pass
+        async for msg in ws:
+            if msg.type != aiohttp.WSMsgType.TEXT:
+                continue
             try:
-                await ws.send_str(json.dumps({"token": token}))
-            except Exception:  # pragma: no cover - send failures
-                pass
-            async for msg in ws:
-                if msg.type != aiohttp.WSMsgType.TEXT:
-                    continue
-                try:
-                    data = json.loads(msg.data)
-                except Exception:  # pragma: no cover - invalid message
-                    continue
-                price = data.get("price")
-                if isinstance(price, (int, float)):
-                    yield float(price)
+                data = json.loads(msg.data)
+            except Exception:  # pragma: no cover - invalid message
+                continue
+            price = data.get("price")
+            if isinstance(price, (int, float)):
+                yield float(price)
 
 
 async def stream_jupiter_prices(
@@ -492,6 +504,30 @@ async def stream_jupiter_prices(
 
     session = await get_session()
     async with session.ws_connect(url) as ws:
+        try:
+            await ws.send_str(json.dumps({"token": token}))
+        except Exception:  # pragma: no cover - send failures
+            pass
+        async for msg in ws:
+            if msg.type != aiohttp.WSMsgType.TEXT:
+                continue
+            try:
+                data = json.loads(msg.data)
+            except Exception:  # pragma: no cover - invalid message
+                continue
+            price = data.get("price")
+            if isinstance(price, (int, float)):
+                yield float(price)
+
+
+def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
+    """Return a simple websocket price stream factory."""
+
+    async def _stream(token: str, url: str = url) -> AsyncGenerator[float, None]:
+        if not url:
+            return
+        session = await get_session()
+        async with session.ws_connect(url) as ws:
             try:
                 await ws.send_str(json.dumps({"token": token}))
             except Exception:  # pragma: no cover - send failures
@@ -506,30 +542,6 @@ async def stream_jupiter_prices(
                 price = data.get("price")
                 if isinstance(price, (int, float)):
                     yield float(price)
-
-
-def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
-    """Return a simple websocket price stream factory."""
-
-    async def _stream(token: str, url: str = url) -> AsyncGenerator[float, None]:
-        if not url:
-            return
-        session = await get_session()
-        async with session.ws_connect(url) as ws:
-                try:
-                    await ws.send_str(json.dumps({"token": token}))
-                except Exception:  # pragma: no cover - send failures
-                    pass
-                async for msg in ws:
-                    if msg.type != aiohttp.WSMsgType.TEXT:
-                        continue
-                    try:
-                        data = json.loads(msg.data)
-                    except Exception:  # pragma: no cover - invalid message
-                        continue
-                    price = data.get("price")
-                    if isinstance(price, (int, float)):
-                        yield float(price)
 
     return _stream
 
@@ -598,10 +610,7 @@ def _best_route(
         bid = float(b_depth.get("bids", 0.0))
         slip_a = trade_amount / ask if ask > 0 else 0.0
         slip_b = trade_amount / bid if bid > 0 else 0.0
-        return (
-            prices[a] * trade_amount * slip_a
-            + prices[b] * trade_amount * slip_b
-        )
+        return prices[a] * trade_amount * slip_a + prices[b] * trade_amount * slip_b
 
     adj_key = token if token is not None else None
     adjacency: dict[str, dict[str, float]] | None = None
@@ -668,17 +677,21 @@ async def _compute_route(
         return cached
 
     if use_service:
-        res = await depth_client.best_route(
-            token,
-            amount,
-            socket_path=DEPTH_SERVICE_SOCKET,
-            max_hops=max_hops,
-        )
+        try:
+            res = await depth_client.best_route(
+                token,
+                amount,
+                socket_path=DEPTH_SERVICE_SOCKET,
+                max_hops=max_hops,
+            )
+        except Exception as exc:  # pragma: no cover - service optional
+            logger.warning("depth_service.best_route failed: %s", exc)
+            res = None
         if res:
             path, profit, _ = res
         else:
-            path, profit = [], 0.0
-    else:
+            use_service = False
+    if not use_service:
         depth_map, _ = depth_client.snapshot(token)
         total = sum(
             float(v.get("bids", 0.0)) + float(v.get("asks", 0.0))
@@ -1176,7 +1189,9 @@ async def detect_and_execute_arbitrage(
             if not url:
                 continue
             if name == "service":
-                auto.append(order_book_ws.stream_order_book(url, rate_limit=DEPTH_RATE_LIMIT))
+                auto.append(
+                    order_book_ws.stream_order_book(url, rate_limit=DEPTH_RATE_LIMIT)
+                )
                 names.append(name)
                 continue
             if fn is not None:
