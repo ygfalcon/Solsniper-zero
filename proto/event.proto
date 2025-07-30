@@ -73,6 +73,12 @@ message SystemMetrics {
   double memory = 2;
 }
 
+message PriceUpdate {
+  string venue = 1;
+  string token = 2;
+  double price = 3;
+}
+
 message Event {
   string topic = 1;
   oneof kind {
@@ -87,5 +93,6 @@ message Event {
     TradeLogged trade_logged = 10;
     RLMetrics rl_metrics = 11;
     SystemMetrics system_metrics = 12;
+    PriceUpdate price_update = 13;
   }
 }
