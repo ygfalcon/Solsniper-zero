@@ -6,7 +6,7 @@ import threading
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple, Any
+from typing import Iterable, List, Tuple, Any, Callable
 import os
 import time
 import types
@@ -146,17 +146,17 @@ def _metrics(trades: Iterable, snaps: Iterable) -> Tuple[float, float, float]:
     return drawdown, volatility, corr
 
 
-def _train_dqn(model: _DQN, data: Dataset, device: torch.device) -> None:
-    env_val = os.getenv("RL_NUM_WORKERS")
-    if env_val is not None:
-        try:
-            num_workers: int | None = int(env_val)
-        except Exception:
-            num_workers = None
-    else:
-        num_workers = None
-    if num_workers is None:
-        num_workers = min(os.cpu_count() or 1, max(1, len(data) // 100))
+def _train_dqn(
+    model: _DQN,
+    data: Dataset,
+    device: torch.device,
+    *,
+    dynamic_workers: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
+) -> None:
+    num_workers = rl_training._calc_num_workers(
+        len(data), dynamic=dynamic_workers, cpu_callback=cpu_callback
+    )
     loader = DataLoader(
         data,
         batch_size=32,
@@ -183,17 +183,17 @@ def _train_dqn(model: _DQN, data: Dataset, device: torch.device) -> None:
             opt.step()
 
 
-def _train_ppo(model: _PPO, data: Dataset, device: torch.device) -> None:
-    env_val = os.getenv("RL_NUM_WORKERS")
-    if env_val is not None:
-        try:
-            num_workers: int | None = int(env_val)
-        except Exception:
-            num_workers = None
-    else:
-        num_workers = None
-    if num_workers is None:
-        num_workers = min(os.cpu_count() or 1, max(1, len(data) // 100))
+def _train_ppo(
+    model: _PPO,
+    data: Dataset,
+    device: torch.device,
+    *,
+    dynamic_workers: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
+) -> None:
+    num_workers = rl_training._calc_num_workers(
+        len(data), dynamic=dynamic_workers, cpu_callback=cpu_callback
+    )
     loader = DataLoader(
         data,
         batch_size=32,
@@ -241,6 +241,8 @@ class RLDaemon:
         agents: Iterable[Any] | None = None,
         queue: asyncio.Queue | None = None,
         metrics_url: str | None = None,
+        dynamic_workers: bool | None = None,
+        cpu_callback: Callable[[], float] | None = None,
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -272,6 +274,15 @@ class RLDaemon:
         self._proc: subprocess.Popen | None = None
         self._last_trade_id = 0
         self._last_snap_id = 0
+        env_dyn = os.getenv("RL_DYNAMIC_WORKERS")
+        self.dynamic_workers = (
+            str(env_dyn).lower() in {"1", "true", "yes"}
+            if env_dyn is not None
+            else bool(dynamic_workers)
+        )
+        self._cpu_callback = cpu_callback
+        self._cpu_usage = 0.0
+        self._cpu_sub = None
         self.queue = queue
         self.current_risk = float(os.getenv("RISK_MULTIPLIER", "1.0"))
         self._subscriptions: list[Any] = []
@@ -294,6 +305,17 @@ class RLDaemon:
         risk_sub = subscription("risk_updated", _update_risk)
         risk_sub.__enter__()
         self._subscriptions.append(risk_sub)
+        if self.dynamic_workers and cpu_callback is None:
+            def _update_cpu(payload):
+                try:
+                    self._cpu_usage = float(payload.get("cpu", payload.get("usage", payload)))
+                except Exception:
+                    pass
+
+            cpu_sub = subscription("resource_update", _update_cpu)
+            cpu_sub.__enter__()
+            self._cpu_sub = cpu_sub
+            self._subscriptions.append(cpu_sub)
         from .metrics_client import start_metrics_exporter
         sub = start_metrics_exporter(metrics_url)
         self._subscriptions.append(types.SimpleNamespace(__exit__=lambda *a, **k: sub()))
@@ -301,6 +323,14 @@ class RLDaemon:
     def close(self) -> None:
         for sub in self._subscriptions:
             sub.__exit__(None, None, None)
+
+    def _cpu(self) -> float:
+        if self._cpu_callback:
+            try:
+                return float(self._cpu_callback())
+            except Exception:
+                return 0.0
+        return self._cpu_usage
 
     def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
         """Return new trades and snapshots since the last training cycle."""
@@ -349,6 +379,8 @@ class RLDaemon:
             model_path=self.model_path,
             algo=self.algo,
             device=self.device.type,
+            dynamic_workers=self.dynamic_workers,
+            cpu_callback=self._cpu,
         )
         try:
             self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))

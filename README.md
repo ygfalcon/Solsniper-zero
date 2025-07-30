@@ -817,9 +817,10 @@ solhunter-train --daemon --device cuda
 ```
 
 The dataloader now chooses the worker count automatically based on the dataset
-size: roughly one worker per hundred samples, up to the available CPU cores. You
-can override this using the `RL_NUM_WORKERS` environment variable or the
-`--num-workers` flag on `solhunter-train` and `python -m solhunter_zero.multi_rl`.
+size. Set `rl_dynamic_workers = true` so the trainer scales workers with CPU
+load. You can still override this using the `RL_NUM_WORKERS` environment
+variable or the `--num-workers` flag on `solhunter-train` and
+`python -m solhunter_zero.multi_rl`.
 On a 4‑core test machine throughput increased from about 250 samples/s with a
 single worker to around 700 samples/s with four workers.
 

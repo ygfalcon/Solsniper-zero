@@ -431,12 +431,14 @@ async def _init_rl_training(
     algo = cfg.get("rl_algo", "ppo")
     auto_train = auto_train_cfg
     tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
+    dyn_workers = bool(cfg.get("rl_dynamic_workers", False))
 
     daemon = RLDaemon(
         memory_path=mem_db,
         data_path=data_path,
         model_path=model_path,
         algo=algo,
+        dynamic_workers=dyn_workers,
     )
     task = daemon.start(rl_interval, auto_train=auto_train, tune_interval=tune_interval)
 

@@ -89,3 +89,47 @@ async def test_rl_training_runs(tmp_path):
     trainer = RLTraining(db_url=db, model_path=model_path)
     await trainer.train()
     assert model_path.exists()
+
+
+def test_dynamic_worker_count(monkeypatch, tmp_path):
+    import solhunter_zero.rl_training as rl_training
+
+    class DummyDataset(rl_training.Dataset):
+        def __len__(self):
+            return 400
+
+        def __getitem__(self, idx):
+            return (
+                rl_training.torch.zeros(9),
+                rl_training.torch.tensor(0, dtype=rl_training.torch.long),
+                rl_training.torch.tensor(0.0),
+            )
+
+    counts = []
+
+    class DummyLoader:
+        def __init__(self, *a, **kw):
+            counts.append(kw.get("num_workers"))
+
+    monkeypatch.setattr(rl_training, "DataLoader", DummyLoader)
+    monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
+    monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(rl_training.torch, "save", lambda *a, **k: None)
+
+    rl_training.fit(
+        [],
+        [],
+        model_path=tmp_path / "m.pt",
+        dynamic_workers=True,
+        cpu_callback=lambda: 80.0,
+    )
+    high = counts[-1]
+    rl_training.fit(
+        [],
+        [],
+        model_path=tmp_path / "m.pt",
+        dynamic_workers=True,
+        cpu_callback=lambda: 10.0,
+    )
+    low = counts[-1]
+    assert low > high

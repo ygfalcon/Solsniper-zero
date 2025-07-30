@@ -116,3 +116,4 @@ flashloan_sandwich = 1.0
 rl_auto_train = true
 rl_tune_interval = 1800
 regime_weight = 1.0
+rl_dynamic_workers = true
