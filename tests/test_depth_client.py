@@ -131,6 +131,37 @@ def test_snapshot_json_fallback(tmp_path, monkeypatch):
     assert venues == {"dex": {"bids": 2.0, "asks": 4.0}}
 
 
+def test_token_offset_cache(tmp_path, monkeypatch):
+    data = {
+        "a": {"tx_rate": 1.0},
+        "b": {"tx_rate": 2.0},
+    }
+    path = tmp_path / "depth.mmap"
+    build_index(path, data)
+    monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
+    depth_client.SNAPSHOT_CACHE.clear()
+    depth_client.TOKEN_OFFSETS.clear()
+    monkeypatch.setattr(depth_client, "DEPTH_CACHE_TTL", 0.0)
+
+    calls = []
+    orig = depth_client._build_token_offsets
+
+    def spy(buf):
+        calls.append(True)
+        orig(buf)
+
+    monkeypatch.setattr(depth_client, "_build_token_offsets", spy)
+
+    depth_client.snapshot("a")
+    depth_client.snapshot("b")
+    assert len(calls) == 1
+
+    data["c"] = {"tx_rate": 3.0}
+    build_index(path, data)
+    depth_client.snapshot("c")
+    assert len(calls) == 2
+
+
 def test_submit_signed_tx(monkeypatch):
     captured = {}
 

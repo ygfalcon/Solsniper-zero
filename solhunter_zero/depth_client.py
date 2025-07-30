@@ -24,11 +24,14 @@ DEPTH_WS_ADDR, DEPTH_WS_PORT = get_depth_ws_addr()
 # Persistent mmap for depth snapshots
 _MMAP: mmap.mmap | None = None
 _MMAP_SIZE: int = 0
+# Cached token offsets from the IDX1 header
+TOKEN_OFFSETS: Dict[str, Tuple[int, int]] = {}
+_TOKEN_MAP_SIZE: int = 0
 
 
 def open_mmap() -> mmap.mmap | None:
     """Return a persistent mmap for :data:`MMAP_PATH`."""
-    global _MMAP, _MMAP_SIZE
+    global _MMAP, _MMAP_SIZE, TOKEN_OFFSETS, _TOKEN_MAP_SIZE
     try:
         size = os.path.getsize(MMAP_PATH)
     except OSError:
@@ -43,17 +46,23 @@ def open_mmap() -> mmap.mmap | None:
             except Exception:
                 pass
             _MMAP = None
+            # Invalidate IDX1 token cache on size change
+            TOKEN_OFFSETS.clear()
+            global _TOKEN_MAP_SIZE
+            _TOKEN_MAP_SIZE = 0
     if _MMAP is None:
         f = open(MMAP_PATH, "rb")
         _MMAP = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         _MMAP_SIZE = size
         f.close()
+        TOKEN_OFFSETS.clear()
+        _TOKEN_MAP_SIZE = 0
     return _MMAP
 
 
 def close_mmap() -> None:
     """Close the persistent depth mmap."""
-    global _MMAP, _MMAP_SIZE
+    global _MMAP, _MMAP_SIZE, TOKEN_OFFSETS, _TOKEN_MAP_SIZE
     if _MMAP is not None and not getattr(_MMAP, "closed", False):
         try:
             _MMAP.close()
@@ -61,9 +70,38 @@ def close_mmap() -> None:
             pass
     _MMAP = None
     _MMAP_SIZE = 0
+    TOKEN_OFFSETS.clear()
+    _TOKEN_MAP_SIZE = 0
 
 
 atexit.register(close_mmap)
+
+
+def _build_token_offsets(buf: memoryview) -> None:
+    """Parse IDX1 header and populate :data:`TOKEN_OFFSETS`."""
+    global TOKEN_OFFSETS, _TOKEN_MAP_SIZE
+    TOKEN_OFFSETS.clear()
+    if len(buf) < 8 or bytes(buf[:4]) != b"IDX1":
+        _TOKEN_MAP_SIZE = _MMAP_SIZE
+        return
+    count = int.from_bytes(buf[4:8], "little")
+    off = 8
+    for _ in range(count):
+        if off + 2 > len(buf):
+            break
+        tlen = int.from_bytes(buf[off : off + 2], "little")
+        off += 2
+        if off + tlen > len(buf):
+            break
+        tok = bytes(buf[off : off + tlen]).decode()
+        off += tlen
+        if off + 8 > len(buf):
+            break
+        data_off = int.from_bytes(buf[off : off + 4], "little")
+        data_len = int.from_bytes(buf[off + 4 : off + 8], "little")
+        off += 8
+        TOKEN_OFFSETS[tok] = (data_off, data_len)
+    _TOKEN_MAP_SIZE = _MMAP_SIZE
 
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
@@ -271,39 +309,29 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         if m is None:
             return {}, 0.0
         buf = memoryview(m)
-        if len(buf) >= 8 and bytes(buf[:4]) == b"IDX1":
-            count = int.from_bytes(buf[4:8], "little")
-            off = 8
-            for _ in range(count):
-                if off + 2 > len(buf):
-                    break
-                tlen = int.from_bytes(buf[off : off + 2], "little")
-                off += 2
-                if off + tlen > len(buf):
-                    break
-                t = bytes(buf[off : off + tlen]).decode()
-                off += tlen
-                if off + 8 > len(buf):
-                    break
-                data_off = int.from_bytes(buf[off : off + 4], "little")
-                data_len = int.from_bytes(buf[off + 4 : off + 8], "little")
-                off += 8
-                if t == token:
-                    slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
-                    if not slice_bytes:
-                        return {}, 0.0
-                    entry = json.loads(slice_bytes.decode())
-                    rate = float(entry.get("tx_rate", 0.0))
-                    venues = {
-                        d: {
-                            "bids": float(i.get("bids", 0.0)),
-                            "asks": float(i.get("asks", 0.0)),
-                        }
-                        for d, i in entry.items()
-                        if isinstance(i, dict)
+        if _TOKEN_MAP_SIZE != _MMAP_SIZE or not TOKEN_OFFSETS:
+            _build_token_offsets(buf)
+        offset = TOKEN_OFFSETS.get(token)
+        if offset:
+            data_off, data_len = offset
+            if data_off + data_len <= len(buf):
+                slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
+                if not slice_bytes:
+                    return {}, 0.0
+                entry = json.loads(slice_bytes.decode())
+                rate = float(entry.get("tx_rate", 0.0))
+                venues = {
+                    d: {
+                        "bids": float(i.get("bids", 0.0)),
+                        "asks": float(i.get("asks", 0.0)),
                     }
-                    SNAPSHOT_CACHE[token] = (now, rate, venues)
-                    return venues, rate
+                    for d, i in entry.items()
+                    if isinstance(i, dict)
+                }
+                SNAPSHOT_CACHE[token] = (now, rate, venues)
+                return venues, rate
+            return {}, 0.0
+        if len(buf) >= 8 and bytes(buf[:4]) == b"IDX1":
             return {}, 0.0
         # Fallback to legacy JSON structure
         raw = bytes(buf).rstrip(b"\x00")
