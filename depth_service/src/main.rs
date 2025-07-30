@@ -20,6 +20,7 @@ use tokio::{
     sync::{broadcast, mpsc},
 };
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message as WsMessage};
+use sysinfo::{System, SystemExt};
 
 fn cfg_str(cfg: &TomlTable, key: &str) -> Option<String> {
     cfg.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
@@ -1010,6 +1011,29 @@ async fn main() -> Result<()> {
                             .await
                             .send(WsMessage::Binary(online.encode_to_vec()))
                             .await;
+                        let tx_metrics = tx.clone();
+                        tokio::spawn(async move {
+                            let mut sys = System::new();
+                            loop {
+                                sys.refresh_cpu();
+                                sys.refresh_memory();
+                                let cpu = sys.global_cpu_info().cpu_usage() as f64;
+                                let mem = if sys.total_memory() > 0 {
+                                    sys.used_memory() as f64 * 100.0 / sys.total_memory() as f64
+                                } else { 0.0 };
+                                let ev = pb::Event {
+                                    topic: "system_metrics".to_string(),
+                                    kind: Some(pb::event::Kind::SystemMetrics(pb::SystemMetrics {
+                                        cpu,
+                                        memory: mem,
+                                    })),
+                                };
+                                if tx_metrics.send(ev.encode_to_vec()).is_err() {
+                                    break;
+                                }
+                                tokio::time::sleep(Duration::from_secs(30)).await;
+                            }
+                        });
                         tokio::spawn(async move {
                             while let Some(Ok(msg)) = read.next().await {
                                 if let WsMessage::Binary(data) = msg {

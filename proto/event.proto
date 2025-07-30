@@ -68,6 +68,11 @@ message RLMetrics {
   double reward = 2;
 }
 
+message SystemMetrics {
+  double cpu = 1;
+  double memory = 2;
+}
+
 message Event {
   string topic = 1;
   oneof kind {
@@ -81,5 +86,6 @@ message Event {
     Heartbeat heartbeat = 9;
     TradeLogged trade_logged = 10;
     RLMetrics rl_metrics = 11;
+    SystemMetrics system_metrics = 12;
   }
 }

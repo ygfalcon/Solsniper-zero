@@ -125,6 +125,22 @@ _rl_metrics_sub = subscription("rl_metrics", _store_rl_metrics)
 _rl_metrics_sub.__enter__()
 
 
+def _store_system_metrics(msg: Any) -> None:
+    cpu = getattr(msg, "cpu", None)
+    mem = getattr(msg, "memory", None)
+    if cpu is None and isinstance(msg, dict):
+        cpu = msg.get("cpu")
+    if mem is None and isinstance(msg, dict):
+        mem = msg.get("memory")
+    if cpu is None or mem is None:
+        return
+    system_metrics["cpu"] = float(cpu)
+    system_metrics["memory"] = float(mem)
+
+_sys_metrics_sub = subscription("system_metrics", _store_system_metrics)
+_sys_metrics_sub.__enter__()
+
+
 async def _send_rl_update(payload):
     if rl_ws_loop is None:
         return
@@ -187,6 +203,7 @@ _rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
 _rl_metrics_ws_sub = subscription("rl_metrics", _sub_handler("rl_metrics"))
 _risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
 _config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
+_sys_metrics_ws_sub = subscription("system_metrics", _sub_handler("system_metrics"))
 
 _action_sub.__enter__()
 _weights_ws_sub.__enter__()
@@ -194,6 +211,7 @@ _rl_weights_ws_sub.__enter__()
 _rl_metrics_ws_sub.__enter__()
 _risk_ws_sub.__enter__()
 _config_ws_sub.__enter__()
+_sys_metrics_ws_sub.__enter__()
 
 depth_service_connected = False
 last_heartbeat = 0.0
@@ -226,6 +244,9 @@ allocation_history: dict[str, list[float]] = {}
 
 # most recent RL training metrics
 rl_metrics: list[dict[str, float]] = []
+
+# latest system metrics data
+system_metrics: dict[str, float] = {"cpu": 0.0, "memory": 0.0}
 
 # global RL training daemon for status reporting
 rl_daemon = None
@@ -618,6 +639,7 @@ def status() -> dict:
             "depth_service": depth_alive,
             "event_bus": event_alive,
             "heartbeat": heartbeat_alive,
+            "system_metrics": system_metrics,
         }
     )
 
