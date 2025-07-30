@@ -7,6 +7,9 @@ from typing import Iterable, Tuple, List
 import asyncio
 
 from .http import close_session
+from .util import install_uvloop
+
+install_uvloop()
 
 from sqlalchemy import (
     create_engine,

@@ -10,6 +10,10 @@ from typing import Any
 import time
 
 from .http import close_session
+from .util import install_uvloop
+
+install_uvloop()
+
 from flask import Flask, jsonify, request
 from .event_bus import subscription, publish
 try:

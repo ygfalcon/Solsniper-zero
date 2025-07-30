@@ -50,6 +50,10 @@ up automatically. Select this file from the UI or set
    Silicon machines the script also installs the Metal PyTorch wheel if
    it isn't already present.
 
+   The `uvloop` dependency is optional but recommended for reduced event
+   loop latency on Unix-like systems. If available, it is enabled by calling
+   `solhunter_zero.util.install_uvloop()` at startup.
+
 For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live. You can also simply run `make start`.
 
 
