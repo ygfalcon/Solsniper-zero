@@ -246,7 +246,7 @@ def test_discovery_methods(monkeypatch, method, target):
 
     if target.endswith("stream_new_tokens") or target.endswith("stream_mempool_tokens"):
         monkeypatch.setattr(target, fake_gen)
-    elif "async" in target:
+    elif "async" in target or target.endswith("scan_tokens_onchain"):
         monkeypatch.setattr(target, fake_async)
     else:
         monkeypatch.setattr(target, fake_sync)

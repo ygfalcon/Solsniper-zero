@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from solhunter_zero import scanner_onchain
 from solana.publickey import PublicKey
@@ -17,7 +18,14 @@ def setup_function(_):
 class FakeClient:
     def __init__(self, url):
         self.url = url
-    def get_program_accounts(self, program_id, encoding="jsonParsed"):
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+    async def get_program_accounts(self, program_id, encoding="jsonParsed"):
         assert encoding == "jsonParsed"
         assert isinstance(program_id, PublicKey)
         return {
@@ -32,15 +40,15 @@ def test_scan_tokens_onchain(monkeypatch):
     def fake_client(url):
         captured['url'] = url
         return FakeClient(url)
-    monkeypatch.setattr(scanner_onchain, "Client", fake_client)
-    tokens = scanner_onchain.scan_tokens_onchain("http://node")
+    monkeypatch.setattr(scanner_onchain, "AsyncClient", fake_client)
+    tokens = scanner_onchain.scan_tokens_onchain_sync("http://node")
     assert captured['url'] == "http://node"
     assert tokens == ["m1"]
 
 
 def test_scan_tokens_onchain_requires_url():
     with pytest.raises(ValueError):
-        scanner_onchain.scan_tokens_onchain("")
+        scanner_onchain.scan_tokens_onchain_sync("")
 
 
 class FlakyClient:
@@ -48,7 +56,13 @@ class FlakyClient:
         self.url = url
         self.calls = 0
 
-    def get_program_accounts(self, program_id, encoding="jsonParsed"):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        pass
+
+    async def get_program_accounts(self, program_id, encoding="jsonParsed"):
         assert encoding == "jsonParsed"
         assert isinstance(program_id, PublicKey)
         self.calls += 1
@@ -71,10 +85,10 @@ def test_scan_tokens_onchain_retries(monkeypatch):
 
     sleeps = []
 
-    monkeypatch.setattr(scanner_onchain, "Client", fake_client)
-    monkeypatch.setattr(scanner_onchain.time, "sleep", lambda t: sleeps.append(t))
+    monkeypatch.setattr(scanner_onchain, "AsyncClient", fake_client)
+    monkeypatch.setattr(scanner_onchain.asyncio, "sleep", lambda t: sleeps.append(t))
 
-    tokens = scanner_onchain.scan_tokens_onchain("http://node")
+    tokens = scanner_onchain.scan_tokens_onchain_sync("http://node")
 
     assert tokens == ["m1"]
     assert captured["client"].calls == 3

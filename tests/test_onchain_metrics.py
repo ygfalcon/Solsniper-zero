@@ -41,7 +41,7 @@ def test_top_volume_tokens(monkeypatch):
     def fake_client(url):
         return FakeClient(url, tx_data)
 
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", fake_scan)
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", fake_scan)
     monkeypatch.setattr(onchain_metrics, "Client", fake_client)
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
@@ -60,7 +60,7 @@ class ErrorClient:
 
 
 def test_top_volume_tokens_error(monkeypatch):
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: ["a"])
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", lambda url: ["a"])
     monkeypatch.setattr(onchain_metrics, "Client", lambda url: ErrorClient(url))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
@@ -87,7 +87,7 @@ def test_async_top_volume_tokens(monkeypatch):
     tokens = ["t1", "t2", "t3"]
     tx_data = {"t1": [{"amount": 1.0}, {"amount": 3.0}], "t2": [{"amount": 5.0}], "t3": []}
 
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: tokens)
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: asyncio.sleep(0, tokens))
     monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: FakeAsyncClient(url, tx_data))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
@@ -105,7 +105,7 @@ def test_async_top_volume_tokens_cache(monkeypatch):
             calls["gets"] += 1
             return await super().get_signatures_for_address(addr)
 
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: tokens)
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: asyncio.sleep(0, tokens))
     monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
@@ -128,11 +128,11 @@ def test_top_volume_tokens_cache(monkeypatch):
             calls["gets"] += 1
             return super().get_signatures_for_address(addr)
 
-    def fake_scan(url):
+    async def fake_scan(url):
         calls["scan"] += 1
         return tokens
 
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", fake_scan)
+    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", fake_scan)
     monkeypatch.setattr(onchain_metrics, "Client", lambda url: CountingClient(url, tx_data))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 

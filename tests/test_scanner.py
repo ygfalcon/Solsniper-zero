@@ -93,7 +93,7 @@ def test_scan_tokens_offline(monkeypatch):
 def test_scan_tokens_onchain(monkeypatch):
     captured = {}
 
-    def fake_onchain(url):
+    async def fake_onchain(url):
         captured['url'] = url
         return ['tok']
 
@@ -175,7 +175,7 @@ def test_scan_tokens_from_file(monkeypatch, tmp_path):
         raise AssertionError("should not call network")
 
     monkeypatch.setattr("aiohttp.ClientSession", fake_session)
-    monkeypatch.setattr(scanner_common, "scan_tokens_onchain", lambda _: ["x"])  # should not be called
+    monkeypatch.setattr(scanner_common, "scan_tokens_onchain", lambda _: asyncio.sleep(0, ["x"]))  # should not be called
     monkeypatch.setattr(
         scanner,
         "fetch_trending_tokens_async",

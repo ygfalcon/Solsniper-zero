@@ -27,6 +27,7 @@ from solana.rpc.async_api import AsyncClient
 
 from .scanner_onchain import (
     scan_tokens_onchain,
+    scan_tokens_onchain_sync,
     fetch_mempool_tx_rate,
     fetch_whale_wallet_activity,
     fetch_average_swap_size,
@@ -86,7 +87,7 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
     if cached is not None:
         return cached
 
-    tokens = scan_tokens_onchain(rpc_url)
+    tokens = scan_tokens_onchain_sync(rpc_url)
     if not tokens:
         return []
 
@@ -119,7 +120,7 @@ async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
     if cached is not None:
         return cached
 
-    tokens = scan_tokens_onchain(rpc_url)
+    tokens = await scan_tokens_onchain(rpc_url)
     if not tokens:
         return []
 

@@ -11,7 +11,7 @@ from .http import get_session
 from pathlib import Path
 
 
-from .scanner_onchain import scan_tokens_onchain
+from .scanner_onchain import scan_tokens_onchain, scan_tokens_onchain_sync
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +271,7 @@ def offline_or_onchain(
             return scan_tokens_from_pools()
         if method == "file":
             return scan_tokens_from_file()
-        return scan_tokens_onchain(SOLANA_RPC_URL)
+        return scan_tokens_onchain_sync(SOLANA_RPC_URL)
 
     return None
 
@@ -294,7 +294,7 @@ async def offline_or_onchain_async(
         return OFFLINE_TOKENS
 
     if method == "onchain":
-        return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
+        return await scan_tokens_onchain(SOLANA_RPC_URL)
     if method == "pools":
         return await asyncio.to_thread(scan_tokens_from_pools)
     if method == "file":
@@ -331,7 +331,7 @@ async def offline_or_onchain_async(
             return await asyncio.to_thread(scan_tokens_from_pools)
         if method == "file":
             return await asyncio.to_thread(scan_tokens_from_file)
-        return await asyncio.to_thread(scan_tokens_onchain, SOLANA_RPC_URL)
+        return await scan_tokens_onchain(SOLANA_RPC_URL)
 
     return None
 
