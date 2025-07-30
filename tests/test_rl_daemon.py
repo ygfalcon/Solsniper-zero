@@ -326,6 +326,7 @@ def test_rl_weights_event_emitted(tmp_path, monkeypatch):
     from solhunter_zero.schemas import RLWeights
 
     assert events and isinstance(events[0], RLWeights)
+    assert events[0].weights
 
 
 def test_rl_metrics_event_emitted(tmp_path, monkeypatch):

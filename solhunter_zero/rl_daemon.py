@@ -369,12 +369,15 @@ class RLDaemon:
             "rl_checkpoint",
             RLCheckpoint(time=self.last_train_time, path=self.checkpoint_path),
         )
+        weights = {}
+        try:
+            for name, param in self.model.named_parameters():
+                weights[name] = float(param.detach().mean())
+        except Exception:
+            weights = {}
         publish(
             "rl_weights",
-            RLWeights(
-                weights={},
-                risk={"risk_multiplier": self.current_risk},
-            ),
+            RLWeights(weights=weights, risk={"risk_multiplier": self.current_risk}),
         )
         reward = 0.0
         for t in trades:
@@ -439,6 +442,17 @@ class RLDaemon:
                 self.device = torch.device("mps")
             if self.device.type != "cpu":
                 self.model.to(self.device)
+                for ag in self.agents:
+                    try:
+                        ag.device = self.device
+                        if hasattr(ag, "model"):
+                            ag.model.to(self.device)
+                        if hasattr(ag, "actor"):
+                            ag.actor.to(self.device)
+                        if hasattr(ag, "critic"):
+                            ag.critic.to(self.device)
+                    except Exception:
+                        continue
 
         if auto_train:
             if tune_interval is None:
