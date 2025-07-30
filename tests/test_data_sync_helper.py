@@ -3,6 +3,7 @@ import os
 import asyncio
 import aiohttp
 import time
+import pytest
 
 from solhunter_zero import depth_client
 
@@ -46,7 +47,8 @@ import solhunter_zero.data_sync as data_sync
 from solhunter_zero.offline_data import OfflineData
 
 
-def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
     db = tmp_path / "data.db"
 
     called = {}
@@ -77,15 +79,16 @@ def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment", lambda *a, **k: 0.0)
 
-    asyncio.run(data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=0.0000001, base_url="http://api"))
+    await data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=0.0000001, base_url="http://api")
 
     data = OfflineData(f"sqlite:///{db}")
-    snaps = data.list_snapshots("TOK")
+    snaps = await data.list_snapshots("TOK")
     assert not snaps  # pruned due to low limit
     assert called["urls"]
 
 
-def test_depth_snapshot_listener(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_depth_snapshot_listener(tmp_path, monkeypatch):
     msg = {"tok": {"price": 1.0, "depth": 2.0, "total_depth": 2.0, "imbalance": 0.1}}
 
     class FakeMsg:
@@ -132,10 +135,10 @@ def test_depth_snapshot_listener(tmp_path, monkeypatch):
     from solhunter_zero.data_pipeline import start_depth_snapshot_listener
 
     unsub = start_depth_snapshot_listener(data)
-    asyncio.run(depth_client.listen_depth_ws(max_updates=1))
+    await depth_client.listen_depth_ws(max_updates=1)
     unsub()
 
-    snaps = data.list_snapshots("tok")
+    snaps = await data.list_snapshots("tok")
     assert snaps and snaps[0].price == 1.0
 
 
