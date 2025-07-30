@@ -340,16 +340,18 @@ async fn update_mmap(
             Some(old) => significant_change(old, &entry, threshold),
             None => true,
         };
+        if changed {
+            route::invalidate_edges(Some(token));
+        }
         changed || last.len() != current_len
     };
 
     // Serialize snapshot as a token-indexed binary structure for fast lookups
     // Format: "IDX1" | u32 count | [u16 token_len | token_bytes | u32 offset | u32 len]* | data...
-    let header_size: usize = 8
-        + snapshot
-            .iter()
-            .map(|(t, _)| 2 + t.as_bytes().len() + 8)
-            .sum::<usize>();
+    let header_size: usize = 8 + snapshot
+        .iter()
+        .map(|(t, _)| 2 + t.as_bytes().len() + 8)
+        .sum::<usize>();
     let mut header = Vec::with_capacity(header_size);
     header.extend_from_slice(b"IDX1");
     header.extend_from_slice(&(snapshot.len() as u32).to_le_bytes());
