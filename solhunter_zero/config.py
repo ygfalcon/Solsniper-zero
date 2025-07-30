@@ -93,6 +93,8 @@ ENV_VARS = {
     "cpu_high_threshold": "CPU_HIGH_THRESHOLD",
     "max_concurrency": "MAX_CONCURRENCY",
     "cpu_usage_threshold": "CPU_USAGE_THRESHOLD",
+    "min_rate": "MIN_RATE",
+    "max_rate": "MAX_RATE",
     "depth_freq_low": "DEPTH_FREQ_LOW",
     "depth_freq_high": "DEPTH_FREQ_HIGH",
     "max_hops": "MAX_HOPS",

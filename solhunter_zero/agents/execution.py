@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 
 import aiohttp
 from ..http import get_session
+from ..event_bus import subscription
 
 from . import BaseAgent
 from ..exchange import (
@@ -39,8 +40,13 @@ class ExecutionAgent(BaseAgent):
         depth_service: bool = False,
         priority_fees: list[float] | None = None,
         priority_rpc: list[str] | None = None,
+        min_rate: float | None = None,
+        max_rate: float | None = None,
     ):
         self.rate_limit = rate_limit
+        self.min_rate = float(min_rate) if min_rate is not None else 0.0
+        self.max_rate = float(max_rate) if max_rate is not None else rate_limit
+        self._base_concurrency = max(1, int(concurrency))
         self.testnet = testnet
         self.dry_run = dry_run
         self.keypair = keypair
@@ -52,6 +58,26 @@ class ExecutionAgent(BaseAgent):
         self._executors: Dict[str, EventExecutor] = {}
         self.priority_fees = list(priority_fees) if priority_fees else None
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
+        self._cpu_usage = 0.0
+        self._resource_sub = subscription("resource_update", self._on_resource_update)
+        self._resource_sub.__enter__()
+
+    def _on_resource_update(self, payload: Any) -> None:
+        """Update resource usage and adjust concurrency and rate limit."""
+        cpu = getattr(payload, "cpu", None)
+        if isinstance(payload, dict):
+            cpu = payload.get("cpu", cpu)
+        if cpu is None:
+            return
+        try:
+            self._cpu_usage = float(cpu)
+        except Exception:
+            return
+        frac = max(0.0, min(1.0, self._cpu_usage / 100.0))
+        conc = max(1, int(round(self._base_concurrency * max(0.1, 1.0 - frac))))
+        if conc != self._sem._value:
+            self._sem = asyncio.Semaphore(conc)
+        self.rate_limit = self.min_rate + (self.max_rate - self.min_rate) * frac
 
     async def _create_signed_tx(
         self,
@@ -103,6 +129,11 @@ class ExecutionAgent(BaseAgent):
 
         self._executors[token] = executor
 
+    def close(self) -> None:
+        """Unsubscribe from resource updates."""
+        if self._resource_sub:
+            self._resource_sub.__exit__(None, None, None)
+
     async def execute(self, action: Dict[str, Any]) -> Any:
         async with self._sem:
             async with self._rate_lock:
@@ -114,6 +145,7 @@ class ExecutionAgent(BaseAgent):
 
             # Read current mempool transaction rate
             from ..depth_client import snapshot
+
             _depth, tx_rate = snapshot(action["token"])
 
             priority_fee: int | None = None
