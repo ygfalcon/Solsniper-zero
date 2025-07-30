@@ -147,7 +147,16 @@ def _metrics(trades: Iterable, snaps: Iterable) -> Tuple[float, float, float]:
 
 
 def _train_dqn(model: _DQN, data: Dataset, device: torch.device) -> None:
-    num_workers = os.cpu_count() or 1
+    env_val = os.getenv("RL_NUM_WORKERS")
+    if env_val is not None:
+        try:
+            num_workers: int | None = int(env_val)
+        except Exception:
+            num_workers = None
+    else:
+        num_workers = None
+    if num_workers is None:
+        num_workers = min(os.cpu_count() or 1, max(1, len(data) // 100))
     loader = DataLoader(
         data,
         batch_size=32,
@@ -175,7 +184,16 @@ def _train_dqn(model: _DQN, data: Dataset, device: torch.device) -> None:
 
 
 def _train_ppo(model: _PPO, data: Dataset, device: torch.device) -> None:
-    num_workers = os.cpu_count() or 1
+    env_val = os.getenv("RL_NUM_WORKERS")
+    if env_val is not None:
+        try:
+            num_workers: int | None = int(env_val)
+        except Exception:
+            num_workers = None
+    else:
+        num_workers = None
+    if num_workers is None:
+        num_workers = min(os.cpu_count() or 1, max(1, len(data) // 100))
     loader = DataLoader(
         data,
         batch_size=32,

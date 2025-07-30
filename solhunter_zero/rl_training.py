@@ -153,11 +153,11 @@ class TradeDataModule(pl.LightningDataModule):
         env_val = os.getenv("RL_NUM_WORKERS")
         if env_val is not None:
             try:
-                self.num_workers = int(env_val)
+                self.num_workers: int | None = int(env_val)
             except Exception:
-                self.num_workers = num_workers if num_workers is not None else (os.cpu_count() or 1)
+                self.num_workers = num_workers
         else:
-            self.num_workers = num_workers if num_workers is not None else (os.cpu_count() or 1)
+            self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.dataset: _TradeDataset | None = None
@@ -177,13 +177,19 @@ class TradeDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         if self.dataset is None:
             self.setup()
+        num_workers = self.num_workers
+        if num_workers is None:
+            num_workers = min(
+                os.cpu_count() or 1,
+                max(1, len(self.dataset) // 100),
+            )
         return DataLoader(
             self.dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory and self.num_workers > 0,
-            persistent_workers=self.persistent_workers and self.num_workers > 0,
+            num_workers=num_workers,
+            pin_memory=self.pin_memory and num_workers > 0,
+            persistent_workers=self.persistent_workers and num_workers > 0,
         )
 
 
@@ -422,11 +428,13 @@ def fit(
     env_val = os.getenv("RL_NUM_WORKERS")
     if env_val is not None:
         try:
-            num_workers = int(env_val)
+            num_workers: int | None = int(env_val)
         except Exception:
-            num_workers = os.cpu_count() or 1
+            num_workers = None
     else:
-        num_workers = os.cpu_count() or 1
+        num_workers = None
+    if num_workers is None:
+        num_workers = min(os.cpu_count() or 1, max(1, len(dataset) // 100))
     loader = DataLoader(
         dataset,
         batch_size=64,
