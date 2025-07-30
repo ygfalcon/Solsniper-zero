@@ -422,6 +422,8 @@ async def _init_rl_training(
         return None
 
     from .rl_daemon import RLDaemon
+    from .event_bus import subscription
+    import torch
 
     mem_db = cfg.get("memory_path", "sqlite:///memory.db")
     data_path = cfg.get("rl_db_path", "offline_data.db")
@@ -436,7 +438,28 @@ async def _init_rl_training(
         model_path=model_path,
         algo=algo,
     )
-    return daemon.start(rl_interval, auto_train=auto_train, tune_interval=tune_interval)
+    task = daemon.start(rl_interval, auto_train=auto_train, tune_interval=tune_interval)
+
+    def _reload(_payload):
+        try:
+            daemon.model.load_state_dict(
+                torch.load(model_path, map_location=daemon.device)
+            )
+        except Exception:
+            return
+        for ag in daemon.agents:
+            try:
+                if hasattr(ag, "reload_weights"):
+                    ag.reload_weights()
+                else:
+                    ag._load_weights()
+            except Exception:
+                continue
+
+    sub = subscription("rl_weights", _reload)
+    sub.__enter__()
+
+    return task
 
 
 def main(
