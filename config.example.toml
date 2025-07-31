@@ -23,6 +23,8 @@ use_depth_feed = false  # deprecated, depth snapshots are sent over websocket
 use_rust_exec = true  # set to false to execute swaps in Python
 use_service_exec = true  # set to false to bypass depth_service execution
 use_service_route = true  # set to false to compute routes in Python
+# USE_FFI_ROUTE = 0       # uncomment to disable FFI route search when the
+#                         # route_ffi library is present
 orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
 phoenix_dex_url = "https://dex.phoenix.trade"

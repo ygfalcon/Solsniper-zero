@@ -201,7 +201,8 @@ direct transaction submission to the Solana RPC.
    cargo build --manifest-path route_ffi/Cargo.toml --release
    export ROUTE_FFI_LIB=route_ffi/target/release/libroute_ffi.so
    ```
-   Set `USE_FFI_ROUTE=1` so Python uses the FFI path finder.
+   Python automatically uses the FFI path finder when this library is
+   available. Set `USE_FFI_ROUTE=0` to force the Python implementation.
 
 ## Flash-Loan Arbitrage
 

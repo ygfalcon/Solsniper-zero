@@ -40,7 +40,6 @@ def numba_enabled(monkeypatch, request):
 
 @pytest.fixture(params=[False, True])
 def ffi_enabled(monkeypatch, request):
-    monkeypatch.setenv("USE_FFI_ROUTE", "1" if request.param else "0")
     if request.param:
         from pathlib import Path
         import subprocess
@@ -54,6 +53,8 @@ def ffi_enabled(monkeypatch, request):
                 "--release",
             ], check=True)
         monkeypatch.setenv("ROUTE_FFI_LIB", str(lib_path))
+    else:
+        monkeypatch.delenv("ROUTE_FFI_LIB", raising=False)
     import importlib
     importlib.reload(arb.routeffi)
     importlib.reload(arb)
