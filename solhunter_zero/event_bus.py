@@ -101,15 +101,21 @@ def _compress_event(data: bytes) -> bytes:
     return data
 
 
-def _dumps(obj: Any) -> str | bytes:
+def _dumps(obj: Any) -> bytes:
+    """Serialize ``obj`` to JSON bytes using ``orjson`` when available."""
     if _USE_ORJSON:
-        return json.dumps(obj).decode()
-    return json.dumps(obj)
+        return json.dumps(obj)
+    return json.dumps(obj).encode()
 
 
 def _loads(data: Any) -> Any:
-    if _USE_ORJSON and isinstance(data, str):
-        data = data.encode()
+    """Deserialize JSON ``data`` using ``orjson`` when available."""
+    if _USE_ORJSON:
+        if isinstance(data, str):
+            data = data.encode()
+        return json.loads(data)
+    if isinstance(data, bytes):
+        data = data.decode()
     return json.loads(data)
 
 
@@ -143,14 +149,14 @@ _watch_task = None
 def _encode_event(topic: str, payload: Any) -> Any:
     cls = _PB_MAP.get(topic)
     if cls is None:
-        return _dumps({"topic": topic, "payload": to_dict(payload)})
+        return _dumps({"topic": topic, "payload": to_dict(payload)}).decode()
 
     if topic == "action_executed":
         event = pb.Event(
             topic=topic,
             action_executed=pb.ActionExecuted(
-                action_json=_dumps(payload.action),
-                result_json=_dumps(payload.result),
+                action_json=_dumps(payload.action).decode(),
+                result_json=_dumps(payload.result).decode(),
             ),
         )
     elif topic == "weights_updated":
@@ -249,7 +255,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
             ),
         )
     else:
-        return _dumps({"topic": topic, "payload": to_dict(payload)})
+        return _dumps({"topic": topic, "payload": to_dict(payload)}).decode()
     data = event.SerializeToString()
     return _compress_event(data)
 

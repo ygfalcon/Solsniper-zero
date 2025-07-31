@@ -11,17 +11,21 @@ except Exception:  # pragma: no cover - optional dependency
     USE_ORJSON = False
 
 
-def dumps(obj: object) -> str | bytes:
-    """Serialize *obj* to JSON using ``orjson`` when available."""
+def dumps(obj: object) -> bytes:
+    """Serialize *obj* to JSON bytes using ``orjson`` when available."""
     if USE_ORJSON:
         return _json.dumps(obj)
-    return _json.dumps(obj)
+    return _json.dumps(obj).encode()
 
 
 def loads(data: str | bytes) -> object:
     """Deserialize JSON *data* using ``orjson`` when available."""
-    if USE_ORJSON and isinstance(data, str):
-        data = data.encode()
+    if USE_ORJSON:
+        if isinstance(data, str):
+            data = data.encode()
+        return _json.loads(data)
+    if isinstance(data, bytes):
+        data = data.decode()
     return _json.loads(data)
 
 _session: aiohttp.ClientSession | None = None
