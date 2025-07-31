@@ -19,7 +19,7 @@ from .base_memory import BaseMemory
 from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
-from .rl_training import _ensure_mmap_dataset
+from .rl_training import _ensure_mmap_dataset, MultiAgentRL
 from .rl_algorithms import _A3C, _DDPG
 from .risk import average_correlation
 from .event_bus import subscription, publish, send_heartbeat
@@ -324,6 +324,8 @@ class RLDaemon:
         metrics_url: str | None = None,
         dynamic_workers: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
+        multi_rl: bool | None = None,
+        rl_population_size: int = 2,
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -331,6 +333,8 @@ class RLDaemon:
         _ensure_mmap_dataset(f"sqlite:///{data_path}", Path("datasets/offline_data.npz"))
         self.model_path = Path(model_path)
         self.algo = algo
+        self.multi_rl = bool(multi_rl)
+        self.population: MultiAgentRL | None = None
         self.last_train_time: float | None = None
         self.checkpoint_path: str = str(self.model_path)
         if device is None:
@@ -341,14 +345,24 @@ class RLDaemon:
             else:
                 device = "cpu"
         self.device = torch.device(device)
-        if algo == "dqn":
-            self.model: nn.Module = _DQN()
-        elif algo == "a3c":
-            self.model = _A3C()
-        elif algo == "ddpg":
-            self.model = _DDPG()
-        else:
+        if self.multi_rl:
+            from .rl_training import MultiAgentRL
+            self.population = MultiAgentRL(
+                db_url=f"sqlite:///{data_path}",
+                algos=[algo],
+                population_size=rl_population_size,
+                device=device,
+            )
             self.model = _PPO()
+        else:
+            if algo == "dqn":
+                self.model: nn.Module = _DQN()
+            elif algo == "a3c":
+                self.model = _A3C()
+            elif algo == "ddpg":
+                self.model = _DDPG()
+            else:
+                self.model = _PPO()
 
         use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
         if use_compile:
@@ -481,28 +495,38 @@ class RLDaemon:
         trades, snaps = self._fetch_new()
         if not trades and not snaps:
             return
-        rl_training.fit(
-            trades,
-            snaps,
-            model_path=self.model_path,
-            algo=self.algo,
-            device=self.device.type,
-            dynamic_workers=self.dynamic_workers,
-            cpu_callback=self._cpu,
-        )
-        try:
-            self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
-            script_path = self.model_path.with_suffix(".ptc")
+        if self.multi_rl and self.population is not None:
+            self.population.train(trades, snaps)
+            weights = self.population.best_weights()
+        else:
+            rl_training.fit(
+                trades,
+                snaps,
+                model_path=self.model_path,
+                algo=self.algo,
+                device=self.device.type,
+                dynamic_workers=self.dynamic_workers,
+                cpu_callback=self._cpu,
+            )
             try:
-                scripted = torch.jit.script(self.model.cpu())
-                scripted.save(script_path)
-                self.jit_model = torch.jit.load(script_path).to(self.device)
-            except Exception as exc:  # pragma: no cover - scripting optional
-                logger.error("failed to script model: %s", exc)
-            finally:
-                self.model.to(self.device)
-        except Exception as exc:  # pragma: no cover - corrupt file
-            logger.error("failed to load updated model: %s", exc)
+                self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                script_path = self.model_path.with_suffix(".ptc")
+                try:
+                    scripted = torch.jit.script(self.model.cpu())
+                    scripted.save(script_path)
+                    self.jit_model = torch.jit.load(script_path).to(self.device)
+                except Exception as exc:  # pragma: no cover - scripting optional
+                    logger.error("failed to script model: %s", exc)
+                finally:
+                    self.model.to(self.device)
+            except Exception as exc:  # pragma: no cover - corrupt file
+                logger.error("failed to load updated model: %s", exc)
+            weights = {}
+            try:
+                for name, param in self.model.named_parameters():
+                    weights[name] = float(param.detach().mean())
+            except Exception:
+                weights = {}
         for ag in self.agents:
             try:
                 if hasattr(ag, "reload_weights"):
@@ -518,12 +542,6 @@ class RLDaemon:
             "rl_checkpoint",
             RLCheckpoint(time=self.last_train_time, path=self.checkpoint_path),
         )
-        weights = {}
-        try:
-            for name, param in self.model.named_parameters():
-                weights[name] = float(param.detach().mean())
-        except Exception:
-            weights = {}
         publish(
             "rl_weights",
             RLWeights(weights=weights, risk={"risk_multiplier": self.current_risk}),

@@ -143,3 +143,5 @@ rl_auto_train = false
 rl_tune_interval = 3600
 regime_weight = 1.0
 rl_dynamic_workers = false
+multi_rl = false
+rl_population_size = 2
