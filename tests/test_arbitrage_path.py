@@ -1,5 +1,6 @@
 import asyncio
 import time
+from collections.abc import Mapping
 import pytest
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
@@ -260,3 +261,76 @@ def test_edge_cache_invalidation(monkeypatch, numba_enabled, ffi_enabled):
     publish("depth_update", {"tok": {"depth": 2.0}})
     arb._best_route(prices, 1.0, token="tok", depth=depth)
     assert cache.set_count > first
+
+
+def _legacy_build_adjacency(prices, amount, fees, gas, latency, depth=None):
+    venues = list(prices.keys())
+    adjacency = {}
+
+    def step_cost(a, b):
+        return (
+            prices[a] * amount * fees.get(a, 0.0)
+            + prices[b] * amount * fees.get(b, 0.0)
+            + gas.get(a, 0.0)
+            + gas.get(b, 0.0)
+            + latency.get(a, 0.0)
+            + latency.get(b, 0.0)
+        )
+
+    def slip_cost(a, b):
+        if depth is None:
+            return 0.0
+        a_depth = depth.get(a, {}) if isinstance(depth, Mapping) else {}
+        b_depth = depth.get(b, {}) if isinstance(depth, Mapping) else {}
+        ask = float(a_depth.get("asks", 0.0))
+        bid = float(b_depth.get("bids", 0.0))
+        slip_a = amount / ask if ask > 0 else 0.0
+        slip_b = amount / bid if bid > 0 else 0.0
+        return prices[a] * amount * slip_a + prices[b] * amount * slip_b
+
+    for a in venues:
+        neigh = {}
+        for b in venues:
+            if a == b:
+                continue
+            profit = (
+                (prices[b] - prices[a]) * amount
+                - step_cost(a, b)
+                - slip_cost(a, b)
+            )
+            neigh[b] = profit
+        adjacency[a] = neigh
+    return venues, adjacency
+
+
+def test_vectorized_adjacency_equivalence():
+    prices = {f"dex{i}": 1.0 + 0.1 * i for i in range(5)}
+    fees = {v: 0.01 for v in prices}
+    gas = {v: 0.1 for v in prices}
+    latency = {v: 0.05 for v in prices}
+    depth = {v: {"asks": 10.0, "bids": 10.0} for v in prices}
+
+    legacy = _legacy_build_adjacency(prices, 1.0, fees, gas, latency, depth)[1]
+    new = arb._build_adjacency(prices, 1.0, fees, gas, latency, depth, None)[1]
+
+    assert new == legacy
+
+
+def test_vectorized_adjacency_speed():
+    prices = {f"dex{i}": 1.0 + 0.01 * i for i in range(20)}
+    fees = {v: 0.01 for v in prices}
+    gas = {v: 0.1 for v in prices}
+    latency = {v: 0.05 for v in prices}
+    depth = {v: {"asks": 10.0, "bids": 10.0} for v in prices}
+
+    start = time.perf_counter()
+    for _ in range(20):
+        _legacy_build_adjacency(prices, 1.0, fees, gas, latency, depth)
+    legacy_time = time.perf_counter() - start
+
+    start = time.perf_counter()
+    for _ in range(20):
+        arb._build_adjacency(prices, 1.0, fees, gas, latency, depth, None)
+    vector_time = time.perf_counter() - start
+
+    assert vector_time <= legacy_time
