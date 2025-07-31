@@ -16,7 +16,9 @@ async def _monitor(interval: float) -> None:
         while True:
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory().percent
-            publish("system_metrics", {"cpu": float(cpu), "memory": float(mem)})
+            payload = {"cpu": float(cpu), "memory": float(mem)}
+            publish("system_metrics", payload)
+            publish("remote_system_metrics", payload)
             await asyncio.sleep(interval)
     except asyncio.CancelledError:  # pragma: no cover - cancellation
         pass

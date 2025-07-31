@@ -13,13 +13,22 @@ async def test_resource_monitor_publish(monkeypatch):
     monkeypatch.setattr(rm.psutil, 'virtual_memory', lambda: types.SimpleNamespace(percent=42.0))
 
     received = []
-    unsub = event_bus.subscribe('system_metrics', lambda p: received.append(p))
+    unsub1 = event_bus.subscribe('system_metrics', lambda p: received.append(('local', p)))
+    unsub2 = event_bus.subscribe('remote_system_metrics', lambda p: received.append(('remote', p)))
 
     rm.start_monitor(0.01)
     await asyncio.sleep(0.03)
     rm.stop_monitor()
-    unsub()
+    unsub1()
+    unsub2()
 
     assert received
-    assert received[0].cpu == 5.0
-    assert received[0].memory == 42.0
+    kinds = {k for k, _ in received}
+    assert {'local', 'remote'} <= kinds
+    for kind, payload in received:
+        if kind == 'local':
+            assert payload.cpu == 5.0
+            assert payload.memory == 42.0
+        else:
+            assert payload['cpu'] == 5.0
+            assert payload['memory'] == 42.0

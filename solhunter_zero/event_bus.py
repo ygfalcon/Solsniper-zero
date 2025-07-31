@@ -534,7 +534,16 @@ async def connect_ws(url: str):
     if not websockets:
         raise RuntimeError("websockets library required")
 
-    ws = await websockets.connect(url, compression=_WS_COMPRESSION)
+    if _WS_COMPRESSION is None:
+        ws = await websockets.connect(url)
+    else:
+        ws = await websockets.connect(url, compression=_WS_COMPRESSION)
+    try:
+        from . import resource_monitor
+
+        resource_monitor.start_monitor()
+    except Exception:  # pragma: no cover - optional psutil failure
+        pass
     _peer_clients[url] = ws
     _peer_urls.add(url)
     asyncio.create_task(_receiver(ws))
@@ -558,6 +567,12 @@ async def disconnect_ws() -> None:
     for t in _watch_tasks.values():
         t.cancel()
     _watch_tasks.clear()
+    try:
+        from . import resource_monitor
+
+        resource_monitor.stop_monitor()
+    except Exception:
+        pass
 
 
 async def reconnect_ws(url: str | None = None) -> None:
@@ -578,7 +593,16 @@ async def reconnect_ws(url: str | None = None) -> None:
                         await ws.close()
                     except Exception:
                         pass
-                ws = await websockets.connect(u, compression=_WS_COMPRESSION)
+                if _WS_COMPRESSION is None:
+                    ws = await websockets.connect(u)
+                else:
+                    ws = await websockets.connect(u, compression=_WS_COMPRESSION)
+                try:
+                    from . import resource_monitor
+
+                    resource_monitor.start_monitor()
+                except Exception:  # pragma: no cover - optional psutil failure
+                    pass
                 _peer_clients[u] = ws
                 asyncio.create_task(_receiver(ws))
                 task = _watch_tasks.get(u)
