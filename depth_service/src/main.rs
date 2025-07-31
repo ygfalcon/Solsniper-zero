@@ -114,6 +114,10 @@ type DexMap = Arc<Mutex<HashMap<String, HashMap<String, TokenInfo>>>>;
 type MempoolMap = Arc<Mutex<HashMap<String, f64>>>;
 
 type SharedMmap = Arc<Mutex<MmapMut>>;
+/// Mapping from token -> (offset, length) within the mmap data section
+type OffsetMap = Arc<Mutex<HashMap<String, (usize, usize)>>>;
+/// Next write offset within the mmap data section
+type NextOffset = Arc<Mutex<usize>>;
 
 type WsSender = broadcast::Sender<String>;
 type WsBinSender = broadcast::Sender<Vec<u8>>;
@@ -307,6 +311,8 @@ async fn update_mmap(
     mem: &MempoolMap,
     agg: &AggMap,
     mmap: &SharedMmap,
+    offsets: &OffsetMap,
+    next_off: &NextOffset,
     _ws: &WsSender,
     ws_bin: &WsBinSender,
     bus: Option<&mpsc::UnboundedSender<Vec<u8>>>,
@@ -353,38 +359,91 @@ async fn update_mmap(
         changed || last.len() != current_len
     };
 
-    // Serialize snapshot as a token-indexed binary structure for fast lookups
-    // Format: "IDX1" | u32 count | [u16 token_len | token_bytes | u32 offset | u32 len]* | data...
+    // Serialize only the updated token and write it to the mmap using cached offsets
+    let json = serde_json::to_vec(&entry)?;
+    let mut offsets_lock = offsets.lock().await;
+    let mut next_lock = next_off.lock().await;
+    let mut header_changed = false;
+    let (offset, old_len) = match offsets_lock.get_mut(token) {
+        Some((off, len)) => {
+            let o = *off;
+            if json.len() > *len {
+                *off = *next_lock;
+                *len = json.len();
+                *next_lock += json.len();
+                header_changed = true;
+                (o, *len)
+            } else {
+                *len = (*len).max(json.len());
+                (o, *len)
+            }
+        }
+        None => {
+            let off = *next_lock;
+            offsets_lock.insert(token.to_string(), (off, json.len()));
+            *next_lock += json.len();
+            header_changed = true;
+            (off, json.len())
+        }
+    };
+    if *next_lock > mmap.lock().await.len() {
+        *next_lock = 0;
+    }
     let header_size: usize = 8
-        + snapshot
+        + offsets_lock
             .iter()
             .map(|(t, _)| 2 + t.as_bytes().len() + 8)
             .sum::<usize>();
-    let mut header = Vec::with_capacity(header_size);
-    header.extend_from_slice(b"IDX1");
-    header.extend_from_slice(&(snapshot.len() as u32).to_le_bytes());
-    let mut data = Vec::new();
-    for (token, entry) in snapshot.iter() {
-        let json = serde_json::to_vec(entry)?;
-        header.extend_from_slice(&(token.len() as u16).to_le_bytes());
-        header.extend_from_slice(token.as_bytes());
-        header.extend_from_slice(&((header_size + data.len()) as u32).to_le_bytes());
-        header.extend_from_slice(&(json.len() as u32).to_le_bytes());
-        data.extend_from_slice(&json);
+    let mut mmap_lock = mmap.lock().await;
+    if header_changed {
+        let mut header = Vec::with_capacity(header_size);
+        header.extend_from_slice(b"IDX1");
+        header.extend_from_slice(&(offsets_lock.len() as u32).to_le_bytes());
+        for (tok, (off, len)) in offsets_lock.iter() {
+            header.extend_from_slice(&(tok.len() as u16).to_le_bytes());
+            header.extend_from_slice(tok.as_bytes());
+            header.extend_from_slice(&((header_size + *off) as u32).to_le_bytes());
+            header.extend_from_slice(&(*len as u32).to_le_bytes());
+        }
+        let write_len = header.len().min(mmap_lock.len());
+        mmap_lock[..write_len].copy_from_slice(&header[..write_len]);
     }
-    let mut buf = header;
-    buf.extend_from_slice(&data);
-    let mut mmap = mmap.lock().await;
-    if buf.len() > mmap.len() {
-        buf.truncate(mmap.len());
+    let data_off = header_size + offset;
+    if data_off + json.len() <= mmap_lock.len() {
+        mmap_lock[data_off..data_off + json.len()].copy_from_slice(&json);
+        for i in data_off + json.len()..data_off + old_len {
+            if i < mmap_lock.len() {
+                mmap_lock[i] = 0;
+            }
+        }
     }
-    mmap[..buf.len()].copy_from_slice(&buf);
-    for i in buf.len()..mmap.len() {
-        mmap[i] = 0;
-    }
-    mmap.flush()?;
+    mmap_lock.flush()?;
 
-    let binary = buf.clone();
+    let binary = if send_needed || header_changed {
+        // rebuild full snapshot for websocket clients
+        let header_size: usize = 8
+            + snapshot
+                .iter()
+                .map(|(t, _)| 2 + t.as_bytes().len() + 8)
+                .sum::<usize>();
+        let mut header = Vec::with_capacity(header_size);
+        header.extend_from_slice(b"IDX1");
+        header.extend_from_slice(&(snapshot.len() as u32).to_le_bytes());
+        let mut data = Vec::new();
+        for (token, entry) in snapshot.iter() {
+            let json = serde_json::to_vec(entry)?;
+            header.extend_from_slice(&(token.len() as u16).to_le_bytes());
+            header.extend_from_slice(token.as_bytes());
+            header.extend_from_slice(&((header_size + data.len()) as u32).to_le_bytes());
+            header.extend_from_slice(&(json.len() as u32).to_le_bytes());
+            data.extend_from_slice(&json);
+        }
+        let mut buf = header;
+        buf.extend_from_slice(&data);
+        buf
+    } else {
+        Vec::new()
+    };
 
     if !send_needed && now.duration_since(*last_sent.lock().await) < min_interval {
         return Ok(());
@@ -447,6 +506,8 @@ async fn connect_feed(
     mem: MempoolMap,
     agg: AggMap,
     mmap: SharedMmap,
+    offsets: OffsetMap,
+    next_off: NextOffset,
     ws: WsSender,
     ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
@@ -488,6 +549,8 @@ async fn connect_feed(
                     &mem,
                     &agg,
                     &mmap,
+                    &offsets,
+                    &next_off,
                     &ws,
                     &ws_bin,
                     bus.as_ref(),
@@ -513,6 +576,8 @@ async fn connect_price_feed(
     mem: MempoolMap,
     agg: AggMap,
     mmap: SharedMmap,
+    offsets: OffsetMap,
+    next_off: NextOffset,
     ws: WsSender,
     ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
@@ -551,6 +616,8 @@ async fn connect_price_feed(
                     &mem,
                     &agg,
                     &mmap,
+                    &offsets,
+                    &next_off,
                     &ws,
                     &ws_bin,
                     bus.as_ref(),
@@ -575,6 +642,8 @@ async fn connect_mempool(
     dex_map: DexMap,
     agg: AggMap,
     mmap: SharedMmap,
+    offsets: OffsetMap,
+    next_off: NextOffset,
     ws: WsSender,
     ws_bin: WsBinSender,
     bus: Option<mpsc::UnboundedSender<Vec<u8>>>,
@@ -605,6 +674,8 @@ async fn connect_mempool(
                     &mem,
                     &agg,
                     &mmap,
+                    &offsets,
+                    &next_off,
                     &ws,
                     &ws_bin,
                     bus.as_ref(),
@@ -984,6 +1055,8 @@ async fn main() -> Result<()> {
     file.set_len(65536)?;
     let mmap = unsafe { MmapOptions::new().map_mut(&file)? };
     let mmap = Arc::new(Mutex::new(mmap));
+    let offsets: OffsetMap = Arc::new(Mutex::new(HashMap::new()));
+    let next_off: NextOffset = Arc::new(Mutex::new(0usize));
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let agg_map: AggMap = Arc::new(Mutex::new(HashMap::new()));
@@ -1117,6 +1190,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1130,6 +1205,8 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
@@ -1152,6 +1229,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1165,6 +1244,8 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
@@ -1187,6 +1268,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1200,6 +1283,8 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
@@ -1222,6 +1307,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1235,6 +1322,8 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
@@ -1257,6 +1346,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1270,6 +1361,8 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
@@ -1292,6 +1385,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1305,6 +1400,8 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
@@ -1327,6 +1424,8 @@ async fn main() -> Result<()> {
         let tx = ws_tx.clone();
         let bin_tx = ws_bin_tx.clone();
         let bus = bus_tx.clone();
+        let off = offsets.clone();
+        let next = next_off.clone();
         let latest = latest.clone();
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
@@ -1339,6 +1438,8 @@ async fn main() -> Result<()> {
                 d,
                 a,
                 mm,
+                off,
+                next,
                 tx,
                 bin_tx,
                 bus,
