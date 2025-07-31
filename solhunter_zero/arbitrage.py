@@ -159,6 +159,11 @@ MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {
     "no",
 }
 
+# Interval in seconds between latency refreshes
+DEX_LATENCY_REFRESH_INTERVAL = float(
+    os.getenv("DEX_LATENCY_REFRESH_INTERVAL", "60") or 60
+)
+
 # Interval in seconds between dynamic concurrency adjustments
 _DYN_INTERVAL: float = 2.0
 
@@ -306,6 +311,40 @@ if MEASURE_DEX_LATENCY:
     except Exception as exc:  # pragma: no cover - measurement failures
         logger.debug("DEX latency measurement failed: %s", exc)
 
+_LATENCY_TASK: asyncio.Task | None = None
+
+
+async def _latency_loop(interval: float) -> None:
+    """Background latency measurement loop."""
+    try:
+        while True:
+            res = await measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
+            if res:
+                DEX_LATENCY.update(res)
+                publish("dex_latency_update", res)
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:  # pragma: no cover - cancellation
+        pass
+
+
+def start_latency_refresh(
+    interval: float = DEX_LATENCY_REFRESH_INTERVAL,
+) -> asyncio.Task:
+    """Start periodic DEX latency refresh task."""
+    global _LATENCY_TASK
+    if _LATENCY_TASK is None or _LATENCY_TASK.done():
+        loop = asyncio.get_running_loop()
+        _LATENCY_TASK = loop.create_task(_latency_loop(interval))
+    return _LATENCY_TASK
+
+
+def stop_latency_refresh() -> None:
+    """Cancel the running latency refresh task, if any."""
+    global _LATENCY_TASK
+    if _LATENCY_TASK is not None:
+        _LATENCY_TASK.cancel()
+        _LATENCY_TASK = None
+
 # Flash loan configuration
 USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
 MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
@@ -321,7 +360,7 @@ GNN_MODEL_PATH = os.getenv("GNN_MODEL_PATH", "route_gnn.pt")
 ROUTE_GENERATOR_PATH = os.getenv("ROUTE_GENERATOR_PATH", "route_generator.pt")
 
 from solhunter_zero.lru import LRUCache, TTLCache
-from .event_bus import subscribe
+from .event_bus import subscribe, publish
 from .prices import get_cached_price, update_price_cache
 
 ROUTE_CACHE = LRUCache(maxsize=128)
@@ -1808,3 +1847,10 @@ async def detect_and_execute_arbitrage(
         path_algorithm=path_algorithm,
         **kwargs,
     )
+
+try:  # pragma: no cover - best effort
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    loop = None
+if MEASURE_DEX_LATENCY and loop:
+    loop.call_soon(start_latency_refresh)

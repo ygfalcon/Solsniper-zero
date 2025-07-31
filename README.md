@@ -500,7 +500,9 @@ The trading logic is implemented by a swarm of small agents:
     `dex_gas` and `dex_latency`.  These latency values are
     measured concurrently at startup by pinging each API and
     websocket endpoint.  Set `MEASURE_DEX_LATENCY=0` to skip
-    this automatic measurement. When the optional `route_ffi`
+    this automatic measurement. Ongoing refreshes are controlled by
+    `dex_latency_refresh_interval`.
+    When the optional `route_ffi`
     library is available the agent uses it automatically for
     path computations. Set `USE_FFI_ROUTE=0` to disable this
     behavior.
