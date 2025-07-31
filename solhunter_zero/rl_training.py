@@ -9,6 +9,18 @@ from typing import Any, Iterable, List, Tuple
 import time
 import psutil
 
+try:
+    from numba import njit  # type: ignore
+    _NUMBA = True
+except Exception:  # pragma: no cover - optional
+    _NUMBA = False
+
+    def njit(*a, **k):  # type: ignore
+        def wrapper(fn):
+            return fn
+
+        return wrapper
+
 import numpy as np
 import torch
 from torch import nn
@@ -38,7 +50,6 @@ except Exception:  # pragma: no cover - optional dependency
 from .offline_data import OfflineData
 from .simulation import predict_price_movement
 from .news import fetch_sentiment
-from .regime import detect_regime
 from .event_bus import publish, subscription
 
 
@@ -116,6 +127,31 @@ def _ensure_mmap_dataset(db_url: str, out_path: Path) -> None:
         )
 
 
+@njit(cache=True)
+def _compute_regimes_nb(prices: np.ndarray, inv: np.ndarray, first_price: np.ndarray, weight: float, thr: float) -> np.ndarray:
+    n = prices.shape[0]
+    out = np.zeros(n, dtype=np.float32)
+    for i in range(n):
+        base = first_price[inv[i]]
+        change = prices[i] / base - 1.0
+        if change > thr:
+            out[i] = weight
+        elif change < -thr:
+            out[i] = -weight
+    return out
+
+
+def _compute_regimes(tokens: np.ndarray, prices: np.ndarray, weight: float, thr: float = 0.02) -> np.ndarray:
+    uniq, first_idx, inv = np.unique(tokens, return_index=True, return_inverse=True)
+    first_price = prices[first_idx]
+    if _NUMBA:
+        return _compute_regimes_nb(prices.astype(np.float32), inv.astype(np.int64), first_price.astype(np.float32), weight, thr)
+    base = first_price[inv]
+    change = prices / base - 1.0
+    res = np.where(change > thr, 1.0, np.where(change < -thr, -1.0, 0.0))
+    return res.astype(np.float32) * weight
+
+
 class _TradeDataset(Dataset):
     """Combine offline trades with simulated experiences."""
 
@@ -146,26 +182,29 @@ class _TradeDataset(Dataset):
         sides = [getattr(t, "side", getattr(t, "direction", "buy")) for t in trade_list]
         actions = np.array([0 if s == "buy" else 1 for s in sides], dtype=np.int64)
 
-        snap_map: dict[str, List[Any]] = {}
-        for s in snaps:
-            snap_map.setdefault(s.token, []).append(s)
+        snap_tokens = np.array([s.token for s in snaps], dtype=object)
+        snap_ts = np.array([s.timestamp.timestamp() for s in snaps], dtype=np.float64)
+        snap_depth = np.array(
+            [float(getattr(s, "depth", 0.0)) for s in snaps], dtype=np.float32
+        )
+        snap_slip = np.array(
+            [float(getattr(s, "slippage", 0.0)) for s in snaps], dtype=np.float32
+        )
+        snap_imb = np.array(
+            [float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=np.float32
+        )
+        snap_tx = np.array(
+            [float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=np.float32
+        )
 
-        snap_data: dict[str, dict[str, np.ndarray]] = {}
-        for token, seq in snap_map.items():
-            seq.sort(key=lambda x: x.timestamp)
-            snap_data[token] = {
-                "ts": np.array([s.timestamp.timestamp() for s in seq], dtype=np.float64),
-                "depth": np.array([float(getattr(s, "depth", 0.0)) for s in seq], dtype=np.float32),
-                "slippage": np.array(
-                    [float(getattr(s, "slippage", 0.0)) for s in seq], dtype=np.float32
-                ),
-                "imbalance": np.array(
-                    [float(getattr(s, "imbalance", 0.0)) for s in seq], dtype=np.float32
-                ),
-                "tx_rate": np.array(
-                    [float(getattr(s, "tx_rate", 0.0)) for s in seq], dtype=np.float32
-                ),
-            }
+        if snap_ts.size:
+            order = np.lexsort((snap_ts, snap_tokens))
+            snap_tokens = snap_tokens[order]
+            snap_ts = snap_ts[order]
+            snap_depth = snap_depth[order]
+            snap_slip = snap_slip[order]
+            snap_imb = snap_imb[order]
+            snap_tx = snap_tx[order]
 
         feeds = [u for u in os.getenv("NEWS_FEEDS", "").split(",") if u]
         twitter = [u for u in os.getenv("TWITTER_FEEDS", "").split(",") if u]
@@ -187,77 +226,40 @@ class _TradeDataset(Dataset):
         tx_rate = np.zeros(n, dtype=np.float32)
 
         # Vectorized lookup of snapshot features for each trade
-        if snap_data:
-            uniq_tokens = np.unique(tokens)
+        if snap_ts.size:
+            uniq_snap_tokens, snap_inverse = np.unique(snap_tokens, return_inverse=True)
+            trade_tok_idx = np.searchsorted(uniq_snap_tokens, tokens)
+            valid = (trade_tok_idx < len(uniq_snap_tokens)) & (
+                uniq_snap_tokens[trade_tok_idx] == tokens
+            )
 
-            snap_tokens = []
-            snap_ts = []
-            snap_depth = []
-            snap_slip = []
-            snap_imb = []
-            snap_tx = []
-            for tok in uniq_tokens:
-                data = snap_data.get(tok)
-                if data is None:
-                    # token may have no snapshot data
-                    continue
-                m = np.full_like(data["ts"], fill_value=tok, dtype=object)
-                snap_tokens.append(m)
-                snap_ts.append(data["ts"])
-                snap_depth.append(data["depth"])
-                snap_slip.append(data["slippage"])
-                snap_imb.append(data["imbalance"])
-                snap_tx.append(data["tx_rate"])
+            shift = snap_ts.max() + 1.0
+            encoded_snaps = snap_inverse * shift + snap_ts
+            order = np.argsort(encoded_snaps)
+            encoded_snaps = encoded_snaps[order]
+            snap_depth = snap_depth[order]
+            snap_slip = snap_slip[order]
+            snap_imb = snap_imb[order]
+            snap_tx = snap_tx[order]
 
-            if snap_ts:
-                snap_tokens = np.concatenate(snap_tokens)
-                snap_ts = np.concatenate(snap_ts)
-                snap_depth = np.concatenate(snap_depth)
-                snap_slip = np.concatenate(snap_slip)
-                snap_imb = np.concatenate(snap_imb)
-                snap_tx = np.concatenate(snap_tx)
+            encoded_trades = trade_tok_idx * shift + timestamps
+            idx = np.searchsorted(encoded_snaps, encoded_trades, side="right") - 1
+            idx[idx < 0] = 0
+            depth[valid] = snap_depth[idx[valid]]
+            slippage[valid] = snap_slip[idx[valid]]
+            imbalance[valid] = snap_imb[idx[valid]]
+            tx_rate[valid] = snap_tx[idx[valid]]
 
-                token_map = {t: i for i, t in enumerate(np.unique(snap_tokens))}
-                snap_tok_idx = np.array([token_map[t] for t in snap_tokens])
-                trade_tok_idx = np.array([token_map.get(t, -1) for t in tokens])
-
-                shift = np.max(snap_ts) + 1.0
-                encoded_snaps = snap_tok_idx * shift + snap_ts
-                order = np.argsort(encoded_snaps)
-                encoded_snaps = encoded_snaps[order]
-                snap_depth = snap_depth[order]
-                snap_slip = snap_slip[order]
-                snap_imb = snap_imb[order]
-                snap_tx = snap_tx[order]
-
-                encoded_trades = trade_tok_idx * shift + timestamps
-                idx = np.searchsorted(encoded_snaps, encoded_trades, side="right") - 1
-                idx[idx < 0] = 0
-                valid = trade_tok_idx >= 0
-                depth[valid] = snap_depth[idx[valid]]
-                slippage[valid] = snap_slip[idx[valid]]
-                imbalance[valid] = snap_imb[idx[valid]]
-                tx_rate[valid] = snap_tx[idx[valid]]
-
-        unique_tokens = np.unique(tokens)
-        pred_cache: dict[str, float] = {}
-        for tok in unique_tokens:
+        uniq_tokens, inverse = np.unique(tokens, return_inverse=True)
+        pred_vals = np.zeros(len(uniq_tokens), dtype=np.float32)
+        for i, tok in enumerate(uniq_tokens):
             try:
-                pred_cache[tok] = predict_price_movement(tok, model_path=price_model_path)
+                pred_vals[i] = predict_price_movement(tok, model_path=price_model_path)
             except Exception:
-                pred_cache[tok] = 0.0
-        preds = np.array([pred_cache.get(tok, 0.0) for tok in tokens], dtype=np.float32)
+                pred_vals[i] = 0.0
+        preds = pred_vals[inverse]
 
-        price_hist: dict[str, List[float]] = {}
-        regimes = np.zeros(n, dtype=np.float32)
-        for i, (tok, p) in enumerate(zip(tokens, prices)):
-            hist = price_hist.setdefault(tok, [])
-            regime = detect_regime(hist)
-            regimes[i] = {
-                "bull": 1.0,
-                "bear": -1.0,
-            }.get(regime, 0.0) * self.regime_weight
-            hist.append(float(p))
+        regimes = _compute_regimes(tokens, prices, self.regime_weight)
 
         rewards = prices * amounts
         rewards[actions == 0] *= -1
