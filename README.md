@@ -56,14 +56,15 @@ up automatically. Select this file from the UI or set
    Silicon machines the script also installs the Metal PyTorch wheel if
    it isn't already present.
 
-   The `uvloop` dependency is optional but recommended for reduced event
-   loop latency on Unix-like systems. If available, it is enabled by calling
-   `solhunter_zero.util.install_uvloop()` at startup.
+  The `uvloop` dependency is optional but recommended for reduced event
+  loop latency on Unix-like systems. When installed it lowers asyncio
+  overhead by roughly 20% and is enabled automatically at startup via
+  `solhunter_zero.util.install_uvloop()`.
 
-   The optional `fastjson` group installs [orjson](https://pypi.org/project/orjson/)
-   for faster JSON serialization and parsing. When installed, all HTTP helpers
-   and the event bus return JSON as bytes via `orjson`, improving throughput by
-   roughly 25%:
+  The optional `fastjson` group installs [orjson](https://pypi.org/project/orjson/)
+  for faster JSON serialization and parsing. When installed, all HTTP helpers
+  and the event bus return JSON as bytes via `orjson`, improving throughput by
+  roughly 25%:
 
   ```bash
   pip install .[fastjson]
@@ -187,13 +188,10 @@ Install the Rust toolchain if `cargo` isn't available:
     `nats://localhost:4222`.
   - `EVENT_BUS_COMPRESSION` – websocket compression algorithm (defaults to
     `deflate`). Set to `none` to disable compression.
-  - `COMPRESS_EVENTS` – enable protobuf event compression when `1` (default
-    if the `zstandard` package is available). Set to `0` to disable.
-  - `EVENT_COMPRESSION` – compression algorithm for protobuf events. Choose
-    `zstd`, `lz4`, `zlib` or `none`. When unset and `COMPRESS_EVENTS` is
-    enabled, zstd is used if the `zstandard` package is installed, otherwise
-    zlib is used. Set `EVENT_COMPRESSION=zlib` or `USE_ZLIB_EVENTS=1` to
-    force zlib compression.
+  - `COMPRESS_EVENTS` – enable protobuf event compression when `1` (default).
+  - `EVENT_COMPRESSION` – compression algorithm for protobuf events. Defaults
+    to `zstd` when available, falling back to `zlib`. Set `EVENT_COMPRESSION`
+    to `lz4`, `zlib` or `none` to override.
   - `EVENT_COMPRESSION_THRESHOLD` – skip compression for events smaller than
     this size in bytes (defaults to `512`).
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
@@ -422,8 +420,8 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
    A typical `depth_update` event (~2.2&nbsp;KB) becomes ~1.8&nbsp;KB with zlib
    (~0.27&nbsp;ms), ~1.9&nbsp;KB with lz4 (~0.004&nbsp;ms) and ~1.7&nbsp;KB with
-   zstd (~0.012&nbsp;ms). When the `zstandard` package is installed,
-   `COMPRESS_EVENTS=1` selects zstd by default. Set `COMPRESS_EVENTS=0` to
+   zstd (~0.012&nbsp;ms). With the optional `zstandard` package installed,
+   `COMPRESS_EVENTS=1` and `EVENT_COMPRESSION=zstd` are used automatically. Set `COMPRESS_EVENTS=0` to
    disable compression or `USE_ZLIB_EVENTS=1` if older nodes expect zlib
    compressed messages.
    Install the optional compression libraries with:

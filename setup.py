@@ -3,6 +3,27 @@ from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.build_ext import build_ext as _build_ext
 import subprocess
+import pkgutil
+import sys
+
+
+def _ensure_optional(package: str) -> None:
+    """Prompt to install *package* if missing."""
+    if pkgutil.find_loader(package) is not None:
+        return
+    prompt = f"Optional dependency '{package}' not found. Install it now? [Y/n] "
+    if sys.stdin.isatty():
+        ans = input(prompt).strip().lower()
+        if ans not in ("", "y", "yes"):
+            return
+    else:
+        print(f"Installing missing optional dependency: {package}")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# ensure optional acceleration libraries are present
+for _pkg in ("uvloop", "orjson", "zstandard"):
+    _ensure_optional(_pkg)
+
 
 def build_route_ffi(root: Path, out_dir: Path):
     """Compile the Rust FFI library and copy it to *out_dir* when missing."""
