@@ -111,6 +111,7 @@ ENV_VARS = {
     "offline_data_interval": "OFFLINE_DATA_INTERVAL",
     "gpu_memory_index": "GPU_MEMORY_INDEX",
     "use_gpu_sim": "USE_GPU_SIM",
+    "rl_build_mmap_dataset": "RL_BUILD_MMAP_DATASET",
 }
 
 

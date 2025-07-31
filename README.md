@@ -928,8 +928,10 @@ python scripts/build_mmap_dataset.py --db offline_data.db --out datasets/offline
 
 When present, `TradeDataModule` loads this archive instead of querying SQLite.
 If it is missing it will be created automatically when `RLTraining` or
-`RLDaemon` starts.  On a small dataset this lowered preparation time from around
-3&nbsp;s to roughly 0.2&nbsp;s thanks to ``numpy.fromiter`` and memory mapping.
+`RLDaemon` starts. Set `rl_build_mmap_dataset = false` or export
+`RL_BUILD_MMAP_DATASET=0` to disable this behaviour. On a small dataset this
+lowered preparation time from around 3&nbsp;s to roughly 0.2&nbsp;s thanks to
+``numpy.fromiter`` and memory mapping.
 A simple arithmetic dataset located at `solhunter_zero/data/artifact_math.json` powers the
 `ArtifactMathAgent` and can be loaded with `load_artifact_math`.
 An alien cipher dataset at `solhunter_zero/data/alien_cipher.json` powers the

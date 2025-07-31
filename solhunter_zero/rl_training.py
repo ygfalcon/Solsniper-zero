@@ -121,6 +121,9 @@ def _ensure_mmap_dataset(db_url: str, out_path: Path) -> None:
     """Create ``out_path`` using ``build_mmap_dataset`` if it doesn't exist."""
     if out_path.exists():
         return
+    env = os.getenv("RL_BUILD_MMAP_DATASET", "1").lower()
+    if env in {"0", "false", "no"}:
+        return
     try:
         from scripts import build_mmap_dataset
     except Exception:  # pragma: no cover - missing script
@@ -507,6 +510,13 @@ class TradeDataModule(pl.LightningDataModule):
             loader.persistent_workers = self.persistent_workers and new_val > 0
 
     async def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
+        if self.mmap_path is None:
+            default = Path("datasets/offline_data.npz")
+            if not default.exists():
+                _ensure_mmap_dataset(self.db_url, default)
+            if default.exists():
+                self.mmap_path = str(default)
+
         if self.mmap_path and Path(self.mmap_path).exists():
             mem = np.load(self.mmap_path, mmap_mode="r")
             snaps_arr = mem["snapshots"]
