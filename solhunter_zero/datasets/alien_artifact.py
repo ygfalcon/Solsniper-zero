@@ -2,17 +2,17 @@
 from __future__ import annotations
 
 import json
-import os
+from importlib import resources
 from typing import List, Dict, Any
 
-# Path to the dataset JSON file relative to this module
-_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "alien_artifact_patterns.json")
+# Path to the dataset JSON file packaged with the library
+_DATA_FILE = resources.files("solhunter_zero.data").joinpath("alien_artifact_patterns.json")
 
 _patterns: List[Dict[str, Any]] | None = None
 
 
 def _load_dataset() -> List[Dict[str, Any]]:
-    with open(_DATA_PATH, "r", encoding="utf-8") as fh:
+    with _DATA_FILE.open("r", encoding="utf-8") as fh:
         return json.load(fh)
 
 

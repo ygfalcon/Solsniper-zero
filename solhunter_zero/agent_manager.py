@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from importlib import resources
 import random
 from typing import Iterable, Dict, Any, List
 
@@ -560,11 +561,9 @@ class AgentManager:
             mutation.save_state(self.mutation_state, str(path))
 
     def _load_price_history(self) -> List[float]:
-        path = os.path.join(
-            os.path.dirname(__file__), "..", "datasets", "sample_ticks.json"
-        )
+        path = resources.files("solhunter_zero.data").joinpath("sample_ticks.json")
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with path.open("r", encoding="utf-8") as fh:
                 data = json.load(fh)
             if data and isinstance(data[0], dict):
                 return [float(d.get("price", 0.0)) for d in data]

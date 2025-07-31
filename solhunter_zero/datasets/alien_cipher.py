@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import json
-import os
+from importlib import resources
 from typing import Any, Dict
 
-# Default dataset path relative to the repository root
-_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "alien_cipher.json")
+# Default dataset path packaged with the library
+_DEFAULT_PATH = resources.files("solhunter_zero.data").joinpath("alien_cipher.json")
 
 # Module level cache so we do not repeatedly load the same file
 _cache_path: str | None = None
@@ -24,8 +24,12 @@ def load_alien_cipher(path: str = _DEFAULT_PATH) -> Dict[str, Any]:
         return _cache_data
 
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
+        if hasattr(path, "open"):
+            with path.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        else:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
     except Exception:
         _cache_path = path
         _cache_data = {}
