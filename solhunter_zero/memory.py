@@ -1,5 +1,8 @@
 from __future__ import annotations
 import datetime
+import os
+import asyncio
+from contextlib import suppress
 from sqlalchemy import (
     Column,
     Integer,
@@ -50,7 +53,11 @@ class Memory(BaseMemory):
             url = url.replace('sqlite://', 'sqlite+aiosqlite://', 1)
         self.engine = create_async_engine(url, echo=False, future=True)
         self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
-        import asyncio
+        self._queue: asyncio.Queue[dict] | None = None
+        self._writer_task: asyncio.Task | None = None
+        self._batch_size = 100
+        self._interval = 1.0
+
         async def _init_models():
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -60,11 +67,73 @@ class Memory(BaseMemory):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         if loop.is_running():
-            loop.create_task(_init_models())
+            self._init_task = loop.create_task(_init_models())
         else:
             loop.run_until_complete(_init_models())
+            self._init_task = loop.create_future()
+            self._init_task.set_result(None)
+
+    def start_writer(self, batch_size: int = 100, interval: float = 1.0) -> None:
+        """Start background writer flushing queued trades."""
+        env_batch = os.getenv("MEMORY_BATCH_SIZE")
+        env_interval = os.getenv("MEMORY_FLUSH_INTERVAL")
+        if env_batch is not None:
+            batch_size = int(env_batch)
+        if env_interval is not None:
+            interval = float(env_interval)
+        self._batch_size = batch_size
+        self._interval = interval
+        self._queue = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+        self._writer_task = loop.create_task(self._writer())
+
+    async def _writer(self) -> None:
+        assert self._queue is not None
+        pending: list[dict] = []
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(
+                        self._queue.get(), timeout=self._interval
+                    )
+                    pending.append(item)
+                    self._queue.task_done()
+                    if len(pending) >= self._batch_size:
+                        await self._flush(pending)
+                        pending.clear()
+                except asyncio.TimeoutError:
+                    if pending:
+                        await self._flush(pending)
+                        pending.clear()
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if pending:
+                await self._flush(pending)
+                pending.clear()
+            while self._queue and not self._queue.empty():
+                pending.append(self._queue.get_nowait())
+                self._queue.task_done()
+            if pending:
+                await self._flush(pending)
+
+    async def _flush(self, items: list[dict]) -> None:
+        async with self.Session() as session:
+            trades = [Trade(**d) for d in items]
+            if trades:
+                await session.run_sync(lambda s: s.bulk_save_objects(trades))
+            await session.commit()
 
     async def log_trade(self, *, _broadcast: bool = True, **kwargs) -> int | None:
+        await self._init_task
+        if self._queue is not None:
+            await self._queue.put(kwargs)
+            if _broadcast:
+                try:
+                    publish("trade_logged", TradeLogged(**kwargs))
+                except Exception:
+                    pass
+            return None
         async with self.Session() as session:
             trade = Trade(**kwargs)
             session.add(trade)
@@ -76,6 +145,7 @@ class Memory(BaseMemory):
                 pass
         return trade.id
     async def _log_var_async(self, value: float) -> None:
+        await self._init_task
         async with self.Session() as session:
             rec = VaRLog(value=value)
             session.add(rec)
@@ -95,6 +165,7 @@ class Memory(BaseMemory):
         since_id: int | None = None,
     ) -> list[Trade]:
         """Return trades optionally filtered by ``token`` or ``since_id``."""
+        await self._init_task
         async with self.Session() as session:
             q = select(Trade)
             if token is not None:
@@ -108,6 +179,7 @@ class Memory(BaseMemory):
             return list(result.scalars().all())
 
     async def _list_vars_async(self):
+        await self._init_task
         async with self.Session() as session:
             result = await session.execute(select(VaRLog))
             return list(result.scalars().all())
@@ -116,3 +188,16 @@ class Memory(BaseMemory):
         from .util import run_coro
 
         return run_coro(self._list_vars_async())
+
+    async def close(self) -> None:
+        """Flush pending trades and dispose of the engine."""
+        await self._init_task
+        if self._writer_task:
+            self._writer_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._writer_task
+            self._writer_task = None
+        if self._queue and not self._queue.empty():
+            await self._flush([self._queue.get_nowait() for _ in range(self._queue.qsize())])
+        await self.engine.dispose()
+
