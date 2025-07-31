@@ -345,6 +345,7 @@ profit calculation so routes are ranked based on the borrowed size.
     export TOKEN_METRICS_CACHE_TTL=60
     export SIM_MODEL_CACHE_TTL=600
     export TREND_CACHE_TTL=120
+    export LISTING_CACHE_TTL=120
     export DEX_METRICS_CACHE_TTL=45
     export TOKEN_VOLUME_CACHE_TTL=45
     export TOP_VOLUME_TOKENS_CACHE_TTL=90

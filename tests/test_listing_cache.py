@@ -10,16 +10,25 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
 
 from solhunter_zero import scanner_common, http
+import pytest
 
 
 def setup_function(_):
     http._session = None
-    scanner_common.TREND_CACHE = scanner_common.TTLCache(
-        maxsize=1, ttl=scanner_common.TREND_CACHE_TTL
+    scanner_common.LISTING_CACHE = scanner_common.TTLCache(
+        maxsize=3, ttl=scanner_common.LISTING_CACHE_TTL
     )
 
 
-def test_fetch_trending_tokens_cached(monkeypatch):
+@pytest.mark.parametrize(
+    "func_name",
+    [
+        "fetch_raydium_listings_async",
+        "fetch_orca_listings_async",
+        "fetch_phoenix_listings_async",
+    ],
+)
+def test_fetch_listings_cached(monkeypatch, func_name):
     calls = {}
 
     class FakeResp:
@@ -30,7 +39,7 @@ def test_fetch_trending_tokens_cached(monkeypatch):
             pass
 
         async def json(self):
-            return {"trending": [{"address": "tokbonk"}]}
+            return {"data": [{"address": "tokbonk"}]}
 
         def raise_for_status(self):
             pass
@@ -46,8 +55,10 @@ def test_fetch_trending_tokens_cached(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
-    result1 = asyncio.run(scanner_common.fetch_trending_tokens_async())
-    result2 = asyncio.run(scanner_common.fetch_trending_tokens_async())
+    fn = getattr(scanner_common, func_name)
+
+    result1 = asyncio.run(fn())
+    result2 = asyncio.run(fn())
 
     assert result1 == ["tokbonk"]
     assert result2 == ["tokbonk"]
