@@ -1,0 +1,4 @@
+{
+  "SOL": { "r": 3.8, "iterations": 20 },
+  "ETH": { "r": 3.7, "iterations": 15 }
+}
