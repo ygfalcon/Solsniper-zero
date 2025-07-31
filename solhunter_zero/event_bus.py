@@ -76,6 +76,8 @@ _PB_MAP = {
     "risk_updated": pb.RiskUpdated,
     "system_metrics_combined": pb.SystemMetricsCombined,
     "token_discovered": pb.TokenDiscovered,
+    "rl_gradient": pb.RLGradient,
+    "rl_parameter_update": pb.RLParameterUpdate,
 }
 
 # compress protobuf messages when broadcasting if enabled
@@ -270,6 +272,16 @@ def _encode_event(topic: str, payload: Any) -> Any:
             topic=topic,
             rl_weights=pb.RLWeights(weights=payload.weights, risk=payload.risk or {}),
         )
+    elif topic == "rl_gradient":
+        event = pb.Event(
+            topic=topic,
+            rl_gradient=pb.RLGradient(gradients=payload.gradients),
+        )
+    elif topic == "rl_parameter_update":
+        event = pb.Event(
+            topic=topic,
+            rl_parameter_update=pb.RLParameterUpdate(weights=payload.weights),
+        )
     elif topic == "rl_checkpoint":
         event = pb.Event(topic=topic, rl_checkpoint=pb.RLCheckpoint(time=payload.time, path=payload.path))
     elif topic == "portfolio_updated":
@@ -440,6 +452,10 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"weights": dict(msg.weights)}
     if field == "rl_weights":
         return {"weights": dict(msg.weights), "risk": dict(msg.risk)}
+    if field == "rl_gradient":
+        return {"gradients": dict(msg.gradients)}
+    if field == "rl_parameter_update":
+        return {"weights": dict(msg.weights)}
     if field == "rl_checkpoint":
         return {"time": msg.time, "path": msg.path}
     if field == "portfolio_updated":

@@ -72,6 +72,7 @@ ENV_VARS = {
     "jito_ws_url": "JITO_WS_URL",
     "jito_ws_auth": "JITO_WS_AUTH",
     "event_bus_url": "EVENT_BUS_URL",
+    "event_bus_peers": "EVENT_BUS_PEERS",
     "broker_url": "BROKER_URL",
     "compress_events": "COMPRESS_EVENTS",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",

@@ -379,6 +379,7 @@ class RLDaemon:
                 algos=[algo],
                 population_size=rl_population_size,
                 device=device,
+                distributed_rl=self.distributed_rl,
             )
             self.model = _PPO()
         else:
@@ -465,6 +466,35 @@ class RLDaemon:
         sub = start_metrics_exporter(metrics_url)
         self._subscriptions.append(types.SimpleNamespace(__exit__=lambda *a, **k: sub()))
 
+        if self.distributed_rl:
+            def _apply_grad(payload: Any) -> None:
+                grads = getattr(payload, "gradients", None) or payload.get("gradients", {})
+                params = dict(getattr(self.model, "named_parameters", lambda: [])())
+                for name, val in grads.items():
+                    param = params.get(name)
+                    if param is not None:
+                        try:
+                            param.data -= float(val) * 0.01
+                        except Exception:
+                            pass
+
+            def _apply_weights(payload: Any) -> None:
+                weights = getattr(payload, "weights", None) or payload.get("weights", {})
+                params = dict(getattr(self.model, "named_parameters", lambda: [])())
+                for name, val in weights.items():
+                    param = params.get(name)
+                    if param is not None:
+                        try:
+                            param.data.fill_(float(val))
+                        except Exception:
+                            pass
+
+            gsub = subscription("rl_gradient", _apply_grad)
+            wsub = subscription("rl_parameter_update", _apply_weights)
+            gsub.__enter__()
+            wsub.__enter__()
+            self._subscriptions.extend([gsub, wsub])
+
     def close(self) -> None:
         for sub in self._subscriptions:
             sub.__exit__(None, None, None)
@@ -538,6 +568,7 @@ class RLDaemon:
                 device=self.device.type,
                 dynamic_workers=self.dynamic_workers,
                 cpu_callback=self._cpu,
+                distributed_rl=self.distributed_rl,
             )
             try:
                 self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))

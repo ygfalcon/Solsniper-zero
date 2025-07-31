@@ -123,6 +123,7 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sa.String = sa.Integer = sa.Float = sa.Numeric = sa.Text = object
     sa.DateTime = object
     sa.LargeBinary = object
+    sa.select = lambda *a, **k: None
     sa.ForeignKey = lambda *a, **k: None
     sys.modules.setdefault("sqlalchemy", sa)
     orm = types.ModuleType("orm")
@@ -145,11 +146,39 @@ if importlib.util.find_spec("sqlalchemy") is None:
         def commit(self):
             pass
 
+        class _Q(list):
+            def filter(self, *a, **k):
+                return self
+            def order_by(self, *a, **k):
+                return self
         def query(self, *a, **k):
-            return []
+            return self._Q()
 
     orm.sessionmaker = lambda *a, **k: lambda **kw: DummySession()
     sys.modules.setdefault("sqlalchemy.orm", orm)
+    ext = types.ModuleType("ext")
+    asyncio_mod = types.ModuleType("asyncio")
+    class DummyConn:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *exc):
+            pass
+        async def run_sync(self, fn):
+            pass
+
+    class DummyEngine:
+        def begin(self):
+            return DummyConn()
+
+    def create_async_engine(*a, **k):
+        return DummyEngine()
+
+    asyncio_mod.create_async_engine = create_async_engine
+    asyncio_mod.async_sessionmaker = lambda *a, **k: lambda **kw: DummySession()
+    asyncio_mod.AsyncSession = DummySession
+    ext.asyncio = asyncio_mod
+    sys.modules.setdefault("sqlalchemy.ext", ext)
+    sys.modules.setdefault("sqlalchemy.ext.asyncio", asyncio_mod)
 if importlib.util.find_spec("solders") is None:
     s_mod = types.ModuleType("solders")
     s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
@@ -435,5 +464,46 @@ def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
     RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m.pt', distributed_rl=True)
 
     assert called.get('url') == 'redis://localhost'
+
+
+def test_daemons_exchange_updates(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    data_db = f"sqlite:///{data_path}"
+
+    monkeypatch.setattr(Memory, "log_trade", lambda self, **kw: None)
+    mem = Memory(mem_db)
+    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    monkeypatch.setattr(OfflineData, "log_snapshot", lambda *a, **k: None)
+    data = OfflineData(data_db)
+    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+
+    import solhunter_zero.rl_training as rl_training
+
+    def fake_fit(*a, **k):
+        from solhunter_zero.event_bus import publish
+        from solhunter_zero.event_pb2 import RLParameterUpdate
+        publish('rl_parameter_update', RLParameterUpdate(weights={'w': 2.0}))
+
+    monkeypatch.setattr(rl_training, 'fit', fake_fit)
+    from types import SimpleNamespace
+    dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
+    dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
+    monkeypatch.setattr(RLDaemon, '_fetch_new', lambda self: ([dummy_trade], [dummy_snap]))
+
+    d1 = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m1.pt', distributed_rl=True)
+    d2 = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m2.pt', distributed_rl=True)
+
+    class DummyParam:
+        def __init__(self):
+            self.value = 0.0
+            self.data = self
+        def fill_(self, v):
+            self.value = v
+
+    w = DummyParam()
+    d2.model.named_parameters = lambda: [('w', w)]
+    d1.train()
+    assert w.value == 2.0
 
 

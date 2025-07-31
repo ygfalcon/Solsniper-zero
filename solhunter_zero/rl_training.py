@@ -696,6 +696,30 @@ class _MetricsCallback(pl.callbacks.Callback):
         publish("rl_metrics", {"loss": loss_val, "reward": reward_val})
 
 
+class _DistributedCallback(pl.callbacks.Callback):
+    """Broadcast gradients and weights after each training batch."""
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        try:
+            grads = {
+                n: float(p.grad.mean().detach())
+                for n, p in pl_module.named_parameters()
+                if p.grad is not None
+            }
+            if grads:
+                publish("rl_gradient", {"gradients": grads})
+        except Exception:
+            pass
+        try:
+            weights = {
+                n: float(p.detach().mean())
+                for n, p in pl_module.named_parameters()
+            }
+            publish("rl_parameter_update", {"weights": weights})
+        except Exception:
+            pass
+
+
 class _DynamicWorkersCallback(pl.callbacks.Callback):
     """Callback adjusting ``DataLoader`` worker count before each epoch."""
 
@@ -734,6 +758,7 @@ class RLTraining:
         dynamic_workers: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
         worker_update_interval: float | None = None,
+        distributed_rl: bool | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         dyn_workers = dynamic_workers
@@ -763,6 +788,7 @@ class RLTraining:
         self._worker_last = 0.0
         self._worker_loaders: list[DataLoader] = []
         self._worker_sub = None
+        self.distributed_rl = bool(distributed_rl)
         if algo == "dqn":
             self.model: pl.LightningModule = LightningDQN()
         elif algo == "a3c":
@@ -788,7 +814,10 @@ class RLTraining:
         kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
         if acc != "cpu":
             kwargs["devices"] = 1
-        self.trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
+        callbacks = [_MetricsCallback()]
+        if self.distributed_rl:
+            callbacks.append(_DistributedCallback())
+        self.trainer = pl.Trainer(callbacks=callbacks, **kwargs)
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
         from .metrics_client import start_metrics_exporter
@@ -891,6 +920,7 @@ def fit(
     device: str | None = None,
     dynamic_workers: bool = False,
     cpu_callback: Callable[[], float] | None = None,
+    distributed_rl: bool = False,
 ) -> None:
     """Train a lightweight RL model from in-memory samples.
 
@@ -949,7 +979,10 @@ def fit(
     kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
     if acc != "cpu":
         kwargs["devices"] = 1
-    trainer = pl.Trainer(callbacks=[_MetricsCallback()], **kwargs)
+    callbacks = [_MetricsCallback()]
+    if distributed_rl:
+        callbacks.append(_DistributedCallback())
+    trainer = pl.Trainer(callbacks=callbacks, **kwargs)
     num_workers = _calc_num_workers(
         len(dataset),
         dynamic=dynamic_workers,
@@ -989,6 +1022,7 @@ class MultiAgentRL:
         model_base: str = "population_model.pt",
         device: str | None = None,
         regime_weight: float = 1.0,
+        distributed_rl: bool = False,
     ) -> None:
         self.db_url = db_url
         self.regime_weight = float(regime_weight)
@@ -1011,6 +1045,7 @@ class MultiAgentRL:
                     algo=algo,
                     device=device,
                     regime_weight=self.regime_weight,
+                    distributed_rl=distributed_rl,
                 )
             )
             self._algos_used.append(algo)
@@ -1058,6 +1093,7 @@ class MultiAgentRL:
                 algo=algo,
                 regime_weight=self.regime_weight,
                 device=self.device,
+                distributed_rl=trainer.distributed_rl if hasattr(trainer, 'distributed_rl') else False,
             )
             try:
                 trainer.model.load_state_dict(torch.load(trainer.model_path))

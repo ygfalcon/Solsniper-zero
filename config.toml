@@ -148,3 +148,4 @@ rl_population_size = 2
 rl_live = false
 # Enable FAISS GPU index for faster memory search
 gpu_memory_index = false
+event_bus_peers = ""

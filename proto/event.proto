@@ -15,6 +15,14 @@ message RLWeights {
   map<string, double> risk = 2;
 }
 
+message RLGradient {
+  map<string, double> gradients = 1;
+}
+
+message RLParameterUpdate {
+  map<string, double> weights = 1;
+}
+
 message RLCheckpoint {
   double time = 1;
   string path = 2;
@@ -155,5 +163,7 @@ message Event {
     RiskUpdated risk_updated = 18;
     SystemMetricsCombined system_metrics_combined = 19;
     TokenDiscovered token_discovered = 20;
+    RLGradient rl_gradient = 21;
+    RLParameterUpdate rl_parameter_update = 22;
   }
 }
