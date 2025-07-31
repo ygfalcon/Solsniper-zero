@@ -12,6 +12,10 @@ try:  # optional heavy deps
 except Exception:  # pragma: no cover - optional dependency
     faiss = None
     SentenceTransformer = None
+
+# Optional GPU index for FAISS
+GPU_MEMORY_INDEX = os.getenv("GPU_MEMORY_INDEX", "0").lower() in {"1", "true", "yes"}
+_HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 from sqlalchemy import (
     create_engine,
     Column,
@@ -77,13 +81,19 @@ class AdvancedMemory(BaseMemory):
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
         self.index_path = index_path
+        self.cpu_index = None
         if faiss is not None and SentenceTransformer is not None:
             self.model = SentenceTransformer("all-MiniLM-L6-v2")
             dim = self.model.get_sentence_embedding_dimension()
             if os.path.exists(index_path):
-                self.index = faiss.read_index(index_path)
+                cpu_index = faiss.read_index(index_path)
             else:
-                self.index = faiss.IndexIDMap2(faiss.IndexFlatL2(dim))
+                cpu_index = faiss.IndexIDMap2(faiss.IndexFlatL2(dim))
+            if GPU_MEMORY_INDEX and _HAS_FAISS_GPU:
+                self.cpu_index = cpu_index
+                self.index = faiss.index_cpu_to_all_gpus(cpu_index)
+            else:
+                self.index = cpu_index
         else:  # fallback without embeddings
             self.model = None
             self.index = None
@@ -101,7 +111,11 @@ class AdvancedMemory(BaseMemory):
         self.index.add_with_ids(
             np.array([vec]), np.array([trade_id], dtype="int64")
         )
-        faiss.write_index(self.index, self.index_path)
+        if self.cpu_index is not None:
+            self.cpu_index.add_with_ids(
+                np.array([vec]), np.array([trade_id], dtype="int64")
+            )
+        faiss.write_index(self.cpu_index or self.index, self.index_path)
 
     # ------------------------------------------------------------------
     def _apply_remote(self, msg: Any) -> None:
@@ -245,6 +259,6 @@ class AdvancedMemory(BaseMemory):
     # ------------------------------------------------------------------
     def close(self) -> None:
         if self.index is not None:
-            faiss.write_index(self.index, self.index_path)
+            faiss.write_index(self.cpu_index or self.index, self.index_path)
         if self._replication_sub is not None:
             self._replication_sub.__exit__(None, None, None)

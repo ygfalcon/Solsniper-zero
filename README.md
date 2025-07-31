@@ -687,6 +687,12 @@ On a test machine with an RTX&nbsp;4090, generating 100k 30‑day simulations
 takes roughly **1.2&nbsp;s** compared to **6.5&nbsp;s** on a Ryzen&nbsp;9 5900X
 (Python&nbsp;3.11, PyTorch&nbsp;2.1).
 
+### GPU Memory Index
+
+Set `GPU_MEMORY_INDEX=1` to copy the FAISS trade index to all available GPUs
+when supported. Searching a 100k vector index drops from roughly
+**7&nbsp;ms** per query on CPU to **2&nbsp;ms** with a CUDA GPU.
+
 ## Usage
 Run the bot with:
 ```bash
