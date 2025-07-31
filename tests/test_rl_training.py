@@ -178,7 +178,7 @@ def test_dynamic_worker_count(monkeypatch, tmp_path):
 
         def __getitem__(self, idx):
             return (
-                rl_training.torch.zeros(9),
+                rl_training.torch.zeros(10),
                 rl_training.torch.tensor(0, dtype=rl_training.torch.long),
                 rl_training.torch.tensor(0.0),
             )
@@ -222,7 +222,7 @@ def test_workers_adjusted_each_epoch(monkeypatch):
 
         def __getitem__(self, idx):
             return (
-                rl_training.torch.zeros(9),
+                rl_training.torch.zeros(10),
                 rl_training.torch.tensor(0, dtype=rl_training.torch.long),
                 rl_training.torch.tensor(0.0),
             )
@@ -261,7 +261,7 @@ def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
 
         def __getitem__(self, idx):
             return (
-                rl_training.torch.zeros(9),
+                rl_training.torch.zeros(10),
                 rl_training.torch.tensor(0, dtype=rl_training.torch.long),
                 rl_training.torch.tensor(0.0),
             )
@@ -306,7 +306,7 @@ def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
 
         def __getitem__(self, idx):
             return (
-                rl_training.torch.zeros(9),
+                rl_training.torch.zeros(10),
                 rl_training.torch.tensor(0, dtype=rl_training.torch.long),
                 rl_training.torch.tensor(0.0),
             )
@@ -438,5 +438,60 @@ def test_prioritized_sampler(monkeypatch):
         counts[idx] += 1
 
     assert counts[1] > counts[0]
+
+
+def test_trade_dataset_cluster_feature(monkeypatch):
+    import types
+    import datetime as dt
+    import numpy as np
+    import solhunter_zero.rl_training as rl_training
+
+    calls = {"count": 0}
+
+    class DummyMemory:
+        cluster_centroids = np.zeros((3, 2), dtype=np.float32)
+
+        def cluster_trades(self):
+            calls["count"] += 1
+
+        def top_cluster(self, _ctx):
+            return 2
+
+    trades = [
+        types.SimpleNamespace(
+            token="t",
+            side="buy",
+            price=1.0,
+            amount=1.0,
+            timestamp=dt.datetime.utcnow(),
+            context="foo",
+        )
+    ]
+
+    ds = rl_training._TradeDataset(trades, [], memory=DummyMemory())
+    assert calls["count"] == 1
+    assert ds.states.shape[1] == 10
+    assert ds.states[0][-1] == pytest.approx(2 / 3)
+
+
+def test_models_accept_new_feature():
+    import torch
+    import solhunter_zero.rl_training as rl_training
+    import solhunter_zero.rl_daemon as rl_d
+    import solhunter_zero.rl_algorithms as rl_a
+
+    x10 = torch.zeros(1, 10)
+    assert rl_training.LightningPPO()(x10).shape == (1, 2)
+    assert rl_training.LightningDQN()(x10).shape == (1, 2)
+    assert rl_training.LightningA3C()(x10).shape == (1, 2)
+    ddpg = rl_training.LightningDDPG()
+    assert ddpg.actor(x10).shape == (1, 1)
+    assert ddpg.critic(torch.cat([x10, torch.zeros(1, 1)], dim=1)).shape == (1, 1)
+
+    x9 = torch.zeros(1, 9)
+    assert rl_d._DQN()(x9).shape == (1, 2)
+    assert rl_d._PPO()(x9).shape == (1, 2)
+    assert rl_a._A3C()(x9).shape == (1, 2)
+    assert rl_a._DDPG()(x9).shape == (1, 1)
 
 

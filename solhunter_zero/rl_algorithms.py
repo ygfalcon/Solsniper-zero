@@ -7,7 +7,7 @@ from torch import nn
 class _A3C(nn.Module):
     """Minimal actor-critic network used for A3C style training."""
 
-    def __init__(self, input_size: int = 8, hidden_size: int = 32) -> None:
+    def __init__(self, input_size: int = 9, hidden_size: int = 32) -> None:
         super().__init__()
         self.actor = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -28,7 +28,7 @@ class _A3C(nn.Module):
 class _DDPG(nn.Module):
     """Simple actor-critic network for DDPG."""
 
-    def __init__(self, input_size: int = 8, hidden_size: int = 32) -> None:
+    def __init__(self, input_size: int = 9, hidden_size: int = 32) -> None:
         super().__init__()
         self.actor = nn.Sequential(
             nn.Linear(input_size, hidden_size),

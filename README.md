@@ -1054,6 +1054,9 @@ from `offline_data.db`. Control how often tuning runs via `rl_tune_interval`
 The RL agents also take the current market regime as an additional input.
 Adjust the influence of this indicator with the new `regime_weight` setting
 (defaults to `1.0`).
+When an `AdvancedMemory` instance is provided to `_TradeDataset` each trade is
+assigned a cluster, and the normalised cluster id is appended as an additional
+feature.
 
 Regime detection now supports clustering over rolling windows of price
 returns and volatility. Set `regime_cluster_window` to the desired window

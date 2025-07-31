@@ -142,7 +142,7 @@ def portfolio_state(
 
 
 class _DQN(nn.Module):
-    def __init__(self, input_size: int = 8, hidden_size: int = 32) -> None:
+    def __init__(self, input_size: int = 9, hidden_size: int = 32) -> None:
         super().__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -155,7 +155,7 @@ class _DQN(nn.Module):
 
 
 class _PPO(nn.Module):
-    def __init__(self, input_size: int = 8, hidden_size: int = 32, clip_epsilon: float = 0.2) -> None:
+    def __init__(self, input_size: int = 9, hidden_size: int = 32, clip_epsilon: float = 0.2) -> None:
         super().__init__()
         self.actor = nn.Sequential(
             nn.Linear(input_size, hidden_size),
