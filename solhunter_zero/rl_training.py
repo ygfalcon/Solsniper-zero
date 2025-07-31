@@ -27,6 +27,10 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
+try:
+    from torch.utils.data import WeightedRandomSampler
+except Exception:  # pragma: no cover - optional dependency
+    WeightedRandomSampler = None  # type: ignore
 from typing import Callable
 try:
     import pytorch_lightning as pl
@@ -367,6 +371,10 @@ class _TradeDataset(Dataset):
         self.states = states
         self.actions = actions
         self.rewards = rewards
+        pri = np.abs(rewards).astype(np.float32)
+        if pri.sum() == 0:
+            pri[:] = 1.0
+        self.priorities = pri
         self.build_time = time.time() - start_time
         logging.getLogger(__name__).debug(
             "constructed trade dataset in %.3fs", self.build_time
@@ -381,6 +389,31 @@ class _TradeDataset(Dataset):
             torch.tensor(self.actions[idx], dtype=torch.long),
             torch.tensor(self.rewards[idx], dtype=torch.float32),
         )
+
+
+class PrioritizedReplayDataset(Dataset):
+    """Wrap a dataset and expose sampling weights."""
+
+    def __init__(self, dataset: Dataset, priorities: Iterable[float] | None = None) -> None:
+        self.dataset = dataset
+        if priorities is None:
+            priorities = getattr(dataset, "priorities", None)
+        if priorities is None:
+            priorities = [1.0] * len(dataset)
+        weights = torch.tensor(list(priorities), dtype=torch.float32)
+        if weights.sum() <= 0:
+            weights[:] = 1.0
+        self.weights = weights
+        if WeightedRandomSampler is not None:
+            self.sampler = WeightedRandomSampler(self.weights, len(self.weights), replacement=True)
+        else:  # pragma: no cover - optional dependency
+            self.sampler = None  # type: ignore
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int):
+        return self.dataset[idx]
 
 
 class TradeDataModule(pl.LightningDataModule):
@@ -399,6 +432,7 @@ class TradeDataModule(pl.LightningDataModule):
         pin_memory: bool = True,
         persistent_workers: bool = True,
         dynamic_workers: bool = False,
+        prioritized_replay: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
     ) -> None:
         super().__init__()
@@ -423,6 +457,11 @@ class TradeDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.dynamic_workers = dynamic_workers
+        env_prio = os.getenv("RL_PRIORITIZED_REPLAY")
+        if env_prio is not None:
+            self.prioritized_replay = str(env_prio).lower() in {"1", "true", "yes"}
+        else:
+            self.prioritized_replay = bool(prioritized_replay)
         self.cpu_callback = cpu_callback
         self.dataset: _TradeDataset | None = None
 
@@ -501,10 +540,19 @@ class TradeDataModule(pl.LightningDataModule):
                 dynamic=self.dynamic_workers,
                 cpu_callback=self.cpu_callback,
             )
+        dataset = self.dataset
+        sampler = None
+        shuffle = True
+        if self.prioritized_replay and WeightedRandomSampler is not None:
+            wrapper = PrioritizedReplayDataset(dataset)
+            dataset = wrapper
+            sampler = wrapper.sampler
+            shuffle = False
         return DataLoader(
-            self.dataset,
+            dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=shuffle,
+            sampler=sampler,
             num_workers=num_workers,
             pin_memory=self.pin_memory and num_workers > 0,
             persistent_workers=self.persistent_workers and num_workers > 0,
@@ -733,6 +781,7 @@ class RLTraining:
         pin_memory: bool | None = None,
         persistent_workers: bool | None = None,
         dynamic_workers: bool | None = None,
+        prioritized_replay: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
         worker_update_interval: float | None = None,
     ) -> None:
@@ -741,6 +790,9 @@ class RLTraining:
         env_dyn = os.getenv("RL_DYNAMIC_WORKERS")
         if env_dyn is not None:
             dyn_workers = str(env_dyn).lower() in {"1", "true", "yes"}
+        prio_env = os.getenv("RL_PRIORITIZED_REPLAY")
+        if prio_env is not None:
+            prioritized_replay = str(prio_env).lower() in {"1", "true", "yes"}
         if mmap_path is None:
             default_mmap = Path("datasets/offline_data.npz")
             if not default_mmap.exists():
@@ -758,6 +810,7 @@ class RLTraining:
             pin_memory=pin_memory if pin_memory is not None else True,
             persistent_workers=persistent_workers if persistent_workers is not None else True,
             dynamic_workers=dyn_workers,
+            prioritized_replay=prioritized_replay,
             cpu_callback=cpu_callback,
         )
         self.worker_update_interval = worker_update_interval if worker_update_interval is not None else 10.0
@@ -898,6 +951,7 @@ def fit(
     regime_weight: float = 1.0,
     device: str | None = None,
     dynamic_workers: bool = False,
+    prioritized_replay: bool = False,
     cpu_callback: Callable[[], float] | None = None,
 ) -> None:
     """Train a lightweight RL model from in-memory samples.
@@ -963,10 +1017,18 @@ def fit(
         dynamic=dynamic_workers,
         cpu_callback=cpu_callback,
     )
+    sampler = None
+    shuffle = True
+    if prioritized_replay and WeightedRandomSampler is not None:
+        wrapper = PrioritizedReplayDataset(dataset)
+        dataset = wrapper
+        sampler = wrapper.sampler
+        shuffle = False
     loader = DataLoader(
         dataset,
         batch_size=64,
-        shuffle=True,
+        shuffle=shuffle,
+        sampler=sampler,
         num_workers=num_workers,
         pin_memory=num_workers > 0,
         persistent_workers=num_workers > 0,
@@ -1001,12 +1063,14 @@ class MultiAgentRL:
         device: str | None = None,
         regime_weight: float = 1.0,
         controller_path: str | Path | None = None,
+        prioritized_replay: bool | None = None,
     ) -> None:
         self.db_url = db_url
         self.regime_weight = float(regime_weight)
         self.algos = list(algos or ["ppo"])
         self.population_size = int(population_size)
         self.device = device
+        self.prioritized_replay = bool(prioritized_replay)
         ctrl_path = (
             Path(controller_path)
             if controller_path is not None
@@ -1028,6 +1092,7 @@ class MultiAgentRL:
                     algo=algo,
                     device=device,
                     regime_weight=self.regime_weight,
+                    prioritized_replay=prioritized_replay,
                 )
             )
             self._algos_used.append(algo)
@@ -1076,6 +1141,7 @@ class MultiAgentRL:
                 algo=algo,
                 regime_weight=self.regime_weight,
                 device=self.device,
+                prioritized_replay=self.prioritized_replay,
             )
             try:
                 trainer.model.load_state_dict(torch.load(trainer.model_path))
