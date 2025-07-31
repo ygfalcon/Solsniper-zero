@@ -3,6 +3,8 @@ import pytest
 from solhunter_zero.risk import (
     RiskManager,
     value_at_risk,
+    conditional_value_at_risk_prices,
+    recent_conditional_value_at_risk,
     covariance_matrix,
     portfolio_cvar,
     portfolio_variance,
@@ -193,6 +195,26 @@ def test_recent_var_function():
     prices = [100, 110, 100, 90, 95, 96, 97]
     var_full = recent_value_at_risk(prices, window=5, confidence=0.95)
     assert var_full > 0
+
+
+def test_conditional_value_at_risk_prices():
+    prices = [100, 110, 100, 90, 95]
+    cvar = conditional_value_at_risk_prices(prices, 0.95)
+    assert cvar == pytest.approx(0.1)
+
+
+def test_recent_cvar_function():
+    prices = [100, 110, 100, 90, 95, 96, 97]
+    cvar_recent = recent_conditional_value_at_risk(prices, window=5, confidence=0.95)
+    assert cvar_recent > 0
+
+
+def test_asset_cvar_adjustment():
+    prices = [100, 110, 100, 90, 95]
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.5, max_risk_per_token=0.5)
+    base = rm.adjusted()
+    adjusted = rm.adjusted(prices=prices, asset_cvar_threshold=0.05)
+    assert adjusted.risk_tolerance < base.risk_tolerance
 
 
 def test_order_size_scaled_by_var():
