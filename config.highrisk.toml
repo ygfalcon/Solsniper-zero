@@ -126,6 +126,7 @@ rl_tune_interval = 1800
 regime_weight = 1.0
 rl_dynamic_workers = true
 rl_prioritized_replay = false
+rl_build_mmap_dataset = true
 # Enable FAISS GPU index for faster memory search
 gpu_memory_index = false
 hierarchical_rl = true

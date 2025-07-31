@@ -424,6 +424,36 @@ async def test_mmap_generated_when_missing(monkeypatch, tmp_path):
     assert "--db" in called.get("args", [])
 
 
+@pytest.mark.asyncio
+async def test_mmap_generation_disabled(monkeypatch, tmp_path):
+    db_url = f"sqlite:///{tmp_path/'data.db'}"
+    data = OfflineData(db_url)
+    await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_trade("tok", "buy", 1.0, 1.0)
+
+    out_dir = tmp_path / "datasets"
+    out_dir.mkdir()
+    mmap_path = out_dir / "offline_data.npz"
+
+    called = False
+
+    def fake_main(args=None):
+        nonlocal called
+        called = True
+        return 0
+
+    monkeypatch.setattr(build_mmap_dataset, "main", fake_main)
+    monkeypatch.setenv("RL_BUILD_MMAP_DATASET", "0")
+    monkeypatch.chdir(tmp_path)
+
+    trainer = RLTraining(db_url=db_url, model_path=tmp_path / "m.pt")
+    await trainer.data.setup()
+
+    assert not called
+    assert trainer.data.mmap_path is None
+    assert not mmap_path.exists()
+
+
 def test_prioritized_sampler(monkeypatch):
     import types
     import datetime as dt
