@@ -154,4 +154,6 @@ rl_dynamic_workers = false
 multi_rl = false
 rl_population_size = 2
 rl_live = false
+# Enable FAISS GPU index for faster memory search
+gpu_memory_index = false
 distributed_rl = false
