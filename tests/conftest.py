@@ -163,11 +163,155 @@ if importlib.util.find_spec("solana") is None:
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 
 # Additional optional dependency stubs
-for _mod_name in ["cachetools", "sqlalchemy", "watchfiles", "psutil"]:
+for _mod_name in ["cachetools", "sqlalchemy", "watchfiles", "psutil", "flask"]:
     if importlib.util.find_spec(_mod_name) is None:
         mod = types.ModuleType(_mod_name)
         mod.__spec__ = importlib.machinery.ModuleSpec(_mod_name, None)
         sys.modules.setdefault(_mod_name, mod)
+
+if "flask" in sys.modules:
+    flask_mod = sys.modules["flask"]
+    if not hasattr(flask_mod, "Flask"):
+        class _DummyResponse(dict):
+            status_code = 200
+
+            def get_json(self):
+                return dict(self)
+
+        class _DummyApp:
+            def __init__(self, *a, **k):
+                self._routes = {}
+
+            def route(self, path, methods=None, **_):
+                methods = methods or ["GET"]
+
+                def decorator(func):
+                    for m in methods:
+                        self._routes[(m.upper(), path)] = func
+                    return func
+
+                return decorator
+
+            def test_client(self):
+                app = self
+
+                class Client:
+                    def get(self, path, **_):
+                        func = app._routes.get(("GET", path))
+                        return _DummyResponse() if func is None else _DummyResponse(**(func() or {}))
+
+                    def post(self, path, json=None, data=None, **_):
+                        flask_mod.request.json = json
+                        flask_mod.request.form = data if isinstance(data, dict) else {}
+                        func = app._routes.get(("POST", path))
+                        return _DummyResponse() if func is None else _DummyResponse(**(func() or {}))
+
+                return Client()
+
+        flask_mod.Flask = _DummyApp
+        flask_mod.jsonify = lambda obj=None, **kw: obj if obj is not None else kw
+        flask_mod.render_template_string = lambda *a, **k: ""
+        flask_mod.request = types.SimpleNamespace(json=None, form={}, files={}, args={}, method="GET", get_json=lambda: flask_mod.request.json)
+
+if importlib.util.find_spec("numpy") is None:
+    np_mod = types.ModuleType("numpy")
+    np_mod.__spec__ = importlib.machinery.ModuleSpec("numpy", None)
+
+    def _listify(obj):
+        return list(obj)
+
+    def linspace(start, stop, num=50):
+        step = (stop - start) / (num - 1) if num > 1 else 0
+        return [start + i * step for i in range(num)]
+
+    def array(obj, dtype=None):
+        return _listify(obj)
+
+    asarray = array
+
+    def zeros(n, dtype=None):
+        return [0.0] * (n if isinstance(n, int) else n[0] * n[1])
+
+    def ones(n, dtype=None):
+        return [1.0] * (n if isinstance(n, int) else n[0] * n[1])
+
+    def full(n, val, dtype=None):
+        return [val] * (n if isinstance(n, int) else n[0] * n[1])
+
+    def cumsum(seq):
+        out = []
+        total = 0
+        for x in seq:
+            total += x
+            out.append(total)
+        return out
+
+    class _Random:
+        def normal(self, mean, _std, size=None):
+            size = size if size is not None else 1
+            if isinstance(size, tuple):
+                size = size[0]
+            return [mean] * size
+
+        def seed(self, _seed):
+            pass
+
+    np_mod.random = _Random()
+
+    def array_equal(a, b):
+        return list(a) == list(b)
+
+    def searchsorted(a, v, side="left"):
+        from bisect import bisect_left, bisect_right
+
+        return (bisect_left if side == "left" else bisect_right)(a, v)
+
+    def argsort(seq):
+        return sorted(range(len(seq)), key=lambda i: seq[i])
+
+    def unique(seq):
+        seen = set()
+        out = []
+        for x in seq:
+            if x not in seen:
+                seen.add(x)
+                out.append(x)
+        return out
+
+    def _any(seq):
+        return any(seq)
+
+    def _all(seq):
+        return all(seq)
+
+    def isnan(x):
+        import math
+
+        if isinstance(x, list):
+            return [math.isnan(v) for v in x]
+        return math.isnan(x)
+
+    np_mod.array = array
+    np_mod.asarray = asarray
+    np_mod.zeros = zeros
+    np_mod.ones = ones
+    np_mod.full = full
+    np_mod.linspace = linspace
+    np_mod.cumsum = cumsum
+    np_mod.array_equal = array_equal
+    np_mod.random = np_mod.random
+    np_mod.float32 = float
+    np_mod.float64 = float
+    np_mod.searchsorted = searchsorted
+    np_mod.argsort = argsort
+    np_mod.unique = unique
+    np_mod.any = _any
+    np_mod.all = _all
+    np_mod.isnan = isnan
+    np_mod.column_stack = lambda tup: [list(x) for x in zip(*tup)]
+    np_mod.ndarray = list
+
+    sys.modules.setdefault("numpy", np_mod)
 
 # Ensure project root is in sys.path when running tests directly with 'pytest'
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
