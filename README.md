@@ -763,6 +763,15 @@ For testing or development without network access, pass the `--offline`
 flag or provide `--token-list FILE`. The file should contain one token
 address per line. In both cases no network requests are made.
 
+### System Metrics
+
+The module `solhunter_zero.resource_monitor` automatically starts a background
+task when imported. It samples CPU and memory usage with `psutil` and publishes
+the results every second as `system_metrics` events. Running the Web UI or
+querying `/status` shows the latest values under `system_metrics`, allowing you
+to check if your hardware&mdash;for example an M1&nbsp;Pro laptop&mdash;is already
+saturated.
+
 ## Web UI
 
 Run a simple Flask-based UI with:
