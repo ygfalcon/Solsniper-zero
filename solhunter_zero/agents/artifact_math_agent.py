@@ -14,11 +14,11 @@ constructor so tests can override them.
 from __future__ import annotations
 
 import ast
-import json
 from typing import Dict, List, Any, Sequence, Mapping
 
 from . import BaseAgent
 from ..portfolio import Portfolio
+from ..datasets.artifact_math import load_artifact_math
 
 
 # ---------------------------------------------------------------------------
@@ -61,10 +61,8 @@ class ArtifactMathAgent(BaseAgent):
     def _load_mapping(self) -> Dict[str, int]:
         if self._mapping is not None:
             return self._mapping
-        try:
-            with open(self.dataset_path, "r", encoding="utf-8") as fh:
-                data = json.load(fh)
-        except Exception:
+        data = load_artifact_math(self.dataset_path)
+        if not data:
             self._mapping = {}
             return self._mapping
 
