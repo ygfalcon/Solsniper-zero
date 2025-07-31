@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import random
+import inspect
 from typing import Iterable, Dict, Any, List
 
 from .backtester import backtest_weighted, DEFAULT_STRATEGIES
@@ -331,6 +332,22 @@ class AgentManager:
             self.executor.add_executor(token, execer)
             self._event_tasks[token] = asyncio.create_task(execer.run())
         for action in actions:
+            explain = ""
+            ag_name = action.get("agent")
+            if ag_name:
+                agent = next((a for a in self.agents if a.name == ag_name), None)
+                if agent is not None:
+                    fn = getattr(agent, "explain_proposal", None)
+                    if callable(fn):
+                        try:
+                            if inspect.iscoroutinefunction(fn):
+                                explain = await fn([action], token=token, portfolio=portfolio)
+                            else:
+                                explain = fn([action], token=token, portfolio=portfolio)
+                        except Exception:
+                            explain = ""
+            if explain:
+                action.setdefault("context", explain)
             result = await self.executor.execute(action)
             if self.emotion_agent:
                 emotion = self.emotion_agent.evaluate(action, result)

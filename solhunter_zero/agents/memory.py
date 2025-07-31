@@ -33,7 +33,7 @@ class MemoryAgent(BaseAgent):
             extra = {}
             if isinstance(self.memory, AdvancedMemory):
                 extra = {
-                    "context": action.get("context", ""),
+                    "context": action.get("context", action.get("thought", "")),
                     "emotion": action.get("emotion", ""),
                     "simulation_id": action.get("simulation_id"),
                 }

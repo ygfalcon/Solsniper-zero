@@ -190,12 +190,14 @@ class AdvancedMemory(BaseMemory):
         uuid: str | None = None,
         reason: str | None = None,
         context: str = "",
+        thought: str | None = None,
         emotion: str = "",
         simulation_id: int | None = None,
         _broadcast: bool = True,
     ) -> int:
         with self.Session() as session:
             trade_uuid = uuid or str(uuid_module.uuid4())
+            ctx = context or (thought or "")
             trade = Trade(
                 token=token,
                 direction=direction,
@@ -203,13 +205,13 @@ class AdvancedMemory(BaseMemory):
                 price=price,
                 uuid=trade_uuid,
                 reason=reason,
-                context=context,
+                context=ctx,
                 emotion=emotion,
                 simulation_id=simulation_id,
             )
             session.add(trade)
             session.commit()
-            text = context or f"{direction} {token}"
+            text = ctx or f"{direction} {token}"
             self._add_embedding(text, trade.id)
         if _broadcast:
             try:
@@ -221,7 +223,7 @@ class AdvancedMemory(BaseMemory):
                         amount=amount,
                         price=price,
                         reason=reason,
-                        context=context,
+                        context=ctx,
                         emotion=emotion,
                         simulation_id=simulation_id,
                         uuid=trade_uuid,

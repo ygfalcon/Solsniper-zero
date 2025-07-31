@@ -57,6 +57,15 @@ class BaseAgent(ABC):
         """Return proposed trade actions for ``token``."""
         raise NotImplementedError
 
+    def explain_proposal(
+        self,
+        actions: List[Dict[str, Any]] | None = None,
+        token: str | None = None,
+        portfolio: Portfolio | None = None,
+    ) -> str:
+        """Optional explanation of a trade proposal."""
+        return ""
+
 
 BUILT_IN_AGENTS: Dict[str, Type[BaseAgent]] = {}
 
