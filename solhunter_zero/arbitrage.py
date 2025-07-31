@@ -52,8 +52,10 @@ try:  # optional rust ffi
     from . import routeffi as _routeffi
 
     _HAS_ROUTEFFI = _routeffi.available()
+    _HAS_PARALLEL = _routeffi.parallel_enabled()
 except Exception:  # pragma: no cover - ffi unavailable
     _HAS_ROUTEFFI = False
+    _HAS_PARALLEL = False
 
 import aiohttp
 from .scanner_common import JUPITER_WS_URL
@@ -1031,7 +1033,10 @@ def _best_route(
         )
     if USE_FFI_ROUTE and _HAS_ROUTEFFI:
         try:
-            res = _routeffi.best_route(dict(prices), amount, **kwargs)
+            func = getattr(_routeffi, "best_route_parallel", None)
+            if func is None:
+                func = _routeffi.best_route
+            res = func(dict(prices), amount, **kwargs)
             if res:
                 return res
         except Exception as exc:  # pragma: no cover - optional ffi failures

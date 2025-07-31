@@ -61,6 +61,8 @@ def ffi_enabled(monkeypatch, request):
                     "--manifest-path",
                     str(Path(__file__).resolve().parents[1] / "route_ffi/Cargo.toml"),
                     "--release",
+                    "--features",
+                    "parallel",
                 ],
                 check=True,
             )
@@ -426,3 +428,29 @@ def test_compute_route_speed(monkeypatch, ffi_enabled):
     ffi_time = time.perf_counter() - start
 
     assert py_time >= 2 * ffi_time
+
+
+def test_parallel_route_speed(monkeypatch, ffi_enabled):
+    if not ffi_enabled:
+        pytest.skip("requires ffi")
+    if not arb._routeffi.parallel_enabled():
+        pytest.skip("parallel feature disabled")
+
+    prices = {f"dex{i}": 1.0 + 0.01 * i for i in range(8)}
+    fees = {v: 0.0 for v in prices}
+    gas = {v: 0.0 for v in prices}
+    latency = {v: 0.0 for v in prices}
+
+    start = time.perf_counter()
+    for _ in range(20):
+        arb._routeffi.best_route(prices, 1.0, fees=fees, gas=gas, latency=latency)
+    serial_time = time.perf_counter() - start
+
+    start = time.perf_counter()
+    for _ in range(20):
+        arb._routeffi.best_route_parallel(
+            prices, 1.0, fees=fees, gas=gas, latency=latency
+        )
+    parallel_time = time.perf_counter() - start
+
+    assert parallel_time <= serial_time
