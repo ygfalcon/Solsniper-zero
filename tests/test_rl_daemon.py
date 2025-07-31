@@ -190,7 +190,8 @@ def _no_load(self):
     self._last_mtime = os.path.getmtime(self.model_path)
 
 
-def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog):
+@pytest.mark.parametrize("algo", ["dqn", "a3c", "ddpg"])
+def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog, algo):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
@@ -205,7 +206,7 @@ def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog):
     data.log_snapshot('tok', 1.1, 1.0, total_depth=1.6, imbalance=0.0)
 
     model_path = tmp_path / 'model.pt'
-    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=model_path, algo='dqn')
+    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=model_path, algo=algo)
     monkeypatch.setattr(DQNAgent, "reload_weights", _no_load)
     agent = DQNAgent(memory_agent=MemoryAgent(mem), epsilon=0.0, model_path=model_path)
     daemon.register_agent(agent)

@@ -504,6 +504,93 @@ class LightningDQN(pl.LightningModule):
         return [_DynamicWorkersCallback()]
 
 
+class LightningA3C(pl.LightningModule):
+    """Actor-critic model used for simple A3C training."""
+
+    def __init__(self, hidden_size: int = 32, lr: float = 3e-4) -> None:
+        super().__init__()
+        self.save_hyperparameters()
+        self.actor = nn.Sequential(
+            nn.Linear(9, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 2),
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(9, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1),
+        )
+        self.loss_fn = nn.MSELoss()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - trivial
+        return self.actor(x)
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int):
+        states, actions, rewards = batch
+        logits = self.actor(states)
+        log_probs = torch.log_softmax(logits, dim=-1)
+        values = self.critic(states).squeeze()
+        advantage = rewards - values.detach()
+        actor_loss = -(log_probs[range(len(actions)), actions] * advantage).mean()
+        critic_loss = self.loss_fn(values, rewards)
+        loss = actor_loss + 0.5 * critic_loss
+        self.log("loss", loss)
+        self.log("reward", rewards.mean())
+        return loss
+
+    def configure_optimizers(self):  # pragma: no cover - simple
+        params = list(self.actor.parameters()) + list(self.critic.parameters())
+        return torch.optim.Adam(params, lr=self.hparams.lr)
+
+    def configure_callbacks(self):  # pragma: no cover - simple
+        return [_DynamicWorkersCallback()]
+
+
+class LightningDDPG(pl.LightningModule):
+    """Minimal DDPG implementation."""
+
+    def __init__(self, hidden_size: int = 32, lr: float = 1e-3) -> None:
+        super().__init__()
+        self.save_hyperparameters()
+        self.actor = nn.Sequential(
+            nn.Linear(9, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1),
+            nn.Tanh(),
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(10, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1),
+        )
+        self.loss_fn = nn.MSELoss()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - trivial
+        return self.actor(x)
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int, optimizer_idx: int = 0):
+        states, actions, rewards = batch
+        if optimizer_idx == 0:
+            actions = self.actor(states)
+            q_vals = self.critic(torch.cat([states, actions], dim=1)).squeeze()
+            loss = -q_vals.mean()
+        else:
+            act = actions.float().unsqueeze(1)
+            q_pred = self.critic(torch.cat([states, act], dim=1)).squeeze()
+            loss = self.loss_fn(q_pred, rewards)
+        self.log("loss", loss)
+        self.log("reward", rewards.mean())
+        return loss
+
+    def configure_optimizers(self):  # pragma: no cover - simple
+        opt_a = torch.optim.Adam(self.actor.parameters(), lr=self.hparams.lr)
+        opt_c = torch.optim.Adam(self.critic.parameters(), lr=self.hparams.lr)
+        return [opt_a, opt_c]
+
+    def configure_callbacks(self):  # pragma: no cover - simple
+        return [_DynamicWorkersCallback()]
+
+
 class _MetricsCallback(pl.callbacks.Callback):
     """Callback publishing metrics after each training epoch."""
 
@@ -592,6 +679,10 @@ class RLTraining:
         self._worker_sub = None
         if algo == "dqn":
             self.model: pl.LightningModule = LightningDQN()
+        elif algo == "a3c":
+            self.model = LightningA3C()
+        elif algo == "ddpg":
+            self.model = LightningDDPG()
         else:
             self.model = LightningPPO()
         if self.model_path.exists():
@@ -726,7 +817,7 @@ def fit(
     model_path:
         File path where the checkpoint is stored.
     algo:
-        ``"ppo"`` or ``"dqn"`` model type.
+        ``"ppo"``, ``"dqn"``, ``"a3c"`` or ``"ddpg"`` model type.
     device:
         Optional accelerator string, ``"cuda"`` or ``"mps"``.
     """
@@ -738,6 +829,10 @@ def fit(
 
     if algo == "dqn":
         model: pl.LightningModule = LightningDQN()
+    elif algo == "a3c":
+        model = LightningA3C()
+    elif algo == "ddpg":
+        model = LightningDDPG()
     else:
         model = LightningPPO()
 
