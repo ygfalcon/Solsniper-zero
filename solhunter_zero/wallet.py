@@ -1,4 +1,5 @@
 import json
+from .http import loads
 import os
 import aiofiles
 from solders.keypair import Keypair
@@ -47,7 +48,7 @@ async def load_keypair_async(path: str) -> Keypair:
     """Asynchronously load a Solana ``Keypair`` from ``path``."""
     async with aiofiles.open(path, "r") as f:
         content = await f.read()
-    data = json.loads(content)
+    data = loads(content)
     if not isinstance(data, list):
         raise ValueError("Invalid keypair file")
     secret = bytes(data)

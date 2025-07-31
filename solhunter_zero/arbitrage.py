@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-import json
+from .http import get_session, loads, dumps
 import heapq
 import time
 from typing import List
@@ -56,7 +56,6 @@ except Exception:  # pragma: no cover - ffi unavailable
     _HAS_ROUTEFFI = False
 
 import aiohttp
-from .http import get_session
 from .scanner_common import JUPITER_WS_URL
 
 from .exchange import (
@@ -127,7 +126,7 @@ def _parse_mapping_env(env: str) -> dict:
     if not val:
         return {}
     try:
-        data = json.loads(val)
+        data = loads(val)
     except Exception:
         try:
             import ast
@@ -651,14 +650,14 @@ async def stream_orca_prices(
     session = await get_session()
     async with session.ws_connect(url) as ws:
         try:
-            await ws.send_str(json.dumps({"token": token}))
+            await ws.send_str(dumps({"token": token}).decode())
         except Exception:  # pragma: no cover - send failures
             pass
         async for msg in ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
                 continue
             try:
-                data = json.loads(msg.data)
+                data = loads(msg.data)
             except Exception:  # pragma: no cover - invalid message
                 continue
             price = data.get("price")
@@ -677,14 +676,14 @@ async def stream_raydium_prices(
     session = await get_session()
     async with session.ws_connect(url) as ws:
         try:
-            await ws.send_str(json.dumps({"token": token}))
+            await ws.send_str(dumps({"token": token}).decode())
         except Exception:  # pragma: no cover - send failures
             pass
         async for msg in ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
                 continue
             try:
-                data = json.loads(msg.data)
+                data = loads(msg.data)
             except Exception:  # pragma: no cover - invalid message
                 continue
             price = data.get("price")
@@ -703,14 +702,14 @@ async def stream_phoenix_prices(
     session = await get_session()
     async with session.ws_connect(url) as ws:
         try:
-            await ws.send_str(json.dumps({"token": token}))
+            await ws.send_str(dumps({"token": token}).decode())
         except Exception:  # pragma: no cover - send failures
             pass
         async for msg in ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
                 continue
             try:
-                data = json.loads(msg.data)
+                data = loads(msg.data)
             except Exception:  # pragma: no cover - invalid message
                 continue
             price = data.get("price")
@@ -729,14 +728,14 @@ async def stream_meteora_prices(
     session = await get_session()
     async with session.ws_connect(url) as ws:
         try:
-            await ws.send_str(json.dumps({"token": token}))
+            await ws.send_str(dumps({"token": token}).decode())
         except Exception:  # pragma: no cover - send failures
             pass
         async for msg in ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
                 continue
             try:
-                data = json.loads(msg.data)
+                data = loads(msg.data)
             except Exception:  # pragma: no cover - invalid message
                 continue
             price = data.get("price")
@@ -755,14 +754,14 @@ async def stream_jupiter_prices(
     session = await get_session()
     async with session.ws_connect(url) as ws:
         try:
-            await ws.send_str(json.dumps({"token": token}))
+            await ws.send_str(dumps({"token": token}).decode())
         except Exception:  # pragma: no cover - send failures
             pass
         async for msg in ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
                 continue
             try:
-                data = json.loads(msg.data)
+                data = loads(msg.data)
             except Exception:  # pragma: no cover - invalid message
                 continue
             price = data.get("price")
@@ -779,14 +778,14 @@ def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
         session = await get_session()
         async with session.ws_connect(url) as ws:
             try:
-                await ws.send_str(json.dumps({"token": token}))
+                await ws.send_str(dumps({"token": token}).decode())
             except Exception:  # pragma: no cover - send failures
                 pass
             async for msg in ws:
                 if msg.type != aiohttp.WSMsgType.TEXT:
                     continue
                 try:
-                    data = json.loads(msg.data)
+                    data = loads(msg.data)
                 except Exception:  # pragma: no cover - invalid message
                     continue
                 price = data.get("price")
