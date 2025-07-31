@@ -518,10 +518,14 @@ The trading logic is implemented by a swarm of small agents:
  - **ArtifactMathAgent** — evaluates simple math expressions using `load_artifact_math` to read `solhunter_zero/data/artifact_math.json`.
  - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 - **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
- - **CrossDEXRebalancer** — distributes trades across venues according to order-book depth, measured latency and per‑venue fees. It asks `PortfolioOptimizer` for base actions,
-   splits them between venues with the best liquidity and fastest response, then forwards the resulting
-   orders to `ExecutionAgent` (or `MEVExecutor` bundles when enabled) so other
-   strategy agents can coordinate around the final execution.
+- **CrossDEXRebalancer** — distributes trades across venues according to order-book depth, measured latency and per‑venue fees. It asks `PortfolioOptimizer` for base actions,
+  splits them between venues with the best liquidity and fastest response, then forwards the resulting
+  orders to `ExecutionAgent` (or `MEVExecutor` bundles when enabled) so other
+  strategy agents can coordinate around the final execution.
+- **CrossDEXArbitrage** — searches for multi-hop swap chains using the `route_ffi`
+  path finder. Latency for each venue is measured with `measure_dex_latency_async`
+  and combined with `dex_fees`, `dex_gas` and `dex_latency` to select the most
+  profitable route. Limit the search depth with `max_hops`.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
