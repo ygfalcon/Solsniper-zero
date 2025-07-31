@@ -89,6 +89,14 @@ if _gp_spec is None:
     sys.modules.setdefault("google.protobuf.runtime_version", runtime_version)
 
 event_pb2 = types.ModuleType("event_pb2")
+
+
+class Message:
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
 for name in [
     "ActionExecuted",
     "WeightsUpdated",
@@ -119,7 +127,8 @@ for name in [
     "ConfigUpdated",
     "Event",
 ]:
-    setattr(event_pb2, name, type(name, (), {}))
+    setattr(event_pb2, name, type(name, (Message,), {}))
+
 sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
 sys.modules.setdefault("event_pb2", event_pb2)
 
