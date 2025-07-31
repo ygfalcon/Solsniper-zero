@@ -63,6 +63,7 @@ _PB_MAP = {
     "rl_checkpoint": pb.RLCheckpoint,
     "portfolio_updated": pb.PortfolioUpdated,
     "depth_update": pb.DepthUpdate,
+    "depth_diff": pb.DepthDiff,
     "depth_service_status": pb.DepthServiceStatus,
     "heartbeat": pb.Heartbeat,
     "trade_logged": pb.TradeLogged,
@@ -276,7 +277,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
         event = pb.Event(topic=topic, rl_checkpoint=pb.RLCheckpoint(time=payload.time, path=payload.path))
     elif topic == "portfolio_updated":
         event = pb.Event(topic=topic, portfolio_updated=pb.PortfolioUpdated(balances=payload.balances))
-    elif topic == "depth_update":
+    elif topic in {"depth_update", "depth_diff"}:
         entries = {}
         for token, entry in to_dict(payload).items():
             if not isinstance(entry, dict):
@@ -305,7 +306,10 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 tx_rate=float(entry.get("tx_rate", 0.0)),
                 ts=int(entry.get("ts", 0)),
             )
-        event = pb.Event(topic=topic, depth_update=pb.DepthUpdate(entries=entries))
+        if topic == "depth_update":
+            event = pb.Event(topic=topic, depth_update=pb.DepthUpdate(entries=entries))
+        else:
+            event = pb.Event(topic=topic, depth_diff=pb.DepthDiff(entries=entries))
         data = event.SerializeToString()
         return _compress_event(data)
     elif topic == "depth_service_status":
@@ -473,7 +477,7 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"time": msg.time, "path": msg.path}
     if field == "portfolio_updated":
         return {"balances": dict(msg.balances)}
-    if field == "depth_update":
+    if field in {"depth_update", "depth_diff"}:
         result = {}
         for token, entry in msg.entries.items():
             dex = {

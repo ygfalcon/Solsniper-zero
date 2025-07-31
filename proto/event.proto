@@ -42,6 +42,10 @@ message DepthUpdate {
   map<string, TokenAgg> entries = 1;
 }
 
+message DepthDiff {
+  map<string, TokenAgg> entries = 1;
+}
+
 message DepthServiceStatus {
   string status = 1;
 }
@@ -166,5 +170,6 @@ message Event {
     TokenDiscovered token_discovered = 20;
     MemorySyncRequest memory_sync_request = 21;
     MemorySyncResponse memory_sync_response = 22;
+    DepthDiff depth_diff = 23;
   }
 }

@@ -76,6 +76,14 @@ fn heartbeat_interval(cfg: &TomlTable) -> Duration {
     Duration::from_secs(secs)
 }
 
+fn diff_updates(cfg: &TomlTable) -> bool {
+    std::env::var("DEPTH_DIFF_UPDATES")
+        .ok()
+        .or_else(|| cfg_str(cfg, "depth_diff_updates"))
+        .map(|v| !v.is_empty() && v != "0")
+        .unwrap_or(false)
+}
+
 fn load_config(path: &str) -> Result<TomlTable> {
     let data = std::fs::read_to_string(path)?;
     let val: toml::Value = toml::from_str(&data)?;
@@ -350,6 +358,7 @@ async fn update_mmap(
     last_sent: &LastSent,
     threshold: f64,
     min_interval: Duration,
+    diff_updates: bool,
     notify: Option<&tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
@@ -384,13 +393,16 @@ async fn update_mmap(
     drop(agg_lock);
 
     let now = Instant::now();
-    let send_needed = {
-        let last = last_map.lock().await;
+    let (send_needed, changed) = {
+        let mut last = last_map.lock().await;
         let changed = match last.get(token) {
             Some(old) => significant_change(old, &entry, threshold),
             None => true,
         };
-        changed || last.len() != current_len
+        if changed {
+            last.insert(token.to_string(), entry.clone());
+        }
+        (changed || last.len() != current_len, changed)
     };
 
     // Serialize only the updated token in a compact binary format
@@ -527,7 +539,6 @@ async fn update_mmap(
         return Ok(());
     }
 
-    *last_map.lock().await = snapshot.clone();
     *last_sent.lock().await = now;
 
     // Build protobuf event for websocket clients and the event bus
@@ -559,13 +570,30 @@ async fn update_mmap(
             )
         })
         .collect();
-    let event = pb::Event {
-        topic: "depth_update".to_string(),
-        kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
+    let (event, send_binary) = if diff_updates && changed && !header_changed {
+        let mut diff = HashMap::new();
+        diff.insert(token.to_string(), entries.get(token).unwrap().clone());
+        (
+            pb::Event {
+                topic: "depth_diff".to_string(),
+                kind: Some(pb::event::Kind::DepthDiff(pb::DepthDiff { entries: diff })),
+            },
+            false,
+        )
+    } else {
+        (
+            pb::Event {
+                topic: "depth_update".to_string(),
+                kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
+            },
+            true,
+        )
     };
     let proto = compress_event(&event.encode_to_vec());
     let _ = ws_bin.send(proto.clone());
-    let _ = ws_bin.send(binary.clone());
+    if send_binary {
+        let _ = ws_bin.send(binary.clone());
+    }
     *latest.lock().await = String::new();
     *latest_bin.lock().await = binary;
     if let Some(bus) = bus {
@@ -596,6 +624,7 @@ async fn connect_feed(
     last_sent: LastSent,
     threshold: f64,
     min_interval: Duration,
+    diff_updates: bool,
     notify: Option<tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
@@ -640,6 +669,7 @@ async fn connect_feed(
                     &last_sent,
                     threshold,
                     min_interval,
+                    diff_updates,
                     notify.as_ref(),
                 )
                 .await;
@@ -668,6 +698,7 @@ async fn connect_price_feed(
     last_sent: LastSent,
     threshold: f64,
     min_interval: Duration,
+    diff_updates: bool,
     notify: Option<tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
@@ -709,6 +740,7 @@ async fn connect_price_feed(
                     &last_sent,
                     threshold,
                     min_interval,
+                    diff_updates,
                     notify.as_ref(),
                 )
                 .await;
@@ -736,6 +768,7 @@ async fn connect_mempool(
     last_sent: LastSent,
     threshold: f64,
     min_interval: Duration,
+    diff_updates: bool,
     notify: Option<tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let (socket, _) = connect_async(url).await?;
@@ -769,6 +802,7 @@ async fn connect_mempool(
                     &last_sent,
                     threshold,
                     min_interval,
+                    diff_updates,
                     notify.as_ref(),
                 )
                 .await;
@@ -1169,6 +1203,7 @@ async fn main() -> Result<()> {
     let last_map: LastAggMap = Arc::new(Mutex::new(HashMap::new()));
     let min_interval = send_interval(&cfg);
     let threshold = update_threshold(&cfg);
+    let diff_updates_flag = diff_updates(&cfg);
     let hb_interval = heartbeat_interval(&cfg);
     let last_sent: LastSent = Arc::new(Mutex::new(Instant::now() - min_interval));
     let (notify_tx, notify_rx) = tokio::sync::watch::channel(());
@@ -1321,6 +1356,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
@@ -1362,6 +1398,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
@@ -1403,6 +1440,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
@@ -1444,6 +1482,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
@@ -1485,6 +1524,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
@@ -1526,6 +1566,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
@@ -1566,6 +1607,7 @@ async fn main() -> Result<()> {
                 last_sent_c,
                 threshold,
                 min_interval,
+                diff_updates_flag,
                 Some(notify),
             )
             .await;
