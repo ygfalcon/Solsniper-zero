@@ -102,6 +102,7 @@ ENV_VARS = {
     "depth_freq_high": "DEPTH_FREQ_HIGH",
     "max_hops": "MAX_HOPS",
     "path_algorithm": "PATH_ALGORITHM",
+    "offline_data_interval": "OFFLINE_DATA_INTERVAL",
 }
 
 

@@ -10,6 +10,8 @@ import sys
 import time
 import socket
 from pathlib import Path
+from solhunter_zero.config import load_config, apply_env_overrides
+from solhunter_zero import data_sync
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -53,6 +55,7 @@ def get_config_file() -> str | None:
 
 
 def stop_all(*_: object) -> None:
+    data_sync.stop_scheduler()
     for p in PROCS:
         if p.poll() is None:
             p.terminate()
@@ -71,6 +74,12 @@ signal.signal(signal.SIGTERM, stop_all)
 
 # Launch depth service and RL daemon first
 cfg = get_config_file()
+cfg_data = {}
+if cfg:
+    cfg_data = apply_env_overrides(load_config(cfg))
+interval = float(cfg_data.get("offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")))
+db_path = cfg_data.get("rl_db_path", "offline_data.db")
+data_sync.start_scheduler(interval=interval, db_path=db_path)
 cmd = ["./target/release/depth_service"]
 if cfg:
     cmd += ["--config", cfg]

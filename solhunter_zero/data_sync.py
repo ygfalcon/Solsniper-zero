@@ -11,6 +11,10 @@ from .offline_data import OfflineData, MarketSnapshot
 from .token_scanner import scan_tokens_async
 from .simulation import DEFAULT_METRICS_BASE_URL
 from .news import fetch_sentiment_async
+import threading
+
+_sched_task: asyncio.Future | None = None
+_sched_loop: asyncio.AbstractEventLoop | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -108,4 +112,55 @@ async def sync_recent(days: int = 3, db_path: str = "offline_data.db") -> None:
     )
     if tokens:
         await sync_snapshots(tokens, days=days, db_path=db_path)
+
+
+async def _schedule_loop(interval: float, days: int, db_path: str, limit_gb: float) -> None:
+    while True:
+        try:
+            await sync_recent(days=days, db_path=db_path)
+        except Exception as exc:
+            logger.warning("periodic sync failed: %s", exc)
+        try:
+            data = OfflineData(f"sqlite:///{db_path}")
+            _prune_db(data, db_path, limit_gb)
+        except Exception as exc:
+            logger.warning("pruning failed: %s", exc)
+        await asyncio.sleep(interval)
+
+
+def start_scheduler(
+    interval: float = 3600.0,
+    *,
+    days: int = 3,
+    db_path: str = "offline_data.db",
+    limit_gb: float | None = None,
+) -> asyncio.Future:
+    """Start background task that periodically syncs recent snapshots."""
+
+    global _sched_task, _sched_loop
+    if _sched_task is not None and not _sched_task.done():
+        return _sched_task
+    if limit_gb is None:
+        limit_gb = float(os.getenv("OFFLINE_DATA_LIMIT_GB", DEFAULT_LIMIT_GB))
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        if _sched_loop is None:
+            _sched_loop = asyncio.new_event_loop()
+            threading.Thread(target=_sched_loop.run_forever, daemon=True).start()
+        loop = _sched_loop
+        _sched_task = asyncio.run_coroutine_threadsafe(
+            _schedule_loop(interval, days, db_path, limit_gb), loop
+        )
+        return _sched_task
+    _sched_task = loop.create_task(_schedule_loop(interval, days, db_path, limit_gb))
+    return _sched_task
+
+
+def stop_scheduler() -> None:
+    """Cancel the running scheduler task, if any."""
+    global _sched_task
+    if _sched_task is not None:
+        _sched_task.cancel()
+        _sched_task = None
 
