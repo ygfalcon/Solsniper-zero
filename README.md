@@ -1005,6 +1005,12 @@ The RL agents also take the current market regime as an additional input.
 Adjust the influence of this indicator with the new `regime_weight` setting
 (defaults to `1.0`).
 
+Regime detection now supports clustering over rolling windows of price
+returns and volatility. Set `regime_cluster_window` to the desired window
+length and `regime_cluster_method` to either `"kmeans"` (default) or
+`"dbscan"`. When there isn't enough history the simple trend detector is
+used instead.
+
 `solhunter_zero.backtest_cli` now supports Bayesian optimisation of agent
 weights. Optimisation runs the backtester repeatedly while a Gaussian process
 searches the weight space:
