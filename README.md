@@ -923,6 +923,14 @@ data can be exported from `offline_data.db` using `scripts/build_tick_dataset.py
 python scripts/build_tick_dataset.py --db offline_data.db --out datasets/tick_history.json
 ```
 
+The backtester can also be launched via the `solhunter-backtest` command.
+This wrapper invokes `solhunter_zero.backtest_cli`, so the available
+arguments are the same. For example:
+
+```bash
+solhunter-backtest prices.json -c config.toml --optimize --iterations 30
+```
+
 For faster reinforcement learning training you can export the offline tables to
 a compressed NumPy archive and memory‑map it:
 
