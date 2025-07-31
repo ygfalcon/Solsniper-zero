@@ -141,6 +141,7 @@ sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
 
 from solhunter_zero.rl_training import RLTraining
 from solhunter_zero.offline_data import OfflineData
+from scripts import build_mmap_dataset
 import pytest
 
 
@@ -320,4 +321,33 @@ async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
 
     assert Path(called["path"]).resolve() == mmap_path.resolve()
     assert Path(trainer.data.mmap_path).resolve() == mmap_path.resolve()
+
+
+@pytest.mark.asyncio
+async def test_mmap_generated_when_missing(monkeypatch, tmp_path):
+    db_url = f"sqlite:///{tmp_path/'data.db'}"
+    data = OfflineData(db_url)
+    await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_trade("tok", "buy", 1.0, 1.0)
+
+    out_dir = tmp_path / "datasets"
+    out_dir.mkdir()
+    mmap_path = out_dir / "offline_data.npz"
+
+    called = {}
+
+    def fake_main(args=None):
+        called["args"] = args
+        mmap_path.write_bytes(b"x")
+        return 0
+
+    monkeypatch.setattr(build_mmap_dataset, "main", fake_main)
+    monkeypatch.chdir(tmp_path)
+
+    trainer = RLTraining(db_url=db_url, model_path=tmp_path / "m.pt")
+
+    assert mmap_path.exists()
+    assert Path(trainer.data.mmap_path).resolve() == mmap_path.resolve()
+    assert "--db" in called.get("args", [])
+
 
