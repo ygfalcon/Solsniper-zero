@@ -31,8 +31,10 @@ impl PartialOrd for Node {
     }
 }
 use libc::c_char;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
+use bincode;
+use bincode::Options;
 
 #[derive(Deserialize)]
 struct InputMap(HashMap<String, f64>);
@@ -191,4 +193,35 @@ pub extern "C" fn free_cstring(ptr: *mut c_char) {
     unsafe {
         drop(CString::from_raw(ptr));
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct TokenInfo {
+    bids: f64,
+    asks: f64,
+    tx_rate: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TokenAgg {
+    dex: HashMap<String, TokenInfo>,
+    bids: f64,
+    asks: f64,
+    tx_rate: f64,
+    ts: i64,
+}
+
+#[no_mangle]
+pub extern "C" fn decode_token_agg_json(data: *const u8, len: usize) -> *mut c_char {
+    if data.is_null() || len == 0 {
+        return std::ptr::null_mut();
+    }
+    let buf = unsafe { std::slice::from_raw_parts(data, len) };
+    let opts = bincode::options().with_fixint_encoding();
+    let agg: TokenAgg = match opts.deserialize(buf) {
+        Ok(v) => v,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let s = serde_json::to_string(&agg).unwrap_or_else(|_| "{}".to_string());
+    CString::new(s).unwrap().into_raw()
 }

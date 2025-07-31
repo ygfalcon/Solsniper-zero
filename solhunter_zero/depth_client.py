@@ -6,6 +6,7 @@ import atexit
 from contextlib import suppress
 import struct
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
+from . import routeffi
 
 import aiohttp
 from .http import get_session, loads, dumps
@@ -104,7 +105,7 @@ def _build_token_offsets(buf: memoryview) -> None:
     _TOKEN_MAP_SIZE = _MMAP_SIZE
 
 
-def _decode_token_agg(buf: bytes) -> Dict[str, Any]:
+def _decode_token_agg_py(buf: bytes) -> Dict[str, Any]:
     """Decode a :class:`TokenAgg` serialized with fixed-int bincode."""
     off = 0
     dex = {}
@@ -140,6 +141,9 @@ def _decode_token_agg(buf: bytes) -> Dict[str, Any]:
         "tx_rate": tx_rate,
         "ts": ts,
     }
+
+
+_decode_token_agg = routeffi.decode_token_agg or _decode_token_agg_py
 
 
 # Depth snapshot caching

@@ -25,6 +25,11 @@ if os.path.exists(_libname):
             _search.argtypes = list(LIB.best_route_json.argtypes)
             _search.restype = ctypes.c_void_p
             LIB.search_route_json = _search
+        _decode = getattr(LIB, "decode_token_agg_json", None)
+        if _decode is not None:
+            _decode.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+            _decode.restype = ctypes.c_void_p
+            LIB.decode_token_agg_json = _decode
         LIB.free_cstring.argtypes = [ctypes.c_void_p]
     except OSError:
         LIB = None
@@ -62,3 +67,17 @@ def best_route(
     LIB.free_cstring(ptr)
     path = json.loads(path_json)
     return path, prof.value
+
+
+def decode_token_agg(buf: bytes) -> dict | None:
+    if LIB is None:
+        return None
+    func = getattr(LIB, "decode_token_agg_json", None)
+    if func is None:
+        return None
+    ptr = func(ctypes.c_char_p(buf), len(buf))
+    if not ptr:
+        return None
+    s = ctypes.string_at(ptr).decode()
+    LIB.free_cstring(ptr)
+    return json.loads(s)
