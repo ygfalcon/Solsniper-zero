@@ -31,6 +31,8 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .mev_sandwich import MEVSandwichAgent
     from .flashloan_sandwich import FlashloanSandwichAgent
 
+    from .alien_cipher_agent import AlienCipherAgent
+
     from .opportunity_cost import OpportunityCostAgent
 
 
@@ -83,6 +85,7 @@ def _ensure_agents_loaded() -> None:
     from .strange_attractor import StrangeAttractorAgent
     from .meta_conviction import MetaConvictionAgent
     from .fractal_agent import FractalAgent
+    from .alien_cipher_agent import AlienCipherAgent
 
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -115,6 +118,7 @@ def _ensure_agents_loaded() -> None:
         "ramanujan": RamanujanAgent,
         "vanta": StrangeAttractorAgent,
         "inferna": FractalAgent,
+        "alien_cipher": AlienCipherAgent,
 
         "emotion": EmotionAgent,
 
