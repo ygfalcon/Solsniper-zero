@@ -417,7 +417,10 @@ The trading logic is implemented by a swarm of small agents:
 -   The agent polls multiple venues simultaneously and chooses
     the most profitable route accounting for per‑DEX fees, gas and
     latency.  Custom costs can be configured with `dex_fees`,
-    `dex_gas` and `dex_latency`.
+    `dex_gas` and `dex_latency`.  These latency values are
+    measured concurrently at startup by pinging each API and
+    websocket endpoint.  Set `MEASURE_DEX_LATENCY=0` to skip
+    this automatic measurement.
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
   When `PRIORITY_FEES` is set the agent scales the compute-unit price

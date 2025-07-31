@@ -132,8 +132,7 @@ MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {"0",
 async def _ping_url(session: aiohttp.ClientSession, url: str, attempts: int = 3) -> float:
     """Return the average latency for ``url`` in seconds."""
 
-    times = []
-    for _ in range(max(1, attempts)):
+    async def _once() -> float | None:
         start = time.perf_counter()
         try:
             if url.startswith("ws"):
@@ -143,8 +142,12 @@ async def _ping_url(session: aiohttp.ClientSession, url: str, attempts: int = 3)
                 async with session.get(url, timeout=5) as resp:
                     await resp.read()
         except Exception:  # pragma: no cover - network failures
-            continue
-        times.append(time.perf_counter() - start)
+            return None
+        return time.perf_counter() - start
+
+    coros = [_once() for _ in range(max(1, attempts))]
+    results = await asyncio.gather(*coros, return_exceptions=True)
+    times = [t for t in results if isinstance(t, (int, float))]
     if times:
         return sum(times) / len(times)
     return 0.0
@@ -156,7 +159,10 @@ async def measure_dex_latency_async(urls: Mapping[str, str], attempts: int = 3) 
     session = await get_session()
 
     async def _measure(name: str, url: str) -> tuple[str, float]:
-        value = await _ping_url(session, url, attempts)
+        coros = [_ping_url(session, url, 1) for _ in range(max(1, attempts))]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+        times = [t for t in results if isinstance(t, (int, float))]
+        value = sum(times) / len(times) if times else 0.0
         return name, value
 
     coros = [_measure(n, u) for n, u in urls.items() if u]
