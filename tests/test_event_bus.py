@@ -312,6 +312,42 @@ async def test_event_bus_url_connect(monkeypatch):
     importlib.reload(ev)
 
 
+@pytest.mark.asyncio
+async def test_multiple_peer_connections():
+    port1 = 8791
+    port2 = 8792
+
+    recv1 = []
+    recv2 = []
+
+    async def h1(ws):
+        async for msg in ws:
+            recv1.append(msg)
+
+    async def h2(ws):
+        async for msg in ws:
+            recv2.append(msg)
+
+    server1 = await websockets.serve(h1, "localhost", port1)
+    server2 = await websockets.serve(h2, "localhost", port2)
+
+    await connect_ws(f"ws://localhost:{port1}")
+    await connect_ws(f"ws://localhost:{port2}")
+    from solhunter_zero import event_pb2
+    upd = event_pb2.WeightsUpdated(weights={"x": 9.0})
+    ev = event_pb2.Event(topic="weights_updated", weights_updated=upd)
+    await broadcast_ws(ev.SerializeToString(), to_clients=False)
+    await asyncio.sleep(0.1)
+
+    assert recv1 and recv2
+
+    await disconnect_ws()
+    server1.close()
+    server2.close()
+    await server1.wait_closed()
+    await server2.wait_closed()
+
+
 def test_event_bus_fallback_json(monkeypatch):
     import builtins
     import importlib

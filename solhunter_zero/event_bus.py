@@ -155,11 +155,13 @@ if _WS_COMPRESSION:
 _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(list)
 
 # websocket related globals
-_ws_clients: Set[Any] = set()
-_ws_client = None
+_ws_clients: Set[Any] = set()  # clients connected to our server
+_peer_clients: Dict[str, Any] = {}  # outbound connections to peers
+_peer_urls: Set[str] = set()
+_watch_tasks: Dict[str, Any] = {}
 _ws_server = None
-_ws_url: str | None = None
-_watch_task = None
+_flush_task = None
+_outgoing_queue: Queue | None = None
 _flush_task = None
 _outgoing_queue: Queue | None = None
 
@@ -416,11 +418,13 @@ async def broadcast_ws(
         for ws, res in zip(clients, results):
             if isinstance(res, Exception):  # pragma: no cover - network errors
                 _ws_clients.discard(ws)
-    if to_server and _ws_client is not None:
-        try:
-            await _ws_client.send(message)
-        except Exception:  # pragma: no cover - connection issues
-            pass
+    if to_server and _peer_clients:
+        peers = list(_peer_clients.items())
+        coros = [ws.send(message) for _, ws in peers]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+        for (url, ws), res in zip(peers, results):
+            if isinstance(res, Exception):  # pragma: no cover - connection issues
+                asyncio.create_task(reconnect_ws(url))
 
 
 async def _flush_outgoing(interval: float = 0.01) -> None:
@@ -464,8 +468,10 @@ async def _receiver(ws) -> None:
             except Exception:  # pragma: no cover - malformed msg
                 continue
     finally:
-        if ws is _ws_client and _ws_url:
-            asyncio.create_task(reconnect_ws())
+        for url, peer in list(_peer_clients.items()):
+            if ws is peer and url in _peer_urls:
+                asyncio.create_task(reconnect_ws(url))
+                break
 
 
 async def start_ws_server(host: str = "localhost", port: int = 8765):
@@ -527,68 +533,71 @@ async def connect_ws(url: str):
     """Connect to external websocket bus at ``url``."""
     if not websockets:
         raise RuntimeError("websockets library required")
-    global _ws_client, _ws_url, _watch_task
 
-    _ws_url = url
-    _ws_client = await websockets.connect(url, compression=_WS_COMPRESSION)
-    asyncio.create_task(_receiver(_ws_client))
-    if _watch_task is None or _watch_task.done():
+    ws = await websockets.connect(url, compression=_WS_COMPRESSION)
+    _peer_clients[url] = ws
+    _peer_urls.add(url)
+    asyncio.create_task(_receiver(ws))
+    task = _watch_tasks.get(url)
+    if task is None or task.done():
         loop = asyncio.get_running_loop()
-        _watch_task = loop.create_task(_watch_ws())
-    return _ws_client
+        _watch_tasks[url] = loop.create_task(_watch_ws(url))
+    return ws
 
 
 async def disconnect_ws() -> None:
     """Close websocket connection opened via ``connect_ws``."""
-    global _ws_client, _ws_url, _watch_task
-    if _ws_client is not None:
+    global _peer_clients, _peer_urls, _watch_tasks
+    for ws in list(_peer_clients.values()):
         try:
-            await _ws_client.close()
+            await ws.close()
         except Exception:
             pass
-        _ws_client = None
-    _ws_url = None
-    if _watch_task is not None:
-        _watch_task.cancel()
-        _watch_task = None
+    _peer_clients.clear()
+    _peer_urls.clear()
+    for t in _watch_tasks.values():
+        t.cancel()
+    _watch_tasks.clear()
 
 
 async def reconnect_ws(url: str | None = None) -> None:
     """(Re)connect the websocket client with exponential backoff."""
-    global _ws_client, _ws_url, _watch_task
     if url:
-        _ws_url = url
-    if not _ws_url or not websockets:
+        _peer_urls.add(url)
+    if not websockets:
         return
-    backoff = 1.0
-    max_backoff = 30
-    while True:
-        try:
-            if _ws_client is not None:
-                try:
-                    await _ws_client.close()
-                except Exception:
-                    pass
-            _ws_client = await websockets.connect(
-                _ws_url, compression=_WS_COMPRESSION
-            )
-            asyncio.create_task(_receiver(_ws_client))
-            if _watch_task is None or _watch_task.done():
-                loop = asyncio.get_running_loop()
-                _watch_task = loop.create_task(_watch_ws())
-            break
-        except Exception:  # pragma: no cover - connection errors
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)
+    urls = [url] if url else list(_peer_urls)
+    for u in urls:
+        backoff = 1.0
+        max_backoff = 30
+        while True:
+            try:
+                ws = _peer_clients.get(u)
+                if ws is not None:
+                    try:
+                        await ws.close()
+                    except Exception:
+                        pass
+                ws = await websockets.connect(u, compression=_WS_COMPRESSION)
+                _peer_clients[u] = ws
+                asyncio.create_task(_receiver(ws))
+                task = _watch_tasks.get(u)
+                if task is None or task.done():
+                    loop = asyncio.get_running_loop()
+                    _watch_tasks[u] = loop.create_task(_watch_ws(u))
+                break
+            except Exception:  # pragma: no cover - connection errors
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
 
 
-async def _watch_ws() -> None:
-    """Background task to watch the websocket connection."""
-    while _ws_url:
-        ws = _ws_client
+async def _watch_ws(url: str) -> None:
+    """Background task to watch the websocket connection for ``url``."""
+    while url in _peer_urls:
+        ws = _peer_clients.get(url)
         if ws is None:
-            await reconnect_ws()
-            ws = _ws_client
+            await reconnect_ws(url)
+            ws = _peer_clients.get(url)
         if ws is None:
             await asyncio.sleep(1.0)
             continue
@@ -596,25 +605,31 @@ async def _watch_ws() -> None:
             await ws.wait_closed()
         except Exception:
             await asyncio.sleep(0.1)
-        if _ws_url:
-            await reconnect_ws()
+        if url in _peer_urls:
+            await reconnect_ws(url)
 
 
-# Automatically connect to an external event bus if configured
-_ENV_URL = None
+# Automatically connect to external event bus peers if configured
+_ENV_PEERS: Set[str] = set()
 
 
 def _reload_bus(cfg) -> None:
-    global _ENV_URL
-    url = _get_bus_url(cfg)
-    if url == _ENV_URL:
+    global _ENV_PEERS
+    urls = set(
+        u.strip()
+        for u in os.getenv("EVENT_BUS_PEERS", "").split(",")
+        if u.strip()
+    )
+    single = _get_bus_url(cfg)
+    if single:
+        urls.add(single)
+    if urls == _ENV_PEERS:
         return
 
     async def _reconnect() -> None:
-        if url:
-            await reconnect_ws(url)
-        else:
-            await disconnect_ws()
+        await disconnect_ws()
+        for u in urls:
+            await connect_ws(u)
 
     try:
         loop = asyncio.get_running_loop()
@@ -624,7 +639,7 @@ def _reload_bus(cfg) -> None:
         loop.create_task(_reconnect())
     else:
         asyncio.run(_reconnect())
-    _ENV_URL = url
+    _ENV_PEERS = urls
 
 
 subscription("config_updated", _reload_bus).__enter__()
