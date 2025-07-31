@@ -791,12 +791,17 @@ HTML_PAGE = """
 <head>
     <title>SolHunter UI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
     <div class="container">
-    <button id='start'>Start</button>
-    <button id='stop'>Stop</button>
+    <button id='start' class='action-btn'>
+        <i class="fa-solid fa-play"></i> Start
+    </button>
+    <button id='stop' class='action-btn'>
+        <i class="fa-solid fa-stop"></i> Stop
+    </button>
     <select id='keypair_select'></select>
     <pre id='status_info'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
