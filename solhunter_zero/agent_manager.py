@@ -24,6 +24,7 @@ from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
 from .agents.attention_swarm import AttentionSwarm, load_model
+from .agents.rl_weight_agent import RLWeightAgent
 from .regime import detect_regime
 from . import mutation
 from .event_bus import publish, subscription
@@ -128,6 +129,8 @@ class AgentManager:
         strategy_rotation_interval: int = 0,
         use_attention_swarm: bool = False,
         attention_model_path: str | None = None,
+        use_rl_weights: bool = False,
+        rl_weights_path: str | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
@@ -171,6 +174,15 @@ class AgentManager:
                 self.attention_swarm = load_model(attention_model_path)
             except Exception:
                 self.attention_swarm = None
+
+        self.use_rl_weights = bool(use_rl_weights)
+        self.rl_weight_agent: RLWeightAgent | None = None
+        if self.use_rl_weights:
+            self.rl_weight_agent = RLWeightAgent(
+                self.memory_agent,
+                weights_path=rl_weights_path or "rl_weights.json",
+            )
+            self.agents.append(self.rl_weight_agent)
 
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
@@ -378,6 +390,26 @@ class AgentManager:
                     for k, v in reg_w.items()
                 }
                 self.coordinator.regime_weights = self.regime_weights
+
+        rl_w = cfg.get("use_rl_weights")
+        if rl_w is not None:
+            self.use_rl_weights = bool(rl_w)
+            if self.use_rl_weights and self.rl_weight_agent is None:
+                self.rl_weight_agent = RLWeightAgent(
+                    self.memory_agent,
+                    weights_path=cfg.get("rl_weights_path", "rl_weights.json"),
+                )
+                self.agents.append(self.rl_weight_agent)
+            elif not self.use_rl_weights and self.rl_weight_agent is not None:
+                try:
+                    self.agents.remove(self.rl_weight_agent)
+                except ValueError:
+                    pass
+                self.rl_weight_agent = None
+
+        rl_path = cfg.get("rl_weights_path")
+        if rl_path is not None and self.rl_weight_agent is not None:
+            self.rl_weight_agent.rl.weights_path = str(rl_path)
 
     def update_weights(self) -> None:
         """Adjust agent weights based on historical trade ROI."""
@@ -739,6 +771,9 @@ class AgentManager:
         use_attention_swarm = bool(cfg.get("use_attention_swarm", False))
         attention_swarm_model = cfg.get("attention_swarm_model")
 
+        use_rl_weights = bool(cfg.get("use_rl_weights", False))
+        rl_weights_path = cfg.get("rl_weights_path")
+
         jito_rpc_url = cfg.get("jito_rpc_url")
         jito_auth = cfg.get("jito_auth")
         jito_ws_url = cfg.get("jito_ws_url")
@@ -771,6 +806,8 @@ class AgentManager:
             strategy_rotation_interval=strategy_rotation_interval,
             use_attention_swarm=use_attention_swarm,
             attention_model_path=attention_swarm_model,
+            use_rl_weights=use_rl_weights,
+            rl_weights_path=rl_weights_path,
         )
 
     def close(self) -> None:

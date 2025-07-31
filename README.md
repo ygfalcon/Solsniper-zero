@@ -857,6 +857,8 @@ very small.
 - **Attention-based weighting** — `scripts/train_attention_swarm.py` trains a
   small transformer on `memory.db` trades. Set `attention_swarm_model` in the
   config and `use_attention_swarm = true` to enable this model at run time.
+- **RL-based weighting** — set `use_rl_weights = true` so `RLWeightAgent`
+  combines a reinforcement learning policy with ROI-based weights.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.

@@ -4,6 +4,7 @@ from typing import Iterable, Dict
 
 from .agents import BaseAgent
 from .agents.memory import MemoryAgent
+from .agents.rl_weight_agent import RLWeightAgent
 
 
 class SwarmCoordinator:
@@ -43,20 +44,49 @@ class SwarmCoordinator:
     def compute_weights(
         self, agents: Iterable[BaseAgent], *, regime: str | None = None
     ) -> Dict[str, float]:
+        rl_agent = next((a for a in agents if isinstance(a, RLWeightAgent)), None)
+        agents = [a for a in agents if not isinstance(a, RLWeightAgent)]
         names = [a.name for a in agents]
         rois = self._roi_by_agent(names)
         base = dict(self.base_weights)
         if regime and regime in self.regime_weights:
             base.update(self.regime_weights[regime])
         if not rois:
-            return {name: base.get(name, 1.0) for name in names}
+            weights = {name: base.get(name, 1.0) for name in names}
+            if rl_agent:
+                try:
+                    rl_weights = rl_agent.train(names)
+                    for n, w in rl_weights.items():
+                        if n in weights:
+                            weights[n] *= float(w)
+                except Exception:
+                    pass
+            return weights
         min_roi = min(rois.values())
         max_roi = max(rois.values())
         if max_roi == min_roi:
-            return {name: base.get(name, 1.0) for name in names}
+            weights = {name: base.get(name, 1.0) for name in names}
+            if rl_agent:
+                try:
+                    rl_weights = rl_agent.train(names)
+                    for n, w in rl_weights.items():
+                        if n in weights:
+                            weights[n] *= float(w)
+                except Exception:
+                    pass
+            return weights
         weights = {}
         for name in names:
             roi = rois.get(name, 0.0)
             norm = (roi - min_roi) / (max_roi - min_roi)
             weights[name] = base.get(name, 1.0) * norm
+
+        if rl_agent:
+            try:
+                rl_weights = rl_agent.train(names)
+                for n, w in rl_weights.items():
+                    if n in weights:
+                        weights[n] *= float(w)
+            except Exception:
+                pass
         return weights
