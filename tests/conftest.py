@@ -24,6 +24,21 @@ if importlib.util.find_spec("aiohttp") is None:
     aiohttp_mod.__spec__ = importlib.machinery.ModuleSpec("aiohttp", None)
     aiohttp_mod.ClientSession = object
     aiohttp_mod.TCPConnector = object
+
+    web_mod = types.ModuleType("aiohttp.web")
+    web_mod.__spec__ = importlib.machinery.ModuleSpec("aiohttp.web", None)
+
+    class Application:
+        pass
+
+    def json_response(data=None, status=200):
+        return {"status": status, "data": data}
+
+    web_mod.Application = Application
+    web_mod.json_response = json_response
+
+    aiohttp_mod.web = web_mod
+    sys.modules["aiohttp.web"] = web_mod
     sys.modules["aiohttp"] = aiohttp_mod
 
 # Stub other optional dependencies when unavailable
