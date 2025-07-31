@@ -49,6 +49,7 @@ class DiscoveryAgent(BaseAgent):
             offline=offline,
             token_file=token_file,
             method=method,
+            dynamic_concurrency=True,
         )
         self.metrics = {t: {} for t in tokens}
         return tokens
