@@ -35,6 +35,8 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
+from asyncio import Queue
+
 
 from .schemas import validate_message, to_dict
 from . import event_pb2 as pb
@@ -153,6 +155,8 @@ _ws_client = None
 _ws_server = None
 _ws_url: str | None = None
 _watch_task = None
+_flush_task = None
+_outgoing_queue: Queue | None = None
 
 
 def _encode_event(topic: str, payload: Any) -> Any:
@@ -385,7 +389,10 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
     if websockets and _broadcast:
         msg = _encode_event(topic, payload)
         if loop:
-            loop.create_task(broadcast_ws(msg))
+            if _outgoing_queue is not None:
+                _outgoing_queue.put_nowait(msg)
+            else:
+                loop.create_task(broadcast_ws(msg))
         else:
             asyncio.run(broadcast_ws(msg))
 
@@ -409,6 +416,26 @@ async def broadcast_ws(
             await _ws_client.send(message)
         except Exception:  # pragma: no cover - connection issues
             pass
+
+
+async def _flush_outgoing(interval: float = 0.01) -> None:
+    """Background task to flush queued websocket messages."""
+    global _outgoing_queue
+    q = _outgoing_queue
+    if q is None:
+        return
+    while True:
+        await asyncio.sleep(interval)
+        msgs: list[Any] = []
+        while True:
+            try:
+                msgs.append(q.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        if not msgs:
+            continue
+        coros = [broadcast_ws(m) for m in msgs]
+        await asyncio.gather(*coros, return_exceptions=True)
 
 
 async def _receiver(ws) -> None:
@@ -459,7 +486,13 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
         finally:
             _ws_clients.discard(ws)
 
-    global _ws_server
+    global _ws_server, _flush_task, _outgoing_queue
+    if _outgoing_queue is None:
+        _outgoing_queue = Queue()
+    if _flush_task is None or _flush_task.done():
+        loop = asyncio.get_running_loop()
+        _flush_task = loop.create_task(_flush_outgoing())
+
     _ws_server = await websockets.serve(
         handler, host, port, compression=_WS_COMPRESSION
     )
@@ -468,11 +501,15 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
 
 async def stop_ws_server() -> None:
     """Stop the running websocket server and close client connections."""
-    global _ws_server
+    global _ws_server, _flush_task, _outgoing_queue
     if _ws_server is not None:
         _ws_server.close()
         await _ws_server.wait_closed()
         _ws_server = None
+    if _flush_task is not None:
+        _flush_task.cancel()
+        _flush_task = None
+    _outgoing_queue = None
     for ws in list(_ws_clients):
         try:
             await ws.close()
