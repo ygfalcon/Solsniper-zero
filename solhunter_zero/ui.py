@@ -37,6 +37,8 @@ from . import config as config_module
 
 from .prices import fetch_token_prices
 
+from .strategy_manager import StrategyManager
+
 from . import wallet
 from . import main as main_module
 from .memory import Memory
@@ -65,6 +67,22 @@ if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
 
 cfg = apply_env_overrides(cfg)
 set_env_from_config(cfg)
+
+# auto-select single keypair and configuration on startup
+if wallet.get_active_keypair_name() is None:
+    keys = wallet.list_keypairs()
+    if len(keys) == 1:
+        wallet.select_keypair(keys[0])
+        if not os.getenv("KEYPAIR_PATH"):
+            os.environ["KEYPAIR_PATH"] = os.path.join(
+                wallet.KEYPAIR_DIR, keys[0] + ".json"
+            )
+
+if get_active_config_name() is None:
+    configs = list_configs()
+    if len(configs) == 1:
+        select_config(configs[0])
+        set_env_from_config(load_selected_config())
 
 app = Flask(__name__)
 
@@ -377,7 +395,11 @@ def autostart() -> dict:
 def _run_start_all() -> None:
     """Run scripts/start_all.py in a subprocess and wait for it to exit."""
     global start_all_proc
-    cmd = [sys.executable, str(Path(__file__).resolve().parent.parent / "scripts" / "start_all.py")]
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve().parent.parent / "scripts" / "start_all.py"),
+        "autopilot",
+    ]
     start_all_proc = subprocess.Popen(cmd)
     start_all_proc.wait()
 
@@ -449,6 +471,24 @@ def agent_weights() -> dict:
             return jsonify(ast.literal_eval(env))
         except Exception:
             return jsonify({})
+
+
+@app.route("/strategies", methods=["GET", "POST"])
+def strategies_route() -> dict:
+    """Get or set active strategy modules."""
+    if request.method == "POST":
+        names = request.get_json() or []
+        if isinstance(names, list):
+            os.environ["STRATEGIES"] = ",".join(names)
+        else:
+            os.environ.pop("STRATEGIES", None)
+        return jsonify({"status": "ok"})
+
+    env = os.getenv("STRATEGIES")
+    active = [s.strip() for s in env.split(",") if s.strip()] if env else []
+    if not active:
+        active = list(StrategyManager.DEFAULT_STRATEGIES)
+    return jsonify({"available": list(StrategyManager.DEFAULT_STRATEGIES), "active": active})
 
 
 @app.route("/discovery", methods=["GET", "POST"])
@@ -754,10 +794,12 @@ HTML_PAGE = """
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
     <select id='keypair_select'></select>
-    <label><input id='auto_toggle' type='checkbox'> Full Auto Mode</label>
     <pre id='status_info'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
     <p>Active Config: <span id='active_config'></span></p>
+    <h3>Strategies</h3>
+    <div id='strategy_controls'></div>
+    <button id='save_strategies'>Save Strategies</button>
 
     <h3>ROI: <span id='roi_value'>0</span></h3>
     <canvas id='roi_chart' width='400' height='100'></canvas>
@@ -804,13 +846,6 @@ HTML_PAGE = """
     };
     document.getElementById('stop').onclick = function() {
         fetch('/stop_all', {method: 'POST'}).then(r => r.json()).then(console.log);
-    };
-    document.getElementById('auto_toggle').onchange = function() {
-        if(this.checked) {
-            fetch('/autostart', {method:'POST'}).then(r=>r.json()).then(console.log);
-        } else {
-            fetch('/stop_all', {method:'POST'}).then(r=>r.json()).then(console.log);
-        }
     };
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
@@ -910,6 +945,23 @@ HTML_PAGE = """
         });
     }
 
+    function loadStrategies() {
+        fetch('/strategies').then(r => r.json()).then(data => {
+            const div = document.getElementById('strategy_controls');
+            div.innerHTML = '';
+            (data.available || []).forEach(name => {
+                const label = document.createElement('label');
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.dataset.strategy = name;
+                if(!data.active || data.active.includes(name)) cb.checked = true;
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(name));
+                div.appendChild(label);
+            });
+        });
+    }
+
     function loadConfig() {
         fetch('/configs').then(r => r.json()).then(data => {
             document.getElementById('active_config').textContent = data.active || '';
@@ -928,10 +980,21 @@ HTML_PAGE = """
         });
     };
 
+    document.getElementById('save_strategies').onclick = function() {
+        const names = [];
+        document.querySelectorAll('#strategy_controls input').forEach(inp => {
+            if(inp.checked) names.push(inp.dataset.strategy);
+        });
+        fetch('/strategies', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(names)
+        });
+    };
+
     function refreshData() {
         fetch('/status').then(r => r.json()).then(data => {
             document.getElementById('status_info').textContent = JSON.stringify(data, null, 2);
-            document.getElementById('auto_toggle').checked = data.trading_loop;
         });
         fetch('/positions').then(r => r.json()).then(data => {
             document.getElementById('positions').textContent = JSON.stringify(data, null, 2);
@@ -982,17 +1045,20 @@ HTML_PAGE = """
             document.getElementById('rl_status').textContent = JSON.stringify(data);
         });
         loadWeights();
+        loadStrategies();
     }
 
     loadKeypairs();
     loadConfig();
     loadRisk();
     loadWeights();
+    loadStrategies();
     refreshData();
     setInterval(function(){
         refreshData();
         loadConfig();
         loadKeypairs();
+        loadStrategies();
     }, 5000);
     try {
         const rlSock = new WebSocket('ws://' + window.location.hostname + ':8767');
