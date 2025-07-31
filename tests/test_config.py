@@ -78,6 +78,15 @@ def test_apply_env_overrides(monkeypatch):
     assert result["event_bus_url"] == "ws://new"
 
 
+def test_llm_env_overrides(monkeypatch):
+    cfg = {"llm_model": "orig", "llm_context_length": 100}
+    monkeypatch.setenv("LLM_MODEL", "gpt4")
+    monkeypatch.setenv("LLM_CONTEXT_LENGTH", "256")
+    result = apply_env_overrides(cfg)
+    assert result["llm_model"] == "gpt4"
+    assert result["llm_context_length"] == "256"
+
+
 def test_jito_env_overrides(monkeypatch):
     cfg = {
         "jito_rpc_url": "a",
@@ -118,6 +127,15 @@ def test_set_env_from_config(monkeypatch):
     assert os.getenv("TOKEN_SUFFIX") == "xyz"
     assert os.getenv("AGENTS") == "['sim']"
     assert os.getenv("AGENT_WEIGHTS") == "{'sim': 1.0}"
+
+
+def test_set_env_llm(monkeypatch):
+    cfg = {"llm_model": "model", "llm_context_length": 64}
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.delenv("LLM_CONTEXT_LENGTH", raising=False)
+    set_env_from_config(cfg)
+    assert os.getenv("LLM_MODEL") == "model"
+    assert os.getenv("LLM_CONTEXT_LENGTH") == "64"
 
 
 def test_set_env_from_config_booleans(monkeypatch):
