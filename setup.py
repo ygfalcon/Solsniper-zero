@@ -1,7 +1,25 @@
 from pathlib import Path
 from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
+from setuptools.command.build_ext import build_ext as _build_ext
 import subprocess
+
+def build_route_ffi(root: Path, out_dir: Path):
+    """Compile the Rust FFI library and copy it to *out_dir*."""
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(root / "route_ffi" / "Cargo.toml"),
+            "--release",
+        ],
+        check=True,
+    )
+    lib_src = root / "route_ffi" / "target" / "release" / "libroute_ffi.so"
+    if lib_src.exists():
+        (out_dir / "libroute_ffi.so").write_bytes(lib_src.read_bytes())
+
 
 class build_py(_build_py):
     def run(self):
@@ -18,25 +36,23 @@ class build_py(_build_py):
                 str(proto_dir / "event.proto"),
             ], check=True)
 
-        # build the FFI library
-        subprocess.run([
-            "cargo",
-            "build",
-            "--manifest-path",
-            str(root / "route_ffi" / "Cargo.toml"),
-            "--release",
-        ], check=True)
-        lib_src = root / "route_ffi" / "target" / "release" / "libroute_ffi.so"
-        if lib_src.exists():
-            lib_dst = out_py / "libroute_ffi.so"
-            lib_dst.write_bytes(lib_src.read_bytes())
+        # build the FFI library and copy it into the source tree
+        build_route_ffi(root, out_py)
 
         super().run()
 
         # ensure the library is copied to the build directory
+        lib_src = root / "route_ffi" / "target" / "release" / "libroute_ffi.so"
         if lib_src.exists():
             build_dst = Path(self.build_lib) / "solhunter_zero" / "libroute_ffi.so"
             build_dst.parent.mkdir(parents=True, exist_ok=True)
             build_dst.write_bytes(lib_src.read_bytes())
 
-setup(cmdclass={"build_py": build_py})
+
+class build_ext(_build_ext):
+    def run(self):
+        root = Path(__file__).parent
+        build_route_ffi(root, Path(self.build_lib) / "solhunter_zero")
+        super().run()
+
+setup(cmdclass={"build_py": build_py, "build_ext": build_ext})
