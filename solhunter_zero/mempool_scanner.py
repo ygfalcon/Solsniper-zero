@@ -67,7 +67,7 @@ def _on_system_metrics(msg: Any) -> None:
     except Exception:
         pass
 
-_resource_sub = subscription("system_metrics", _on_system_metrics)
+_resource_sub = subscription("system_metrics_combined", _on_system_metrics)
 _resource_sub.__enter__()
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
