@@ -84,7 +84,7 @@ fn load_config(path: &str) -> Result<TomlTable> {
 
 mod route;
 use base64::{Engine, engine::general_purpose::STANDARD};
-use bincode::{deserialize, serialize};
+use bincode::{deserialize, serialize, Options};
 use chrono::Utc;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_sdk::{
@@ -385,8 +385,9 @@ async fn update_mmap(
         changed || last.len() != current_len
     };
 
-    // Serialize only the updated token and write it to the mmap using cached offsets
-    let json = serde_json::to_vec(&entry)?;
+    // Serialize only the updated token in a compact binary format
+    let options = bincode::options().with_fixint_encoding();
+    let json = options.serialize(&entry)?;
     let mut offsets_lock = offsets.lock().await;
     let mut next_lock = next_off.lock().await;
     let mut header_changed = false;
@@ -456,8 +457,9 @@ async fn update_mmap(
         header.extend_from_slice(b"IDX1");
         header.extend_from_slice(&(snapshot.len() as u32).to_le_bytes());
         let mut data = Vec::new();
+        let options = bincode::options().with_fixint_encoding();
         for (token, entry) in snapshot.iter() {
-            let json = serde_json::to_vec(entry)?;
+            let json = options.serialize(entry)?;
             header.extend_from_slice(&(token.len() as u16).to_le_bytes());
             header.extend_from_slice(token.as_bytes());
             header.extend_from_slice(&((header_size + data.len()) as u32).to_le_bytes());
