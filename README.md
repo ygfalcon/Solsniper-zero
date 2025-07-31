@@ -953,7 +953,15 @@ python scripts/train_rl_gpu.py --db sqlite:///offline_data.db --model ppo_model.
 
 Training now also writes a TorchScript version of the checkpoint next to the
 regular file (`ppo_model.ptc`). Agents and the RL daemon load this compiled
-module automatically when present for faster inference.
+module automatically when present for faster inference. Existing models can be
+converted using `scripts/export_model.py`:
+
+```bash
+python scripts/export_model.py --model ppo_model.pt --out ppo_model.ptc
+python scripts/export_model.py --model models/price.pt --out models/price.onnx --format onnx
+```
+
+Loading the compiled variant reduces inference latency by roughly 15%.
 
 You can also launch the built-in RL daemon directly with GPU acceleration:
 

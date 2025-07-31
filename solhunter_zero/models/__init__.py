@@ -227,6 +227,65 @@ def get_model(path: str | None, *, reload: bool = False) -> nn.Module | None:
         return None
 
 
+def export_torchscript(model: nn.Module, path: str) -> str:
+    """Compile ``model`` to TorchScript and save to ``path``."""
+    out = os.fspath(path)
+    try:
+        scripted = torch.jit.script(model)
+        scripted.save(out)
+    except Exception as exc:  # pragma: no cover - optional feature
+        raise RuntimeError(f"failed to export TorchScript: {exc}") from exc
+    return out
+
+
+class _ONNXModule(nn.Module):
+    """Wrapper executing an ONNX session via :mod:`onnxruntime`."""
+
+    def __init__(self, session: Any) -> None:  # pragma: no cover - simple
+        super().__init__()
+        self.session = session
+        self.input_name = session.get_inputs()[0].name
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - simple
+        arr = x.detach().cpu().numpy()
+        out = self.session.run(None, {self.input_name: arr})[0]
+        return torch.tensor(out, device=x.device)
+
+
+def export_onnx(model: nn.Module, path: str, example_input: torch.Tensor) -> str:
+    """Export ``model`` to ONNX format using ``example_input``."""
+    out = os.fspath(path)
+    try:
+        torch.onnx.export(model, example_input, out, opset_version=12)
+    except Exception as exc:  # pragma: no cover - optional feature
+        raise RuntimeError(f"failed to export ONNX: {exc}") from exc
+    return out
+
+
+def load_compiled_model(path: str, device: str | torch.device | None = None) -> nn.Module | None:
+    """Load compiled TorchScript or ONNX model next to ``path`` if available."""
+
+    dev = torch.device(device or "cpu")
+    base = Path(path)
+    script_path = base.with_suffix(".ptc")
+    if script_path.exists():
+        try:
+            return torch.jit.load(os.fspath(script_path)).to(dev)
+        except Exception:
+            pass
+    onnx_path = base.with_suffix(".onnx")
+    if onnx_path.exists():
+        try:
+            import onnxruntime as ort  # type: ignore
+
+            prov = ["CUDAExecutionProvider", "CPUExecutionProvider"] if dev.type == "cuda" else ["CPUExecutionProvider"]
+            session = ort.InferenceSession(os.fspath(onnx_path), providers=prov)
+            return _ONNXModule(session).to(dev)
+        except Exception:
+            return None
+    return None
+
+
 def make_training_data(
     prices: Iterable[float],
     liquidity: Iterable[float],
