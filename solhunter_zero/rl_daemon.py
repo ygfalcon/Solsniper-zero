@@ -309,11 +309,13 @@ class RLDaemon:
         if self.dynamic_workers and cpu_callback is None:
             def _update_cpu(payload):
                 try:
-                    self._cpu_usage = float(payload.get("cpu", payload.get("usage", payload)))
+                    self._cpu_usage = float(
+                        getattr(payload, "cpu", payload.get("cpu", payload))
+                    )
                 except Exception:
                     pass
 
-            cpu_sub = subscription("system_metrics", _update_cpu)
+            cpu_sub = subscription("system_metrics_combined", _update_cpu)
             cpu_sub.__enter__()
             self._cpu_sub = cpu_sub
             self._subscriptions.append(cpu_sub)
@@ -517,6 +519,10 @@ class RLDaemon:
             loop = asyncio.new_event_loop()
             t = threading.Thread(target=loop.run_forever, daemon=True)
             t.start()
+        if self.dynamic_workers and self._cpu_callback is None:
+            from . import resource_monitor
+
+            loop.call_soon_threadsafe(resource_monitor.start_monitor)
         self._task = loop.create_task(self._loop(interval))
         if self._hb_task is None:
             self._hb_task = loop.create_task(send_heartbeat("rl_daemon"))
