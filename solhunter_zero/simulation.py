@@ -309,7 +309,8 @@ def predict_price_movement(
     sentiment: float | None = None,
     order_book_strength: float | None = None,
     model_path: str | None = None,
-) -> float:
+    return_tx_rate: bool = False,
+) -> float | tuple[float, float]:
     """Predict short term price change using ML models when available."""
 
     model = get_price_model(model_path)
@@ -434,7 +435,11 @@ def predict_price_movement(
         sentiment=sentiment,
         order_book_strength=order_book_strength,
     )
-    return sims[0].expected_roi if sims else 0.0
+    roi = sims[0].expected_roi if sims else 0.0
+    if return_tx_rate:
+        rate = sims[0].tx_rate if sims else 0.0
+        return roi, rate
+    return roi
 
 
 def predict_token_activity(
