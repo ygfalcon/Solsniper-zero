@@ -320,8 +320,10 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
 
 def test_dynamic_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 90.0
-    mp_scanner._DYN_INTERVAL = 0.01
+    mp_scanner._CPU_PERCENT = 0.0
+    mp_scanner._CPU_SMOOTHED = 0.0
+    mp_scanner._DYN_INTERVAL = 0.0
+    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
 
     async def fake_stream(_url, **__):
         await asyncio.sleep(0)
