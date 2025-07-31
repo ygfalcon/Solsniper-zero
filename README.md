@@ -857,13 +857,13 @@ very small.
   `offline_data.db` for offline training. PPO models are periodically retrained
   on this dataset and saved to disk for inference. `MemoryAgent` also records
   trades in `memory.db` for ROI tracking.
-- **Advanced forecasting** — transformer and LSTM models can be trained on the
+- **Advanced forecasting** — transformer, LSTM and graph-based models can be trained on the
   collected snapshots using `scripts/train_transformer_model.py`,
-  `scripts/train_price_model.py` or the offline
-  `scripts/train_transformer_agent.py`. Set `PRICE_MODEL_PATH` to the resulting
-  model file and `predict_price_movement()` will load it automatically. The path
-  may point to a saved ``TransformerModel``, ``DeepTransformerModel`` or
-  ``XLTransformerModel``.
+  `scripts/train_price_model.py`, `scripts/train_graph_model.py` or the offline
+  `scripts/train_transformer_agent.py`. Set `PRICE_MODEL_PATH` or
+  `GRAPH_MODEL_PATH` to the resulting model file and `predict_price_movement()`
+  will load it automatically. The path may point to a saved ``TransformerModel``,
+  ``DeepTransformerModel``, ``XLTransformerModel`` or ``GraphPriceModel``.
 - **Early activity detection** — `scripts/train_activity_model.py` builds a
   dataset from `offline_data.db` and trains a classifier on depth change,
   transaction rate, whale activity and average swap size. Set
@@ -937,7 +937,8 @@ python scripts/train_var_forecaster.py --db offline_data.db --out models/var.pt
 
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
 `predict_price_movement()` can load it automatically. Both LSTM and transformer
-models are supported.
+models are supported. Use `GRAPH_MODEL_PATH` when loading a saved
+`GraphPriceModel`.
 Set `ACTIVITY_MODEL_PATH` to `models/activity.pt` to enable early activity scoring.
 Set `VAR_MODEL_PATH` to `models/var.pt` to enable VaR-based risk scaling.
 
@@ -966,7 +967,9 @@ updated model back to disk so `ConvictionAgent` picks up the new weights.
 
 Set the `PRICE_MODEL_PATH` environment variable to `models/price.pt` so trading
 agents reload each checkpoint automatically. This can reference a
-`TransformerModel`, `DeepTransformerModel` or `XLTransformerModel`.
+`TransformerModel`, `DeepTransformerModel`, `XLTransformerModel` or
+`GraphPriceModel`. Use `GRAPH_MODEL_PATH` in the same way for graph-based
+models.
 Use `ACTIVITY_MODEL_PATH` in the same way to reload the activity model.
 
 To continuously retrain the RL models on GPU run `scripts/train_rl_gpu.py`:

@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 
 from .token_activity_model import ActivityModel
+from .graph_price_model import GraphPriceModel, load_graph_model
 from .gnn import (
     RouteGNN,
     train_route_gnn,
@@ -168,6 +169,12 @@ def save_model(model: nn.Module, path: str) -> None:
             "hidden_dim": model.hidden_dim,
             "num_layers": model.num_layers,
         }
+    elif isinstance(model, GraphPriceModel):
+        cfg = {
+            "cls": "GraphPriceModel",
+            "input_dim": model.embed.in_features,
+            "hidden_dim": model.embed.out_features,
+        }
     elif isinstance(model, ActivityModel):
         cfg = {
             "cls": "ActivityModel",
@@ -182,7 +189,7 @@ def save_model(model: nn.Module, path: str) -> None:
 def load_model(path: str) -> nn.Module:
     """Load a saved ML model from ``path``."""
     obj = torch.load(path, map_location="cpu")
-    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel)):
+    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel, GraphPriceModel)):
         obj.eval()
         return obj
     if isinstance(obj, dict) and "state" in obj:
@@ -198,6 +205,8 @@ def load_model(path: str) -> nn.Module:
             model_cls = DeepTransformerModel
         elif cls_name == "XLTransformerModel":
             model_cls = XLTransformerModel
+        elif cls_name == "GraphPriceModel":
+            model_cls = GraphPriceModel
         elif cls_name == "ActivityModel":
             model_cls = ActivityModel
         else:
