@@ -708,9 +708,9 @@ use the GPU automatically.
 
 ### GPU Simulations
 
-Monte Carlo simulations can also run on the GPU.  Set the environment variable
-`USE_GPU_SIM=1` and ensure a CUDA-capable device is available.  The simulator
-falls back to CPU when no GPU is detected.
+Monte Carlo simulations can also run on the GPU.  When a compatible device is
+detected the simulator now enables GPU acceleration automatically. You can still
+force or disable this behaviour via the `USE_GPU_SIM` environment variable.
 
 On a test machine with an RTX&nbsp;4090, generating 100k 30‑day simulations
 takes roughly **1.2&nbsp;s** compared to **6.5&nbsp;s** on a Ryzen&nbsp;9 5900X
@@ -1049,8 +1049,9 @@ solhunter-train --daemon --device cuda
 ```
 
 The dataloader now chooses the worker count automatically based on the dataset
-size. Set `rl_dynamic_workers = true` so the trainer scales workers with CPU
-load. You can still override this using the `RL_NUM_WORKERS` environment
+size. When more than one CPU core is available `rl_dynamic_workers` is enabled
+by default so the trainer scales workers with CPU load. You can still override
+this using the `RL_NUM_WORKERS` environment
 variable or the `--num-workers` flag on `solhunter-train` and
 `python -m solhunter_zero.multi_rl`.
 On a 4‑core test machine throughput increased from about 250 samples/s with a
