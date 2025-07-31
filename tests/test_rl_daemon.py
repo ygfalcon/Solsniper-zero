@@ -28,6 +28,14 @@ if importlib.util.find_spec("torch") is None:
     torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
     torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
     torch_mod.load = lambda *a, **k: {}
+    torch_mod.float32 = object()
+    class _NoGrad:
+        def __enter__(self):
+            pass
+        def __exit__(self, *exc):
+            pass
+    torch_mod.no_grad = lambda: _NoGrad()
+    torch_mod.tensor = lambda *a, **k: object()
     sys.modules.setdefault("torch", torch_mod)
     torch_nn = types.ModuleType("torch.nn")
     torch_nn.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
@@ -67,6 +75,7 @@ if importlib.util.find_spec("sklearn") is None:
         GradientBoostingRegressor=object,
         RandomForestRegressor=object,
     )
+    sys.modules["sklearn.cluster"] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
     sys.modules["sklearn.gaussian_process"] = types.SimpleNamespace(GaussianProcessRegressor=object)
     sys.modules["sklearn.gaussian_process.kernels"] = types.SimpleNamespace(
         Matern=object,
@@ -174,6 +183,7 @@ from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.portfolio import Portfolio
 from solhunter_zero.event_bus import (
     start_ws_server,
     stop_ws_server,
@@ -435,5 +445,40 @@ def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
     RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m.pt', distributed_rl=True)
 
     assert called.get('url') == 'redis://localhost'
+
+
+def test_predict_action_returns_vector(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    OfflineData(f"sqlite:///{data_path}")
+    Memory(mem_db)
+
+    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m.pt')
+
+    class DummyTensor:
+        def __init__(self, arr):
+            self.arr = arr
+        def cpu(self):
+            return self
+        def squeeze(self):
+            return self
+        def tolist(self):
+            return self.arr
+
+    class DummyModel:
+        def to(self, *a, **k):
+            return self
+        def eval(self):
+            pass
+        def __call__(self, x):
+            return DummyTensor([0.1, -0.1])
+
+    daemon.jit_model = DummyModel()
+    pf = Portfolio(path=None)
+    pf.record_prices({"tok": 1.0})
+    pf.record_prices({"tok": 1.1})
+
+    out = asyncio.run(daemon.predict_action(pf, "tok", 1.1))
+    assert isinstance(out, list) and len(out) == 2
 
 

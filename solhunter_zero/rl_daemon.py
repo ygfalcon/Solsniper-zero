@@ -22,6 +22,7 @@ from . import rl_training
 from .rl_training import _ensure_mmap_dataset, MultiAgentRL
 from .rl_algorithms import _A3C, _DDPG, TransformerPolicy
 from .risk import average_correlation
+from .portfolio import Portfolio
 from .event_bus import (
     subscription,
     publish,
@@ -93,6 +94,45 @@ class _TradeDataset(Dataset):
             torch.tensor(action, dtype=torch.long),
             torch.tensor(reward, dtype=torch.float32),
         )
+
+
+def portfolio_state(
+    portfolio: Portfolio,
+    token: str,
+    price: float,
+    *,
+    depth: float = 0.0,
+    tx_rate: float = 0.0,
+) -> list[float]:
+    """Return state vector for ``token`` using ``portfolio`` metrics."""
+
+    pos = portfolio.balances.get(token)
+    amount = float(pos.amount) if pos else 0.0
+
+    seq = portfolio.price_history.get(token, [])
+    if len(seq) >= 2:
+        recent = seq[-30:]
+        mean = sum(recent) / len(recent)
+        var = sum((p - mean) ** 2 for p in recent) / len(recent)
+        volatility = (var ** 0.5) / (mean + 1e-8)
+        prev = seq[-2]
+        trend = (seq[-1] - prev) / prev if prev else 0.0
+    else:
+        volatility = 0.0
+        trend = 0.0
+
+    prices = {t: h for t, h in portfolio.price_history.items() if len(h) >= 2}
+    if token not in prices and seq:
+        prices[token] = seq
+    try:
+        corr = average_correlation(prices) if prices else 0.0
+    except Exception:
+        corr = 0.0
+    price_map = {t: vals[-1] for t, vals in prices.items()}
+    price_map[token] = price
+    drawdown = portfolio.current_drawdown(price_map)
+
+    return [price, amount, drawdown, volatility, corr, tx_rate, trend, depth]
 
 
 class _DQN(nn.Module):
@@ -523,6 +563,41 @@ class RLDaemon:
     def register_agent(self, agent: Any) -> None:
         """Register an agent to reload checkpoints after training."""
         self.agents.append(agent)
+
+    async def predict_action(
+        self,
+        portfolio: Portfolio,
+        token: str,
+        price: float,
+        *,
+        depth: float = 0.0,
+        tx_rate: float = 0.0,
+    ) -> list[float]:
+        """Return action logits predicted by the trained model."""
+
+        state = portfolio_state(portfolio, token, price, depth=depth, tx_rate=tx_rate)
+        tensor = torch.tensor([state], dtype=torch.float32, device=self.device)
+        model = self.jit_model or self.model
+        model.eval()
+        with torch.no_grad():
+            if hasattr(model, "actor"):
+                out = model.actor(tensor)
+            elif hasattr(model, "model"):
+                out = model.model(tensor)
+            else:
+                out = model(tensor)
+        if hasattr(out, "squeeze"):
+            out = out.squeeze()
+        if hasattr(out, "cpu"):
+            out = out.cpu()
+        if hasattr(out, "tolist"):
+            return list(out.tolist())
+        if isinstance(out, (list, tuple)):
+            return list(out)
+        try:
+            return [float(out)]
+        except Exception:
+            return []
 
     def train(self) -> None:
         trades, snaps = self._fetch_new()
