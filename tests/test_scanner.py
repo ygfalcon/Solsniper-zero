@@ -300,4 +300,4 @@ def test_scan_tokens_async_dynamic(monkeypatch):
     scanner._DYN_INTERVAL = 0.0
 
     asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
-    assert max_running <= 2
+    assert max_running <= 3

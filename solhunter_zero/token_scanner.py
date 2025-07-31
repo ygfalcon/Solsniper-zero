@@ -166,8 +166,8 @@ async def scan_tokens_async(
     cpu_usage_threshold:
         Pause task creation while CPU usage exceeds this percentage.
     dynamic_concurrency:
-        Reduce the limit to half when CPU usage stays above
-        ``CPU_HIGH_THRESHOLD`` and restore it when below ``CPU_LOW_THRESHOLD``.
+        Adjust the limit by ``SCAN_CONCURRENCY_STEP`` while CPU usage stays
+        above ``CPU_HIGH_THRESHOLD`` or below ``CPU_LOW_THRESHOLD``.
     """
 
     if max_concurrency is None or max_concurrency <= 0:
@@ -178,6 +178,7 @@ async def scan_tokens_async(
     _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+    step = int(os.getenv("SCAN_CONCURRENCY_STEP", "1") or 1)
     adjust_task: asyncio.Task | None = None
 
     async def _set_limit(new_limit: int) -> None:
@@ -198,10 +199,10 @@ async def scan_tokens_async(
                 while True:
                     await asyncio.sleep(_dyn_interval)
                     cpu = _CPU_PERCENT
-                    if cpu > high and current_limit == max_concurrency:
-                        await _set_limit(max(1, max_concurrency // 2))
+                    if cpu > high and current_limit > 1:
+                        await _set_limit(max(1, current_limit - step))
                     elif cpu < low and current_limit < max_concurrency:
-                        await _set_limit(max_concurrency)
+                        await _set_limit(min(max_concurrency, current_limit + step))
             except asyncio.CancelledError:
                 pass
 
