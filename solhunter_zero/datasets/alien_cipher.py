@@ -7,13 +7,8 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Dict
 
-# Default dataset path relative to the repository root
-DEFAULT_PATH = resources.files(__package__).joinpath(
-    "..",
-    "..",
-    "data",
-    "alien_cipher.json",
-)
+# Default dataset path relative to the package
+DEFAULT_PATH = resources.files("solhunter_zero") / "data" / "alien_cipher.json"
 
 
 # Module level cache so we do not repeatedly load the same file
