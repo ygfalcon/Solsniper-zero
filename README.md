@@ -57,8 +57,16 @@ up automatically. Select this file from the UI or set
    The optional `fastjson` group installs [orjson](https://pypi.org/project/orjson/)
    for faster JSON serialization and parsing:
 
+  ```bash
+  pip install .[fastjson]
+  ```
+
+   The optional `fastcompress` group installs [lz4](https://pypi.org/project/lz4/)
+   and [zstandard](https://pypi.org/project/zstandard/) for faster event
+   compression:
+
    ```bash
-   pip install .[fastjson]
+   pip install .[fastcompress]
    ```
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live. You can also simply run `make start`.
@@ -155,6 +163,9 @@ direct transaction submission to the Solana RPC.
     The same value can be provided via `event_bus_url` in your config.
   - `EVENT_BUS_COMPRESSION` – websocket compression algorithm (defaults to
     `deflate`). Set to `none` to disable compression.
+  - `EVENT_COMPRESSION` – compression algorithm for protobuf events. Choose
+    `zlib`, `lz4`, `zstd` or `none` (default). Setting `COMPRESS_EVENTS=1`
+    is equivalent to `EVENT_COMPRESSION=zlib`.
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
     new snapshot (defaults to `0`).
   - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between
@@ -338,11 +349,16 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
    Alternatively specify `event_bus_url` in the configuration file.
 17. **Event compression**
-   Compress protobuf messages sent over the websocket bus by setting:
+   Choose a compression algorithm for protobuf messages with
+   `EVENT_COMPRESSION`:
    ```bash
-   export COMPRESS_EVENTS=1
+   export EVENT_COMPRESSION=zstd  # or lz4, zlib, none
    ```
-   Nodes without the flag still accept compressed messages.
+   A typical `depth_update` event (~2.2&nbsp;KB) becomes ~1.8&nbsp;KB with zlib
+   (~0.27&nbsp;ms), ~1.9&nbsp;KB with lz4 (~0.004&nbsp;ms) and ~1.7&nbsp;KB with
+   zstd (~0.012&nbsp;ms). Setting `COMPRESS_EVENTS=1` still enables zlib for
+   compatibility. Nodes without the flag continue to accept uncompressed
+   messages.
 18. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash

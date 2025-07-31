@@ -13,6 +13,24 @@ except Exception:  # pragma: no cover - optional dependency
     _USE_ORJSON = False
 import os
 import zlib
+
+try:  # optional compression libraries
+    import lz4.frame
+    _HAS_LZ4 = True
+except Exception:  # pragma: no cover - optional dependency
+    lz4 = None
+    _HAS_LZ4 = False
+
+try:
+    import zstandard as zstd
+    _HAS_ZSTD = True
+    _ZSTD_COMPRESSOR = zstd.ZstdCompressor()
+    _ZSTD_DECOMPRESSOR = zstd.ZstdDecompressor()
+except Exception:  # pragma: no cover - optional dependency
+    zstd = None
+    _HAS_ZSTD = False
+    _ZSTD_COMPRESSOR = None
+    _ZSTD_DECOMPRESSOR = None
 from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
@@ -40,14 +58,46 @@ _PB_MAP = {
 _COMPRESS_EVENTS = os.getenv("COMPRESS_EVENTS")
 COMPRESS_EVENTS = _COMPRESS_EVENTS not in (None, "", "0")
 
+# chosen compression algorithm for protobuf events
+_EVENT_COMPRESSION = os.getenv("EVENT_COMPRESSION")
+if _EVENT_COMPRESSION is None:
+    EVENT_COMPRESSION = "zlib" if COMPRESS_EVENTS else None
+else:
+    comp = _EVENT_COMPRESSION.lower()
+    if comp in {"", "none", "0"}:
+        EVENT_COMPRESSION = None
+    else:
+        EVENT_COMPRESSION = comp
+
 
 def _maybe_decompress(data: bytes) -> bytes:
-    """Return decompressed ``data`` if it appears to be zlib-compressed."""
+    """Return decompressed ``data`` if it appears to be compressed."""
+    if len(data) > 4 and _HAS_ZSTD and data.startswith(b"\x28\xb5\x2f\xfd"):
+        try:
+            return _ZSTD_DECOMPRESSOR.decompress(data)
+        except Exception:
+            return data
+    if len(data) > 4 and _HAS_LZ4 and data.startswith(b"\x04\x22\x4d\x18"):
+        try:
+            return lz4.frame.decompress(data)
+        except Exception:
+            return data
     if len(data) > 2 and data[0] == 0x78:
         try:
             return zlib.decompress(data)
         except Exception:
             return data
+    return data
+
+
+def _compress_event(data: bytes) -> bytes:
+    """Compress ``data`` using the selected algorithm if any."""
+    if EVENT_COMPRESSION == "zlib":
+        return zlib.compress(data)
+    if EVENT_COMPRESSION == "lz4" and _HAS_LZ4:
+        return lz4.frame.compress(data)
+    if EVENT_COMPRESSION in {"zstd", "zstandard"} and _HAS_ZSTD:
+        return _ZSTD_COMPRESSOR.compress(data)
     return data
 
 
@@ -145,9 +195,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
             )
         event = pb.Event(topic=topic, depth_update=pb.DepthUpdate(entries=entries))
         data = event.SerializeToString()
-        if COMPRESS_EVENTS:
-            data = zlib.compress(data)
-        return data
+        return _compress_event(data)
     elif topic == "depth_service_status":
         event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
     elif topic == "heartbeat":
@@ -203,9 +251,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
     else:
         return _dumps({"topic": topic, "payload": to_dict(payload)})
     data = event.SerializeToString()
-    if COMPRESS_EVENTS:
-        data = zlib.compress(data)
-    return data
+    return _compress_event(data)
 
 def _decode_payload(ev: pb.Event) -> Any:
     field = ev.WhichOneof("kind")

@@ -342,3 +342,34 @@ def test_publish_invalid_payload():
     with pytest.raises(ValueError):
         publish("action_executed", {"bad": 1})
 
+
+def test_event_compression_algorithms(monkeypatch):
+    import importlib
+    from solhunter_zero import event_pb2
+    import solhunter_zero.event_bus as ev
+
+    monkeypatch.setenv("EVENT_COMPRESSION", "lz4")
+    ev = importlib.reload(ev)
+    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    ev_msg = event_pb2.Event()
+    ev_msg.ParseFromString(ev._maybe_decompress(data))
+    assert ev_msg.topic == "weights_updated"
+
+    monkeypatch.setenv("EVENT_COMPRESSION", "zstd")
+    ev = importlib.reload(ev)
+    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    ev_msg.ParseFromString(ev._maybe_decompress(data))
+    assert ev_msg.topic == "weights_updated"
+
+    monkeypatch.setenv("EVENT_COMPRESSION", "zlib")
+    ev = importlib.reload(ev)
+    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    ev_msg.ParseFromString(ev._maybe_decompress(data))
+    assert ev_msg.topic == "weights_updated"
+
+    monkeypatch.setenv("EVENT_COMPRESSION", "none")
+    ev = importlib.reload(ev)
+    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    ev_msg.ParseFromString(data)
+    assert ev_msg.topic == "weights_updated"
+
