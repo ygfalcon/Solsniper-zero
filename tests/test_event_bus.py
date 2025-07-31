@@ -378,6 +378,7 @@ def test_event_compression_algorithms(monkeypatch):
 async def test_zstd_round_trip(monkeypatch):
     import importlib
     monkeypatch.setenv("COMPRESS_EVENTS", "1")
+    monkeypatch.setenv("EVENT_COMPRESSION_THRESHOLD", "0")
     monkeypatch.delenv("EVENT_COMPRESSION", raising=False)
     import solhunter_zero.event_bus as ev
     ev = importlib.reload(ev)

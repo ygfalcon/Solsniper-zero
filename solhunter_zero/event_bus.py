@@ -63,6 +63,9 @@ COMPRESS_EVENTS = _COMPRESS_EVENTS not in (None, "", "0")
 # chosen compression algorithm for protobuf events
 _EVENT_COMPRESSION = os.getenv("EVENT_COMPRESSION")
 _USE_ZLIB_EVENTS = os.getenv("USE_ZLIB_EVENTS")
+EVENT_COMPRESSION_THRESHOLD = int(
+    os.getenv("EVENT_COMPRESSION_THRESHOLD", "512") or 512
+)
 if _EVENT_COMPRESSION is None:
     if COMPRESS_EVENTS:
         if _USE_ZLIB_EVENTS:
@@ -103,6 +106,8 @@ def _maybe_decompress(data: bytes) -> bytes:
 
 def _compress_event(data: bytes) -> bytes:
     """Compress ``data`` using the selected algorithm if any."""
+    if len(data) < EVENT_COMPRESSION_THRESHOLD:
+        return data
     if EVENT_COMPRESSION in {"zstd", "zstandard"} and _HAS_ZSTD:
         return _ZSTD_COMPRESSOR.compress(data)
     if EVENT_COMPRESSION == "lz4" and _HAS_LZ4:

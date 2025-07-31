@@ -174,6 +174,8 @@ direct transaction submission to the Solana RPC.
     enabled, zstd is used if the `zstandard` package is installed, otherwise
     zlib is used. Set `EVENT_COMPRESSION=zlib` or `USE_ZLIB_EVENTS=1` to
     force zlib compression.
+  - `EVENT_COMPRESSION_THRESHOLD` – skip compression for events smaller than
+    this size in bytes (defaults to `512`).
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
     new snapshot (defaults to `0`).
   - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between
