@@ -8,7 +8,7 @@ async def main() -> None:
     p = argparse.ArgumentParser(description="Periodic RL training on GPU")
     p.add_argument("--db", default="sqlite:///offline_data.db")
     p.add_argument("--model", default="ppo_model.pt")
-    p.add_argument("--algo", choices=["ppo", "dqn"], default="ppo")
+    p.add_argument("--algo", choices=["ppo", "dqn", "a3c", "ddpg"], default="ppo")
     p.add_argument("--interval", type=float, default=3600.0)
     args = p.parse_args()
 
