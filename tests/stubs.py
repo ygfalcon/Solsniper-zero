@@ -575,6 +575,342 @@ def stub_faiss() -> None:
     sys.modules.setdefault('faiss', mod)
 
 
+def stub_sklearn() -> None:
+    if 'sklearn' in sys.modules:
+        return
+    sk = types.ModuleType('sklearn')
+    sk.__spec__ = importlib.machinery.ModuleSpec('sklearn', None)
+    cluster = types.ModuleType('sklearn.cluster')
+    cluster.__spec__ = importlib.machinery.ModuleSpec('sklearn.cluster', None)
+
+    linear_model = types.ModuleType('sklearn.linear_model')
+    linear_model.__spec__ = importlib.machinery.ModuleSpec('sklearn.linear_model', None)
+    ensemble = types.ModuleType('sklearn.ensemble')
+    ensemble.__spec__ = importlib.machinery.ModuleSpec('sklearn.ensemble', None)
+
+    class KMeans:
+        def __init__(self, n_clusters=8, n_init='auto'):
+            self.n_clusters = n_clusters
+            self.cluster_centers_ = [[0.0] for _ in range(n_clusters)]
+
+        def fit_predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    class DBSCAN:
+        def __init__(self, eps=0.5, min_samples=5):
+            pass
+
+        def fit_predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    cluster.KMeans = KMeans
+    cluster.DBSCAN = DBSCAN
+    sk.cluster = cluster
+
+    class LinearRegression:
+        pass
+
+    class GradientBoostingRegressor:
+        pass
+
+    class RandomForestRegressor:
+        pass
+
+    linear_model.LinearRegression = LinearRegression
+    ensemble.GradientBoostingRegressor = GradientBoostingRegressor
+    ensemble.RandomForestRegressor = RandomForestRegressor
+    sk.linear_model = linear_model
+    sk.ensemble = ensemble
+
+    sys.modules.setdefault('sklearn', sk)
+    sys.modules.setdefault('sklearn.cluster', cluster)
+    sys.modules.setdefault('sklearn.linear_model', linear_model)
+    sys.modules.setdefault('sklearn.ensemble', ensemble)
+
+
+def stub_memory() -> None:
+    if 'solhunter_zero.memory' in sys.modules:
+        return
+    mem_mod = types.ModuleType('solhunter_zero.memory')
+    mem_mod.__spec__ = importlib.machinery.ModuleSpec('solhunter_zero.memory', None)
+
+    class Trade:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    class Memory:
+        def __init__(self, url: str = 'sqlite:///:memory:') -> None:
+            self._trades: list[Trade] = []
+
+        def log_trade(self, **kw) -> int:
+            t = Trade(**kw, id=len(self._trades) + 1)
+            self._trades.append(t)
+            return t.id
+
+        def list_trades(self, *, token: str | None = None, limit: int | None = None, since_id: int | None = None) -> list[Trade]:
+            data = [t for t in self._trades if (token is None or t.token == token) and (since_id is None or t.id > since_id)]
+            data.sort(key=lambda t: t.id)
+            if limit is not None:
+                data = data[:limit]
+            return data
+
+        def log_var(self, value: float) -> None:
+            pass
+
+        def list_vars(self):
+            return []
+
+    mem_mod.Memory = Memory
+    sys.modules.setdefault('solhunter_zero.memory', mem_mod)
+
+
+def stub_offline_data() -> None:
+    if 'solhunter_zero.offline_data' in sys.modules:
+        return
+    mod = types.ModuleType('solhunter_zero.offline_data')
+    mod.__spec__ = importlib.machinery.ModuleSpec('solhunter_zero.offline_data', None)
+
+    class OfflineData:
+        def __init__(self, url: str = 'sqlite:///offline.db') -> None:
+            pass
+
+        def log_trade(self, **kw) -> None:
+            pass
+
+        async def list_trades(self, *a, **k):
+            return []
+
+    mod.OfflineData = OfflineData
+    sys.modules.setdefault('solhunter_zero.offline_data', mod)
+
+
+def stub_torch() -> None:
+    """Install minimal torch stubs when torch is unavailable."""
+    if 'torch' in sys.modules:
+        return
+
+    import contextlib
+    import pickle
+
+    torch = types.ModuleType('torch')
+    torch.__spec__ = importlib.machinery.ModuleSpec('torch', None)
+
+    torch.manual_seed = lambda *a, **k: None
+
+    class Tensor(list):
+        def __init__(self, data=None, **kwargs):
+            if isinstance(data, (list, tuple)):
+                super().__init__(data)
+            elif data is None:
+                super().__init__()
+            else:
+                super().__init__([data])
+
+        def to(self, *a, **k):
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return list(self)
+
+        def detach(self):
+            return self
+
+        def squeeze(self, *a, **k):
+            return self[0] if len(self) == 1 else self
+
+        def unsqueeze(self, *a, **k):
+            return Tensor([self])
+
+        def clone(self):
+            return Tensor(self)
+
+        def mean(self):
+            return sum(self) / len(self) if self else 0.0
+
+    torch.Tensor = Tensor
+    torch.tensor = lambda data=None, **k: Tensor(data)
+    torch.float32 = object()
+    torch.no_grad = contextlib.nullcontext
+    class Device:
+        def __init__(self, name='cpu'):
+            self.type = name
+
+        def __repr__(self):
+            return f'device({self.type})'
+
+    torch.device = Device
+
+    def save(obj, path):
+        with open(path, 'wb') as fh:
+            pickle.dump(obj, fh)
+
+    def load(path, map_location=None):
+        with open(path, 'rb') as fh:
+            return pickle.load(fh)
+
+    torch.save = save
+    torch.load = load
+
+    cuda = types.SimpleNamespace(is_available=lambda: False)
+    torch.cuda = cuda
+
+    nn = types.ModuleType('torch.nn')
+    nn.__spec__ = importlib.machinery.ModuleSpec('torch.nn', None)
+
+    class Module:
+        def __init__(self, *a, **k):
+            pass
+
+        def parameters(self):
+            return []
+
+        def to(self, *a, **k):
+            return self
+
+        def load_state_dict(self, *a, **k):
+            pass
+
+        def state_dict(self):
+            return {}
+
+        def train(self, mode=True):
+            return self
+
+        def eval(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def __call__(self, *a, **k):
+            return Tensor([0.0, 0.0])
+
+    nn.Module = Module
+
+    class Sequential(Module):
+        def __init__(self, *mods):
+            self.mods = mods
+
+        def __call__(self, x):
+            for m in self.mods:
+                x = m(x)
+            return x
+
+    class Linear(Module):
+        def __call__(self, x):
+            return Tensor([0.0 for _ in range(2)])
+
+    class ReLU(Module):
+        def __call__(self, x):
+            return x
+
+    class MSELoss(Module):
+        def __call__(self, *a, **k):
+            class _Loss:
+                def backward(self):
+                    pass
+
+            return _Loss()
+
+    nn.Sequential = Sequential
+    nn.Linear = Linear
+    nn.ReLU = ReLU
+    nn.MSELoss = MSELoss
+
+    functional = types.ModuleType('torch.nn.functional')
+    functional.__spec__ = importlib.machinery.ModuleSpec('torch.nn.functional', None)
+    functional.softmax = lambda x, dim=None: x
+
+    def _mse_loss(*a, **k):
+        class _Loss:
+            def backward(self):
+                pass
+
+        return _Loss()
+
+    functional.mse_loss = _mse_loss
+    nn.functional = functional
+
+    nn_utils = types.ModuleType('torch.nn.utils')
+    nn_utils.__spec__ = importlib.machinery.ModuleSpec('torch.nn.utils', None)
+    rnn_utils = types.ModuleType('torch.nn.utils.rnn')
+    rnn_utils.__spec__ = importlib.machinery.ModuleSpec('torch.nn.utils.rnn', None)
+    rnn_utils.pad_sequence = lambda seq, batch_first=False, padding_value=0.0: seq
+    nn_utils.rnn = rnn_utils
+    nn.utils = nn_utils
+
+    torch.nn = nn
+
+    optim = types.ModuleType('torch.optim')
+    optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
+
+    class Adam:
+        def __init__(self, params, lr=0.001):
+            pass
+
+        def zero_grad(self):
+            pass
+
+        def step(self):
+            pass
+
+        def state_dict(self):
+            return {}
+
+        def load_state_dict(self, *a, **k):
+            pass
+
+    optim.Adam = Adam
+    torch.optim = optim
+
+    utils_mod = types.ModuleType('torch.utils')
+    utils_mod.__spec__ = importlib.machinery.ModuleSpec('torch.utils', None)
+
+    data_mod = types.ModuleType('torch.utils.data')
+    data_mod.__spec__ = importlib.machinery.ModuleSpec('torch.utils.data', None)
+
+    class Dataset:
+        pass
+
+    class DataLoader:
+        def __init__(self, dataset, batch_size=1, shuffle=False):
+            self.dataset = dataset
+
+        def __iter__(self):
+            return iter([])
+
+    data_mod.Dataset = Dataset
+    data_mod.DataLoader = DataLoader
+    utils_mod.data = data_mod
+    torch.utils = utils_mod
+
+    dist_mod = types.ModuleType('torch.distributions')
+    dist_mod.__spec__ = importlib.machinery.ModuleSpec('torch.distributions', None)
+
+    class Categorical:
+        def __init__(self, logits=None):
+            self.logits = logits
+
+        def log_prob(self, actions):
+            return Tensor([0.0])
+
+    dist_mod.Categorical = Categorical
+    torch.distributions = dist_mod
+
+    sys.modules.setdefault('torch', torch)
+    sys.modules.setdefault('torch.nn', nn)
+    sys.modules.setdefault('torch.nn.functional', functional)
+    sys.modules.setdefault('torch.nn.utils', nn_utils)
+    sys.modules.setdefault('torch.nn.utils.rnn', rnn_utils)
+    sys.modules.setdefault('torch.optim', optim)
+    sys.modules.setdefault('torch.utils', utils_mod)
+    sys.modules.setdefault('torch.utils.data', data_mod)
+    sys.modules.setdefault('torch.distributions', dist_mod)
+
+
 def install_stubs() -> None:
     stub_numpy()
     stub_cachetools()
@@ -587,6 +923,10 @@ def install_stubs() -> None:
     stub_websockets()
     stub_bip_utils()
     stub_faiss()
+    stub_sklearn()
+    stub_memory()
+    stub_offline_data()
+    stub_torch()
 
 
 install_stubs()
