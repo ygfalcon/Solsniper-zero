@@ -489,10 +489,10 @@ The trading logic is implemented by a swarm of small agents:
 - **FractalAgent** — matches ROI fractal patterns using wavelet fingerprints.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 - **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
-- **CrossDEXRebalancer** — distributes trades across venues according to order-book depth and expected slippage. It asks `PortfolioOptimizer` for base actions,
-  splits them between venues with the best liquidity and forwards the resulting
-  orders to `ExecutionAgent` (or `MEVExecutor` bundles when enabled) so other
-  strategy agents can coordinate around the final execution.
+ - **CrossDEXRebalancer** — distributes trades across venues according to order-book depth, measured latency and per‑venue fees. It asks `PortfolioOptimizer` for base actions,
+   splits them between venues with the best liquidity and fastest response, then forwards the resulting
+   orders to `ExecutionAgent` (or `MEVExecutor` bundles when enabled) so other
+   strategy agents can coordinate around the final execution.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,

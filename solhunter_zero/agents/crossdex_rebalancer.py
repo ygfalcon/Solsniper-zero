@@ -9,7 +9,13 @@ from .execution import ExecutionAgent
 import os
 from ..depth_client import snapshot
 from ..event_bus import subscribe
-from ..arbitrage import _prepare_service_tx, VENUE_URLS, DEX_BASE_URL
+from ..arbitrage import (
+    _prepare_service_tx,
+    VENUE_URLS,
+    DEX_BASE_URL,
+    DEX_FEES,
+    measure_dex_latency_async,
+)
 from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
 
@@ -28,18 +34,25 @@ class CrossDEXRebalancer(BaseAgent):
         slippage_threshold: float = 0.05,
         use_mev_bundles: bool = False,
         use_depth_feed: bool | None = None,
+        latency_weight: float = 1.0,
+        fee_weight: float = 1.0,
     ) -> None:
         self.optimizer = optimizer or PortfolioOptimizer()
         self.executor = executor or ExecutionAgent(rate_limit=0)
         self.rebalance_interval = int(rebalance_interval)
         self.slippage_threshold = float(slippage_threshold)
         self.use_mev_bundles = bool(use_mev_bundles)
+        self.latency_weight = float(latency_weight)
+        self.fee_weight = float(fee_weight)
         self._last = 0.0
         if use_depth_feed is None:
             use_depth_feed = os.getenv("USE_DEPTH_FEED", "0").lower() in {"1", "true", "yes"}
         self.use_depth_feed = bool(use_depth_feed)
         self._depth_cache: Dict[str, Dict[str, Dict[str, float]]] = {}
         self._unsub = None
+        self._fees: Dict[str, float] = dict(DEX_FEES)
+        self._latency: Dict[str, float] = {}
+        self._latency_task: asyncio.Task | None = None
         if self.use_depth_feed:
             self._unsub = subscribe("depth_update", self._handle_depth)
 
@@ -50,6 +63,20 @@ class CrossDEXRebalancer(BaseAgent):
     def close(self) -> None:
         if self._unsub:
             self._unsub()
+
+    async def _ensure_latency(self) -> None:
+        loop = asyncio.get_event_loop()
+        if self._latency_task is None:
+            self._latency = await measure_dex_latency_async(VENUE_URLS)
+            self._latency_task = loop.create_task(measure_dex_latency_async(VENUE_URLS))
+        elif self._latency_task.done():
+            try:
+                result = self._latency_task.result()
+                if isinstance(result, dict):
+                    self._latency.update(result)
+            except Exception:
+                pass
+            self._latency_task = loop.create_task(measure_dex_latency_async(VENUE_URLS))
 
     # ------------------------------------------------------------------
     async def _split_action(
@@ -74,7 +101,13 @@ class CrossDEXRebalancer(BaseAgent):
             best = min(slip, key=slip.get)
             valid = {best: slip[best]}
 
-        inv = {v: 1.0 / max(s, 1e-9) for v, s in valid.items()}
+        inv: Dict[str, float] = {}
+        for v, s in valid.items():
+            cost = s
+            cost += self.latency_weight * self._latency.get(v, 0.0)
+            cost += self.fee_weight * self._fees.get(v, 0.0)
+            inv[v] = 1.0 / max(cost, 1e-9)
+
         total = sum(inv.values())
         actions: List[Dict[str, Any]] = []
         for venue, inv_w in inv.items():
@@ -98,6 +131,8 @@ class CrossDEXRebalancer(BaseAgent):
         if now - self._last < self.rebalance_interval:
             return []
         self._last = now
+        await self._ensure_latency()
+        self._fees.update(DEX_FEES)
 
         base_actions = await self.optimizer.propose_trade(
             token, portfolio, depth=depth, imbalance=imbalance

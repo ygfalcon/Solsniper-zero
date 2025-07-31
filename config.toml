@@ -77,6 +77,8 @@ path_algorithm = "graph"  # "graph" or "permutation"
 # CrossDEXRebalancer options
 rebalance_interval = 30  # seconds between venue rebalances
 slippage_threshold = 0.05  # ignore venues with higher expected slippage
+latency_weight = 1.0  # weight applied to measured latency when selecting venues
+fee_weight = 1.0  # weight applied to per-venue fees during rebalances
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
