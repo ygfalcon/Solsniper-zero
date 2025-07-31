@@ -183,6 +183,8 @@ direct transaction submission to the Solana RPC.
     percentage.
   - `DYNAMIC_CONCURRENCY_INTERVAL` – how often CPU usage is sampled when
     adjusting task limits (defaults to `2`).
+  - `CONCURRENCY_KP` – proportional gain for dynamic concurrency adjustments
+    (defaults to `0.5`).
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
     `system_metrics_combined`.

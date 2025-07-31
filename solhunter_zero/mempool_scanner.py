@@ -55,6 +55,7 @@ _CPU_PERCENT: float = 0.0
 _CPU_SMOOTHED: float = 0.0
 _DYN_INTERVAL: float = 2.0
 _SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
+_KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
 
 def _on_system_metrics(msg: Any) -> None:
     """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
@@ -75,6 +76,25 @@ def _on_system_metrics(msg: Any) -> None:
 
 _resource_sub = subscription("system_metrics_combined", _on_system_metrics)
 _resource_sub.__enter__()
+
+
+def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
+    if cpu <= low:
+        return base
+    if cpu >= high:
+        return 1
+    frac = (cpu - low) / (high - low)
+    return max(1, int(round(base * (1.0 - frac))))
+
+
+def _step_limit(current: int, target: int, max_val: int) -> int:
+    new_val = current + _KP * (target - current)
+    new_val = int(round(new_val))
+    if new_val > max_val:
+        return max_val
+    if new_val < 1:
+        return 1
+    return new_val
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
@@ -277,10 +297,10 @@ async def stream_ranked_mempool_tokens(
                 while True:
                     await asyncio.sleep(_dyn_interval)
                     cpu = _CPU_SMOOTHED
-                    if cpu > high and current_limit == max_concurrency:
-                        await _set_limit(max(1, max_concurrency // 2))
-                    elif cpu < low and current_limit < max_concurrency:
-                        await _set_limit(max_concurrency)
+                    target = _target_concurrency(cpu, max_concurrency, low, high)
+                    new_limit = _step_limit(current_limit, target, max_concurrency)
+                    if new_limit != current_limit:
+                        await _set_limit(new_limit)
             except asyncio.CancelledError:
                 pass
 

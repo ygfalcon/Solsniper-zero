@@ -352,3 +352,14 @@ def test_dynamic_concurrency(monkeypatch):
 
     asyncio.run(run())
     assert max_running <= 2
+
+
+def test_mempool_concurrency_functions(monkeypatch):
+    monkeypatch.setattr(mp_scanner, "_KP", 0.5)
+    tgt = mp_scanner._target_concurrency(90.0, 4, 40.0, 80.0)
+    cur = mp_scanner._step_limit(4, tgt, 4)
+    assert tgt == 1
+    assert cur == 2
+    tgt = mp_scanner._target_concurrency(10.0, 4, 40.0, 80.0)
+    cur = mp_scanner._step_limit(cur, tgt, 4)
+    assert cur == 3
