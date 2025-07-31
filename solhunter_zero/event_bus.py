@@ -57,6 +57,13 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     websockets = None
 
+# compression algorithm for websockets
+_WS_COMPRESSION: str | None = os.getenv("EVENT_BUS_COMPRESSION", "deflate")
+if _WS_COMPRESSION:
+    comp = _WS_COMPRESSION.lower()
+    if comp in {"", "none", "0"}:
+        _WS_COMPRESSION = None
+
 # mapping of topic -> list of handlers
 _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(list)
 
@@ -369,7 +376,9 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
             _ws_clients.discard(ws)
 
     global _ws_server
-    _ws_server = await websockets.serve(handler, host, port)
+    _ws_server = await websockets.serve(
+        handler, host, port, compression=_WS_COMPRESSION
+    )
     return _ws_server
 
 
@@ -395,7 +404,7 @@ async def connect_ws(url: str):
     global _ws_client, _ws_url, _watch_task
 
     _ws_url = url
-    _ws_client = await websockets.connect(url)
+    _ws_client = await websockets.connect(url, compression=_WS_COMPRESSION)
     asyncio.create_task(_receiver(_ws_client))
     if _watch_task is None or _watch_task.done():
         loop = asyncio.get_running_loop()
@@ -434,7 +443,9 @@ async def reconnect_ws(url: str | None = None) -> None:
                     await _ws_client.close()
                 except Exception:
                     pass
-            _ws_client = await websockets.connect(_ws_url)
+            _ws_client = await websockets.connect(
+                _ws_url, compression=_WS_COMPRESSION
+            )
             asyncio.create_task(_receiver(_ws_client))
             if _watch_task is None or _watch_task.done():
                 loop = asyncio.get_running_loop()
