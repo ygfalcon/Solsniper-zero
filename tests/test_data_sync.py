@@ -1,5 +1,6 @@
 import asyncio
 import aiohttp
+import time
 import types
 import sys
 
@@ -48,6 +49,10 @@ for name in [
     "DepthUpdate",
     "DepthServiceStatus",
     "Heartbeat",
+    "TradeLogged",
+    "RLMetrics",
+    "SystemMetrics",
+    "PriceUpdate",
 ]:
     setattr(dummy_pb, name, type(name, (), {}))
 sys.modules.setdefault("solhunter_zero.event_pb2", dummy_pb)
@@ -79,7 +84,7 @@ class FakeSession:
 def test_sync_snapshots_no_recursion(tmp_path, monkeypatch):
     db = tmp_path / "data.db"
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment_async", lambda *a, **k: 0.0)
 
     calls = {}
@@ -95,4 +100,24 @@ def test_sync_snapshots_no_recursion(tmp_path, monkeypatch):
     asyncio.run(data_sync.sync_snapshots(["A", "B"], db_path=str(db), base_url="http://api"))
 
     assert calls.get("count") == 1
+
+
+def test_scheduler_rotation(tmp_path, monkeypatch):
+    db = tmp_path / "data.db"
+
+    async def fake_sync(days: int = 3, db_path: str = "offline_data.db") -> None:
+        data = OfflineData(f"sqlite:///{db_path}")
+        await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0)
+        await data.close()
+
+    monkeypatch.setattr(data_sync, "sync_recent", fake_sync)
+    monkeypatch.setenv("OFFLINE_DATA_LIMIT_GB", "0.000001")
+
+    data_sync.start_scheduler(interval=0.01, db_path=str(db))
+    time.sleep(0.05)
+    data_sync.stop_scheduler()
+
+    data = OfflineData(f"sqlite:///{db}")
+    snaps = asyncio.run(data.list_snapshots())
+    assert len(snaps) <= 1
 

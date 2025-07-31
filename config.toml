@@ -61,6 +61,7 @@ max_rate = 1.0
 depth_freq_low = 1.0
 depth_freq_high = 10.0
 offline_data_limit_gb = 50
+offline_data_interval = 3600
 min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
