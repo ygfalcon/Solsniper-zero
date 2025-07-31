@@ -108,6 +108,7 @@ arbitrage_threshold: 0.05
 arbitrage_amount: 1.0
 use_flash_loans: true
 max_flash_amount: 0.02
+flash_loan_ratio: 0.1
 mempool_threshold: 0.0
 bundle_size: 1
 use_mev_bundles: true
@@ -235,8 +236,10 @@ direct transaction submission to the Solana RPC.
 
 Flash loans are enabled by default. Disable them by setting
 `use_flash_loans` to `false` in your configuration. The bot will borrow up
-to `max_flash_amount` of the trading
-token using supported protocols (e.g. Solend), execute the swap chain and repay
+to `max_flash_amount` of the trading token. When `flash_loan_ratio` is set the
+maximum amount is computed from your current portfolio value as
+`portfolio_value * flash_loan_ratio`. The bot uses supported protocols
+(e.g. Solend) to borrow, execute the swap chain and repay
 the loan within the same transaction.  You must supply the required protocol
 accounts and understand that failed repayment reverts the entire transaction.
 The arbitrage path search now factors this flash-loan amount into the expected

@@ -22,6 +22,8 @@ from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
 from ..exchange import DEX_BASE_URL
 
+FLASH_LOAN_RATIO = float(os.getenv("FLASH_LOAN_RATIO", "0") or 0)
+
 
 class FlashloanSandwichAgent(BaseAgent):
     """Use flash loans to create sandwich bundles."""
@@ -108,6 +110,14 @@ class FlashloanSandwichAgent(BaseAgent):
                 slip = float(event.get("slippage", 0.0))
             if slip >= self.slippage_threshold or size >= self.size_threshold:
                 amt = max(self.amount, size)
+                ratio = FLASH_LOAN_RATIO
+                if ratio > 0:
+                    try:
+                        pv = float(os.getenv("PORTFOLIO_VALUE", "0") or 0)
+                    except Exception:
+                        pv = 0.0
+                    if pv > 0:
+                        amt = min(amt, pv * ratio)
                 front = await self._prepare_tx(token, "buy", amt)
                 back = await self._prepare_tx(token, "sell", amt)
                 if front and back:

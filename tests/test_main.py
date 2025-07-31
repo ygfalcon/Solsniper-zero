@@ -430,6 +430,61 @@ def test_trade_size_scales_with_risk(monkeypatch):
     assert size2 > size1
 
 
+def test_flashloan_amount_scales_with_portfolio(monkeypatch):
+    pf = main_module.Portfolio(path=None)
+    mem = main_module.Memory("sqlite:///:memory:")
+
+    async def fake_discover_tokens(self, *_a, **_k):
+        return ["tok"]
+
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
+    )
+    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
+
+    borrowed = []
+
+    async def fake_borrow(amount, token, inst, *, payer):
+        borrowed.append(amount)
+        return "sig"
+
+    async def fake_repay(_):
+        return True
+
+    monkeypatch.setattr(main_module.arbitrage, "borrow_flash", fake_borrow)
+    monkeypatch.setattr(main_module.arbitrage, "repay_flash", fake_repay)
+
+    monkeypatch.setenv("FLASH_LOAN_RATIO", "0.5")
+
+    monkeypatch.setattr(pf, "total_value", lambda prices=None: 10.0)
+    asyncio.run(
+        main_module._run_iteration(
+            mem,
+            pf,
+            dry_run=True,
+            arbitrage_threshold=0.1,
+            arbitrage_amount=100.0,
+        )
+    )
+    amt1 = borrowed[-1]
+
+    borrowed.clear()
+    monkeypatch.setattr(pf, "total_value", lambda prices=None: 20.0)
+    asyncio.run(
+        main_module._run_iteration(
+            mem,
+            pf,
+            dry_run=True,
+            arbitrage_threshold=0.1,
+            arbitrage_amount=100.0,
+        )
+    )
+    amt2 = borrowed[-1]
+
+    assert amt2 > amt1
+
+
 def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
     import solhunter_zero.config as cfg_mod
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(tmp_path / "cfg"))

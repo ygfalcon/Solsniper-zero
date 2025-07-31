@@ -67,6 +67,7 @@ arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
 use_flash_loans = true  # set to false to disable flash-loan arbitrage
 max_flash_amount = 0.02
+flash_loan_ratio = 0.1
 dex_priorities = "phoenix,meteora,orca,raydium,jupiter"
 dex_fees = "{}"
 dex_gas = "{}"
