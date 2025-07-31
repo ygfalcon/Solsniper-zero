@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 
 from .token_activity_model import ActivityModel
+from .regime_model import RegimeModel
 
 
 class PriceModel(nn.Module):
@@ -167,6 +168,14 @@ def save_model(model: nn.Module, path: str) -> None:
             "input_dim": model.input_dim,
             "hidden_dim": model.hidden_dim,
         }
+    elif isinstance(model, RegimeModel):
+        cfg = {
+            "cls": "RegimeModel",
+            "input_dim": model.input_dim,
+            "hidden_dim": model.hidden_dim,
+            "num_layers": model.num_layers,
+            "seq_len": model.seq_len,
+        }
     else:
         cfg = {"cls": type(model).__name__}
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
@@ -175,7 +184,7 @@ def save_model(model: nn.Module, path: str) -> None:
 def load_model(path: str) -> nn.Module:
     """Load a saved ML model from ``path``."""
     obj = torch.load(path, map_location="cpu")
-    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel)):
+    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel, RegimeModel)):
         obj.eval()
         return obj
     if isinstance(obj, dict) and "state" in obj:
@@ -193,6 +202,8 @@ def load_model(path: str) -> nn.Module:
             model_cls = XLTransformerModel
         elif cls_name == "ActivityModel":
             model_cls = ActivityModel
+        elif cls_name == "RegimeModel":
+            model_cls = RegimeModel
         else:
             model_cls = PriceModel
         model = model_cls(**cfg)

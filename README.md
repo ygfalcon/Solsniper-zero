@@ -827,6 +827,9 @@ very small.
   dataset from `offline_data.db` and trains a classifier on depth change,
   transaction rate, whale activity and average swap size. Set
   `ACTIVITY_MODEL_PATH` to enable ranking with this model.
+- **ML regime detection** — `scripts/train_regime_model.py` trains a classifier on
+  price, liquidity and sentiment from `offline_data.db`. Set `REGIME_MODEL_PATH`
+  to use this model for `detect_regime()`.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
@@ -880,9 +883,16 @@ To train the activity detection model run:
 python scripts/train_activity_model.py --db offline_data.db --out models/activity.pt
 ```
 
+To train the regime classifier run:
+
+```bash
+python scripts/train_regime_model.py --db offline_data.db --out models/regime.pt
+```
+
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
 `predict_price_movement()` can load it automatically.
 Set `ACTIVITY_MODEL_PATH` to `models/activity.pt` to enable early activity scoring.
+Set `REGIME_MODEL_PATH` to `models/regime.pt` to enable ML-based regime detection.
 
 You can train a soft actor-critic policy from the same dataset:
 
