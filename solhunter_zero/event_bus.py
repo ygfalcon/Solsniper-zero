@@ -54,6 +54,13 @@ _PB_MAP = {
     "rl_metrics": pb.RLMetrics,
     "system_metrics": pb.SystemMetrics,
     "price_update": pb.PriceUpdate,
+    "config_updated": pb.ConfigUpdated,
+    "pending_swap": pb.PendingSwap,
+    "remote_system_metrics": pb.RemoteSystemMetrics,
+    "risk_metrics": pb.RiskMetrics,
+    "risk_updated": pb.RiskUpdated,
+    "system_metrics_combined": pb.SystemMetricsCombined,
+    "token_discovered": pb.TokenDiscovered,
 }
 
 # compress protobuf messages when broadcasting if enabled
@@ -169,7 +176,9 @@ _outgoing_queue: Queue | None = None
 def _encode_event(topic: str, payload: Any) -> Any:
     cls = _PB_MAP.get(topic)
     if cls is None:
-        return _dumps({"topic": topic, "payload": to_dict(payload)}).decode()
+        event = pb.Event(topic=topic)
+        data = event.SerializeToString()
+        return _compress_event(data)
 
     if topic == "action_executed":
         event = pb.Event(
@@ -274,8 +283,71 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 price=float(data.get("price", 0.0)),
             ),
         )
-    else:
-        return _dumps({"topic": topic, "payload": to_dict(payload)}).decode()
+    elif topic == "config_updated":
+        event = pb.Event(
+            topic=topic,
+            config_updated=pb.ConfigUpdated(
+                config_json=_dumps(to_dict(payload)).decode(),
+            ),
+        )
+    elif topic == "pending_swap":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            pending_swap=pb.PendingSwap(
+                token=str(data.get("token", "")),
+                address=str(data.get("address", "")),
+                size=float(data.get("size", 0.0)),
+                slippage=float(data.get("slippage", 0.0)),
+            ),
+        )
+    elif topic == "remote_system_metrics":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            remote_system_metrics=pb.RemoteSystemMetrics(
+                cpu=float(data.get("cpu", 0.0)),
+                memory=float(data.get("memory", 0.0)),
+            ),
+        )
+    elif topic == "risk_metrics":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            risk_metrics=pb.RiskMetrics(
+                covariance=float(data.get("covariance", 0.0)),
+                portfolio_cvar=float(data.get("portfolio_cvar", 0.0)),
+                portfolio_evar=float(data.get("portfolio_evar", 0.0)),
+                correlation=float(data.get("correlation", 0.0)),
+                cov_matrix=[pb.DoubleList(values=[float(x) for x in row]) for row in data.get("cov_matrix", [])],
+                corr_matrix=[pb.DoubleList(values=[float(x) for x in row]) for row in data.get("corr_matrix", [])],
+            ),
+        )
+    elif topic == "risk_updated":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            risk_updated=pb.RiskUpdated(
+                multiplier=float(data.get("multiplier", 0.0)),
+            ),
+        )
+    elif topic == "system_metrics_combined":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            system_metrics_combined=pb.SystemMetricsCombined(
+                cpu=float(data.get("cpu", 0.0)),
+                memory=float(data.get("memory", 0.0)),
+            ),
+        )
+    elif topic == "token_discovered":
+        data = payload
+        if not isinstance(data, (list, tuple)):
+            data = to_dict(data)
+        event = pb.Event(
+            topic=topic,
+            token_discovered=pb.TokenDiscovered(tokens=[str(t) for t in data]),
+        )
     data = event.SerializeToString()
     return _compress_event(data)
 
@@ -340,6 +412,34 @@ def _decode_payload(ev: pb.Event) -> Any:
             "token": msg.token,
             "price": msg.price,
         }
+    if field == "config_updated":
+        return _loads(msg.config_json)
+    if field == "pending_swap":
+        return {
+            "token": msg.token,
+            "address": msg.address,
+            "size": msg.size,
+            "slippage": msg.slippage,
+        }
+    if field == "remote_system_metrics":
+        return {"cpu": msg.cpu, "memory": msg.memory}
+    if field == "risk_metrics":
+        cov = [list(row.values) for row in msg.cov_matrix]
+        corr = [list(row.values) for row in msg.corr_matrix]
+        return {
+            "covariance": msg.covariance,
+            "portfolio_cvar": msg.portfolio_cvar,
+            "portfolio_evar": msg.portfolio_evar,
+            "correlation": msg.correlation,
+            "cov_matrix": cov,
+            "corr_matrix": corr,
+        }
+    if field == "risk_updated":
+        return {"multiplier": msg.multiplier}
+    if field == "system_metrics_combined":
+        return {"cpu": msg.cpu, "memory": msg.memory}
+    if field == "token_discovered":
+        return list(msg.tokens)
     return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
