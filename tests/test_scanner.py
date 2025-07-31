@@ -304,3 +304,14 @@ def test_scan_tokens_async_dynamic(monkeypatch):
 
     asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
     assert max_running <= 2
+
+
+def test_scanner_concurrency_controller(monkeypatch):
+    monkeypatch.setattr(scanner, "_KP", 0.5)
+    tgt = scanner._target_concurrency(90.0, 4, 40.0, 80.0)
+    cur = scanner._step_limit(4, tgt, 4)
+    assert tgt == 1
+    assert cur == 2
+    tgt = scanner._target_concurrency(0.0, 4, 40.0, 80.0)
+    cur = scanner._step_limit(cur, tgt, 4)
+    assert cur == 3
