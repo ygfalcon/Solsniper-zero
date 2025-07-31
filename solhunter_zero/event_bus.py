@@ -35,6 +35,11 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
+try:
+    import msgpack
+except Exception:  # pragma: no cover - optional dependency
+    msgpack = None
+
 try:  # optional redis / nats support
     import redis.asyncio as aioredis  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -170,12 +175,15 @@ if _WS_COMPRESSION:
 
 # magic header for batched binary websocket messages
 _BATCH_MAGIC = b"EBAT"
+_MP_BATCH_MAGIC = b"EBMP"
 
 
 def _pack_batch(msgs: List[Any]) -> Any:
     """Return a single frame containing all ``msgs``."""
     if not msgs:
         return b""
+    if _WS_COMPRESSION and msgpack is not None:
+        return _MP_BATCH_MAGIC + msgpack.packb(msgs)
     first = msgs[0]
     if isinstance(first, bytes):
         parts = [len(m).to_bytes(4, "big") + m for m in msgs]
@@ -186,6 +194,14 @@ def _pack_batch(msgs: List[Any]) -> Any:
 def _unpack_batch(data: Any) -> List[Any] | None:
     """Return list of messages if ``data`` is a batched frame."""
     if isinstance(data, bytes):
+        if len(data) >= len(_MP_BATCH_MAGIC) and data.startswith(_MP_BATCH_MAGIC) and msgpack is not None:
+            try:
+                obj = msgpack.unpackb(data[len(_MP_BATCH_MAGIC):])
+            except Exception:
+                return None
+            if isinstance(obj, list):
+                return list(obj)
+            return None
         if len(data) >= len(_BATCH_MAGIC) + 4 and data.startswith(_BATCH_MAGIC):
             off = len(_BATCH_MAGIC)
             count = int.from_bytes(data[off:off + 4], "big")
