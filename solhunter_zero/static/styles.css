@@ -1,7 +1,14 @@
+:root {
+    --space-xs: 0.2rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 2rem;
+}
+
 body {
     background-color: #121212;
     color: #e0e0e0;
-    font-family: Arial, sans-serif;
+    font-family: 'Inter', Arial, sans-serif;
     margin: 0;
     padding: 0;
 }
@@ -9,15 +16,24 @@ body {
 .container {
     max-width: 900px;
     margin: 0 auto;
-    padding: 1rem;
+    padding: var(--space-md);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.section {
+    flex: 1 1 300px;
+    background-color: #1e1e1e;
+    padding: var(--space-md);
 }
 
 button {
     background-color: #333;
     color: #fff;
     border: 1px solid #555;
-    padding: 0.4rem 0.8rem;
-    margin: 0.2rem;
+    padding: var(--space-sm) var(--space-md);
+    margin: var(--space-xs);
     cursor: pointer;
 }
 button:hover {
@@ -26,11 +42,11 @@ button:hover {
 
 pre {
     background-color: #1e1e1e;
-    padding: 0.5rem;
+    padding: var(--space-sm);
     overflow: auto;
 }
 
 canvas {
     background-color: #1e1e1e;
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-md);
 }
