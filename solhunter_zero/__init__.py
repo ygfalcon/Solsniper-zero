@@ -26,6 +26,7 @@ __all__ = [
     "PopulationRL",
     "MultiAgentRL",
     "RLTraining",
+    "RayTraining",
     "RLDaemon",
     "RLWeightAgent",
 ]
@@ -94,6 +95,10 @@ def __getattr__(name: str):
         return cls
     if name == "RLTraining":
         from .rl_training import RLTraining as cls
+
+        return cls
+    if name == "RayTraining":
+        from .ray_training import RayTraining as cls
 
         return cls
     if name == "RLDaemon":
