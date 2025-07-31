@@ -6,7 +6,7 @@ import threading
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple, Any, Callable
+from typing import Iterable, List, Tuple, Any, Callable, Dict
 import os
 import time
 import types
@@ -32,6 +32,12 @@ from .event_bus import (
 )
 from .config import get_broker_url
 from .schemas import ActionExecuted, RLCheckpoint, RLWeights
+from .hierarchical_rl import (
+    HighLevelPolicyNetwork,
+    load_policy,
+    save_policy,
+    train_policy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -376,6 +382,8 @@ class RLDaemon:
         rl_population_size: int = 2,
         live: bool | None = None,
         distributed_rl: bool | None = None,
+        hierarchical_rl: bool | None = None,
+        hierarchical_model_path: str | Path = "hier_policy.json",
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -387,6 +395,10 @@ class RLDaemon:
         self.multi_rl = bool(multi_rl)
         self.live = bool(live)
         self.distributed_rl = bool(distributed_rl)
+        self.hierarchical_rl = bool(hierarchical_rl)
+        self.hierarchical_model_path = Path(hierarchical_model_path)
+        self.hier_policy = None
+        self.hier_weights: Dict[str, float] = {}
         self.population: MultiAgentRL | None = None
         self.live_dataset: rl_training.LiveTradeDataset | None = None
         self.last_train_time: float | None = None
@@ -661,6 +673,17 @@ class RLDaemon:
             "rl_weights",
             RLWeights(weights=weights, risk={"risk_multiplier": self.current_risk}),
         )
+        if self.hierarchical_rl:
+            names = [getattr(a, "name", str(i)) for i, a in enumerate(self.agents)]
+            if self.hier_policy is None or len(getattr(self.hier_policy, "weights", [])) != len(names):
+                self.hier_policy = load_policy(str(self.hierarchical_model_path), len(names))
+            try:
+                self.hier_weights = train_policy(self.hier_policy, trades, names)
+                save_policy(self.hier_policy, str(self.hierarchical_model_path))
+            except Exception as exc:  # pragma: no cover - log errors
+                logger.error("failed to train hierarchical policy: %s", exc)
+        else:
+            self.hier_weights = {}
         reward = 0.0
         for t in trades:
             val = float(getattr(t, "amount", 0.0)) * float(getattr(t, "price", 0.0))

@@ -138,6 +138,21 @@ def test_swarm_coordinator_filters_hierarchical_agent(tmp_path):
     w = coord.compute_weights(agents)
     assert w["a1"] < w["a2"]
 
+
+def test_train_policy_updates_weights():
+    from types import SimpleNamespace
+    from solhunter_zero.hierarchical_rl import HighLevelPolicyNetwork, train_policy
+
+    trades = [
+        SimpleNamespace(reason="a1", direction="buy", amount=1, price=1),
+        SimpleNamespace(reason="a1", direction="sell", amount=1, price=2),
+        SimpleNamespace(reason="a2", direction="buy", amount=1, price=2),
+        SimpleNamespace(reason="a2", direction="sell", amount=1, price=1),
+    ]
+    model = HighLevelPolicyNetwork(2)
+    w = train_policy(model, trades, ["a1", "a2"], lr=1.0, epochs=1)
+    assert w["a1"] > w["a2"]
+
 from solhunter_zero.hierarchical_rl import SupervisorAgent
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.portfolio import Portfolio
@@ -173,3 +188,26 @@ def test_agent_manager_supervisor_integration(tmp_path):
     pf = Portfolio(path=None)
     asyncio.run(mgr.evaluate("tok", pf))
     assert calls == ["a2"]
+
+
+def test_agent_manager_hierarchical_policy(tmp_path):
+    class DummyDaemon:
+        def __init__(self):
+            self.hier_weights = {"a1": 0.0, "a2": 2.0}
+
+    calls = []
+
+    class Dummy(DummyAgent):
+        async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
+            calls.append(self.name)
+            return [{"agent": self.name, "token": token, "side": "buy", "amount": 1.0, "price": 1.0}]
+
+    agents = [Dummy("a1"), Dummy("a2")]
+    mgr = AgentManager(
+        agents,
+        weights={"a1": 1.0, "a2": 1.0},
+        rl_daemon=DummyDaemon(),
+    )
+    pf = Portfolio(path=None)
+    actions = asyncio.run(mgr.evaluate("tok", pf))
+    assert actions and actions[0]["amount"] == 2.0
