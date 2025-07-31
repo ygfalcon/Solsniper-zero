@@ -43,6 +43,10 @@ EOF
     fi
 fi
 
+if command -v cargo >/dev/null 2>&1; then
+    cargo build --manifest-path route_ffi/Cargo.toml --release
+fi
+
 if [ "${DEPTH_SERVICE,,}" = "true" ]; then
     if ! command -v cargo >/dev/null 2>&1; then
         echo "Error: DEPTH_SERVICE requested but 'cargo' is not installed." >&2
