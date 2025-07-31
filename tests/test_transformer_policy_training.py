@@ -1,4 +1,5 @@
-import torch
+import pytest
+torch = pytest.importorskip("torch")
 from solhunter_zero.rl_algorithms import TransformerPolicy
 
 def test_transformer_policy_learns():

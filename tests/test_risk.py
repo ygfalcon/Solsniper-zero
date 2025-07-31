@@ -290,7 +290,8 @@ def test_hedge_ratio_and_portfolio_metrics():
 
 def test_var_forecast_adjustment(tmp_path, monkeypatch):
     from solhunter_zero.models.var_forecaster import VaRForecaster, save_var_model
-    import torch
+    import pytest
+    torch = pytest.importorskip("torch")
     model = VaRForecaster(seq_len=2, hidden_dim=2, num_layers=1)
     with torch.no_grad():
         for p in model.parameters():

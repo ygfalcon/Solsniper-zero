@@ -1,5 +1,6 @@
 import asyncio
 import pytest
+pytest.importorskip("solders")
 from solders.keypair import Keypair
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage

@@ -2,6 +2,8 @@ import asyncio
 import base64
 import json
 import asyncio
+import pytest
+pytest.importorskip("solders")
 
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey

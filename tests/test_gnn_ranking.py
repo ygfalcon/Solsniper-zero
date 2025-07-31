@@ -1,4 +1,5 @@
-import torch
+import pytest
+torch = pytest.importorskip("torch")
 from solhunter_zero.models.gnn import train_route_gnn, rank_routes
 
 

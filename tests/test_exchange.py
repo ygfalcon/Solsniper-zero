@@ -1,6 +1,7 @@
 import base64
 import asyncio
 import pytest
+pytest.importorskip("solders")
 
 from solders.keypair import Keypair
 from solders.hash import Hash

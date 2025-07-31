@@ -1,4 +1,5 @@
-import torch
+import pytest
+torch = pytest.importorskip("torch")
 from solhunter_zero.agents.attention_swarm import AttentionSwarm, save_model, load_model
 
 

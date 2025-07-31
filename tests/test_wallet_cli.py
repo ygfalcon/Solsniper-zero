@@ -2,6 +2,8 @@ import os
 import json
 import subprocess
 import sys
+import pytest
+pytest.importorskip("solders")
 from solders.keypair import Keypair
 
 

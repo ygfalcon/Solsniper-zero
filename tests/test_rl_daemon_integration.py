@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+pytest.importorskip("torch")
 import torch
 import subprocess
 import importlib.util
