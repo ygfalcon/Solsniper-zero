@@ -32,12 +32,27 @@ def test_crossdex_split(monkeypatch):
         lambda t: ({"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}}, 0.0),
     )
 
+    async def fake_latency(urls):
+        return {"dexA": 0.5, "dexB": 0.01}
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.crossdex_rebalancer.measure_dex_latency_async",
+        fake_latency,
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.agents.crossdex_rebalancer.DEX_FEES", {"dexA": 0.0, "dexB": 0.0}
+    )
+
     exec_agent = DummyExec()
-    agent = CrossDEXRebalancer(executor=exec_agent, rebalance_interval=0)
+    agent = CrossDEXRebalancer(
+        executor=exec_agent,
+        rebalance_interval=0,
+        slippage_threshold=1.0,
+    )
     asyncio.run(agent.propose_trade("tok", pf))
 
     assert exec_agent.actions
-    assert exec_agent.actions[0]["venue"] == "dexA"
+    assert exec_agent.actions[0]["venue"] == "dexB"
 
 
 def test_crossdex_feed(monkeypatch):
@@ -58,6 +73,17 @@ def test_crossdex_feed(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.agents.crossdex_rebalancer.snapshot",
         fail_snapshot,
+    )
+
+    async def fake_latency(urls):
+        return {"dexA": 0.1, "dexB": 0.1}
+
+    monkeypatch.setattr(
+        "solhunter_zero.agents.crossdex_rebalancer.measure_dex_latency_async",
+        fake_latency,
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.agents.crossdex_rebalancer.DEX_FEES", {"dexA": 0.0, "dexB": 0.0}
     )
 
     monkeypatch.setenv("USE_DEPTH_FEED", "True")
