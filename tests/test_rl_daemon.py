@@ -67,9 +67,13 @@ if importlib.util.find_spec("torch") is None:
     tud.Dataset = object
     tud.DataLoader = object
 if importlib.util.find_spec("numpy") is None:
-    sys.modules.setdefault("numpy", types.ModuleType("numpy"))
+    np_mod = types.ModuleType("numpy")
+    np_mod.__spec__ = importlib.machinery.ModuleSpec("numpy", None)
+    sys.modules.setdefault("numpy", np_mod)
 if importlib.util.find_spec("sklearn") is None:
-    sys.modules.setdefault("sklearn", types.ModuleType("sklearn"))
+    sk_mod = types.ModuleType("sklearn")
+    sk_mod.__spec__ = importlib.machinery.ModuleSpec("sklearn", None)
+    sys.modules.setdefault("sklearn", sk_mod)
     sys.modules["sklearn.linear_model"] = types.SimpleNamespace(LinearRegression=object)
     sys.modules["sklearn.ensemble"] = types.SimpleNamespace(
         GradientBoostingRegressor=object,
@@ -87,17 +91,24 @@ try:
     import google
 except ModuleNotFoundError:
     google = types.ModuleType("google")
+    google.__spec__ = importlib.machinery.ModuleSpec("google", None)
     google.__path__ = []
     sys.modules.setdefault("google", google)
 
 if importlib.util.find_spec("google.protobuf") is None:
     protobuf = types.ModuleType("protobuf")
+    protobuf.__spec__ = importlib.machinery.ModuleSpec("google.protobuf", None)
     descriptor = types.ModuleType("descriptor")
+    descriptor.__spec__ = importlib.machinery.ModuleSpec("descriptor", None)
     descriptor_pool = types.ModuleType("descriptor_pool")
+    descriptor_pool.__spec__ = importlib.machinery.ModuleSpec("descriptor_pool", None)
     symbol_database = types.ModuleType("symbol_database")
+    symbol_database.__spec__ = importlib.machinery.ModuleSpec("symbol_database", None)
     symbol_database.Default = lambda: object()
     internal = types.ModuleType("internal")
+    internal.__spec__ = importlib.machinery.ModuleSpec("internal", None)
     internal.builder = types.ModuleType("builder")
+    internal.builder.__spec__ = importlib.machinery.ModuleSpec("builder", None)
     protobuf.descriptor = descriptor
     protobuf.descriptor_pool = descriptor_pool
     protobuf.symbol_database = symbol_database
@@ -112,6 +123,7 @@ if importlib.util.find_spec("google.protobuf") is None:
 
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
+    pl.__spec__ = importlib.machinery.ModuleSpec("pytorch_lightning", None)
     callbacks = types.SimpleNamespace(Callback=object)
     pl.callbacks = callbacks
     pl.LightningModule = type("LightningModule", (), {})
@@ -119,13 +131,16 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     pl.Trainer = type("Trainer", (), {"fit": lambda *a, **k: None})
     sys.modules.setdefault("pytorch_lightning", pl)
 if importlib.util.find_spec("aiohttp") is None:
-    sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
+    aiohttp_mod = types.ModuleType("aiohttp")
+    aiohttp_mod.__spec__ = importlib.machinery.ModuleSpec("aiohttp", None)
+    sys.modules.setdefault("aiohttp", aiohttp_mod)
 if importlib.util.find_spec("aiofiles") is None:
     aiof_mod = types.ModuleType("aiofiles")
     aiof_mod.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
     sys.modules.setdefault("aiofiles", aiof_mod)
 if importlib.util.find_spec("sqlalchemy") is None:
     sa = types.ModuleType("sqlalchemy")
+    sa.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy", None)
     sa.create_engine = lambda *a, **k: None
     sa.MetaData = type("Meta", (), {"create_all": lambda *a, **k: None})
     sa.Column = lambda *a, **k: None
@@ -135,6 +150,7 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sa.ForeignKey = lambda *a, **k: None
     sys.modules.setdefault("sqlalchemy", sa)
     orm = types.ModuleType("orm")
+    orm.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy.orm", None)
 
     def declarative_base(*a, **k):
         return type("Base", (), {"metadata": sa.MetaData()})
