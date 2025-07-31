@@ -6,17 +6,22 @@ from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 from itertools import permutations
 
+
 async def dex1(token):
     return 1.0
+
 
 async def dex2(token):
     return 1.2
 
+
 async def dex3(token):
     return 1.4
 
+
 async def phoenix(token):
     return 0.9
+
 
 async def meteora(token):
     return 1.6
@@ -42,19 +47,27 @@ def ffi_enabled(monkeypatch, request):
     if request.param:
         from pathlib import Path
         import subprocess
-        lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+
+        lib_path = (
+            Path(__file__).resolve().parents[1]
+            / "route_ffi/target/release/libroute_ffi.so"
+        )
         if not lib_path.exists():
-            subprocess.run([
-                "cargo",
-                "build",
-                "--manifest-path",
-                str(Path(__file__).resolve().parents[1] / "route_ffi/Cargo.toml"),
-                "--release",
-            ], check=True)
+            subprocess.run(
+                [
+                    "cargo",
+                    "build",
+                    "--manifest-path",
+                    str(Path(__file__).resolve().parents[1] / "route_ffi/Cargo.toml"),
+                    "--release",
+                ],
+                check=True,
+            )
         monkeypatch.setenv("ROUTE_FFI_LIB", str(lib_path))
     else:
         monkeypatch.delenv("ROUTE_FFI_LIB", raising=False)
     import importlib
+
     importlib.reload(arb._routeffi)
     importlib.reload(arb)
     return request.param
@@ -293,9 +306,7 @@ def _legacy_build_adjacency(prices, amount, fees, gas, latency, depth=None):
             if a == b:
                 continue
             profit = (
-                (prices[b] - prices[a]) * amount
-                - step_cost(a, b)
-                - slip_cost(a, b)
+                (prices[b] - prices[a]) * amount - step_cost(a, b) - slip_cost(a, b)
             )
             neigh[b] = profit
         adjacency[a] = neigh
@@ -333,3 +344,63 @@ def test_vectorized_adjacency_speed():
     vector_time = time.perf_counter() - start
 
     assert vector_time <= legacy_time
+
+
+def test_compute_route_speed(monkeypatch, ffi_enabled):
+    if not ffi_enabled:
+        pytest.skip("requires ffi")
+
+    prices = {f"dex{i}": 1.0 + 0.01 * i for i in range(10)}
+    fees = {v: 0.0 for v in prices}
+    gas = {v: 0.0 for v in prices}
+    latency = {v: 0.0 for v in prices}
+
+    monkeypatch.setattr(arb, "USE_SERVICE_ROUTE", False)
+    monkeypatch.setattr(arb, "USE_FLASH_LOANS", False)
+    monkeypatch.setattr(arb, "MAX_FLASH_AMOUNT", 0.0)
+
+    monkeypatch.setattr(arb, "USE_FFI_ROUTE", False)
+    arb.invalidate_route()
+    start = time.perf_counter()
+    for _ in range(5):
+        asyncio.run(
+            arb._compute_route(
+                "tok",
+                1.0,
+                prices,
+                fees=fees,
+                gas=gas,
+                latency=latency,
+                use_service=False,
+                use_flash_loans=False,
+                max_flash_amount=0.0,
+                max_hops=4,
+                path_algorithm="dijkstra",
+            )
+        )
+        arb.invalidate_route("tok")
+    py_time = time.perf_counter() - start
+
+    monkeypatch.setattr(arb, "USE_FFI_ROUTE", True)
+    arb.invalidate_route()
+    start = time.perf_counter()
+    for _ in range(5):
+        asyncio.run(
+            arb._compute_route(
+                "tok",
+                1.0,
+                prices,
+                fees=fees,
+                gas=gas,
+                latency=latency,
+                use_service=False,
+                use_flash_loans=False,
+                max_flash_amount=0.0,
+                max_hops=4,
+                path_algorithm="dijkstra",
+            )
+        )
+        arb.invalidate_route("tok")
+    ffi_time = time.perf_counter() - start
+
+    assert py_time >= 2 * ffi_time

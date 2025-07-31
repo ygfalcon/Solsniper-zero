@@ -10,6 +10,7 @@ if _libname is None:
 if os.path.exists(_libname):
     try:
         LIB = ctypes.CDLL(_libname)
+        _search = getattr(LIB, "search_route_json", None)
         LIB.best_route_json.argtypes = [
             ctypes.c_char_p,  # prices
             ctypes.c_char_p,  # fees
@@ -20,6 +21,10 @@ if os.path.exists(_libname):
             ctypes.POINTER(ctypes.c_double),
         ]
         LIB.best_route_json.restype = ctypes.c_void_p
+        if _search is not None:
+            _search.argtypes = list(LIB.best_route_json.argtypes)
+            _search.restype = ctypes.c_void_p
+            LIB.search_route_json = _search
         LIB.free_cstring.argtypes = [ctypes.c_void_p]
     except OSError:
         LIB = None
@@ -29,7 +34,15 @@ def available() -> bool:
     return LIB is not None
 
 
-def best_route(prices: dict[str, float], amount: float, *, fees=None, gas=None, latency=None, max_hops=4):
+def best_route(
+    prices: dict[str, float],
+    amount: float,
+    *,
+    fees=None,
+    gas=None,
+    latency=None,
+    max_hops=4,
+):
     if LIB is None:
         return None
     prof = ctypes.c_double()
@@ -37,7 +50,12 @@ def best_route(prices: dict[str, float], amount: float, *, fees=None, gas=None, 
     fees_json = json.dumps(fees or {}).encode()
     gas_json = json.dumps(gas or {}).encode()
     lat_json = json.dumps(latency or {}).encode()
-    ptr = LIB.best_route_json(prices_json, fees_json, gas_json, lat_json, amount, max_hops, ctypes.byref(prof))
+    func = getattr(LIB, "search_route_json", None)
+    if func is None:
+        func = LIB.best_route_json
+    ptr = func(
+        prices_json, fees_json, gas_json, lat_json, amount, max_hops, ctypes.byref(prof)
+    )
     if not ptr:
         return None
     path_json = ctypes.string_at(ptr).decode()

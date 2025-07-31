@@ -9,6 +9,7 @@ import numpy as np
 
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
+
     _HAS_NUMBA = True
 except Exception:  # pragma: no cover - numba not available
     _HAS_NUMBA = False
@@ -21,7 +22,9 @@ except Exception:  # pragma: no cover - numba not available
             return func
 
         return wrapper
+
 else:  # pragma: no cover - numba available
+
     def njit(*args, **kwargs):  # type: ignore
         def decorator(func):
             try:
@@ -33,6 +36,8 @@ else:  # pragma: no cover - numba available
             return decorator(args[0])
 
         return decorator
+
+
 from typing import (
     Callable,
     Awaitable,
@@ -45,6 +50,7 @@ from typing import (
 
 try:  # optional rust ffi
     from . import routeffi as _routeffi
+
     _HAS_ROUTEFFI = _routeffi.available()
 except Exception:  # pragma: no cover - ffi unavailable
     _HAS_ROUTEFFI = False
@@ -139,10 +145,16 @@ EXTRA_API_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_API_URLS").
 EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").items()}
 
 # Measure DEX latency on import unless disabled via environment variable
-MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {"0", "false", "no"}
+MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 
 
-async def _ping_url(session: aiohttp.ClientSession, url: str, attempts: int = 3) -> float:
+async def _ping_url(
+    session: aiohttp.ClientSession, url: str, attempts: int = 3
+) -> float:
     """Return the average latency for ``url`` in seconds."""
 
     async def _once() -> float | None:
@@ -166,7 +178,9 @@ async def _ping_url(session: aiohttp.ClientSession, url: str, attempts: int = 3)
     return 0.0
 
 
-async def measure_dex_latency_async(urls: Mapping[str, str], attempts: int = 3) -> dict[str, float]:
+async def measure_dex_latency_async(
+    urls: Mapping[str, str], attempts: int = 3
+) -> dict[str, float]:
     """Asynchronously measure latency for each URL in ``urls``."""
 
     session = await get_session()
@@ -188,7 +202,9 @@ async def measure_dex_latency_async(urls: Mapping[str, str], attempts: int = 3) 
     return latency
 
 
-def measure_dex_latency(urls: Mapping[str, str] | None = None, attempts: int = 3) -> dict[str, float]:
+def measure_dex_latency(
+    urls: Mapping[str, str] | None = None, attempts: int = 3
+) -> dict[str, float]:
     """Synchronously measure latency for DEX endpoints."""
 
     if urls is None:
@@ -325,12 +341,14 @@ def _build_adjacency(
         step_matrix = base_cost[:, None] + base_cost[None, :]
 
         if depth is not None:
-            ask_arr = np.array([
-                float((depth.get(v) or {}).get("asks", 0.0)) for v in venues
-            ], dtype=float)
-            bid_arr = np.array([
-                float((depth.get(v) or {}).get("bids", 0.0)) for v in venues
-            ], dtype=float)
+            ask_arr = np.array(
+                [float((depth.get(v) or {}).get("asks", 0.0)) for v in venues],
+                dtype=float,
+            )
+            bid_arr = np.array(
+                [float((depth.get(v) or {}).get("bids", 0.0)) for v in venues],
+                dtype=float,
+            )
             slip_a = np.where(ask_arr > 0, trade_amount / ask_arr, 0.0)
             slip_b = np.where(bid_arr > 0, trade_amount / bid_arr, 0.0)
             slip_matrix = (
@@ -950,6 +968,13 @@ def _best_route(
     amount: float,
     **kwargs,
 ) -> tuple[list[str], float]:
+    if USE_FFI_ROUTE and _HAS_ROUTEFFI:
+        try:
+            res = _routeffi.best_route(dict(prices), amount, **kwargs)
+            if res:
+                return res
+        except Exception as exc:  # pragma: no cover - optional ffi failures
+            logger.warning("ffi.best_route failed: %s", exc)
     if USE_NUMBA_ROUTE and _HAS_NUMBA:
         return _best_route_numba(prices, amount, **kwargs)
     return _best_route_py(prices, amount, **kwargs)
@@ -975,22 +1000,7 @@ async def _compute_route(
         return cached
 
     res = None
-    if USE_FFI_ROUTE and _HAS_ROUTEFFI:
-        try:
-            res = _routeffi.best_route(
-                dict(price_map),
-                amount,
-                fees=fees,
-                gas=gas,
-                latency=latency,
-                max_hops=max_hops,
-            )
-        except Exception as exc:  # pragma: no cover - ffi optional
-            logger.warning("ffi.best_route failed: %s", exc)
-            res = None
-    if res:
-        path, profit = res
-    elif use_service:
+    if use_service:
         try:
             res = await depth_client.best_route(
                 token,
@@ -1005,7 +1015,7 @@ async def _compute_route(
             path, profit, _ = res
         else:
             use_service = False
-    if not use_service and not res:
+    if not use_service or not res:
         depth_map, _ = depth_client.snapshot(token)
         total = sum(
             float(v.get("bids", 0.0)) + float(v.get("asks", 0.0))
