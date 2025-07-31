@@ -347,6 +347,8 @@ class RLDaemon:
             self.model = _A3C()
         elif algo == "ddpg":
             self.model = _DDPG()
+        elif algo == "transformer_rl":
+            self.model = _TransformerRL()
         else:
             self.model = _PPO()
 

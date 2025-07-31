@@ -28,6 +28,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .emotion_agent import EmotionAgent
     from .momentum import MomentumAgent
     from .mempool_sniper import MempoolSniperAgent
+    from .transformer_rl import TransformerRLAgent
     from .mev_sandwich import MEVSandwichAgent
     from .flashloan_sandwich import FlashloanSandwichAgent
 
@@ -109,6 +110,7 @@ def _ensure_agents_loaded() -> None:
         "mempool_sniper": MempoolSniperAgent,
         "mev_sandwich": MEVSandwichAgent,
         "flashloan_sandwich": FlashloanSandwichAgent,
+        "transformer_rl": TransformerRLAgent,
 
         "meta_conviction": MetaConvictionAgent,
 

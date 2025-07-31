@@ -683,6 +683,8 @@ class RLTraining:
             self.model = LightningA3C()
         elif algo == "ddpg":
             self.model = LightningDDPG()
+        elif algo == "transformer_rl":
+            self.model = LightningTransformer()
         else:
             self.model = LightningPPO()
         if self.model_path.exists():
@@ -833,6 +835,8 @@ def fit(
         model = LightningA3C()
     elif algo == "ddpg":
         model = LightningDDPG()
+    elif algo == "transformer_rl":
+        model = LightningTransformer()
     else:
         model = LightningPPO()
 

@@ -114,6 +114,7 @@ agents = [
     "portfolio_optimizer",
     "crossdex_rebalancer",
     "mev_sandwich",
+    "transformer_rl",
     "flashloan_sandwich",
     "sac",
 ]
@@ -131,10 +132,17 @@ inferna = 1.0
 portfolio_optimizer = 1.0
 crossdex_rebalancer = 1.0
 flashloan_sandwich = 1.0
+transformer_rl = 1.0
 sac = 1.0
+
 
 # RL auto-training
 rl_auto_train = false
 rl_tune_interval = 3600
 regime_weight = 1.0
+[transformer_rl]
+hidden_size = 32
+nhead = 2
+num_layers = 1
+learning_rate = 3e-4
 rl_dynamic_workers = false
