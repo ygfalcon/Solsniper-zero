@@ -113,11 +113,21 @@ class SACAgent(BaseAgent):
         self.target_entropy = -1.0
         self._alpha = float(alpha)
         self._fitted = False
+        self._jit = None
         if self.model_path.exists():
             self._load_weights()
 
     # --------------------------------------------------------------
     def _load_weights(self) -> None:
+        script_path = self.model_path.with_suffix(".ptc")
+        if script_path.exists():
+            try:
+                self._jit = torch.jit.load(script_path, map_location=self.device)
+                self._last_mtime = os.path.getmtime(script_path)
+                self._fitted = True
+                return
+            except Exception:
+                self._jit = None
         data = torch.load(self.model_path, map_location=self.device)
         self.actor.load_state_dict(data.get("actor", {}))
         self.q1.load_state_dict(data.get("q1", {}))
@@ -132,6 +142,7 @@ class SACAgent(BaseAgent):
         self._alpha = float(self.log_alpha.exp())
         self._last_mtime = os.path.getmtime(self.model_path)
         self._fitted = True
+        self._jit = None
 
     def reload_weights(self) -> None:
         self._load_weights()
@@ -139,7 +150,8 @@ class SACAgent(BaseAgent):
     def _maybe_reload(self) -> None:
         if not self.model_path.exists():
             return
-        mtime = os.path.getmtime(self.model_path)
+        script = self.model_path.with_suffix(".ptc")
+        mtime = os.path.getmtime(script if script.exists() else self.model_path)
         if mtime > self._last_mtime:
             self._load_weights()
 
@@ -186,7 +198,8 @@ class SACAgent(BaseAgent):
             seq.append(float(t.price))
 
     def _sample_action(self, states: torch.Tensor, deterministic: bool = False) -> tuple[torch.Tensor, torch.Tensor]:
-        mean, log_std = self.actor(states)
+        actor_net = self._jit.actor if self._jit is not None and hasattr(self._jit, "actor") else self.actor
+        mean, log_std = actor_net(states)
         log_std = torch.clamp(log_std, -20, 2)
         std = log_std.exp()
         if deterministic:

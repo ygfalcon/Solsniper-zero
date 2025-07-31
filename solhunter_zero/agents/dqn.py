@@ -67,12 +67,22 @@ class DQNAgent(BaseAgent):
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
         self.loss_fn = nn.MSELoss()
         self._fitted = False
+        self._jit = None
 
         if self.model_path.exists():
             self._load_weights()
 
     # ------------------------------------------------------------------
     def _load_weights(self) -> None:
+        script_path = self.model_path.with_suffix(".ptc")
+        if script_path.exists():
+            try:
+                self._jit = torch.jit.load(script_path, map_location=self.device)
+                self._last_mtime = os.path.getmtime(script_path)
+                self._fitted = True
+                return
+            except Exception:
+                self._jit = None
         data = torch.load(self.model_path, map_location=self.device)
         self.model.load_state_dict(data.get("model_state", {}))
         opt_state = data.get("optimizer_state")
@@ -80,6 +90,7 @@ class DQNAgent(BaseAgent):
             self.optimizer.load_state_dict(opt_state)
         self._last_mtime = os.path.getmtime(self.model_path)
         self._fitted = True
+        self._jit = None
 
     def reload_weights(self) -> None:
         """Public method for reloading weights from disk."""
@@ -88,7 +99,8 @@ class DQNAgent(BaseAgent):
     def _maybe_reload(self) -> None:
         if not self.model_path.exists():
             return
-        mtime = os.path.getmtime(self.model_path)
+        script = self.model_path.with_suffix(".ptc")
+        mtime = os.path.getmtime(script if script.exists() else self.model_path)
         if mtime > self._last_mtime:
             self._load_weights()
 
@@ -193,7 +205,10 @@ class DQNAgent(BaseAgent):
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
         if self._fitted:
             with torch.no_grad():
-                q = self.model(state)[0].cpu().numpy()
+                if self._jit is not None:
+                    q = self._jit(state)[0].cpu().numpy()
+                else:
+                    q = self.model(state)[0].cpu().numpy()
         else:
             q = [0.0, 0.0]
         pred = self._predict_return(token)

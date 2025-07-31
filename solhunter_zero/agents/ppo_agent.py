@@ -82,12 +82,22 @@ class PPOAgent(BaseAgent):
             lr=learning_rate,
         )
         self._fitted = False
+        self._jit = None
 
         if self.model_path.exists():
             self._load_weights()
 
     # ------------------------------------------------------------------
     def _load_weights(self) -> None:
+        script_path = self.model_path.with_suffix(".ptc")
+        if script_path.exists():
+            try:
+                self._jit = torch.jit.load(script_path, map_location=self.device)
+                self._last_mtime = os.path.getmtime(script_path)
+                self._fitted = True
+                return
+            except Exception:
+                self._jit = None
         data = torch.load(self.model_path, map_location=self.device)
         self.actor.load_state_dict(data.get("actor_state", {}))
         self.critic.load_state_dict(data.get("critic_state", {}))
@@ -96,6 +106,7 @@ class PPOAgent(BaseAgent):
             self.optimizer.load_state_dict(opt_state)
         self._last_mtime = os.path.getmtime(self.model_path)
         self._fitted = True
+        self._jit = None
 
     def reload_weights(self) -> None:
         """Public method for reloading weights from disk."""
@@ -104,7 +115,8 @@ class PPOAgent(BaseAgent):
     def _maybe_reload(self) -> None:
         if not self.model_path.exists():
             return
-        mtime = os.path.getmtime(self.model_path)
+        script = self.model_path.with_suffix(".ptc")
+        mtime = os.path.getmtime(script if script.exists() else self.model_path)
         if mtime > self._last_mtime:
             self._load_weights()
 
@@ -225,7 +237,10 @@ class PPOAgent(BaseAgent):
         self.train(regime)
         state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
         with torch.no_grad():
-            logits = self.actor(state)[0]
+            if self._jit is not None and hasattr(self._jit, "actor"):
+                logits = self._jit.actor(state)[0]
+            else:
+                logits = self.actor(state)[0]
         pred = self._predict_return(token)
         logits = logits + torch.tensor([pred, -pred], device=self.device)
         action = "buy" if logits[0] >= logits[1] else "sell"

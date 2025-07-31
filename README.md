@@ -857,6 +857,10 @@ To continuously retrain the RL models on GPU run `scripts/train_rl_gpu.py`:
 python scripts/train_rl_gpu.py --db sqlite:///offline_data.db --model ppo_model.pt --interval 3600
 ```
 
+Training now also writes a TorchScript version of the checkpoint next to the
+regular file (`ppo_model.ptc`). Agents and the RL daemon load this compiled
+module automatically when present for faster inference.
+
 You can also launch the built-in RL daemon directly with GPU acceleration:
 
 ```bash
