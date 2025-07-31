@@ -210,60 +210,61 @@ class OfflineData:
         snaps = await self.list_snapshots(token)
         trades = await self.list_trades(token)
 
-        snap_arr = np.array(
-            [
-                (
-                    s.token,
-                    float(s.price),
-                    float(s.depth),
-                    float(getattr(s, "total_depth", 0.0)),
-                    float(getattr(s, "slippage", 0.0)),
-                    float(getattr(s, "volume", 0.0)),
-                    float(s.imbalance),
-                    float(getattr(s, "tx_rate", 0.0)),
-                    float(getattr(s, "whale_share", 0.0)),
-                    float(getattr(s, "spread", 0.0)),
-                    float(getattr(s, "sentiment", 0.0)),
-                    s.timestamp.timestamp(),
-                )
-                for s in snaps
-            ],
-            dtype=
-            [
-                ("token", "U32"),
-                ("price", "f4"),
-                ("depth", "f4"),
-                ("total_depth", "f4"),
-                ("slippage", "f4"),
-                ("volume", "f4"),
-                ("imbalance", "f4"),
-                ("tx_rate", "f4"),
-                ("whale_share", "f4"),
-                ("spread", "f4"),
-                ("sentiment", "f4"),
-                ("timestamp", "f8"),
-            ],
+        snap_dtype = [
+            ("token", "U32"),
+            ("price", "f4"),
+            ("depth", "f4"),
+            ("total_depth", "f4"),
+            ("slippage", "f4"),
+            ("volume", "f4"),
+            ("imbalance", "f4"),
+            ("tx_rate", "f4"),
+            ("whale_share", "f4"),
+            ("spread", "f4"),
+            ("sentiment", "f4"),
+            ("timestamp", "f8"),
+        ]
+
+        snap_iter = (
+            (
+                s.token,
+                float(s.price),
+                float(s.depth),
+                float(getattr(s, "total_depth", 0.0)),
+                float(getattr(s, "slippage", 0.0)),
+                float(getattr(s, "volume", 0.0)),
+                float(s.imbalance),
+                float(getattr(s, "tx_rate", 0.0)),
+                float(getattr(s, "whale_share", 0.0)),
+                float(getattr(s, "spread", 0.0)),
+                float(getattr(s, "sentiment", 0.0)),
+                s.timestamp.timestamp(),
+            )
+            for s in snaps
         )
 
-        trade_arr = np.array(
-            [
-                (
-                    t.token,
-                    t.side,
-                    float(t.price),
-                    float(t.amount),
-                    t.timestamp.timestamp(),
-                )
-                for t in trades
-            ],
-            dtype=[
-                ("token", "U32"),
-                ("side", "U8"),
-                ("price", "f4"),
-                ("amount", "f4"),
-                ("timestamp", "f8"),
-            ],
+        snap_arr = np.fromiter(snap_iter, dtype=snap_dtype, count=len(snaps))
+
+        trade_dtype = [
+            ("token", "U32"),
+            ("side", "U8"),
+            ("price", "f4"),
+            ("amount", "f4"),
+            ("timestamp", "f8"),
+        ]
+
+        trade_iter = (
+            (
+                t.token,
+                t.side,
+                float(t.price),
+                float(t.amount),
+                t.timestamp.timestamp(),
+            )
+            for t in trades
         )
+
+        trade_arr = np.fromiter(trade_iter, dtype=trade_dtype, count=len(trades))
 
         np.savez_compressed(out_path, snapshots=snap_arr, trades=trade_arr)
         return np.load(out_path, mmap_mode="r")
