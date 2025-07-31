@@ -518,6 +518,8 @@ def main(
     rl_daemon: bool = False,
     rl_interval: float = 3600.0,
     dynamic_concurrency: bool = False,
+    strategy_rotation_interval: int | None = None,
+    weight_config_paths: list[str] | None = None,
 ) -> None:
     """Run the trading loop.
 
@@ -632,12 +634,25 @@ def main(
     if depth_freq_high is None:
         depth_freq_high = float(cfg.get("depth_freq_high", 10.0))
 
+    if strategy_rotation_interval is None:
+        strategy_rotation_interval = int(cfg.get("strategy_rotation_interval", 0))
+    if weight_config_paths is None:
+        paths = cfg.get("weight_config_paths") or []
+        if isinstance(paths, str):
+            weight_config_paths = [p.strip() for p in paths.split(",") if p.strip()]
+        else:
+            weight_config_paths = list(paths) if paths else []
+
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
 
     agent_manager: AgentManager | None = None
 
     if cfg.get("agents"):
+        if weight_config_paths:
+            cfg["weight_config_paths"] = weight_config_paths
+        if strategy_rotation_interval is not None:
+            cfg["strategy_rotation_interval"] = strategy_rotation_interval
         agent_manager = AgentManager.from_config(cfg)
         if agent_manager is None:
             strategy_manager = StrategyManager(strategies)
@@ -815,6 +830,12 @@ def main(
                     agent_manager.evolve(
                         threshold=getattr(agent_manager, "mutation_threshold", 0.0)
                     )
+                if (
+                    agent_manager
+                    and getattr(agent_manager, "strategy_rotation_interval", 0) > 0
+                    and iteration_idx % agent_manager.strategy_rotation_interval == 0
+                ):
+                    agent_manager.rotate_weight_configs()
                 await asyncio.sleep(loop_delay)
         else:
             for i in range(iterations):
@@ -851,6 +872,12 @@ def main(
                     agent_manager.evolve(
                         threshold=getattr(agent_manager, "mutation_threshold", 0.0)
                     )
+                if (
+                    agent_manager
+                    and getattr(agent_manager, "strategy_rotation_interval", 0) > 0
+                    and iteration_idx % agent_manager.strategy_rotation_interval == 0
+                ):
+                    agent_manager.rotate_weight_configs()
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
 
@@ -1090,6 +1117,19 @@ if __name__ == "__main__":
         help="Dynamically adjust ranking concurrency based on CPU usage",
     )
     parser.add_argument(
+        "--strategy-rotation-interval",
+        type=int,
+        default=0,
+        help="Iterations between weight config evaluations",
+    )
+    parser.add_argument(
+        "--weight-config",
+        dest="weight_configs",
+        action="append",
+        default=[],
+        help="Configuration file with agent_weights to rotate",
+    )
+    parser.add_argument(
         "--profile",
         action="store_true",
         help="Profile the trading loop and write stats to profile.out",
@@ -1138,6 +1178,8 @@ if __name__ == "__main__":
         rl_daemon=args.rl_daemon,
         rl_interval=args.rl_interval,
         dynamic_concurrency=args.dynamic_concurrency,
+        strategy_rotation_interval=args.strategy_rotation_interval,
+        weight_config_paths=args.weight_configs,
     )
 
     try:

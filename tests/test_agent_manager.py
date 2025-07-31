@@ -56,3 +56,28 @@ def test_rl_weights_event_updates_manager(tmp_path):
     assert mgr.weights.get("b") == 2.0
     assert path.exists()
 
+
+def test_rotate_weight_configs_selects_best(tmp_path):
+    mem = Memory("sqlite:///:memory:")
+    mem.log_trade(token="tok", direction="buy", amount=1, price=1, reason="a1")
+    mem.log_trade(token="tok", direction="sell", amount=1, price=2, reason="a1")
+    mem.log_trade(token="tok", direction="buy", amount=1, price=1, reason="a2")
+    mem.log_trade(token="tok", direction="sell", amount=1, price=0.5, reason="a2")
+    mem_agent = MemoryAgent(mem)
+
+    w1 = tmp_path / "w1.toml"
+    w1.write_text("""[agent_weights]\na1 = 1.0\na2 = 1.0\n""")
+    w2 = tmp_path / "w2.toml"
+    w2.write_text("""[agent_weights]\na1 = 2.0\na2 = 0.5\n""")
+
+    mgr = AgentManager(
+        [],
+        memory_agent=mem_agent,
+        weights_path=str(tmp_path / "active.json"),
+        weight_config_paths=[str(w1), str(w2)],
+    )
+
+    mgr.rotate_weight_configs()
+    assert mgr.weights["a1"] == 2.0
+    assert mgr.weights["a2"] == 0.5
+

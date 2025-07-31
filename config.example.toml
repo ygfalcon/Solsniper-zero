@@ -95,6 +95,8 @@ replicate_trades = false  # subscribe to trade_logged events when true
 weights_path = "weights.json"
 evolve_interval = 1
 mutation_threshold = 0.0
+strategy_rotation_interval = 0
+weight_config_paths = []
 
 token_suffix = "bonk"
 token_keywords = ""
