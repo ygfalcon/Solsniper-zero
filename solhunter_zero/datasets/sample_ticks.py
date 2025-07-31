@@ -7,13 +7,8 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Path to the sample ticks dataset bundled with the repository
-DEFAULT_PATH = resources.files(__package__).joinpath(
-    "..",
-    "..",
-    "data",
-    "sample_ticks.json",
-)
+# Path to the sample ticks dataset bundled with the package
+DEFAULT_PATH = resources.files("solhunter_zero") / "data" / "sample_ticks.json"
 
 
 _cache_path: str | None = None

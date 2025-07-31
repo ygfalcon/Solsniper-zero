@@ -8,12 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 # Path to the dataset JSON file bundled with the package
-DEFAULT_PATH = resources.files(__package__).joinpath(
-    "..",
-    "..",
-    "data",
-    "alien_artifact_patterns.json",
-)
+DEFAULT_PATH = resources.files("solhunter_zero") / "data" / "alien_artifact_patterns.json"
 
 
 _patterns: List[Dict[str, Any]] | None = None
