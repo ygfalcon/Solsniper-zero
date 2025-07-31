@@ -81,10 +81,11 @@ class Memory(BaseMemory):
             session.add(rec)
             await session.commit()
 
-    def log_var(self, value: float) -> None:
+    def log_var(self, value: float):
         """Record a value-at-risk measurement."""
-        import asyncio
-        asyncio.run(self._log_var_async(value))
+        from .util import run_coro
+
+        return run_coro(self._log_var_async(value))
 
     async def list_trades(
         self,
@@ -112,5 +113,6 @@ class Memory(BaseMemory):
             return list(result.scalars().all())
 
     def list_vars(self):
-        import asyncio
-        return asyncio.run(self._list_vars_async())
+        from .util import run_coro
+
+        return run_coro(self._list_vars_async())
