@@ -23,6 +23,7 @@ from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
+from .graph_swarm import GraphSwarm, load_model as load_graph_model
 from .agents.attention_swarm import AttentionSwarm, load_model
 from .agents.rl_weight_agent import RLWeightAgent
 from .agents.hierarchical_rl_agent import HierarchicalRLAgent
@@ -132,6 +133,8 @@ class AgentManager:
         strategy_rotation_interval: int = 0,
         use_attention_swarm: bool = False,
         attention_model_path: str | None = None,
+        use_graph_swarm: bool = False,
+        graph_swarm_model: str | None = None,
         use_rl_weights: bool = False,
         rl_weights_path: str | None = None,
         hierarchical_rl: MultiAgentRL | None = None,
@@ -179,6 +182,9 @@ class AgentManager:
             except Exception:
                 self.attention_swarm = None
 
+        self.use_graph_swarm = bool(use_graph_swarm)
+        self.graph_swarm: GraphSwarm | None = None
+
         self.use_rl_weights = bool(use_rl_weights)
         self.rl_weight_agent: RLWeightAgent | None = None
         if self.use_rl_weights:
@@ -194,9 +200,18 @@ class AgentManager:
             self.hierarchical_agent = HierarchicalRLAgent(self.hierarchical_rl)
             self.agents.append(self.hierarchical_agent)
 
-        self.coordinator = SwarmCoordinator(
-            self.memory_agent, self.weights, self.regime_weights
-        )
+        if self.use_graph_swarm:
+            self.graph_swarm = GraphSwarm(
+                self.memory_agent,
+                model_path=graph_swarm_model,
+                base_weights=self.weights,
+                regime_weights=self.regime_weights,
+            )
+            self.coordinator = self.graph_swarm
+        else:
+            self.coordinator = SwarmCoordinator(
+                self.memory_agent, self.weights, self.regime_weights
+            )
 
         self.mutation_path = (
             str(mutation_path)
@@ -382,6 +397,30 @@ class AgentManager:
                 self.attention_swarm = load_model(str(attn_path))
             except Exception:
                 self.attention_swarm = None
+
+        gsw = cfg.get("use_graph_swarm")
+        if gsw is not None:
+            self.use_graph_swarm = bool(gsw)
+            if self.use_graph_swarm:
+                self.graph_swarm = GraphSwarm(
+                    self.memory_agent,
+                    model_path=cfg.get("graph_swarm_model"),
+                    base_weights=self.weights,
+                    regime_weights=self.regime_weights,
+                )
+                self.coordinator = self.graph_swarm
+            else:
+                self.graph_swarm = None
+                self.coordinator = SwarmCoordinator(
+                    self.memory_agent, self.weights, self.regime_weights
+                )
+
+        gsw_path = cfg.get("graph_swarm_model")
+        if gsw_path is not None and self.graph_swarm is not None:
+            try:
+                self.graph_swarm.model = load_graph_model(str(gsw_path))
+            except Exception:
+                self.graph_swarm.model = None
 
         reg_w = cfg.get("regime_weights")
         if reg_w is not None:
@@ -777,6 +816,9 @@ class AgentManager:
         use_attention_swarm = bool(cfg.get("use_attention_swarm", False))
         attention_swarm_model = cfg.get("attention_swarm_model")
 
+        use_graph_swarm = bool(cfg.get("use_graph_swarm", False))
+        graph_swarm_model = cfg.get("graph_swarm_model")
+
         use_rl_weights = bool(cfg.get("use_rl_weights", False))
         rl_weights_path = cfg.get("rl_weights_path")
 
@@ -812,6 +854,8 @@ class AgentManager:
             strategy_rotation_interval=strategy_rotation_interval,
             use_attention_swarm=use_attention_swarm,
             attention_model_path=attention_swarm_model,
+            use_graph_swarm=use_graph_swarm,
+            graph_swarm_model=graph_swarm_model,
             use_rl_weights=use_rl_weights,
             rl_weights_path=rl_weights_path,
         )

@@ -260,7 +260,8 @@ profit calculation so routes are ranked based on the borrowed size.
    `agent_weights` table mapping agent names to weights.  Set
    `use_attention_swarm = true` and specify `attention_swarm_model` to load
    a trained transformer that predicts these weights from ROI history and
-   market volatility:
+   market volatility. Set `use_graph_swarm = true` to weight agents with
+   a graph attention model:
 
    ```toml
    [agent_weights]
@@ -862,6 +863,8 @@ very small.
   config and `use_attention_swarm = true` to enable this model at run time.
 - **RL-based weighting** — set `use_rl_weights = true` so `RLWeightAgent`
   combines a reinforcement learning policy with ROI-based weights.
+- **Graph-based weighting** — train `scripts/train_graph_swarm.py` on
+  `memory.db` and set `use_graph_swarm = true` to activate this model.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.

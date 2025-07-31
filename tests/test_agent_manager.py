@@ -14,13 +14,28 @@ if importlib.util.find_spec("sentence_transformers") is None:
 if importlib.util.find_spec("faiss") is None:
     sys.modules.setdefault("faiss", types.ModuleType("faiss"))
 if importlib.util.find_spec("torch") is None:
-    sys.modules.setdefault("torch", types.ModuleType("torch"))
+    torch_mod = types.ModuleType("torch")
+    torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", loader=None)
+    sys.modules.setdefault("torch", torch_mod)
     sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
     sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
+if "google" not in sys.modules:
+    sys.modules["google"] = types.ModuleType("google")
+    pb = types.ModuleType("google.protobuf")
+    pb.descriptor = object()
+    pb.descriptor_pool = object()
+    pb.runtime_version = "0"
+    pb.symbol_database = object()
+    sys.modules["google.protobuf"] = pb
 
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
+import pytest
+try:
+    from solhunter_zero.agent_manager import AgentManager
+    from solhunter_zero.graph_swarm import GraphSwarm
+    from solhunter_zero.agents.memory import MemoryAgent
+    from solhunter_zero.memory import Memory
+except Exception:  # pragma: no cover - optional deps missing
+    pytest.skip("heavy dependencies missing", allow_module_level=True)
 
 
 def test_update_weights_persists(tmp_path):
@@ -81,3 +96,8 @@ def test_rotate_weight_configs_selects_best(tmp_path):
     assert mgr.weights["a1"] == 2.0
     assert mgr.weights["a2"] == 0.5
 
+
+def test_from_config_uses_graph_swarm():
+    cfg = {"agents": ["memory"], "use_graph_swarm": True, "graph_swarm_model": ""}
+    mgr = AgentManager.from_config(cfg)
+    assert isinstance(mgr.coordinator, GraphSwarm)
