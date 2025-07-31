@@ -3,6 +3,8 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Mapping
+
+from .risk import RiskManager
 import aiofiles
 
 from .event_bus import publish
@@ -375,6 +377,9 @@ def calculate_order_size(
     correlation: float | None = None,
     var: float | None = None,
     var_threshold: float | None = None,
+    predicted_var: float | None = None,
+    risk_manager: "RiskManager" | None = None,
+    risk_metrics: Mapping[str, float] | None = None,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -387,7 +392,9 @@ def calculate_order_size(
     ``min_portfolio_value`` sets a lower bound on the balance used for sizing,
     preventing portfolios that dip below this value from generating trades that
     cannot cover network fees.  When ``var`` exceeds ``var_threshold`` the size
-    is reduced proportionally.
+    is reduced proportionally.  ``predicted_var`` scales risk based on the
+    forecast ROI variance, while ``risk_manager`` metrics can override
+    ``risk_tolerance`` and ``max_allocation`` for dynamic control.
     """
 
     if balance <= 0 or expected_roi <= 0:
@@ -395,6 +402,22 @@ def calculate_order_size(
 
     if drawdown >= max_drawdown:
         return 0.0
+
+    if risk_manager is not None:
+        try:
+            rm_params = risk_manager.adjusted(
+                drawdown,
+                volatility,
+                correlation=correlation,
+                portfolio_metrics=risk_metrics,
+            )
+            risk_tolerance = rm_params.risk_tolerance
+            max_allocation = rm_params.max_allocation
+        except Exception:
+            pass
+
+    if correlation is None and risk_metrics is not None:
+        correlation = risk_metrics.get("correlation")
 
     adj_risk = (
         risk_tolerance
@@ -404,6 +427,9 @@ def calculate_order_size(
     if correlation is not None:
         corr = max(-1.0, min(1.0, correlation))
         adj_risk *= max(0.0, 1 - corr)
+    if predicted_var is not None and predicted_var > 0:
+        adj_risk /= 1 + predicted_var
+
     fraction = expected_roi * adj_risk
     remaining = max_allocation - current_allocation
     max_fraction = min(max_risk_per_token, remaining)
