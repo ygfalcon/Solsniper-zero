@@ -850,6 +850,17 @@ class AgentManager:
         use_supervisor = bool(cfg.get("use_supervisor", False))
         supervisor_checkpoint = cfg.get("supervisor_checkpoint")
 
+        hier_flag = cfg.get("hierarchical_rl")
+        hier_model = cfg.get("hierarchical_model_path", "hier_policy.json")
+        hierarchical_rl = None
+        if hier_flag:
+            try:
+                hierarchical_rl = MultiAgentRL(controller_path=str(hier_model))
+            except Exception:
+                hierarchical_rl = None
+                use_supervisor = True
+                supervisor_checkpoint = supervisor_checkpoint or str(hier_model)
+
         jito_rpc_url = cfg.get("jito_rpc_url")
         jito_auth = cfg.get("jito_auth")
         jito_ws_url = cfg.get("jito_ws_url")
@@ -884,6 +895,7 @@ class AgentManager:
             attention_model_path=attention_swarm_model,
             use_rl_weights=use_rl_weights,
             rl_weights_path=rl_weights_path,
+            hierarchical_rl=hierarchical_rl,
             use_supervisor=use_supervisor,
             supervisor_checkpoint=supervisor_checkpoint,
         )

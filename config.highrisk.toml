@@ -128,3 +128,5 @@ rl_dynamic_workers = true
 rl_prioritized_replay = false
 # Enable FAISS GPU index for faster memory search
 gpu_memory_index = false
+hierarchical_rl = true
+hierarchical_model_path = "hier_policy.json"

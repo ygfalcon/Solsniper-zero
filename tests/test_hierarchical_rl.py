@@ -211,3 +211,27 @@ def test_agent_manager_hierarchical_policy(tmp_path):
     pf = Portfolio(path=None)
     actions = asyncio.run(mgr.evaluate("tok", pf))
     assert actions and actions[0]["amount"] == 2.0
+
+
+def test_from_config_creates_hierarchical_agent(monkeypatch, tmp_path):
+    import solhunter_zero.agent_manager as am
+
+    class Dummy(am.BaseAgent):
+        name = "x"
+
+        async def propose_trade(self, *a, **k):
+            return []
+
+    monkeypatch.setattr(am, "load_agent", lambda name: Dummy())
+    dummy_rl = object()
+    monkeypatch.setattr(am, "MultiAgentRL", lambda **k: dummy_rl)
+
+    cfg = {
+        "agents": ["x"],
+        "hierarchical_rl": True,
+        "hierarchical_model_path": str(tmp_path / "hp.json"),
+    }
+    mgr = am.AgentManager.from_config(cfg)
+    assert mgr is not None
+    assert mgr.hierarchical_rl is dummy_rl
+    assert any(isinstance(a, am.HierarchicalRLAgent) for a in mgr.agents)
