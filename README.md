@@ -1118,3 +1118,13 @@ This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
 ## Testing
 
 See [TESTING.md](TESTING.md) for instructions on installing dependencies and running the test suite.
+
+## Contributing
+
+Pull requests are welcome. Install the development requirements in editable mode with:
+
+```bash
+pip install -e .[dev]
+```
+
+See [TESTING.md](TESTING.md) for details on running `pytest`.
