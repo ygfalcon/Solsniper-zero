@@ -1,13 +1,49 @@
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 #[derive(Clone)]
 struct Node {
     neg_profit: f64,
     path: Vec<String>,
     visited: HashSet<String>,
+}
+
+#[cfg(feature = "heuristic")]
+#[derive(Clone)]
+struct NodeHeur {
+    neg_score: f64,
+    profit: f64,
+    path: Vec<String>,
+    visited: HashSet<String>,
+}
+
+#[cfg(feature = "heuristic")]
+impl Eq for NodeHeur {}
+
+#[cfg(feature = "heuristic")]
+impl PartialEq for NodeHeur {
+    fn eq(&self, other: &Self) -> bool {
+        self.neg_score == other.neg_score
+    }
+}
+
+#[cfg(feature = "heuristic")]
+impl Ord for NodeHeur {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .neg_score
+            .partial_cmp(&self.neg_score)
+            .unwrap_or(Ordering::Equal)
+    }
+}
+
+#[cfg(feature = "heuristic")]
+impl PartialOrd for NodeHeur {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Eq for Node {}
@@ -32,11 +68,11 @@ impl PartialOrd for Node {
         Some(self.cmp(other))
     }
 }
+use bincode;
+use bincode::Options;
 use libc::c_char;
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use bincode;
-use bincode::Options;
 
 #[derive(Deserialize)]
 struct InputMap(HashMap<String, f64>);
@@ -49,7 +85,7 @@ fn parse_map(ptr: *const c_char) -> Option<HashMap<String, f64>> {
     serde_json::from_str::<HashMap<String, f64>>(s).ok()
 }
 
-fn best_route_internal(
+pub fn best_route_internal(
     prices: &HashMap<String, f64>,
     amount: f64,
     fees: &HashMap<String, f64>,
@@ -133,6 +169,105 @@ fn best_route_internal(
     }
 }
 
+#[cfg(feature = "heuristic")]
+pub fn best_route_heuristic(
+    prices: &HashMap<String, f64>,
+    amount: f64,
+    fees: &HashMap<String, f64>,
+    gas: &HashMap<String, f64>,
+    latency: &HashMap<String, f64>,
+    max_hops: usize,
+) -> Option<(Vec<String>, f64)> {
+    if prices.len() < 2 || max_hops < 2 {
+        return None;
+    }
+    let trade_amount = amount;
+    let venues: Vec<String> = prices.keys().cloned().collect();
+    let mut adjacency: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    let mut max_edge = 0.0_f64;
+    for a in venues.iter() {
+        let mut neigh = HashMap::new();
+        for b in venues.iter() {
+            if a == b {
+                continue;
+            }
+            let pa = *prices.get(a).unwrap_or(&0.0);
+            let pb = *prices.get(b).unwrap_or(&0.0);
+            let cost = pa * trade_amount * fees.get(a).copied().unwrap_or(0.0)
+                + pb * trade_amount * fees.get(b).copied().unwrap_or(0.0)
+                + gas.get(a).copied().unwrap_or(0.0)
+                + gas.get(b).copied().unwrap_or(0.0)
+                + latency.get(a).copied().unwrap_or(0.0)
+                + latency.get(b).copied().unwrap_or(0.0);
+            let profit = (pb - pa) * trade_amount - cost;
+            if profit > max_edge {
+                max_edge = profit;
+            }
+            neigh.insert(b.clone(), profit);
+        }
+        adjacency.insert(a.clone(), neigh);
+    }
+    if max_edge < 0.0 {
+        max_edge = 0.0;
+    }
+    let mut best_path: Vec<String> = Vec::new();
+    let mut best_profit = f64::NEG_INFINITY;
+    let mut heap: BinaryHeap<NodeHeur> = BinaryHeap::new();
+    for v in venues.iter() {
+        let visited: HashSet<String> = std::iter::once(v.clone()).collect();
+        heap.push(NodeHeur {
+            neg_score: 0.0,
+            profit: 0.0,
+            path: vec![v.clone()],
+            visited,
+        });
+    }
+    while let Some(NodeHeur {
+        neg_score: _,
+        profit,
+        path,
+        visited,
+    }) = heap.pop()
+    {
+        if path.len() > 1 && profit > best_profit {
+            best_profit = profit;
+            best_path = path.clone();
+        }
+        if path.len() >= max_hops {
+            continue;
+        }
+        let last = path.last().unwrap().clone();
+        if let Some(neigh) = adjacency.get(&last) {
+            for (nxt, val) in neigh {
+                if visited.contains(nxt) {
+                    continue;
+                }
+                let new_profit = profit + val;
+                let remaining = max_hops - path.len() - 1;
+                let estimate = new_profit + max_edge * remaining as f64;
+                if estimate < best_profit {
+                    continue;
+                }
+                let mut new_path = path.clone();
+                new_path.push(nxt.clone());
+                let mut new_vis = visited.clone();
+                new_vis.insert(nxt.clone());
+                heap.push(NodeHeur {
+                    neg_score: -estimate,
+                    profit: new_profit,
+                    path: new_path,
+                    visited: new_vis,
+                });
+            }
+        }
+    }
+    if best_profit.is_finite() {
+        Some((best_path, best_profit))
+    } else {
+        None
+    }
+}
+
 #[cfg(feature = "parallel")]
 fn search_from_start(
     start: &str,
@@ -148,7 +283,12 @@ fn search_from_start(
         path: vec![start.to_string()],
         visited,
     });
-    while let Some(Node { neg_profit, path, visited }) = heap.pop() {
+    while let Some(Node {
+        neg_profit,
+        path,
+        visited,
+    }) = heap.pop()
+    {
         let profit = -neg_profit;
         if path.len() > 1 && profit > best_profit {
             best_profit = profit;
@@ -305,6 +445,37 @@ pub extern "C" fn best_route_parallel_json(
 }
 
 #[no_mangle]
+pub extern "C" fn best_route_heuristic_json(
+    prices_json: *const c_char,
+    fees_json: *const c_char,
+    gas_json: *const c_char,
+    latency_json: *const c_char,
+    amount: f64,
+    max_hops: u32,
+    out_profit: *mut f64,
+) -> *mut c_char {
+    let prices = match parse_map(prices_json) {
+        Some(m) => m,
+        None => return std::ptr::null_mut(),
+    };
+    let fees = parse_map(fees_json).unwrap_or_default();
+    let gas = parse_map(gas_json).unwrap_or_default();
+    let latency = parse_map(latency_json).unwrap_or_default();
+    #[cfg(feature = "heuristic")]
+    let result = best_route_heuristic(&prices, amount, &fees, &gas, &latency, max_hops as usize);
+    #[cfg(not(feature = "heuristic"))]
+    let result = best_route_internal(&prices, amount, &fees, &gas, &latency, max_hops as usize);
+    match result {
+        Some((path, profit)) => unsafe {
+            *out_profit = profit;
+            let s = serde_json::to_string(&path).unwrap_or_else(|_| "[]".to_string());
+            CString::new(s).unwrap().into_raw()
+        },
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn free_cstring(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
@@ -317,6 +488,11 @@ pub extern "C" fn free_cstring(ptr: *mut c_char) {
 #[no_mangle]
 pub extern "C" fn route_parallel_enabled() -> bool {
     cfg!(feature = "parallel")
+}
+
+#[no_mangle]
+pub extern "C" fn route_heuristic_enabled() -> bool {
+    cfg!(feature = "heuristic")
 }
 
 #[derive(Serialize, Deserialize)]

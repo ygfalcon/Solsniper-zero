@@ -34,6 +34,15 @@ if os.path.exists(_libname):
         if _parallel_flag is not None:
             _parallel_flag.restype = ctypes.c_bool
             LIB.route_parallel_enabled = _parallel_flag
+        _heur = getattr(LIB, "best_route_heuristic_json", None)
+        if _heur is not None:
+            _heur.argtypes = list(LIB.best_route_json.argtypes)
+            _heur.restype = ctypes.c_void_p
+            LIB.best_route_heuristic_json = _heur
+        _heur_flag = getattr(LIB, "route_heuristic_enabled", None)
+        if _heur_flag is not None:
+            _heur_flag.restype = ctypes.c_bool
+            LIB.route_heuristic_enabled = _heur_flag
         _decode = getattr(LIB, "decode_token_agg_json", None)
         if _decode is not None:
             _decode.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
@@ -57,6 +66,15 @@ def parallel_enabled() -> bool:
     return bool(flag())
 
 
+def heuristic_enabled() -> bool:
+    if LIB is None:
+        return False
+    flag = getattr(LIB, "route_heuristic_enabled", None)
+    if flag is None:
+        return False
+    return bool(flag())
+
+
 def best_route(
     prices: dict[str, float],
     amount: float,
@@ -73,9 +91,11 @@ def best_route(
     fees_json = json.dumps(fees or {}).encode()
     gas_json = json.dumps(gas or {}).encode()
     lat_json = json.dumps(latency or {}).encode()
-    func = getattr(LIB, "search_route_json", None)
+    func = getattr(LIB, "best_route_heuristic_json", None)
     if func is None:
-        func = LIB.best_route_json
+        func = getattr(LIB, "search_route_json", None)
+        if func is None:
+            func = LIB.best_route_json
     ptr = func(
         prices_json, fees_json, gas_json, lat_json, amount, max_hops, ctypes.byref(prof)
     )
