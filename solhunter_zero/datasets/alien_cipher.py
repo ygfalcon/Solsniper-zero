@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Dict
 
@@ -22,7 +23,7 @@ _cache_path: str | None = None
 _cache_data: Dict[str, Any] | None = None
 
 
-def load_alien_cipher(path: Path | str = DEFAULT_PATH) -> Dict[str, Any]:
+def load_alien_cipher(path: Path | Traversable | str = DEFAULT_PATH) -> Dict[str, Any]:
     """Return the alien cipher coefficient mapping located at ``path``.
 
     The result is cached on the module level; subsequent calls with the same
@@ -33,8 +34,10 @@ def load_alien_cipher(path: Path | str = DEFAULT_PATH) -> Dict[str, Any]:
         return _cache_data
 
     try:
-        with Path(path).open("r", encoding="utf-8") as fh:
-            data = json.load(fh)
+        obj = Path(path) if isinstance(path, str) else path
+        with resources.as_file(obj) as p:
+            with p.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
     except Exception:
         _cache_path = str(path)
         _cache_data = {}
