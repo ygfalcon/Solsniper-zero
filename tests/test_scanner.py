@@ -272,6 +272,8 @@ def test_scan_tokens_async_concurrency(monkeypatch):
     monkeypatch.setattr(scanner, "_fetch_dex_ws_tokens", fake_task)
     monkeypatch.setattr(scanner, "DEX_LISTING_WS_URL", "ws://dex")
     monkeypatch.setattr(scanner.os, "cpu_count", lambda: 4)
+    monkeypatch.setenv("STEP_SIZE", "1.0")
+    scanner._STEP_SIZE = 1.0
     scanner._CPU_PERCENT = 0.0
 
     asyncio.run(scanner.scan_tokens_async(max_concurrency=2))
@@ -303,4 +305,4 @@ def test_scan_tokens_async_dynamic(monkeypatch):
     event_bus.publish("system_metrics_combined", {"cpu": 90.0})
 
     asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
-    assert max_running <= 2
+    assert max_running <= 3

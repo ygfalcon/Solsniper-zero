@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import math
 from typing import Dict, Any, List
 
 import aiohttp
@@ -51,6 +52,7 @@ class ExecutionAgent(BaseAgent):
         self.keypair = keypair
         self.retries = retries
         self._sem = asyncio.Semaphore(concurrency)
+        self._current_concurrency = concurrency
         self._rate_lock = asyncio.Lock()
         self._last = 0.0
         self.depth_service = depth_service
@@ -59,7 +61,10 @@ class ExecutionAgent(BaseAgent):
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
         self._cpu_usage = 0.0
         self._cpu_smoothed = 0.0
-        self._smoothing = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
+        self._alpha = float(
+            os.getenv("EWMA_ALPHA", os.getenv("CONCURRENCY_SMOOTHING", "0.2")) or 0.2
+        )
+        self._step = float(os.getenv("STEP_SIZE", "0.25") or 0.25)
         self._resource_subs = [
             subscription("system_metrics", self._on_resource_update),
             subscription("resource_update", self._on_resource_update),
@@ -79,18 +84,30 @@ class ExecutionAgent(BaseAgent):
             self._cpu_usage = float(cpu)
             if self._cpu_smoothed:
                 self._cpu_smoothed = (
-                    self._smoothing * self._cpu_usage
-                    + (1 - self._smoothing) * self._cpu_smoothed
+                    self._alpha * self._cpu_usage
+                    + (1 - self._alpha) * self._cpu_smoothed
                 )
             else:
                 self._cpu_smoothed = self._cpu_usage
         except Exception:
             return
         frac = max(0.0, min(1.0, self._cpu_smoothed / 100.0))
-        conc = max(1, int(round(self._base_concurrency * max(0.1, 1.0 - frac))))
-        if conc != self._sem._value:
-            self._sem = asyncio.Semaphore(conc)
-        self.rate_limit = self.min_rate + (self.max_rate - self.min_rate) * frac
+        target_conc = max(1, int(round(self._base_concurrency * max(0.1, 1.0 - frac))))
+        if target_conc != self._current_concurrency:
+            new_conc_val = self._current_concurrency + self._step * (
+                target_conc - self._current_concurrency
+            )
+            if target_conc > self._current_concurrency:
+                new_conc = int(math.ceil(new_conc_val))
+            else:
+                new_conc = int(math.floor(new_conc_val))
+            new_conc = max(1, min(self._base_concurrency, new_conc))
+            if new_conc != self._current_concurrency:
+                self._sem = asyncio.Semaphore(new_conc)
+                self._current_concurrency = new_conc
+
+        target_rate = self.min_rate + (self.max_rate - self.min_rate) * frac
+        self.rate_limit += self._step * (target_rate - self.rate_limit)
 
     async def _create_signed_tx(
         self,

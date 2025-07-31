@@ -29,7 +29,12 @@ logger = logging.getLogger(__name__)
 _CPU_PERCENT: float = 0.0
 _CPU_SMOOTHED: float = 0.0
 _DYN_INTERVAL: float = 2.0
-_SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
+# Exponentially weighted moving average coefficient
+_EWMA_ALPHA: float = float(
+    os.getenv("EWMA_ALPHA", os.getenv("CONCURRENCY_SMOOTHING", "0.2")) or 0.2
+)
+# Proportion of the difference to adjust on each step
+_STEP_SIZE: float = float(os.getenv("STEP_SIZE", "0.25") or 0.25)
 
 
 def _on_system_metrics(msg: Any) -> None:
@@ -43,7 +48,7 @@ def _on_system_metrics(msg: Any) -> None:
         global _CPU_PERCENT, _CPU_SMOOTHED
         _CPU_PERCENT = float(cpu)
         if _CPU_SMOOTHED:
-            _CPU_SMOOTHED = _SMOOTHING * _CPU_PERCENT + (1 - _SMOOTHING) * _CPU_SMOOTHED
+            _CPU_SMOOTHED = _EWMA_ALPHA * _CPU_PERCENT + (1 - _EWMA_ALPHA) * _CPU_SMOOTHED
         else:
             _CPU_SMOOTHED = _CPU_PERCENT
     except Exception:
@@ -172,8 +177,8 @@ async def scan_tokens_async(
     cpu_usage_threshold:
         Pause task creation while CPU usage exceeds this percentage.
     dynamic_concurrency:
-        Reduce the limit to half when CPU usage stays above
-        ``CPU_HIGH_THRESHOLD`` and restore it when below ``CPU_LOW_THRESHOLD``.
+        Adjust concurrency based on CPU usage. The limit moves gradually
+        toward the target derived from the EWMA of CPU usage.
     """
 
     if max_concurrency is None or max_concurrency <= 0:
@@ -181,9 +186,9 @@ async def scan_tokens_async(
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency
-    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
-    high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
-    low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+    _dyn_interval = float(
+        os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL
+    )
     adjust_task: asyncio.Task | None = None
 
     async def _set_limit(new_limit: int) -> None:
@@ -203,10 +208,23 @@ async def scan_tokens_async(
                 while True:
                     await asyncio.sleep(_dyn_interval)
                     cpu = _CPU_SMOOTHED
-                    if cpu > high and current_limit == max_concurrency:
-                        await _set_limit(max(1, max_concurrency // 2))
-                    elif cpu < low and current_limit < max_concurrency:
-                        await _set_limit(max_concurrency)
+                    target = max(
+                        1,
+                        int(
+                            round(
+                                max_concurrency
+                                * (1.0 - min(1.0, cpu / 100.0))
+                            )
+                        ),
+                    )
+                    if target != current_limit:
+                        new_limit = int(
+                            current_limit
+                            + _STEP_SIZE * (target - current_limit)
+                        )
+                        new_limit = max(1, min(max_concurrency, new_limit))
+                        if new_limit != current_limit:
+                            await _set_limit(new_limit)
             except asyncio.CancelledError:
                 pass
 
