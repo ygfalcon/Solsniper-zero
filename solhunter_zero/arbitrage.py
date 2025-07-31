@@ -243,6 +243,8 @@ USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "ye
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
 PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 USE_NUMBA_ROUTE = os.getenv("USE_NUMBA_ROUTE", "0").lower() in {"1", "true", "yes"}
+USE_GNN_ROUTING = os.getenv("USE_GNN_ROUTING", "0").lower() in {"1", "true", "yes"}
+GNN_MODEL_PATH = os.getenv("GNN_MODEL_PATH", "route_gnn.pt")
 
 from solhunter_zero.lru import LRUCache, TTLCache
 from .event_bus import subscribe
@@ -453,6 +455,75 @@ def _search_numba(matrix: "float[:, :]", max_hops: int) -> tuple[List[int], floa
         visited[i] = 0
 
     return best_path[:best_len], best_profit
+
+
+def _list_paths(
+    prices: Mapping[str, float],
+    amount: float,
+    *,
+    token: str | None = None,
+    fees: Mapping[str, float] | None = None,
+    gas: Mapping[str, float] | None = None,
+    latency: Mapping[str, float] | None = None,
+    depth: Mapping[str, Mapping[str, float]] | None = None,
+    mempool_rate: float = 0.0,
+    use_flash_loans: bool | None = None,
+    max_flash_amount: float | None = None,
+    max_hops: int | None = None,
+    top_k: int = 5,
+) -> list[tuple[list[str], float]]:
+    """Return top ``top_k`` paths ranked by computed profit."""
+
+    fees = fees or {}
+    gas = gas or {}
+    latency = latency or {}
+    for v in prices.keys():
+        fees.setdefault(v, DEX_FEES.get(v, 0.0))
+        gas.setdefault(v, DEX_GAS.get(v, 0.0))
+        latency.setdefault(v, DEX_LATENCY.get(v, 0.0))
+    if use_flash_loans is None:
+        use_flash_loans = USE_FLASH_LOANS
+    if max_flash_amount is None:
+        max_flash_amount = MAX_FLASH_AMOUNT
+    if max_hops is None:
+        max_hops = MAX_HOPS
+
+    trade_amount = (
+        min(max_flash_amount or amount, amount) if use_flash_loans else amount
+    )
+
+    venues, adjacency = _build_adjacency(
+        prices,
+        trade_amount,
+        fees,
+        gas,
+        latency,
+        depth,
+        token,
+        mempool_rate,
+    )
+
+    heap: list[tuple[float, list[str], set[str]]] = []
+    for v in venues:
+        heapq.heappush(heap, (0.0, [v], {v}))
+
+    paths: list[tuple[list[str], float]] = []
+    while heap:
+        neg_profit, path, visited = heapq.heappop(heap)
+        profit = -neg_profit
+        if len(path) > 1:
+            paths.append((path, profit))
+        if len(path) >= max_hops:
+            continue
+        last = path[-1]
+        for nxt, val in adjacency.get(last, {}).items():
+            if nxt in visited:
+                continue
+            new_profit = profit + val
+            heapq.heappush(heap, (-new_profit, path + [nxt], visited | {nxt}))
+
+    paths.sort(key=lambda p: p[1], reverse=True)
+    return paths[:top_k]
 
 
 async def _prepare_service_tx(
@@ -848,110 +919,20 @@ def _best_route_py(
 ) -> tuple[list[str], float]:
     """Return path with maximum profit and the expected profit."""
 
-    fees = fees or {}
-    gas = gas or {}
-    latency = latency or {}
-    for v in prices.keys():
-        if v not in fees:
-            fees[v] = DEX_FEES.get(v, 0.0)
-        if v not in gas:
-            gas[v] = DEX_GAS.get(v, 0.0)
-        if v not in latency:
-            latency[v] = DEX_LATENCY.get(v, 0.0)
-    if use_flash_loans is None:
-        use_flash_loans = USE_FLASH_LOANS
-    if max_flash_amount is None:
-        max_flash_amount = MAX_FLASH_AMOUNT
-
-    if use_flash_loans:
-        ratio = FLASH_LOAN_RATIO
-        if ratio > 0:
-            try:
-                pv = float(os.getenv("PORTFOLIO_VALUE", "0") or 0)
-            except Exception:
-                pv = 0.0
-            if pv > 0:
-                max_flash_amount = pv * ratio
-    if max_hops is None:
-        max_hops = MAX_HOPS
-    if path_algorithm is None:
-        path_algorithm = PATH_ALGORITHM
-    if max_hops is None:
-        max_hops = MAX_HOPS
-    if path_algorithm is None:
-        path_algorithm = PATH_ALGORITHM
-    trade_amount = (
-        min(max_flash_amount or amount, amount) if use_flash_loans else amount
+    paths = _list_paths(
+        prices,
+        amount,
+        token=token,
+        fees=fees,
+        gas=gas,
+        latency=latency,
+        depth=depth,
+        mempool_rate=mempool_rate,
+        use_flash_loans=use_flash_loans,
+        max_flash_amount=max_flash_amount,
+        max_hops=max_hops,
     )
-    venues = list(prices.keys())
-    best: list[str] | None = None
-    best_profit = float("-inf")
-
-    def step_cost(a: str, b: str) -> float:
-        return (
-            prices[a] * trade_amount * fees.get(a, 0.0)
-            + prices[b] * trade_amount * fees.get(b, 0.0)
-            + gas.get(a, 0.0)
-            + gas.get(b, 0.0)
-            + latency.get(a, 0.0)
-            + latency.get(b, 0.0)
-            + mempool_rate * MEMPOOL_WEIGHT
-        )
-
-    def slip_cost(a: str, b: str) -> float:
-        if depth is None:
-            return 0.0
-        a_depth = depth.get(a, {}) if isinstance(depth, Mapping) else {}
-        b_depth = depth.get(b, {}) if isinstance(depth, Mapping) else {}
-        ask = float(a_depth.get("asks", 0.0))
-        bid = float(b_depth.get("bids", 0.0))
-        slip_a = trade_amount / ask if ask > 0 else 0.0
-        slip_b = trade_amount / bid if bid > 0 else 0.0
-        return prices[a] * trade_amount * slip_a + prices[b] * trade_amount * slip_b
-
-    adj_key = token if token is not None else None
-    adjacency: dict[str, dict[str, float]] | None = None
-    if adj_key is not None:
-        adjacency = _EDGE_CACHE.get(adj_key)
-    if adjacency is None:
-        adjacency = {}
-        for a in venues:
-            neigh = {}
-            for b in venues:
-                if a == b:
-                    continue
-                profit = (
-                    (prices[b] - prices[a]) * trade_amount
-                    - step_cost(a, b)
-                    - slip_cost(a, b)
-                )
-                neigh[b] = profit
-            adjacency[a] = neigh
-        if adj_key is not None:
-            _EDGE_CACHE.set(adj_key, adjacency)
-
-    best_path: list[str] = []
-    best_profit = float("-inf")
-    heap: list[tuple[float, list[str], set[str]]] = []
-    for v in venues:
-        heapq.heappush(heap, (0.0, [v], {v}))
-
-    while heap:
-        neg_profit, path, visited = heapq.heappop(heap)
-        profit = -neg_profit
-        if len(path) > 1 and profit > best_profit:
-            best_profit = profit
-            best_path = path
-        if len(path) >= max_hops:
-            continue
-        last = path[-1]
-        for nxt, val in adjacency.get(last, {}).items():
-            if nxt in visited:
-                continue
-            new_profit = profit + val
-            heapq.heappush(heap, (-new_profit, path + [nxt], visited | {nxt}))
-
-    return best_path, best_profit
+    return paths[0] if paths else ([], float("-inf"))
 
 
 def _best_route_numba(
@@ -1020,9 +1001,34 @@ def _best_route(
     amount: float,
     *,
     mempool_rate: float = 0.0,
+    use_gnn_routing: bool | None = None,
+    gnn_model_path: str | None = None,
     **kwargs,
 ) -> tuple[list[str], float]:
     """Return the best route using the Rust FFI when available."""
+
+    if use_gnn_routing is None:
+        use_gnn_routing = USE_GNN_ROUTING
+    if gnn_model_path is None:
+        gnn_model_path = GNN_MODEL_PATH
+
+    if use_gnn_routing:
+        try:
+            from .models.gnn import load_route_gnn, rank_routes
+
+            model = load_route_gnn(gnn_model_path)
+        except Exception:
+            model = None
+        if model is not None:
+            cand = _list_paths(
+                prices,
+                amount,
+                mempool_rate=mempool_rate,
+                **kwargs,
+            )
+            if cand:
+                idx = rank_routes(model, [p for p, _ in cand])
+                return cand[idx]
     path_algo = kwargs.get("path_algorithm")
     if path_algo == "dijkstra":
         return _best_route_numba(

@@ -104,6 +104,8 @@ ENV_VARS = {
     "depth_freq_high": "DEPTH_FREQ_HIGH",
     "max_hops": "MAX_HOPS",
     "path_algorithm": "PATH_ALGORITHM",
+    "use_gnn_routing": "USE_GNN_ROUTING",
+    "gnn_model_path": "GNN_MODEL_PATH",
     "offline_data_interval": "OFFLINE_DATA_INTERVAL",
     "gpu_memory_index": "GPU_MEMORY_INDEX",
     "use_gpu_sim": "USE_GPU_SIM",
