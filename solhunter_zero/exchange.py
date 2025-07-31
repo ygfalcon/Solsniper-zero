@@ -3,6 +3,7 @@ import base64
 import logging
 from typing import Optional, Dict, Any
 import asyncio
+from contextlib import asynccontextmanager, suppress
 
 from .util import install_uvloop
 
@@ -31,6 +32,40 @@ install_uvloop()
 # Event loop used for synchronous order placement when no running loop is
 # available.  Created lazily on first use and reused across calls.
 _order_loop: asyncio.AbstractEventLoop | None = None
+
+# Persistent IPC connection pooling
+_IPC_CONNECTIONS: dict[str, tuple[asyncio.StreamReader, asyncio.StreamWriter]] = {}
+_IPC_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+@asynccontextmanager
+async def _ipc_connection(socket_path: str = IPC_SOCKET):
+    """Yield a reusable UNIX socket connection."""
+    lock = _IPC_LOCKS.setdefault(socket_path, asyncio.Lock())
+    async with lock:
+        conn = _IPC_CONNECTIONS.get(socket_path)
+        if conn is None or conn[1].is_closing():
+            conn = await asyncio.open_unix_connection(socket_path)
+            _IPC_CONNECTIONS[socket_path] = conn
+        reader, writer = conn
+        try:
+            yield reader, writer
+        except Exception:
+            writer.close()
+            with suppress(Exception):
+                await writer.wait_closed()
+            if _IPC_CONNECTIONS.get(socket_path) is conn:
+                _IPC_CONNECTIONS.pop(socket_path, None)
+            raise
+
+
+async def close_ipc_connections() -> None:
+    """Close all cached IPC connections."""
+    for reader, writer in list(_IPC_CONNECTIONS.values()):
+        writer.close()
+        with suppress(Exception):
+            await writer.wait_closed()
+    _IPC_CONNECTIONS.clear()
 
 # Using Jupiter Aggregator REST API for token swaps.
 _DEX_CFG = load_dex_config()
@@ -80,20 +115,18 @@ async def _place_order_ipc(
 
     for _ in range(max_retries):
         try:
-            reader, writer = await asyncio.open_unix_connection(socket_path)
-            payload = {"cmd": "submit", "tx": tx_b64, "testnet": testnet}
-            data = dumps(payload)
-            writer.write(data if isinstance(data, (bytes, bytearray)) else data.encode())
-            await writer.drain()
-            if timeout:
-                data = await asyncio.wait_for(reader.read(), timeout)
-            else:
-                data = await reader.read()
-            writer.close()
-            await writer.wait_closed()
-            if data:
-                return loads(data)
-            return None
+            async with _ipc_connection(socket_path) as (reader, writer):
+                payload = {"cmd": "submit", "tx": tx_b64, "testnet": testnet}
+                data = dumps(payload)
+                writer.write(data if isinstance(data, (bytes, bytearray)) else data.encode())
+                await writer.drain()
+                if timeout:
+                    data = await asyncio.wait_for(reader.read(), timeout)
+                else:
+                    data = await reader.read()
+                if data:
+                    return loads(data)
+                return None
         except asyncio.TimeoutError:
             logger.warning("IPC order timed out, retrying")
         except Exception as exc:

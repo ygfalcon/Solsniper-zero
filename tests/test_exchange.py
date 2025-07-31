@@ -12,6 +12,7 @@ from solders.signature import Signature
 from solders.transaction import VersionedTransaction
 
 from solhunter_zero.exchange import place_order, place_order_async
+import solhunter_zero.exchange as exchange
 
 
 async def _no_fee_async(*a, **k):
@@ -230,3 +231,61 @@ def test_place_order_reuses_loop(monkeypatch):
     place_order("tok", "buy", 1.0, 0.0, keypair=kp)
 
     assert len(loops) == 1
+
+
+def test_place_order_ipc_reuses_connection(monkeypatch):
+    responses = [
+        b'{"signature": "sig1"}',
+        b'{"signature": "sig2"}',
+    ]
+
+    class FakeReader:
+        def __init__(self, data):
+            self.data = list(data)
+
+        async def read(self):
+            return self.data.pop(0)
+
+    class FakeWriter:
+        def __init__(self):
+            self.data = b""
+            self.closed = False
+
+        def write(self, data):
+            self.data += data
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            self.closed = True
+
+        def is_closing(self):
+            return self.closed
+
+        async def wait_closed(self):
+            pass
+
+    reader = FakeReader(responses)
+    writer = FakeWriter()
+    calls = []
+
+    async def fake_conn(path):
+        calls.append(path)
+        return reader, writer
+
+    monkeypatch.setattr(asyncio, "open_unix_connection", fake_conn)
+    monkeypatch.setattr(exchange, "_IPC_CONNECTIONS", {}, raising=False)
+    monkeypatch.setattr(exchange, "_IPC_LOCKS", {}, raising=False)
+
+    async def run():
+        r1 = await exchange._place_order_ipc("TX1", socket_path="sock")
+        r2 = await exchange._place_order_ipc("TX2", socket_path="sock")
+        return r1, r2
+
+    res1, res2 = asyncio.run(run())
+
+    assert res1["signature"] == "sig1"
+    assert res2["signature"] == "sig2"
+    assert len(calls) == 1
+    assert not writer.closed
