@@ -810,6 +810,9 @@ HTML_PAGE = """
     <div class="section">
         <h3>ROI: <span id='roi_value'>0</span></h3>
         <canvas id='roi_chart' width='400' height='100'></canvas>
+        <p id='roi_legend' title='Green indicates positive ROI, red indicates negative ROI.'>
+            ROI color legend: green ≥ 0, red &lt; 0
+        </p>
     </div>
 
     <div class="section">
@@ -877,7 +880,7 @@ HTML_PAGE = """
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
         type: 'line',
-        data: {labels: [], datasets: [{label: 'ROI', data: []}]},
+        data: {labels: [], datasets: [{label: 'ROI', data: [], borderColor: [], backgroundColor: []}]},
         options: {scales: {y: {beginAtZero: true}}}
     });
 
@@ -1035,9 +1038,17 @@ HTML_PAGE = """
         });
         fetch('/roi').then(r => r.json()).then(data => {
             document.getElementById('roi_value').textContent = data.roi.toFixed(4);
+            const color = data.roi >= 0 ? 'green' : 'red';
             roiChart.data.labels.push('');
             roiChart.data.datasets[0].data.push(data.roi);
-            if(roiChart.data.labels.length>50){roiChart.data.labels.shift();roiChart.data.datasets[0].data.shift();}
+            roiChart.data.datasets[0].borderColor.push(color);
+            roiChart.data.datasets[0].backgroundColor.push(color);
+            if(roiChart.data.labels.length>50){
+                roiChart.data.labels.shift();
+                roiChart.data.datasets[0].data.shift();
+                roiChart.data.datasets[0].borderColor.shift();
+                roiChart.data.datasets[0].backgroundColor.shift();
+            }
             roiChart.update();
         });
         fetch('/token_history').then(r => r.json()).then(data => {
