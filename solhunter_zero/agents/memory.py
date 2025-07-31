@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import List, Dict, Any
 import asyncio
+import inspect
 
 from . import BaseAgent
 from ..memory import Memory
@@ -36,14 +37,25 @@ class MemoryAgent(BaseAgent):
                     "emotion": action.get("emotion", ""),
                     "simulation_id": action.get("simulation_id"),
                 }
-            await self.memory.log_trade(
-                token=action.get("token"),
-                direction=action.get("side"),
-                amount=action.get("amount", 0.0),
-                price=action.get("price", 0.0),
-                reason=action.get("agent"),
-                **extra,
-            )
+            log_trade = getattr(self.memory, "log_trade", None)
+            if inspect.iscoroutinefunction(log_trade):
+                await log_trade(
+                    token=action.get("token"),
+                    direction=action.get("side"),
+                    amount=action.get("amount", 0.0),
+                    price=action.get("price", 0.0),
+                    reason=action.get("agent"),
+                    **extra,
+                )
+            elif callable(log_trade):
+                log_trade(
+                    token=action.get("token"),
+                    direction=action.get("side"),
+                    amount=action.get("amount", 0.0),
+                    price=action.get("price", 0.0),
+                    reason=action.get("agent"),
+                    **extra,
+                )
             if self.offline_data:
                 await self.offline_data.log_trade(
                     token=action.get("token", ""),

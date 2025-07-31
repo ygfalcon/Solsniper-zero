@@ -73,7 +73,7 @@ except Exception:  # pragma: no cover - optional dependency
     websockets = None
 
 # compression algorithm for websockets
-_WS_COMPRESSION: str | None = os.getenv("EVENT_BUS_COMPRESSION", "deflate")
+_WS_COMPRESSION: str | None = os.getenv("EVENT_BUS_COMPRESSION")
 if _WS_COMPRESSION:
     comp = _WS_COMPRESSION.lower()
     if comp in {"", "none", "0"}:
