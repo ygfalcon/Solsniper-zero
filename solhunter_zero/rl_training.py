@@ -10,6 +10,7 @@ import time
 import psutil
 from collections import deque
 from .multi_rl import PopulationRL
+from .advanced_memory import AdvancedMemory
 
 try:
     from numba import njit  # type: ignore
@@ -253,6 +254,7 @@ class _TradeDataset(Dataset):
         sims_per_token: int = 10,
         price_model_path: str | None = None,
         regime_weight: float = 1.0,
+        memory: AdvancedMemory | None = None,
     ) -> None:
         start_time = time.time()
         self.price_model_path = price_model_path
@@ -260,6 +262,25 @@ class _TradeDataset(Dataset):
 
         trade_list = list(trades)
         n = len(trade_list)
+
+        clusters = np.zeros(n, dtype=np.float32)
+        if memory is not None:
+            try:
+                memory.cluster_trades()
+            except Exception:
+                pass
+            try:
+                centroids = getattr(memory, "cluster_centroids", None)
+                num_clusters = len(centroids) if centroids is not None else 0
+            except Exception:
+                num_clusters = 0
+            for i, t in enumerate(trade_list):
+                try:
+                    cid = memory.top_cluster(getattr(t, "context", ""))
+                except Exception:
+                    cid = None
+                if cid is not None and num_clusters:
+                    clusters[i] = float(cid) / float(num_clusters)
 
         tokens = np.array([t.token for t in trade_list])
         prices = np.array([float(t.price) for t in trade_list], dtype=np.float32)
@@ -367,6 +388,8 @@ class _TradeDataset(Dataset):
                 regimes,
             ]
         )
+        if memory is not None:
+            states = np.column_stack([states, clusters])
 
         self.states = states
         self.actions = actions
@@ -566,12 +589,12 @@ class LightningPPO(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.actor = nn.Sequential(
-            nn.Linear(9, hidden_size),
+            nn.Linear(10, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
         self.critic = nn.Sequential(
-            nn.Linear(9, hidden_size),
+            nn.Linear(10, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
@@ -612,7 +635,7 @@ class LightningDQN(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = nn.Sequential(
-            nn.Linear(9, hidden_size),
+            nn.Linear(10, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
@@ -646,12 +669,12 @@ class LightningA3C(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.actor = nn.Sequential(
-            nn.Linear(9, hidden_size),
+            nn.Linear(10, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 2),
         )
         self.critic = nn.Sequential(
-            nn.Linear(9, hidden_size),
+            nn.Linear(10, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
@@ -688,13 +711,13 @@ class LightningDDPG(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.actor = nn.Sequential(
-            nn.Linear(9, hidden_size),
+            nn.Linear(10, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
             nn.Tanh(),
         )
         self.critic = nn.Sequential(
-            nn.Linear(10, hidden_size),
+            nn.Linear(11, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
