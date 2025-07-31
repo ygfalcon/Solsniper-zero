@@ -234,6 +234,7 @@ if MEASURE_DEX_LATENCY:
 # Flash loan configuration
 USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
 MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
+FLASH_LOAN_RATIO = float(os.getenv("FLASH_LOAN_RATIO", "0") or 0)
 USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "yes"}
 
 # Path search configuration
@@ -859,6 +860,16 @@ def _best_route_py(
         use_flash_loans = USE_FLASH_LOANS
     if max_flash_amount is None:
         max_flash_amount = MAX_FLASH_AMOUNT
+
+    if use_flash_loans:
+        ratio = FLASH_LOAN_RATIO
+        if ratio > 0:
+            try:
+                pv = float(os.getenv("PORTFOLIO_VALUE", "0") or 0)
+            except Exception:
+                pv = 0.0
+            if pv > 0:
+                max_flash_amount = pv * ratio
     if max_hops is None:
         max_hops = MAX_HOPS
     if path_algorithm is None:

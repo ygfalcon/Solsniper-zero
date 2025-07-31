@@ -202,6 +202,7 @@ async def _run_iteration(
             portfolio.update_risk_metrics()
     drawdown = portfolio.current_drawdown(price_lookup)
     risk_metrics = portfolio.risk_metrics
+    os.environ["PORTFOLIO_VALUE"] = str(portfolio.total_value(price_lookup))
 
     if agent_manager is not None:
         for token in tokens:
