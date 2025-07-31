@@ -67,17 +67,39 @@ def _encode_entry(obj):
     return bytes(buf)
 
 
-def build_index(path, entries):
+def build_index(path, entries, adj=None):
     header = bytearray(b"IDX1")
-    header.extend(struct.pack("<I", len(entries)))
-    header_size = 8 + sum(2 + len(k) + 8 for k in entries)
+    all_entries = dict(entries)
+    if adj:
+        for t, mat in adj.items():
+            all_entries[f"adj_{t}"] = mat
+    header.extend(struct.pack("<I", len(all_entries)))
+    header_size = 8 + sum(2 + len(k) + 8 for k in all_entries)
     data = bytearray()
-    for token, obj in entries.items():
-        b = _encode_entry(obj)
+
+    def _encode_matrix(mat):
+        buf = bytearray()
+        venues = mat["venues"]
+        matrix = mat["matrix"]
+        buf.extend(struct.pack("<Q", len(venues)))
+        for name in venues:
+            nb = name.encode()
+            buf.extend(struct.pack("<Q", len(nb)))
+            buf.extend(nb)
+        buf.extend(struct.pack("<Q", len(matrix)))
+        buf.extend(struct.pack(f"<{len(matrix)}d", *matrix))
+        return bytes(buf)
+
+    for token, obj in all_entries.items():
+        if token.startswith("adj_"):
+            b = _encode_matrix(obj)
+        else:
+            b = _encode_entry(obj)
         header.extend(struct.pack("<H", len(token)))
         header.extend(token.encode())
         header.extend(struct.pack("<II", header_size + len(data), len(b)))
         data.extend(b)
+
     path.write_bytes(bytes(header + data))
 
 
@@ -149,6 +171,23 @@ def test_snapshot_json_fallback(tmp_path, monkeypatch):
 
     assert rate == pytest.approx(3.0)
     assert venues == {"dex": {"bids": 2.0, "asks": 4.0}}
+
+
+def test_get_adjacency_matrix(tmp_path, monkeypatch):
+    data = {"tok": {"tx_rate": 1.0}}
+    adj = {
+        "tok": {
+            "venues": ["dex1", "dex2"],
+            "matrix": [0.0, 1.0, 2.0, 0.0],
+        }
+    }
+    path = tmp_path / "depth.mmap"
+    build_index(path, data, adj)
+    monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
+
+    res = depth_client.get_adjacency_matrix("tok")
+
+    assert res == (["dex1", "dex2"], [[0.0, 1.0], [2.0, 0.0]])
 
 
 def test_token_offset_cache(tmp_path, monkeypatch):

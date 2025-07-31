@@ -32,6 +32,7 @@ def _disable_jup(monkeypatch):
     monkeypatch.setattr(arb, "JUPITER_WS_URL", "")
     monkeypatch.setattr(arb, "USE_DEPTH_STREAM", False)
     monkeypatch.setattr(arb, "USE_SERVICE_EXEC", False)
+    monkeypatch.setattr(arb.depth_client, "get_adjacency_matrix", lambda t: None)
     arb.invalidate_route()
     arb.invalidate_edges()
 
