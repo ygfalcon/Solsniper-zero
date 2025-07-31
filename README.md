@@ -41,7 +41,8 @@ up automatically. Select this file from the UI or set
    pip install .[uvloop]
    ```
    This installs all required Python packages as defined in
-   `pyproject.toml`, including
+   `pyproject.toml`, which now pins each dependency to a specific version
+   range for reproducible installs. It includes
    [PyYAML](https://pyyaml.org/) and
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
@@ -651,6 +652,8 @@ Install Python dependencies:
 ```bash
 pip install .
 ```
+This uses the pinned dependency ranges defined in `pyproject.toml` for
+consistent installations.
 
 For development you can also install the package in editable mode so changes are
 picked up automatically and the test suite has all required tools:
