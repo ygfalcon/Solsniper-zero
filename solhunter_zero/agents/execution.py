@@ -59,8 +59,12 @@ class ExecutionAgent(BaseAgent):
         self.priority_fees = list(priority_fees) if priority_fees else None
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
         self._cpu_usage = 0.0
-        self._resource_sub = subscription("resource_update", self._on_resource_update)
-        self._resource_sub.__enter__()
+        self._resource_subs = [
+            subscription("system_metrics", self._on_resource_update),
+            subscription("resource_update", self._on_resource_update),
+        ]
+        for sub in self._resource_subs:
+            sub.__enter__()
 
     def _on_resource_update(self, payload: Any) -> None:
         """Update resource usage and adjust concurrency and rate limit."""
@@ -131,8 +135,9 @@ class ExecutionAgent(BaseAgent):
 
     def close(self) -> None:
         """Unsubscribe from resource updates."""
-        if self._resource_sub:
-            self._resource_sub.__exit__(None, None, None)
+        if hasattr(self, "_resource_subs"):
+            for sub in self._resource_subs:
+                sub.__exit__(None, None, None)
 
     async def execute(self, action: Dict[str, Any]) -> Any:
         async with self._sem:
