@@ -4,6 +4,7 @@ from solhunter_zero.portfolio import (
     calculate_order_size,
     dynamic_order_size,
 )
+from solhunter_zero.risk import RiskManager
 
 
 @pytest.fixture(autouse=True)
@@ -303,4 +304,44 @@ def test_dynamic_order_size_drawdown_and_volatility():
     )
     assert high_vol < base
     assert high_dd < base
+
+
+def test_calculate_order_size_predicted_variance():
+    base = calculate_order_size(
+        100.0,
+        1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    var_scaled = calculate_order_size(
+        100.0,
+        1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+        predicted_var=0.5,
+    )
+    assert var_scaled < base
+
+
+def test_calculate_order_size_risk_manager_metrics():
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.5, max_risk_per_token=0.5)
+    base = calculate_order_size(
+        100.0,
+        1.0,
+        risk_tolerance=rm.risk_tolerance,
+        max_allocation=rm.max_allocation,
+        max_risk_per_token=rm.max_risk_per_token,
+    )
+    metrics = {"correlation": 0.9}
+    dynamic = calculate_order_size(
+        100.0,
+        1.0,
+        risk_manager=rm,
+        risk_metrics=metrics,
+        max_risk_per_token=rm.max_risk_per_token,
+    )
+    assert dynamic < base
+
 
