@@ -2,6 +2,7 @@ import asyncio
 from solhunter_zero import token_scanner as scanner
 from solhunter_zero import dynamic_limit
 from solhunter_zero import scanner_common
+from solhunter_zero import resource_monitor as rm
 from solhunter_zero.event_bus import subscribe
 from solhunter_zero import event_bus
 
@@ -46,7 +47,9 @@ def test_scan_tokens_websocket(monkeypatch):
             captured['headers'] = headers
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    async def fake_session():
+        return FakeSession()
+    monkeypatch.setattr(scanner, "get_session", fake_session)
     async def fake_trend():
         return ['trend']
     monkeypatch.setattr(scanner, 'fetch_trending_tokens_async', fake_trend)
@@ -79,7 +82,9 @@ def test_scan_tokens_offline(monkeypatch):
         raise AssertionError('network used')
 
     monkeypatch.setattr("solhunter_zero.websocket_scanner.stream_new_tokens", lambda *a, **k: (_ for _ in ()).throw(AssertionError('ws')))
-    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def fake_session_async():
+        return fake_session()
+    monkeypatch.setattr(scanner, "get_session", fake_session_async)
     async def fail():
         raise AssertionError('trending')
     monkeypatch.setattr(scanner, 'fetch_trending_tokens_async', fail)
@@ -103,7 +108,9 @@ def test_scan_tokens_onchain(monkeypatch):
         raise AssertionError('should not call BirdEye')
 
     monkeypatch.setattr(scanner_common, "scan_tokens_onchain", fake_onchain)
-    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def fake_session_async2():
+        return fake_session()
+    monkeypatch.setattr(scanner, "get_session", fake_session_async2)
     async def ft():
         return ['t2']
     async def fr():
@@ -146,7 +153,9 @@ def test_scan_tokens_async(monkeypatch):
         def get(self, url, headers=None, timeout=10):
             return FakeResp()
 
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
+    async def fake_session3():
+        return FakeSession()
+    monkeypatch.setattr(scanner, "get_session", fake_session3)
     async def fake_trend():
         return ['trend']
     import solhunter_zero.token_scanner as async_scanner_mod
@@ -176,7 +185,9 @@ def test_scan_tokens_from_file(monkeypatch, tmp_path):
     def fake_session(*a, **k):
         raise AssertionError("should not call network")
 
-    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def fake_session4():
+        return fake_session()
+    monkeypatch.setattr(scanner, "get_session", fake_session4)
     monkeypatch.setattr(scanner_common, "scan_tokens_onchain", lambda _: asyncio.sleep(0, ["x"]))  # should not be called
     monkeypatch.setattr(
         scanner,
@@ -199,7 +210,9 @@ def test_scan_tokens_async_from_file(monkeypatch, tmp_path):
     def fake_session():
         raise AssertionError("network should not be used")
 
-    monkeypatch.setattr("aiohttp.ClientSession", fake_session)
+    async def fake_session5():
+        return fake_session()
+    monkeypatch.setattr(scanner, "get_session", fake_session5)
     async def fail():
         raise AssertionError("trending")
     import solhunter_zero.token_scanner as async_scanner_mod
@@ -273,7 +286,7 @@ def test_scan_tokens_async_concurrency(monkeypatch):
     monkeypatch.setattr(scanner, "_fetch_dex_ws_tokens", fake_task)
     monkeypatch.setattr(scanner, "DEX_LISTING_WS_URL", "ws://dex")
     monkeypatch.setattr(scanner.os, "cpu_count", lambda: 4)
-    scanner._CPU_PERCENT = 0.0
+    monkeypatch.setattr(rm, "get_cpu_usage", lambda: 0.0)
 
     asyncio.run(scanner.scan_tokens_async(max_concurrency=2))
     assert max_running <= 2
@@ -298,11 +311,8 @@ def test_scan_tokens_async_dynamic(monkeypatch):
     monkeypatch.setattr(scanner, "_fetch_dex_ws_tokens", fake_task)
     monkeypatch.setattr(scanner, "DEX_LISTING_WS_URL", "ws://dex")
     monkeypatch.setattr(scanner.os, "cpu_count", lambda: 4)
-    scanner._CPU_PERCENT = 0.0
-    scanner._CPU_SMOOTHED = 0.0
-    scanner._CPU_LAST = 0.0
+    monkeypatch.setattr(rm, "get_cpu_usage", lambda: 90.0)
     scanner._DYN_INTERVAL = 0.0
-    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
 
     asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
     assert max_running <= 2
@@ -316,11 +326,10 @@ def test_cpu_fallback(monkeypatch):
         called = True
         return 55.0
 
-    monkeypatch.setattr(scanner.psutil, "cpu_percent", fake_cpu)
-    monkeypatch.setattr(scanner, "_SMOOTHING", 1.0)
-    scanner._CPU_SMOOTHED = 0.0
-    scanner._CPU_LAST = 0.0
-    cpu = scanner._current_cpu()
+    monkeypatch.setattr(rm.psutil, "cpu_percent", fake_cpu)
+    rm._CPU_PERCENT = 0.0
+    rm._CPU_LAST = 0.0
+    cpu = rm.get_cpu_usage()
     assert cpu == 55.0
     assert called
 

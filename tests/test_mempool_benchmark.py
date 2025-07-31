@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import solhunter_zero.mempool_scanner as mp_scanner
+from solhunter_zero import resource_monitor as rm
 
 
 async def _fake_stream(_url, **__):
@@ -18,7 +19,7 @@ def test_stream_ranked_mempool_tokens_speed(monkeypatch):
     monkeypatch.setattr(mp_scanner, 'stream_mempool_tokens', _fake_stream)
     monkeypatch.setattr(mp_scanner, 'rank_token', _fake_rank)
     monkeypatch.setattr(mp_scanner.os, 'cpu_count', lambda: 2)
-    mp_scanner._CPU_PERCENT = 0.0
+    monkeypatch.setattr(rm, 'get_cpu_usage', lambda: 0.0)
 
     async def run():
         gen = mp_scanner.stream_ranked_mempool_tokens('rpc')

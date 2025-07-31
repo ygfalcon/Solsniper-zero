@@ -32,3 +32,19 @@ async def test_resource_monitor_publish(monkeypatch):
         else:
             assert payload['cpu'] == 5.0
             assert payload['memory'] == 42.0
+
+
+def test_get_cpu_usage_fallback(monkeypatch):
+    called = False
+
+    def fake_cpu(*_a, **_k):
+        nonlocal called
+        called = True
+        return 12.0
+
+    monkeypatch.setattr(rm.psutil, 'cpu_percent', fake_cpu)
+    rm._CPU_PERCENT = 0.0
+    rm._CPU_LAST = 0.0
+    cpu = rm.get_cpu_usage()
+    assert cpu == 12.0
+    assert called
