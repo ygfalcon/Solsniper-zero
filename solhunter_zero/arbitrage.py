@@ -42,6 +42,12 @@ from typing import (
     Mapping,
 )
 
+try:  # optional rust ffi
+    from . import routeffi as _routeffi
+    _HAS_ROUTEFFI = _routeffi.available()
+except Exception:  # pragma: no cover - ffi unavailable
+    _HAS_ROUTEFFI = False
+
 import aiohttp
 from .http import get_session
 from .scanner_common import JUPITER_WS_URL
@@ -97,6 +103,7 @@ DEX_PRIORITIES = [
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
 USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true", "yes"}
 USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "1").lower() in {"1", "true", "yes"}
+USE_FFI_ROUTE = os.getenv("USE_FFI_ROUTE", "1").lower() in {"1", "true", "yes"}
 
 
 def _parse_mapping_env(env: str) -> dict:
@@ -955,7 +962,23 @@ async def _compute_route(
     if cached is not None:
         return cached
 
-    if use_service:
+    res = None
+    if USE_FFI_ROUTE and _HAS_ROUTEFFI:
+        try:
+            res = _routeffi.best_route(
+                dict(price_map),
+                amount,
+                fees=fees,
+                gas=gas,
+                latency=latency,
+                max_hops=max_hops,
+            )
+        except Exception as exc:  # pragma: no cover - ffi optional
+            logger.warning("ffi.best_route failed: %s", exc)
+            res = None
+    if res:
+        path, profit = res
+    elif use_service:
         try:
             res = await depth_client.best_route(
                 token,
@@ -970,7 +993,7 @@ async def _compute_route(
             path, profit, _ = res
         else:
             use_service = False
-    if not use_service:
+    if not use_service and not res:
         depth_map, _ = depth_client.snapshot(token)
         total = sum(
             float(v.get("bids", 0.0)) + float(v.get("asks", 0.0))
