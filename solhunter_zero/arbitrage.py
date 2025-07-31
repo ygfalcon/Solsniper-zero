@@ -991,6 +991,7 @@ def _best_route(
     amount: float,
     **kwargs,
 ) -> tuple[list[str], float]:
+    """Return the best route using the Rust FFI when available."""
     if USE_FFI_ROUTE and _HAS_ROUTEFFI:
         try:
             res = _routeffi.best_route(dict(prices), amount, **kwargs)
@@ -998,8 +999,6 @@ def _best_route(
                 return res
         except Exception as exc:  # pragma: no cover - optional ffi failures
             logger.warning("ffi.best_route failed: %s", exc)
-    if USE_NUMBA_ROUTE and _HAS_NUMBA:
-        return _best_route_numba(prices, amount, **kwargs)
     return _best_route_py(prices, amount, **kwargs)
 
 
