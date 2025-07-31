@@ -318,10 +318,28 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
     assert max_running <= 2
 
 
+def test_cpu_fallback(monkeypatch):
+    called = False
+
+    def fake_cpu(_=0.1):
+        nonlocal called
+        called = True
+        return 33.0
+
+    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", fake_cpu)
+    monkeypatch.setattr(mp_scanner, "_SMOOTHING", 1.0)
+    mp_scanner._CPU_SMOOTHED = 0.0
+    mp_scanner._CPU_LAST = 0.0
+    cpu = mp_scanner._current_cpu()
+    assert cpu == 33.0
+    assert called
+
+
 def test_dynamic_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
     mp_scanner._CPU_PERCENT = 0.0
     mp_scanner._CPU_SMOOTHED = 0.0
+    mp_scanner._CPU_LAST = 0.0
     mp_scanner._DYN_INTERVAL = 0.0
     event_bus.publish("system_metrics_combined", {"cpu": 90.0})
 
