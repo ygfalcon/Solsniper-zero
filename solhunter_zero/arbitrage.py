@@ -103,7 +103,7 @@ DEX_PRIORITIES = [
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
 USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true", "yes"}
 USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "1").lower() in {"1", "true", "yes"}
-USE_FFI_ROUTE = os.getenv("USE_FFI_ROUTE", "1").lower() in {"1", "true", "yes"}
+USE_FFI_ROUTE = os.getenv("USE_FFI_ROUTE", "True").lower() in {"1", "true", "yes"}
 
 
 def _parse_mapping_env(env: str) -> dict:
