@@ -14,8 +14,6 @@ DEFAULT_PATH = resources.files(__package__).joinpath(
     "alien_cipher.json",
 )
 
-# Backwards compatibility
-_DEFAULT_PATH = DEFAULT_PATH
 
 # Module level cache so we do not repeatedly load the same file
 _cache_path: str | None = None

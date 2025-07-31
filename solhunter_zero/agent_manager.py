@@ -30,7 +30,7 @@ from . import mutation
 from .event_bus import publish, subscription
 from .schemas import ActionExecuted, WeightsUpdated
 from .multi_rl import PopulationRL
-from .datasets.sample_ticks import load_sample_ticks, DEFAULT_PATH as _TICKS_PATH
+from .datasets.sample_ticks import load_sample_ticks, DEFAULT_PATH
 
 
 logger = logging.getLogger(__name__)
@@ -561,7 +561,7 @@ class AgentManager:
             mutation.save_state(self.mutation_state, str(path))
 
     def _load_price_history(self) -> List[float]:
-        data = load_sample_ticks(_TICKS_PATH)
+        data = load_sample_ticks(DEFAULT_PATH)
         if data and isinstance(data[0], dict):
             return [float(d.get("price", 0.0)) for d in data]
         try:

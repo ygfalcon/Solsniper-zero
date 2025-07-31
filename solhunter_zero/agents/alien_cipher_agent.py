@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 from . import BaseAgent
 from ..portfolio import Portfolio
-from ..datasets.alien_cipher import load_alien_cipher, DEFAULT_PATH as _DATA_PATH
+from ..datasets.alien_cipher import load_alien_cipher, DEFAULT_PATH
 
 
 class AlienCipherAgent(BaseAgent):
@@ -17,7 +17,7 @@ class AlienCipherAgent(BaseAgent):
         self,
         threshold: float = 0.5,
         amount: float = 1.0,
-        dataset_path: str = _DATA_PATH,
+        dataset_path: str = DEFAULT_PATH,
     ) -> None:
         self.threshold = float(threshold)
         self.amount = float(amount)

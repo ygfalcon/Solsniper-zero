@@ -18,7 +18,7 @@ from typing import Dict, List, Any, Sequence, Mapping
 
 from . import BaseAgent
 from ..portfolio import Portfolio
-from ..datasets.artifact_math import load_artifact_math, DEFAULT_PATH as _DATA_PATH
+from ..datasets.artifact_math import load_artifact_math, DEFAULT_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ class ArtifactMathAgent(BaseAgent):
     def __init__(
         self,
         *,
-        dataset_path: str = _DATA_PATH,
+        dataset_path: str = DEFAULT_PATH,
         threshold: float = 0.0,
         amount: float = 1.0,
     ) -> None:
