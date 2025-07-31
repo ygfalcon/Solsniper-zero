@@ -1,9 +1,14 @@
 import asyncio
 import sys
 import types
+import importlib.machinery
 
-sys.modules.setdefault('faiss', types.ModuleType('faiss'))
-sys.modules.setdefault('solders', types.ModuleType('solders'))
+_faiss_mod = types.ModuleType('faiss')
+_faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
+sys.modules.setdefault('faiss', _faiss_mod)
+_solders_mod = types.ModuleType('solders')
+_solders_mod.__spec__ = importlib.machinery.ModuleSpec('solders', None)
+sys.modules.setdefault('solders', _solders_mod)
 sys.modules['solders.keypair'] = types.SimpleNamespace(Keypair=type('Keypair', (), {}))
 sys.modules['solders.pubkey'] = types.SimpleNamespace(Pubkey=object)
 sys.modules['solders.hash'] = types.SimpleNamespace(Hash=object)
@@ -11,21 +16,30 @@ sys.modules['solders.message'] = types.SimpleNamespace(MessageV0=object)
 sys.modules['solders.transaction'] = types.SimpleNamespace(VersionedTransaction=object)
 sys.modules['solders.instruction'] = types.SimpleNamespace(Instruction=object, AccountMeta=object)
 sys.modules['solders.signature'] = types.SimpleNamespace(Signature=object)
-sys.modules.setdefault('aiohttp', types.ModuleType('aiohttp'))
-sys.modules.setdefault('bip_utils', types.ModuleType('bip_utils'))
+_aiohttp_mod = types.ModuleType('aiohttp')
+_aiohttp_mod.__spec__ = importlib.machinery.ModuleSpec('aiohttp', None)
+sys.modules.setdefault('aiohttp', _aiohttp_mod)
+_bip_mod = types.ModuleType('bip_utils')
+_bip_mod.__spec__ = importlib.machinery.ModuleSpec('bip_utils', None)
+sys.modules.setdefault('bip_utils', _bip_mod)
 sys.modules['bip_utils'].Bip39SeedGenerator = object
 sys.modules['bip_utils'].Bip44 = object
 sys.modules['bip_utils'].Bip44Coins = object
 sys.modules['bip_utils'].Bip44Changes = object
-sys.modules.setdefault('solana', types.ModuleType('solana'))
+_sol_mod = types.ModuleType('solana')
+_sol_mod.__spec__ = importlib.machinery.ModuleSpec('solana', None)
+sys.modules.setdefault('solana', _sol_mod)
 sys.modules['solana.rpc'] = types.ModuleType('rpc')
 sys.modules['solana.rpc.api'] = types.SimpleNamespace(Client=object)
 sys.modules['solana.rpc.commitment'] = types.SimpleNamespace(Confirmed="confirmed")
 sys.modules['solana.rpc.async_api'] = types.SimpleNamespace(AsyncClient=object)
 sys.modules['solana.rpc.websocket_api'] = types.SimpleNamespace(SolanaWsClient=object)
-sys.modules.setdefault('numpy', types.ModuleType('numpy'))
+_np_mod = types.ModuleType('numpy')
+_np_mod.__spec__ = importlib.machinery.ModuleSpec('numpy', None)
+sys.modules.setdefault('numpy', _np_mod)
 import contextlib
 torch_mod = types.ModuleType('torch')
+torch_mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
 torch_mod.no_grad = contextlib.nullcontext
 torch_mod.tensor = lambda *a, **k: None
 torch_mod.Tensor = object
@@ -37,10 +51,13 @@ torch_mod.nn = types.SimpleNamespace(
     Module=object,
 )
 torch_mod.optim = types.ModuleType('optim')
+torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
 sys.modules['torch'] = torch_mod
 sys.modules['torch.nn'] = torch_mod.nn
 sys.modules['torch.optim'] = torch_mod.optim
-sys.modules.setdefault('sentence_transformers', types.ModuleType('sentence_transformers'))
+_st_mod = types.ModuleType('sentence_transformers')
+_st_mod.__spec__ = importlib.machinery.ModuleSpec('sentence_transformers', None)
+sys.modules.setdefault('sentence_transformers', _st_mod)
 memory_mod = types.ModuleType('solhunter_zero.memory')
 class DummyMemory:
     def __init__(self, url='sqlite:///:memory:'):

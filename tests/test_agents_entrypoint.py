@@ -4,6 +4,8 @@ import importlib.metadata
 import importlib.util
 
 # Stub heavy optional dependencies before importing the package
+import importlib.machinery
+
 for mod in [
     "transformers",
     "sentence_transformers",
@@ -13,7 +15,9 @@ for mod in [
     "torch.optim",
     "aiofiles",
 ]:
-    sys.modules.setdefault(mod, types.ModuleType(mod))
+    m = types.ModuleType(mod)
+    m.__spec__ = importlib.machinery.ModuleSpec(mod, None)
+    sys.modules.setdefault(mod, m)
 
 from solhunter_zero import agents as agent_mod
 from solhunter_zero.agents import BUILT_IN_AGENTS, BaseAgent, load_agent
