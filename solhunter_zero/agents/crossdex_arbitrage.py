@@ -64,8 +64,12 @@ class CrossDEXArbitrage(BaseAgent):
             self._latency.update(self._latency_updates)
             self._latency_updates.clear()
         if self._latency_task is None:
-            self._latency = await measure_dex_latency_async(VENUE_URLS)
-            self._latency_task = loop.create_task(measure_dex_latency_async(VENUE_URLS))
+            self._latency = await measure_dex_latency_async(
+                VENUE_URLS, dynamic_concurrency=True
+            )
+            self._latency_task = loop.create_task(
+                measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
+            )
         elif self._latency_task.done():
             try:
                 res = self._latency_task.result()
@@ -73,7 +77,9 @@ class CrossDEXArbitrage(BaseAgent):
                     self._latency.update(res)
             except Exception:
                 pass
-            self._latency_task = loop.create_task(measure_dex_latency_async(VENUE_URLS))
+            self._latency_task = loop.create_task(
+                measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
+            )
 
     async def propose_trade(
         self,
