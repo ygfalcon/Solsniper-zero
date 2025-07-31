@@ -187,6 +187,9 @@ direct transaction submission to the Solana RPC.
     tasks. When set to `0` the scanner uses half the available CPUs.
   - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
     percentage.
+  - `CONCURRENCY_INTERVAL` – base delay between concurrency adjustments.
+    Lower values respond faster but slightly increase CPU utilization
+    (defaults to `0.5`).
   - `DYNAMIC_CONCURRENCY_INTERVAL` – how often CPU usage is sampled when
     adjusting task limits (defaults to `2`).
   - `CONCURRENCY_KP` – proportional gain for dynamic concurrency adjustments

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 _CPU_PERCENT: float = 0.0
 _CPU_SMOOTHED: float = 0.0
-_DYN_INTERVAL: float = 2.0
+_DYN_INTERVAL: float = float(os.getenv("CONCURRENCY_INTERVAL", "0.5") or 0.5)
 _SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
 _KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
 
@@ -204,7 +204,7 @@ async def scan_tokens_async(
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency
-    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
+    _dyn_interval = float(os.getenv("CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
     adjust_task: asyncio.Task | None = None
@@ -224,7 +224,10 @@ async def scan_tokens_async(
         async def _adjust() -> None:
             try:
                 while True:
-                    await asyncio.sleep(_dyn_interval)
+                    interval = float(
+                        os.getenv("CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL
+                    )
+                    await asyncio.sleep(interval)
                     cpu = _CPU_SMOOTHED
                     target = _target_concurrency(cpu, max_concurrency, low, high)
                     new_limit = _step_limit(current_limit, target, max_concurrency)
