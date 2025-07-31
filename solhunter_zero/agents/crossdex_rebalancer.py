@@ -17,6 +17,7 @@ from ..arbitrage import (
     DEX_FEES,
     measure_dex_latency_async,
 )
+from .. import routeffi as _routeffi
 from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
 
@@ -65,6 +66,41 @@ class CrossDEXRebalancer(BaseAgent):
         if self.use_depth_feed:
             self._unsub = subscribe("depth_update", self._handle_depth)
         self._latency_unsub = subscribe("dex_latency", self._handle_latency)
+
+    # ------------------------------------------------------------------
+    def _best_order(
+        self, side: str, amount: float, depth: Dict[str, Dict[str, float]]
+    ) -> List[str] | None:
+        """Return an ordered list of venues using the FFI if available."""
+        if not _routeffi.available():
+            return None
+        key = "asks" if side == "buy" else "bids"
+        prices = {
+            v: float(info.get(key, 0.0))
+            for v, info in depth.items()
+            if float(info.get(key, 0.0)) > 0
+        }
+        if len(prices) < 2:
+            return None
+        func = (
+            _routeffi.best_route_parallel
+            if _routeffi.parallel_enabled()
+            else _routeffi.best_route
+        )
+        try:
+            res = func(
+                prices,
+                amount,
+                fees=self._fees,
+                latency=self._latency,
+                max_hops=len(prices),
+            )
+        except Exception:
+            return None
+        if not res:
+            return None
+        path, _ = res
+        return path or None
 
     # ------------------------------------------------------------------
     def _handle_depth(self, payload: Dict[str, Dict[str, Any]]) -> None:
@@ -125,7 +161,10 @@ class CrossDEXRebalancer(BaseAgent):
 
     # ------------------------------------------------------------------
     async def _split_action(
-        self, action: Dict[str, Any], depth: Dict[str, Dict[str, float]]
+        self,
+        action: Dict[str, Any],
+        depth: Dict[str, Dict[str, float]],
+        order: List[str] | None = None,
     ) -> List[Dict[str, Any]]:
         side = action.get("side", "buy").lower()
         amount = float(action.get("amount", 0.0))
@@ -147,15 +186,26 @@ class CrossDEXRebalancer(BaseAgent):
             valid = {best: slip[best]}
 
         inv: Dict[str, float] = {}
+        costs: Dict[str, float] = {}
         for v, s in valid.items():
             cost = s
             cost += self.latency_weight * self._latency.get(v, 0.0)
             cost += self.fee_weight * self._fees.get(v, 0.0)
             inv[v] = 1.0 / max(cost, 1e-9)
+            costs[v] = cost
 
         total = sum(inv.values())
+        venues = list(inv.keys())
+        if order:
+            order = [v for v in order if v in venues]
+            order.extend([v for v in venues if v not in order])
+            venues = order
+        else:
+            venues = sorted(venues, key=lambda v: costs[v])
+
         actions: List[Dict[str, Any]] = []
-        for venue, inv_w in inv.items():
+        for venue in venues:
+            inv_w = inv[venue]
             amt = amount * inv_w / total
             new = dict(action)
             new["venue"] = venue
@@ -193,7 +243,8 @@ class CrossDEXRebalancer(BaseAgent):
             depth_data, _ = snapshot(token)
         all_actions: List[Dict[str, Any]] = []
         for act in base_actions:
-            all_actions.extend(await self._split_action(act, depth_data))
+            order = self._best_order(act.get("side", "buy"), act.get("amount", 0.0), depth_data)
+            all_actions.extend(await self._split_action(act, depth_data, order=order))
 
         if self.use_mev_bundles:
             txs: List[str] = []
