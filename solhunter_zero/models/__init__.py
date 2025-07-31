@@ -380,6 +380,98 @@ def train_transformer_model(
     return model
 
 
+def train_deep_transformer_model(
+    prices: Iterable[float],
+    liquidity: Iterable[float],
+    depth: Iterable[float],
+    total_depth: Iterable[float] | None = None,
+    tx_counts: Iterable[float] | None = None,
+    slippage: Iterable[float] | None = None,
+    volume: Iterable[float] | None = None,
+    mempool_rates: Iterable[float] | None = None,
+    whale_shares: Iterable[float] | None = None,
+    spreads: Iterable[float] | None = None,
+    *,
+    seq_len: int = 30,
+    epochs: int = 10,
+    lr: float = 1e-3,
+    hidden_dim: int = 64,
+    num_layers: int = 4,
+) -> DeepTransformerModel:
+    """Train a :class:`DeepTransformerModel` on historical data."""
+
+    X, y = make_training_data(
+        prices,
+        liquidity,
+        depth,
+        total_depth,
+        tx_counts,
+        slippage,
+        volume,
+        mempool_rates,
+        whale_shares,
+        spreads,
+        seq_len,
+    )
+    model = DeepTransformerModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        opt.step()
+    model.eval()
+    return model
+
+
+def train_xl_transformer_model(
+    prices: Iterable[float],
+    liquidity: Iterable[float],
+    depth: Iterable[float],
+    total_depth: Iterable[float] | None = None,
+    tx_counts: Iterable[float] | None = None,
+    slippage: Iterable[float] | None = None,
+    volume: Iterable[float] | None = None,
+    mempool_rates: Iterable[float] | None = None,
+    whale_shares: Iterable[float] | None = None,
+    spreads: Iterable[float] | None = None,
+    *,
+    seq_len: int = 30,
+    epochs: int = 10,
+    lr: float = 1e-3,
+    hidden_dim: int = 128,
+    num_layers: int = 8,
+) -> XLTransformerModel:
+    """Train a :class:`XLTransformerModel` on historical data."""
+
+    X, y = make_training_data(
+        prices,
+        liquidity,
+        depth,
+        total_depth,
+        tx_counts,
+        slippage,
+        volume,
+        mempool_rates,
+        whale_shares,
+        spreads,
+        seq_len,
+    )
+    model = XLTransformerModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.MSELoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        opt.step()
+    model.eval()
+    return model
+
+
 def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tuple[torch.Tensor, torch.Tensor]:
     """Construct dataset tensors from :class:`OfflineData` snapshots."""
     prices = torch.tensor([float(s.price) for s in snaps], dtype=torch.float32)

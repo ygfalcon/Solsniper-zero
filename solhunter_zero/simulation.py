@@ -79,9 +79,9 @@ def invalidate_simulation_models(token: str | None = None) -> None:
     if token is None:
         SIM_MODEL_CACHE.clear()
         return
-    for key in list(SIM_MODEL_CACHE._cache.keys()):
+    for key in list(SIM_MODEL_CACHE.keys()):
         if isinstance(key, tuple) and key and key[0] == token:
-            SIM_MODEL_CACHE._cache.pop(key, None)
+            SIM_MODEL_CACHE.pop(key, None)
 
 
 def _metrics_signature(metrics: dict) -> tuple:
@@ -318,25 +318,68 @@ def predict_price_movement(
         ph = metrics.get("price_history") or []
         lh = metrics.get("liquidity_history") or []
         dh = metrics.get("depth_history") or []
-        sh = metrics.get("slippage_history") or []
-        vh = metrics.get("volume_history") or []
-        th = metrics.get("tx_count_history") or []
-        n = min(len(ph), len(lh), len(dh), len(sh or ph), len(vh or ph), len(th or ph))
-        if n >= 30:
-            seq = np.column_stack(
-                [
-                    ph[-30:],
-                    lh[-30:],
-                    dh[-30:],
-                    (sh or [0] * n)[-30:],
-                    (vh or [0] * n)[-30:],
-                    (th or [0] * n)[-30:],
-                ]
+        if isinstance(
+            model,
+            (models.TransformerModel, models.DeepTransformerModel, models.XLTransformerModel),
+        ):
+            tdh = metrics.get("total_depth_history") or [0.0] * len(ph)
+            sh = metrics.get("slippage_history") or [0.0] * len(ph)
+            vh = metrics.get("volume_history") or [0.0] * len(ph)
+            th = metrics.get("tx_count_history") or [0.0] * len(ph)
+            mr = metrics.get("mempool_rate_history") or [0.0] * len(ph)
+            ws = metrics.get("whale_share_history") or [0.0] * len(ph)
+            sp = metrics.get("spread_history") or [0.0] * len(ph)
+            n = min(
+                len(ph),
+                len(lh),
+                len(dh),
+                len(tdh),
+                len(sh),
+                len(vh),
+                len(th),
+                len(mr),
+                len(ws),
+                len(sp),
             )
-            try:
-                return float(model.predict(seq))
-            except Exception:
-                pass
+            if n >= 30:
+                seq = np.column_stack(
+                    [
+                        ph[-30:],
+                        lh[-30:],
+                        dh[-30:],
+                        tdh[-30:],
+                        sh[-30:],
+                        vh[-30:],
+                        th[-30:],
+                        mr[-30:],
+                        ws[-30:],
+                        sp[-30:],
+                    ]
+                )
+                try:
+                    return float(model.predict(seq))
+                except Exception:
+                    pass
+        else:
+            sh = metrics.get("slippage_history") or []
+            vh = metrics.get("volume_history") or []
+            th = metrics.get("tx_count_history") or []
+            n = min(len(ph), len(lh), len(dh), len(sh or ph), len(vh or ph), len(th or ph))
+            if n >= 30:
+                seq = np.column_stack(
+                    [
+                        ph[-30:],
+                        lh[-30:],
+                        dh[-30:],
+                        (sh or [0] * n)[-30:],
+                        (vh or [0] * n)[-30:],
+                        (th or [0] * n)[-30:],
+                    ]
+                )
+                try:
+                    return float(model.predict(seq))
+                except Exception:
+                    pass
 
     sims = run_simulations(
         token,

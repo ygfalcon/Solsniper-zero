@@ -32,6 +32,9 @@ phoenix_dex_url = "https://dex.phoenix.trade"
 meteora_dex_url = "https://dex.meteora.ag"
 metrics_base_url = "https://api.example.com"
 metrics_url = ""
+# Optional paths to trained ML models
+# PRICE_MODEL_PATH = "models/price.pt"   # LSTM or transformer
+# ACTIVITY_MODEL_PATH = "models/activity.pt"
 news_feeds = "https://news.example.com/rss"
 twitter_feeds = ""
 discord_feeds = ""
