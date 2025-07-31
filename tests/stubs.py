@@ -292,6 +292,8 @@ def stub_sqlalchemy() -> None:
     sa.String = type('String', (), {})
     sa.DateTime = type('DateTime', (), {})
     sa.Text = type('Text', (), {})
+    LargeBinary = object
+    sa.LargeBinary = LargeBinary
     sa.ForeignKey = lambda *a, **k: None
     sa.create_engine = create_engine
     sa.MetaData = MetaData
