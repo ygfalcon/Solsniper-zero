@@ -323,9 +323,9 @@ def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
     loader = trainer.data.train_dataloader()
     trainer.recompute_workers(loader)
 
-    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
+    event_bus.publish("cluster_metrics", {"cpu": 90.0})
     high = loader.num_workers
-    event_bus.publish("system_metrics_combined", {"cpu": 10.0})
+    event_bus.publish("cluster_metrics", {"cpu": 10.0})
     low = loader.num_workers
 
     trainer.close()

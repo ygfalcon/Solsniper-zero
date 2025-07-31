@@ -286,7 +286,7 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
 
     async def fake_sleep(delay):
         if delay == 0.05:
-            event_bus.publish("system_metrics_combined", {"cpu": 10.0, "memory": 50.0})
+            event_bus.publish("cluster_metrics", {"cpu": 10.0, "memory": 50.0})
         await orig_sleep(0)
 
     monkeypatch.setattr(mp_scanner.asyncio, "sleep", fake_sleep)
@@ -342,7 +342,7 @@ def test_dynamic_concurrency(monkeypatch):
     mp_scanner._CPU_SMOOTHED = 0.0
     mp_scanner._CPU_LAST = 0.0
     mp_scanner._DYN_INTERVAL = 0.0
-    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
+    event_bus.publish("cluster_metrics", {"cpu": 90.0})
 
     async def fake_stream(_url, **__):
         await asyncio.sleep(0)

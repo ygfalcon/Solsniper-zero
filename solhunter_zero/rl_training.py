@@ -73,7 +73,8 @@ def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
             except Exception:
                 pass
 
-        sub = subscription("system_metrics", _update)
+        from .metrics_aggregator import CLUSTER_METRICS_TOPIC
+        sub = subscription(CLUSTER_METRICS_TOPIC, _update)
         sub.__enter__()
         _CPU_SUB = sub
     return _CPU_USAGE
@@ -790,7 +791,8 @@ class RLTraining:
                 ld.pin_memory = self.data.pin_memory and new_val > 0
                 ld.persistent_workers = self.data.persistent_workers and new_val > 0
 
-        sub = subscription("system_metrics_combined", _handle)
+        from .metrics_aggregator import CLUSTER_METRICS_TOPIC
+        sub = subscription(CLUSTER_METRICS_TOPIC, _handle)
         sub.__enter__()
         self._worker_sub = sub
 

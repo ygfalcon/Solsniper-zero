@@ -129,6 +129,11 @@ message SystemMetricsCombined {
   double memory = 2;
 }
 
+message ClusterMetrics {
+  double cpu = 1;
+  double memory = 2;
+}
+
 message TokenDiscovered {
   repeated string tokens = 1;
 }
@@ -154,6 +159,7 @@ message Event {
     RiskMetrics risk_metrics = 17;
     RiskUpdated risk_updated = 18;
     SystemMetricsCombined system_metrics_combined = 19;
-    TokenDiscovered token_discovered = 20;
+    ClusterMetrics cluster_metrics = 20;
+    TokenDiscovered token_discovered = 21;
   }
 }

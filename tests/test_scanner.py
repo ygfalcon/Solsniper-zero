@@ -302,7 +302,7 @@ def test_scan_tokens_async_dynamic(monkeypatch):
     scanner._CPU_SMOOTHED = 0.0
     scanner._CPU_LAST = 0.0
     scanner._DYN_INTERVAL = 0.0
-    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
+    event_bus.publish("cluster_metrics", {"cpu": 90.0})
 
     asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
     assert max_running <= 2

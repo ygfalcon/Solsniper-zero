@@ -6,7 +6,10 @@ import asyncio
 from collections import deque
 from typing import Any, Deque, Tuple
 
+import os
 from .event_bus import publish, subscription
+
+CLUSTER_METRICS_TOPIC = os.getenv("CLUSTER_METRICS_TOPIC", "cluster_metrics")
 
 # Keep the last few readings
 _HISTORY: Deque[Tuple[float, float]] = deque(maxlen=4)
@@ -29,7 +32,9 @@ def _on_metrics(msg: Any) -> None:
     _HISTORY.append((cpu, mem))
     avg_cpu = sum(c for c, _ in _HISTORY) / len(_HISTORY)
     avg_mem = sum(m for _, m in _HISTORY) / len(_HISTORY)
-    publish("system_metrics_combined", {"cpu": avg_cpu, "memory": avg_mem})
+    data = {"cpu": avg_cpu, "memory": avg_mem}
+    publish("system_metrics_combined", data)
+    publish(CLUSTER_METRICS_TOPIC, data)
 
 
 _def_subs = []

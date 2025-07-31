@@ -200,7 +200,8 @@ direct transaction submission to the Solana RPC.
     (defaults to `0.5`).
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
-    `system_metrics_combined`.
+    `system_metrics_combined` and the configurable `cluster_metrics` topic
+    (set via `CLUSTER_METRICS_TOPIC`, default `cluster_metrics`).
   - When no metrics arrive for several seconds the scanners fall back to
     `psutil.cpu_percent(interval=None)` to keep scaling active.
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
@@ -542,8 +543,9 @@ published by default:
 - `action_executed` whenever the `AgentManager` finishes an order
 - `weights_updated` after agent weights change
 - `rl_weights` when the RL daemon publishes new weights
-- `system_metrics_combined` aggregated CPU and memory usage from
-  `metrics_aggregator`
+- `cluster_metrics` aggregated CPU and memory usage from
+  `metrics_aggregator` (`CLUSTER_METRICS_TOPIC` controls the name and
+  defaults to `cluster_metrics`)
 - `risk_updated` when the risk multiplier is modified
 - `config_updated` when a configuration file is saved
 - `risk_metrics` whenever portfolio risk metrics are recalculated

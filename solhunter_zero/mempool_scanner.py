@@ -13,6 +13,7 @@ from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 import psutil
 
 from .event_bus import subscription
+from .metrics_aggregator import CLUSTER_METRICS_TOPIC
 from .dynamic_limit import _target_concurrency, _step_limit
 
 try:
@@ -79,7 +80,7 @@ def _on_system_metrics(msg: Any) -> None:
     except Exception:
         pass
 
-_resource_sub = subscription("system_metrics_combined", _on_system_metrics)
+_resource_sub = subscription(CLUSTER_METRICS_TOPIC, _on_system_metrics)
 _resource_sub.__enter__()
 
 

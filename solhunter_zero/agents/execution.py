@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 import aiohttp
 from ..http import get_session
 from ..event_bus import subscription
+from ..metrics_aggregator import CLUSTER_METRICS_TOPIC
 from ..dynamic_limit import _target_concurrency, _step_limit
 
 from . import BaseAgent
@@ -62,9 +63,7 @@ class ExecutionAgent(BaseAgent):
         self._cpu_smoothed = 0.0
         self._smoothing = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
         self._resource_subs = [
-            subscription("system_metrics", self._on_resource_update),
-            subscription("resource_update", self._on_resource_update),
-            subscription("system_metrics_combined", self._on_resource_update),
+            subscription(CLUSTER_METRICS_TOPIC, self._on_resource_update),
         ]
         for sub in self._resource_subs:
             sub.__enter__()

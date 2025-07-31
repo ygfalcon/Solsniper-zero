@@ -60,6 +60,7 @@ _PB_MAP = {
     "risk_metrics": pb.RiskMetrics,
     "risk_updated": pb.RiskUpdated,
     "system_metrics_combined": pb.SystemMetricsCombined,
+    "cluster_metrics": pb.ClusterMetrics,
     "token_discovered": pb.TokenDiscovered,
 }
 
@@ -340,6 +341,15 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 memory=float(data.get("memory", 0.0)),
             ),
         )
+    elif topic == "cluster_metrics":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            cluster_metrics=pb.ClusterMetrics(
+                cpu=float(data.get("cpu", 0.0)),
+                memory=float(data.get("memory", 0.0)),
+            ),
+        )
     elif topic == "token_discovered":
         data = payload
         if not isinstance(data, (list, tuple)):
@@ -437,6 +447,8 @@ def _decode_payload(ev: pb.Event) -> Any:
     if field == "risk_updated":
         return {"multiplier": msg.multiplier}
     if field == "system_metrics_combined":
+        return {"cpu": msg.cpu, "memory": msg.memory}
+    if field == "cluster_metrics":
         return {"cpu": msg.cpu, "memory": msg.memory}
     if field == "token_discovered":
         return list(msg.tokens)

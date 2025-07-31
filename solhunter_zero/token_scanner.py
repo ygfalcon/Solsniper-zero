@@ -26,6 +26,7 @@ from .scanner_common import (
 )
 from . import dex_ws
 from .event_bus import publish, subscription
+from .metrics_aggregator import CLUSTER_METRICS_TOPIC
 from .dynamic_limit import _target_concurrency, _step_limit
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ def _on_system_metrics(msg: Any) -> None:
     except Exception:
         pass
 
-_resource_sub = subscription("system_metrics_combined", _on_system_metrics)
+_resource_sub = subscription(CLUSTER_METRICS_TOPIC, _on_system_metrics)
 _resource_sub.__enter__()
 
 
