@@ -98,6 +98,10 @@ class AdvancedMemory(BaseMemory):
             self.model = None
             self.index = None
 
+        self.cluster_index = None
+        self.cluster_centroids: np.ndarray | None = None
+        self._trade_clusters: dict[int, int] = {}
+
         self._replication_sub = None
         self._sync_req_sub = None
         self._sync_res_sub = None
@@ -312,6 +316,93 @@ class AdvancedMemory(BaseMemory):
                 self.cpu_index = None
                 self.index = idx
             faiss.write_index(self.cpu_index or self.index, self.index_path)
+
+    # ------------------------------------------------------------------
+    def cluster_trades(self, num_clusters: int = 50) -> dict[int, int]:
+        """Cluster stored trade embeddings using FAISS k-means."""
+        if (
+            faiss is None
+            or self.index is None
+            or self.model is None
+            or self.index.ntotal == 0
+        ):
+            self.cluster_index = None
+            self.cluster_centroids = None
+            self._trade_clusters = {}
+            return {}
+
+        raw_index = self.cpu_index or self.index
+        vectors = raw_index.index.reconstruct_n(0, raw_index.ntotal)
+        ids = faiss.vector_to_array(raw_index.id_map)
+        dim = vectors.shape[1]
+        kmeans = faiss.Kmeans(dim, num_clusters, niter=25, verbose=False, seed=123)
+        kmeans.cp.min_points_per_centroid = 1
+        uniq = np.unique(vectors, axis=0)
+        init = uniq[:num_clusters]
+        if init.shape[0] < num_clusters:
+            init = np.pad(init, ((0, num_clusters - init.shape[0]), (0, 0)), "edge")
+        kmeans.train(vectors, init_centroids=init.astype("float32"))
+        _, assign = kmeans.index.search(vectors, 1)
+        self.cluster_centroids = kmeans.centroids
+        self.cluster_index = faiss.IndexFlatL2(dim)
+        self.cluster_index.add(kmeans.centroids)
+        self._trade_clusters = {int(i): int(c) for i, c in zip(ids, assign.ravel())}
+        return dict(self._trade_clusters)
+
+    # ------------------------------------------------------------------
+    def top_cluster(self, context: str) -> int | None:
+        """Return nearest cluster id for ``context`` text."""
+        if (
+            self.cluster_index is None
+            or self.model is None
+            or self.cluster_index.ntotal == 0
+        ):
+            return None
+        vec = self.model.encode([context])[0].astype("float32")
+        _, idx = self.cluster_index.search(np.array([vec]), 1)
+        return int(idx[0][0]) if idx.size else None
+
+    # ------------------------------------------------------------------
+    def export_cluster_stats(self) -> List[dict[str, Any]]:
+        """Return summary statistics for each cluster."""
+        if not self._trade_clusters or self.cluster_centroids is None:
+            return []
+
+        from collections import Counter
+
+        with self.Session() as session:
+            trades = {t.id: t for t in session.query(Trade).all()}
+
+        stats: list[dict[str, Any]] = []
+        for cluster_id in range(len(self.cluster_centroids)):
+            ids = [tid for tid, c in self._trade_clusters.items() if c == cluster_id]
+            if not ids:
+                stats.append({"cluster": cluster_id, "count": 0, "average_roi": 0.0, "common_emotion": None})
+                continue
+            buy = sell = 0.0
+            emotions: list[str] = []
+            for tid in ids:
+                t = trades.get(tid)
+                if t is None:
+                    continue
+                if t.direction == "buy":
+                    buy += float(t.amount) * float(t.price)
+                else:
+                    sell += float(t.amount) * float(t.price)
+                if t.emotion:
+                    emotions.append(t.emotion)
+            roi = (sell - buy) / buy if buy > 0 else 0.0
+            common = Counter(emotions).most_common(1)
+            emotion = common[0][0] if common else None
+            stats.append(
+                {
+                    "cluster": cluster_id,
+                    "count": len(ids),
+                    "average_roi": float(roi),
+                    "common_emotion": emotion,
+                }
+            )
+        return stats
 
     # ------------------------------------------------------------------
     def request_sync(self) -> None:

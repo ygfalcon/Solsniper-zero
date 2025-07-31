@@ -88,3 +88,54 @@ def test_memory_sync_exchange(tmp_path):
 
     assert len(mem1.list_trades()) == 2
     assert len(mem2.list_trades()) == 2
+
+
+def test_cluster_trades_groups(tmp_path):
+    import numpy as np
+    import faiss
+    import solhunter_zero.advanced_memory as am
+    am.faiss = faiss
+
+    class DummyModel:
+        def __init__(self):
+            self.dim = 2
+
+        def get_sentence_embedding_dimension(self):
+            return self.dim
+
+        def encode(self, texts):
+            vecs = []
+            for t in texts:
+                if "bear" in t:
+                    vecs.append([-1.0, 0.0])
+                else:
+                    vecs.append([1.0, 0.0])
+            return np.asarray(vecs, dtype="float32")
+
+    db = tmp_path / "c.db"
+    idx = tmp_path / "c.index"
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
+    mem.model = DummyModel()
+    mem.index = faiss.IndexIDMap2(faiss.IndexFlatL2(mem.model.dim))
+    mem.cpu_index = None
+
+    a = mem.log_trade(token="T", direction="buy", amount=1, price=1, context="bull run", emotion="greedy")
+    b = mem.log_trade(token="T", direction="sell", amount=1, price=2, context="bullish vibes", emotion="greedy")
+    c = mem.log_trade(token="T", direction="buy", amount=1, price=2, context="bear drop", emotion="fear")
+    d = mem.log_trade(token="T", direction="sell", amount=1, price=1, context="bearish slump", emotion="fear")
+
+    clusters = mem.cluster_trades(num_clusters=2)
+    assert clusters[a] == clusters[b]
+    assert clusters[c] == clusters[d]
+    assert clusters[a] != clusters[c]
+
+    cid = mem.top_cluster("bear crash soon")
+    assert cid == clusters[c]
+
+    stats = mem.export_cluster_stats()
+    by_cluster = {s["cluster"]: s for s in stats}
+    assert by_cluster[clusters[a]]["common_emotion"] == "greedy"
+    assert by_cluster[clusters[c]]["common_emotion"] == "fear"
+    assert by_cluster[clusters[a]]["average_roi"] > 0
+    assert by_cluster[clusters[c]]["average_roi"] < 0
+
