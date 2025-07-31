@@ -252,6 +252,10 @@ class AgentManager:
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         agents = list(self.agents)
+        from .agents.hierarchical_rl import HierarchicalRLAgent
+        hier_agent = next((a for a in agents if isinstance(a, HierarchicalRLAgent)), None)
+        agents = [a for a in agents if not isinstance(a, HierarchicalRLAgent)]
+
         regime = detect_regime(portfolio.price_history.get(token, []))
         weights = self.coordinator.compute_weights(agents, regime=regime)
         if self.selector:
@@ -287,6 +291,22 @@ class AgentManager:
                 pred = self.attention_swarm.predict(seq)
                 weights = {a.name: float(pred[i]) for i, a in enumerate(agents)}
                 publish("weights_updated", WeightsUpdated(weights=dict(weights)))
+        if hier_agent is not None:
+            prices = portfolio.price_history.get(token, [])
+            price = prices[-1] if prices else 0.0
+            try:
+                from .order_book_ws import snapshot
+                depth, _imb, rate = snapshot(token)
+            except Exception:
+                depth = 0.0
+                rate = 0.0
+            try:
+                h_w = hier_agent.compute_weights(portfolio, token, price, depth=depth, tx_rate=rate)
+                for k, v in h_w.items():
+                    if k in weights:
+                        weights[k] *= float(v)
+            except Exception:
+                pass
         swarm = AgentSwarm(agents)
         return await swarm.propose(token, portfolio, weights=weights, rl_action=rl_action)
 

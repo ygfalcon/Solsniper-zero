@@ -54,6 +54,7 @@ from .news import fetch_sentiment
 from .event_bus import publish, subscription, connect_broker
 from .event_bus import _BROKER_URL  # type: ignore
 from .config import get_broker_url
+from .rl_daemon import _metrics
 
 
 _CPU_USAGE = 0.0
@@ -999,6 +1000,7 @@ class MultiAgentRL:
         model_base: str = "population_model.pt",
         device: str | None = None,
         regime_weight: float = 1.0,
+        controller_path: str | Path = "hier_rl.pt",
     ) -> None:
         self.db_url = db_url
         self.regime_weight = float(regime_weight)
@@ -1007,6 +1009,8 @@ class MultiAgentRL:
         self.device = device
         self.trainers: list[RLTraining] = []
         self.model_paths: list[Path] = []
+        self.controller_path = Path(controller_path)
+        self.controller_model: nn.Module | None = None
         self._algos_used: list[str] = []
         for i in range(self.population_size):
             algo = self.algos[i % len(self.algos)]
@@ -1088,3 +1092,104 @@ class MultiAgentRL:
         except Exception:
             pass
         return weights
+
+    # ------------------------------------------------------------------
+    def train_controller(
+        self,
+        trades: Iterable[Any],
+        snaps: Iterable[Any],
+        agent_names: Iterable[str],
+    ) -> None:
+        """Train a simple weight controller from trade history."""
+
+        names = list(agent_names)
+        if not names:
+            return
+
+        class _Dataset(Dataset):
+            def __init__(self, trades: Iterable[Any], snaps: Iterable[Any]) -> None:
+                self.samples: list[tuple[list[float], int, float]] = []
+                snap_map: dict[str, list[Any]] = {}
+                for s in snaps:
+                    snap_map.setdefault(s.token, []).append(s)
+                for seq in snap_map.values():
+                    seq.sort(key=lambda x: x.timestamp)
+
+                metrics = _metrics(trades, snaps)
+                drawdown, volatility, corr = metrics
+                amap = {n: i for i, n in enumerate(names)}
+                for t in trades:
+                    idx = amap.get(getattr(t, "reason", None))
+                    if idx is None:
+                        continue
+                    mempool = trend = depth = 0.0
+                    seq = snap_map.get(t.token)
+                    if seq:
+                        pos = 0
+                        ts = getattr(t, "timestamp", None)
+                        for i, s in enumerate(seq):
+                            if ts is None or s.timestamp <= ts:
+                                pos = i
+                            else:
+                                break
+                        snap = seq[pos]
+                        mempool = float(getattr(snap, "tx_rate", 0.0))
+                        depth = float(getattr(snap, "depth", 0.0))
+                        if pos > 0:
+                            prev = seq[pos - 1]
+                            p0 = float(prev.price)
+                            if p0:
+                                trend = (float(snap.price) - p0) / p0
+                    state = [
+                        float(t.price),
+                        float(getattr(t, "amount", 0.0)),
+                        drawdown,
+                        volatility,
+                        corr,
+                        mempool,
+                        trend,
+                        depth,
+                    ]
+                    reward = float(t.amount) * float(t.price)
+                    if getattr(t, "direction", "buy") == "buy":
+                        reward = -reward
+                    self.samples.append((state, idx, reward))
+
+            def __len__(self) -> int:
+                return len(self.samples)
+
+            def __getitem__(self, idx: int):
+                state, action, reward = self.samples[idx]
+                return (
+                    torch.tensor(state, dtype=torch.float32),
+                    torch.tensor(action, dtype=torch.long),
+                    torch.tensor(reward, dtype=torch.float32),
+                )
+
+        dataset = _Dataset(trades, snaps)
+        if len(dataset) == 0:
+            self.controller_path.touch()
+            return
+
+        device = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        model = nn.Sequential(
+            nn.Linear(8, 32),
+            nn.ReLU(),
+            nn.Linear(32, len(names)),
+        )
+        model.to(device)
+        loader = DataLoader(dataset, batch_size=32, shuffle=True)
+        opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        loss_fn = nn.CrossEntropyLoss()
+        model.train()
+        for _ in range(3):
+            for states, actions, _rewards in loader:
+                states = states.to(device)
+                actions = actions.to(device)
+                out = model(states)
+                loss = loss_fn(out, actions)
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+        torch.save({"state": model.state_dict(), "agents": names}, self.controller_path)
+        self.controller_model = model

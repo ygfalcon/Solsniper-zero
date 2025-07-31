@@ -28,6 +28,7 @@ __all__ = [
     "RLTraining",
     "RLDaemon",
     "RLWeightAgent",
+    "HierarchicalRLAgent",
     "decode_glyph_series",
     "pyramid_transform",
 ]
@@ -104,6 +105,10 @@ def __getattr__(name: str):
         return cls
     if name == "RLWeightAgent":
         from .agents.rl_weight_agent import RLWeightAgent as cls
+
+        return cls
+    if name == "HierarchicalRLAgent":
+        from .agents.hierarchical_rl import HierarchicalRLAgent as cls
 
         return cls
     if name == "decode_glyph_series":

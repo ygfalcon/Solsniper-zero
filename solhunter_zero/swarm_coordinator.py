@@ -45,7 +45,8 @@ class SwarmCoordinator:
         self, agents: Iterable[BaseAgent], *, regime: str | None = None
     ) -> Dict[str, float]:
         rl_agent = next((a for a in agents if isinstance(a, RLWeightAgent)), None)
-        agents = [a for a in agents if not isinstance(a, RLWeightAgent)]
+        from .agents.hierarchical_rl import HierarchicalRLAgent
+        agents = [a for a in agents if not isinstance(a, RLWeightAgent) and not isinstance(a, HierarchicalRLAgent)]
         names = [a.name for a in agents]
         rois = self._roi_by_agent(names)
         base = dict(self.base_weights)
