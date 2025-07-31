@@ -311,7 +311,7 @@ def test_scan_tokens_async_dynamic(monkeypatch):
 def test_cpu_fallback(monkeypatch):
     called = False
 
-    def fake_cpu(_=0.1):
+    def fake_cpu(*_a, **_k):
         nonlocal called
         called = True
         return 55.0

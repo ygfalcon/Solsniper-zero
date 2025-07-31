@@ -322,7 +322,7 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
 def test_cpu_fallback(monkeypatch):
     called = False
 
-    def fake_cpu(_=0.1):
+    def fake_cpu(*_a, **_k):
         nonlocal called
         called = True
         return 33.0
