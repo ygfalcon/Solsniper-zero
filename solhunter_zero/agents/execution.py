@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 import aiohttp
 from ..http import get_session
 from ..event_bus import subscription
+from ..dynamic_limit import _target_concurrency, _step_limit
 
 from . import BaseAgent
 from ..exchange import (
@@ -87,7 +88,8 @@ class ExecutionAgent(BaseAgent):
         except Exception:
             return
         frac = max(0.0, min(1.0, self._cpu_smoothed / 100.0))
-        conc = max(1, int(round(self._base_concurrency * max(0.1, 1.0 - frac))))
+        target = _target_concurrency(self._cpu_smoothed, self._base_concurrency, 0.0, 100.0)
+        conc = _step_limit(self._sem._value, target, self._base_concurrency)
         if conc != self._sem._value:
             self._sem = asyncio.Semaphore(conc)
         self.rate_limit = self.min_rate + (self.max_rate - self.min_rate) * frac

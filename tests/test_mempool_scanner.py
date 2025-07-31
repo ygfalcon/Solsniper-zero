@@ -1,6 +1,7 @@
 import asyncio
 
 import solhunter_zero.mempool_scanner as mp_scanner
+from solhunter_zero import dynamic_limit
 from solhunter_zero import scanner_common, event_bus
 
 scanner_common.TOKEN_SUFFIX = ""
@@ -373,11 +374,11 @@ def test_dynamic_concurrency(monkeypatch):
 
 
 def test_mempool_concurrency_functions(monkeypatch):
-    monkeypatch.setattr(mp_scanner, "_KP", 0.5)
-    tgt = mp_scanner._target_concurrency(90.0, 4, 40.0, 80.0)
-    cur = mp_scanner._step_limit(4, tgt, 4)
+    monkeypatch.setattr(dynamic_limit, "_KP", 0.5)
+    tgt = dynamic_limit._target_concurrency(90.0, 4, 40.0, 80.0)
+    cur = dynamic_limit._step_limit(4, tgt, 4)
     assert tgt == 1
     assert cur == 2
-    tgt = mp_scanner._target_concurrency(10.0, 4, 40.0, 80.0)
-    cur = mp_scanner._step_limit(cur, tgt, 4)
+    tgt = dynamic_limit._target_concurrency(10.0, 4, 40.0, 80.0)
+    cur = dynamic_limit._step_limit(cur, tgt, 4)
     assert cur == 3
