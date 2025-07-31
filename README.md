@@ -515,8 +515,9 @@ The trading logic is implemented by a swarm of small agents:
   mempool entropy and conviction velocity. Trades when divergence aligns with a
   known profitable manifold.
  - **FractalAgent** — matches ROI fractal patterns using wavelet fingerprints.
- - **ArtifactMathAgent** — evaluates simple math expressions using `load_artifact_math` to read `solhunter_zero/data/artifact_math.json`.
- - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
+- **ArtifactMathAgent** — evaluates simple math expressions using `load_artifact_math` to read `solhunter_zero/data/artifact_math.json`.
+- **AlienCipherAgent** — logistic-map strategy that reads coefficients via `load_alien_cipher` from `solhunter_zero/data/alien_cipher.json`.
+- **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 - **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
 - **CrossDEXRebalancer** — distributes trades across venues according to order-book depth, measured latency and per‑venue fees. It asks `PortfolioOptimizer` for base actions,
   splits them between venues with the best liquidity and fastest response, then forwards the resulting
@@ -919,6 +920,8 @@ If it is missing it will be created automatically when `RLTraining` or
 3&nbsp;s to roughly 0.2&nbsp;s thanks to ``numpy.fromiter`` and memory mapping.
 A simple arithmetic dataset located at `solhunter_zero/data/artifact_math.json` powers the
 `ArtifactMathAgent` and can be loaded with `load_artifact_math`.
+An alien cipher dataset at `solhunter_zero/data/alien_cipher.json` powers the
+`AlienCipherAgent` and can be loaded with `load_alien_cipher`.
 
 Offline snapshots can also be used to train a transformer-based price model:
 
