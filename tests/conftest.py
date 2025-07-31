@@ -1,5 +1,13 @@
 import os
 import sys
+import types
+import importlib.util
+
+if importlib.util.find_spec("aiohttp") is None:
+    aiohttp_mod = types.ModuleType("aiohttp")
+    aiohttp_mod.ClientSession = object
+    aiohttp_mod.TCPConnector = object
+    sys.modules["aiohttp"] = aiohttp_mod
 
 # Ensure project root is in sys.path when running tests directly with 'pytest'
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
