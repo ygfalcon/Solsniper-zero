@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime
+import asyncio
+from contextlib import suppress
 from sqlalchemy import (
     Column,
     Integer,
@@ -59,6 +61,10 @@ class OfflineData:
             url = url.replace("sqlite:///", "sqlite+aiosqlite:///")
         self.engine = create_async_engine(url, echo=False, future=True)
         self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
+        self._queue: asyncio.Queue[tuple[str, dict]] | None = None
+        self._writer_task: asyncio.Task | None = None
+        self._batch_size = 100
+        self._interval = 1.0
         import asyncio
         async def _init_models():
             async with self.engine.begin() as conn:
@@ -70,6 +76,52 @@ class OfflineData:
             loop.run_until_complete(_init_models())
             self._init_task = loop.create_future()
             self._init_task.set_result(None)
+
+    def start_writer(self, batch_size: int = 100, interval: float = 1.0) -> None:
+        """Start background writer flushing queued entries."""
+        self._batch_size = batch_size
+        self._interval = interval
+        self._queue = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+        self._writer_task = loop.create_task(self._writer())
+
+    async def _writer(self) -> None:
+        assert self._queue is not None
+        pending: list[tuple[str, dict]] = []
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(
+                        self._queue.get(), timeout=self._interval
+                    )
+                    pending.append(item)
+                    if len(pending) >= self._batch_size:
+                        await self._flush(pending)
+                        pending.clear()
+                except asyncio.TimeoutError:
+                    if pending:
+                        await self._flush(pending)
+                        pending.clear()
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if pending:
+                await self._flush(pending)
+            # drain remaining items
+            while self._queue and not self._queue.empty():
+                pending.append(self._queue.get_nowait())
+                self._queue.task_done()
+            if pending:
+                await self._flush(pending)
+
+    async def _flush(self, items: list[tuple[str, dict]]) -> None:
+        async with self.Session() as session:
+            for typ, data in items:
+                if typ == "snap":
+                    session.add(MarketSnapshot(**data))
+                else:
+                    session.add(MarketTrade(**data))
+            await session.commit()
 
     async def log_snapshot(
         self,
@@ -86,22 +138,25 @@ class OfflineData:
         sentiment: float = 0.0,
     ) -> None:
         await self._init_task
-        async with self.Session() as session:
-            snap = MarketSnapshot(
-                token=token,
-                price=price,
-                depth=depth,
-                total_depth=total_depth,
-                slippage=slippage,
-                volume=volume,
-                imbalance=imbalance,
-                tx_rate=tx_rate,
-                whale_share=whale_share,
-                spread=spread,
-                sentiment=sentiment,
-            )
-            session.add(snap)
-            await session.commit()
+        data = dict(
+            token=token,
+            price=price,
+            depth=depth,
+            total_depth=total_depth,
+            slippage=slippage,
+            volume=volume,
+            imbalance=imbalance,
+            tx_rate=tx_rate,
+            whale_share=whale_share,
+            spread=spread,
+            sentiment=sentiment,
+        )
+        if self._queue is not None:
+            await self._queue.put(("snap", data))
+        else:
+            async with self.Session() as session:
+                session.add(MarketSnapshot(**data))
+                await session.commit()
 
     async def log_trade(
         self,
@@ -112,15 +167,13 @@ class OfflineData:
     ) -> None:
         """Record an executed trade for offline learning."""
         await self._init_task
-        async with self.Session() as session:
-            trade = MarketTrade(
-                token=token,
-                side=side,
-                price=price,
-                amount=amount,
-            )
-            session.add(trade)
-            await session.commit()
+        data = dict(token=token, side=side, price=price, amount=amount)
+        if self._queue is not None:
+            await self._queue.put(("trade", data))
+        else:
+            async with self.Session() as session:
+                session.add(MarketTrade(**data))
+                await session.commit()
 
     async def list_snapshots(self, token: str | None = None):
         await self._init_task
@@ -214,3 +267,15 @@ class OfflineData:
 
         np.savez_compressed(out_path, snapshots=snap_arr, trades=trade_arr)
         return np.load(out_path, mmap_mode="r")
+
+    async def close(self) -> None:
+        """Flush pending items and dispose engine."""
+        await self._init_task
+        if self._writer_task:
+            self._writer_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._writer_task
+            self._writer_task = None
+        if self._queue and not self._queue.empty():
+            await self._flush([self._queue.get_nowait() for _ in range(self._queue.qsize())])
+        await self.engine.dispose()
