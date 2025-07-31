@@ -5,6 +5,7 @@ import logging
 import mmap
 import os
 import time
+import threading
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
@@ -19,6 +20,56 @@ ORDERBOOK_CACHE_TTL = float(os.getenv("ORDERBOOK_CACHE_TTL", "5") or 5)
 _DEPTH_CACHE: Dict[str, Tuple[float, Dict[str, float]]] = {}
 
 _MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
+
+# Interval in seconds for polling the mmap file modification time
+DEPTH_MMAP_POLL_INTERVAL = float(os.getenv("DEPTH_MMAP_POLL_INTERVAL", "1") or 1)
+
+_watch_task: asyncio.Task | None = None
+_watch_loop: asyncio.AbstractEventLoop | None = None
+
+
+async def _watch_mmap(interval: float) -> None:
+    """Watch :data:`_MMAP_PATH` and clear :data:`_DEPTH_CACHE` on changes."""
+    last_mtime = 0.0
+    try:
+        last_mtime = os.path.getmtime(_MMAP_PATH)
+    except OSError:
+        pass
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            mtime = os.path.getmtime(_MMAP_PATH)
+        except OSError:
+            mtime = 0.0
+        if mtime != last_mtime:
+            last_mtime = mtime
+            _DEPTH_CACHE.clear()
+
+
+def start_mmap_watch(interval: float = DEPTH_MMAP_POLL_INTERVAL) -> asyncio.Task:
+    """Start the mmap watch task if not already running."""
+    global _watch_task, _watch_loop
+    if _watch_task is not None and not _watch_task.done():
+        return _watch_task
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        if _watch_loop is None:
+            _watch_loop = asyncio.new_event_loop()
+            threading.Thread(target=_watch_loop.run_forever, daemon=True).start()
+        loop = _watch_loop
+        _watch_task = asyncio.run_coroutine_threadsafe(_watch_mmap(interval), loop)
+        return _watch_task
+    _watch_task = loop.create_task(_watch_mmap(interval))
+    return _watch_task
+
+
+def stop_mmap_watch() -> None:
+    """Cancel the running mmap watch task, if any."""
+    global _watch_task
+    if _watch_task is not None:
+        _watch_task.cancel()
+        _watch_task = None
 
 
 def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
@@ -78,6 +129,7 @@ async def stream_order_book(
     max_updates: Optional[int] = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """Yield depth updates from ``url`` with reconnection and rate limiting."""
+    start_mmap_watch()
     if url.startswith("ipc://"):
         if "?" not in url[6:]:
             raise ValueError("ipc url must include token")

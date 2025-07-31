@@ -2,6 +2,7 @@ import asyncio
 import json
 import aiohttp
 import pytest
+import time
 
 from solhunter_zero import order_book_ws
 from solhunter_zero.agents.conviction import ConvictionAgent
@@ -140,4 +141,30 @@ def test_swarm_integration(monkeypatch):
     actions = asyncio.run(run())
     assert captured["depth"] == 100.0
     assert actions and actions[0]["side"] == "buy"
+
+
+def test_mmap_watch_invalidate(tmp_path, monkeypatch):
+    path = tmp_path / "depth.mmap"
+    path.write_text(json.dumps({"tok": {"bids": 1, "asks": 1, "tx_rate": 0}}))
+
+    monkeypatch.setattr(order_book_ws, "_MMAP_PATH", str(path))
+    monkeypatch.setattr(order_book_ws, "ORDERBOOK_CACHE_TTL", 100.0)
+    monkeypatch.setattr(order_book_ws, "DEPTH_MMAP_POLL_INTERVAL", 0.05)
+    order_book_ws._DEPTH_CACHE.clear()
+    order_book_ws.stop_mmap_watch()
+    order_book_ws.start_mmap_watch()
+    time.sleep(0.1)
+
+    order_book_ws._DEPTH_CACHE["tok"] = (time.time(), {"bids": 1, "asks": 1, "tx_rate": 0})
+    d1, _, _ = order_book_ws.snapshot("tok")
+    assert d1 == 2.0
+
+    time.sleep(0.1)
+    path.write_text(json.dumps({"tok": {"bids": 2, "asks": 2, "tx_rate": 0}}))
+    time.sleep(1.0)
+    assert "tok" not in order_book_ws._DEPTH_CACHE
+
+    d2, _, _ = order_book_ws.snapshot("tok")
+    assert d2 == 4.0
+    order_book_ws.stop_mmap_watch()
 
