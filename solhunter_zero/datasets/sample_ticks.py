@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -21,15 +22,17 @@ _cache_path: str | None = None
 _cache_data: List[Dict[str, Any]] | None = None
 
 
-def load_sample_ticks(path: Path | str = DEFAULT_PATH) -> List[Dict[str, Any]]:
+def load_sample_ticks(path: Path | Traversable | str = DEFAULT_PATH) -> List[Dict[str, Any]]:
     """Return sample tick entries located at ``path``."""
     global _cache_path, _cache_data
     if _cache_data is not None and _cache_path == str(path):
         return _cache_data
 
     try:
-        with Path(path).open("r", encoding="utf-8") as fh:
-            data = json.load(fh)
+        obj = Path(path) if isinstance(path, str) else path
+        with resources.as_file(obj) as p:
+            with p.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
     except Exception:
         _cache_path = str(path)
         _cache_data = []
