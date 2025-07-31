@@ -468,6 +468,36 @@ def stub_websockets() -> None:
     sys.modules.setdefault('websockets', mod)
 
 
+def stub_aiofiles() -> None:
+    if 'aiofiles' in sys.modules:
+        return
+    mod = types.ModuleType('aiofiles')
+    mod.__spec__ = importlib.machinery.ModuleSpec('aiofiles', None)
+
+    class _DummyFile:
+        def __init__(self):
+            self._data = ''
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def read(self):
+            return self._data
+
+        async def write(self, data):
+            self._data += str(data)
+            return len(data)
+
+    def open(*a, **k):
+        return _DummyFile()
+
+    mod.open = open
+    sys.modules.setdefault('aiofiles', mod)
+
+
 def stub_bip_utils() -> None:
     if 'bip_utils' in sys.modules:
         return
@@ -551,6 +581,7 @@ def install_stubs() -> None:
     stub_psutil()
     stub_flask()
     stub_requests()
+    stub_aiofiles()
     stub_websockets()
     stub_bip_utils()
     stub_faiss()
