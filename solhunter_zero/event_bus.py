@@ -35,6 +35,16 @@ from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
 
+try:  # optional redis / nats support
+    import redis.asyncio as aioredis  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    aioredis = None
+
+try:
+    import nats  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    nats = None
+
 from asyncio import Queue
 
 
@@ -213,6 +223,13 @@ _flush_task = None
 _outgoing_queue: Queue | None = None
 _flush_task = None
 _outgoing_queue: Queue | None = None
+
+# message broker globals
+_BROKER_URL: str | None = None
+_BROKER_TYPE: str | None = None
+_BROKER_CONN: Any | None = None
+_BROKER_TASK: Any | None = None
+_BROKER_CHANNEL: str = os.getenv("BROKER_CHANNEL", "solhunter-events")
 
 
 def _encode_event(topic: str, payload: Any) -> Any:
@@ -535,8 +552,11 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
         else:
             h(payload)
 
-    if websockets and _broadcast:
+    msg: Any | None = None
+    if (websockets or _BROKER_TYPE) and _broadcast:
         msg = _encode_event(topic, payload)
+    if websockets and _broadcast:
+        assert msg is not None
         if loop:
             if _outgoing_queue is not None:
                 _outgoing_queue.put_nowait(msg)
@@ -544,6 +564,12 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
                 loop.create_task(broadcast_ws(msg))
         else:
             asyncio.run(broadcast_ws(msg))
+    if _BROKER_TYPE and _broadcast:
+        assert msg is not None
+        if loop:
+            loop.create_task(_broker_send(msg))
+        else:
+            asyncio.run(_broker_send(msg))
 
 
 async def broadcast_ws(
@@ -593,6 +619,20 @@ async def _flush_outgoing() -> None:
             await broadcast_ws(msgs)
 
 
+async def _broker_send(message: bytes) -> None:
+    """Publish ``message`` to the configured message broker."""
+    if _BROKER_TYPE == "redis" and _BROKER_CONN is not None:
+        try:
+            await _BROKER_CONN.publish(_BROKER_CHANNEL, message)
+        except Exception:  # pragma: no cover - connection issues
+            pass
+    elif _BROKER_TYPE == "nats" and _BROKER_CONN is not None:
+        try:
+            await _BROKER_CONN.publish(_BROKER_CHANNEL, message)
+        except Exception:  # pragma: no cover - connection issues
+            pass
+
+
 async def _receiver(ws) -> None:
     """Receive messages from ``ws`` and publish them."""
     try:
@@ -619,6 +659,80 @@ async def _receiver(ws) -> None:
             if ws is peer and url in _peer_urls:
                 asyncio.create_task(reconnect_ws(url))
                 break
+
+
+async def _redis_listener(pubsub) -> None:
+    """Listen to Redis pub/sub messages."""
+    try:
+        async for msg in pubsub.listen():
+            if msg.get("type") != "message":
+                continue
+            data = msg.get("data")
+            if isinstance(data, memoryview):
+                data = bytes(data)
+            ev = pb.Event()
+            ev.ParseFromString(_maybe_decompress(data))
+            publish(ev.topic, _decode_payload(ev), _broadcast=False)
+    except asyncio.CancelledError:  # pragma: no cover - shutdown
+        pass
+
+
+async def _connect_nats(url: str):
+    nc = nats.NATS()
+    await nc.connect(servers=[url])
+
+    async def _cb(msg):
+        ev = pb.Event()
+        ev.ParseFromString(_maybe_decompress(msg.data))
+        publish(ev.topic, _decode_payload(ev), _broadcast=False)
+
+    await nc.subscribe(_BROKER_CHANNEL, cb=_cb)
+    return nc
+
+
+async def connect_broker(url: str) -> None:
+    """Connect to a Redis or NATS message broker."""
+    global _BROKER_URL, _BROKER_CONN, _BROKER_TASK, _BROKER_TYPE
+    if url.startswith("redis://") or url.startswith("rediss://"):
+        if aioredis is None:
+            raise RuntimeError("redis package required for redis broker")
+        conn = aioredis.from_url(url)
+        pubsub = conn.pubsub()
+        await pubsub.subscribe(_BROKER_CHANNEL)
+        _BROKER_TASK = asyncio.create_task(_redis_listener(pubsub))
+        _BROKER_TYPE = "redis"
+        _BROKER_CONN = conn
+    elif url.startswith("nats://"):
+        if nats is None:
+            raise RuntimeError("nats-py package required for nats broker")
+        _BROKER_CONN = await _connect_nats(url)
+        _BROKER_TYPE = "nats"
+        _BROKER_TASK = None
+    else:
+        raise ValueError(f"unsupported broker url: {url}")
+    _BROKER_URL = url
+
+
+async def disconnect_broker() -> None:
+    """Disconnect from the active message broker."""
+    global _BROKER_URL, _BROKER_CONN, _BROKER_TASK, _BROKER_TYPE
+    task = _BROKER_TASK
+    if task is not None:
+        task.cancel()
+        _BROKER_TASK = None
+    if _BROKER_TYPE == "redis" and _BROKER_CONN is not None:
+        try:
+            await _BROKER_CONN.close()
+        except Exception:
+            pass
+    elif _BROKER_TYPE == "nats" and _BROKER_CONN is not None:
+        try:
+            await _BROKER_CONN.close()
+        except Exception:
+            pass
+    _BROKER_URL = None
+    _BROKER_CONN = None
+    _BROKER_TYPE = None
 
 
 async def start_ws_server(host: str = "localhost", port: int = 8765):
@@ -816,6 +930,43 @@ def _reload_bus(cfg) -> None:
 
 
 subscription("config_updated", _reload_bus).__enter__()
+
+
+# ---------------------------------------------------------------------------
+#  Message broker integration
+# ---------------------------------------------------------------------------
+
+_ENV_BROKER: str | None = None
+
+
+def _get_broker_url(cfg=None):
+    from .config import get_broker_url
+    return get_broker_url(cfg)
+
+
+def _reload_broker(cfg) -> None:
+    global _ENV_BROKER
+    url = _get_broker_url(cfg)
+    if url == _ENV_BROKER:
+        return
+
+    async def _reconnect() -> None:
+        await disconnect_broker()
+        if url:
+            await connect_broker(url)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop:
+        loop.create_task(_reconnect())
+    else:
+        asyncio.run(_reconnect())
+    _ENV_BROKER = url
+
+
+subscription("config_updated", _reload_broker).__enter__()
 
 
 async def send_heartbeat(

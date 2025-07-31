@@ -175,6 +175,9 @@ direct transaction submission to the Solana RPC.
   - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
     When set, depth updates are forwarded using the topic `depth_update`.
     The same value can be provided via `event_bus_url` in your config.
+  - `BROKER_URL` – optional Redis or NATS endpoint used to share events
+    between bot instances. Example values: `redis://localhost:6379` or
+    `nats://localhost:4222`.
   - `EVENT_BUS_COMPRESSION` – websocket compression algorithm (defaults to
     `deflate`). Set to `none` to disable compression.
   - `COMPRESS_EVENTS` – enable protobuf event compression when `1` (default
@@ -386,7 +389,13 @@ profit calculation so routes are ranked based on the borrowed size.
    export EVENT_BUS_URL=wss://bus.example.com
    ```
    Alternatively specify `event_bus_url` in the configuration file.
-17. **Event compression**
+17. **Message broker**
+   Set `BROKER_URL` so multiple instances share events:
+   ```bash
+   export BROKER_URL=redis://localhost:6379
+   ```
+   Use `broker_url` in the configuration file for persistent settings.
+18. **Event compression**
    Choose a compression algorithm for protobuf messages with
    `EVENT_COMPRESSION`:
    ```bash
@@ -398,7 +407,7 @@ profit calculation so routes are ranked based on the borrowed size.
    `COMPRESS_EVENTS=1` selects zstd by default. Set `COMPRESS_EVENTS=0` to
    disable compression or `USE_ZLIB_EVENTS=1` if older nodes expect zlib
    compressed messages.
-18. **Full system startup**
+19. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
    python scripts/start_all.py
@@ -419,7 +428,7 @@ Running `scripts/startup.py` handles these steps interactively and forwards any 
    python -m solhunter_zero.main
 
    ```
-19. **Autopilot**
+20. **Autopilot**
    Automatically selects the only keypair and active configuration,
    then launches all services and the trading loop:
    ```bash
@@ -595,9 +604,11 @@ ws.onmessage = (ev) => {
   console.log(msg.topic, msg.payload);
 };
 ```
+### Running in a Cluster
 
-
-
+Set `BROKER_URL` to a Redis or NATS server so multiple bots share market
+metrics, agent weights and trade intents. Launch each instance with the same
+URL and they will automatically exchange events.
 ## Requirements
 - Python 3.11+
 - [Poetry](https://python-poetry.org/) (optional but recommended)
