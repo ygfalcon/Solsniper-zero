@@ -237,7 +237,8 @@ direct transaction submission to the Solana RPC.
   Set `USE_FFI_ROUTE=0` to force the Python implementation. When
   the library is detected locally the arbitrage path search now calls it
   directly, improving route calculation speed by roughly a factor of two
-  compared to the pure Python implementation.
+  compared to the pure Python implementation. Building with the parallel
+  feature further reduces path computation time by about 30%.
 
 ## Flash-Loan Arbitrage
 

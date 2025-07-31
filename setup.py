@@ -3,9 +3,12 @@ from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.build_ext import build_ext as _build_ext
 import subprocess
+import shutil
 
 def build_route_ffi(root: Path, out_dir: Path):
     """Compile the Rust FFI library and copy it to *out_dir*."""
+    if shutil.which("cargo") is None:
+        return
     subprocess.run(
         [
             "cargo",
