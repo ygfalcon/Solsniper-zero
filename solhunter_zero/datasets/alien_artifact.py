@@ -14,8 +14,6 @@ DEFAULT_PATH = resources.files(__package__).joinpath(
     "alien_artifact_patterns.json",
 )
 
-# Backwards compatibility for callers expecting the old name
-_DATA_PATH = DEFAULT_PATH
 
 _patterns: List[Dict[str, Any]] | None = None
 
