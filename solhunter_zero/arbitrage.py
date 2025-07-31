@@ -112,10 +112,13 @@ USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true"
 USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "1").lower() in {"1", "true", "yes"}
 
 _ffi_env = os.getenv("USE_FFI_ROUTE")
-if _ffi_env is None:
-    USE_FFI_ROUTE = bool(_HAS_ROUTEFFI)
-else:
+if _ffi_env:
     USE_FFI_ROUTE = _ffi_env.lower() in {"1", "true", "yes"}
+else:
+    try:  # prefer the FFI path when available
+        USE_FFI_ROUTE = _routeffi.available()
+    except Exception:
+        USE_FFI_ROUTE = False
 
 
 def _parse_mapping_env(env: str) -> dict:

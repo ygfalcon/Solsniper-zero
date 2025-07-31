@@ -205,11 +205,12 @@ direct transaction submission to the Solana RPC.
    ``solhunter_zero.execution``. The service relays them using
    ``send_raw_tx`` for minimal latency.
 4. **Faster route search**
-   Path computation happens inside the Rust service when
-   `use_service_route` is enabled (default). This is roughly ten times faster
+  Path computation happens inside the Rust service when
+  `use_service_route` is enabled (default). This is roughly ten times faster
   than the Python fallback. A lightweight `route_ffi` library is built
   automatically during installation and copied into the package so no
-  manual steps are required. If you need to rebuild it manually run:
+  manual steps are required. When the `cargo` command is available `run.sh`
+  builds the library automatically. If you need to rebuild it manually run:
 
   ```bash
   cargo build --manifest-path route_ffi/Cargo.toml --release
