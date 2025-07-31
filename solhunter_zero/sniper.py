@@ -6,7 +6,8 @@ from typing import List, Dict, Any
 
 # Import helpers via the main module so tests can monkeypatch them there
 from . import main as main_module
-from .portfolio import Portfolio, calculate_order_size
+from .portfolio import Portfolio, dynamic_order_size
+from .agents.conviction import predict_price_movement
 from .risk import RiskManager
 from .simulation import SimulationResult as _SimRes
 
@@ -78,9 +79,15 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
 
         allocation = portfolio.percent_allocated(token, prices)
 
-        amount = calculate_order_size(
+        try:
+            pred_roi = predict_price_movement(token)
+        except Exception:
+            pred_roi = 0.0
+
+        amount = dynamic_order_size(
             balance,
             avg_roi,
+            pred_roi,
             volatility,
             drawdown,
             risk_tolerance=adj.risk_tolerance,

@@ -112,7 +112,8 @@ from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
 from .agents.discovery import DiscoveryAgent
 
-from .portfolio import calculate_order_size
+from .portfolio import dynamic_order_size
+from .agents.conviction import predict_price_movement
 from .risk import RiskManager, recent_value_at_risk
 from . import arbitrage
 from . import depth_client
@@ -281,9 +282,15 @@ async def _run_iteration(
                     var_confidence=var_conf,
                 )
 
-                amount = calculate_order_size(
+                try:
+                    pred_roi = predict_price_movement(token)
+                except Exception:
+                    pred_roi = 0.0
+
+                amount = dynamic_order_size(
                     balance,
                     avg_roi,
+                    pred_roi,
                     0.0,
                     0.0,
                     risk_tolerance=params.risk_tolerance,
