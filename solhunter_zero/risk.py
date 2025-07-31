@@ -105,6 +105,22 @@ def value_at_risk(
     return var
 
 
+def recent_value_at_risk(
+    prices: Sequence[float],
+    *,
+    window: int = 30,
+    confidence: float = 0.95,
+    memory: Memory | None = None,
+) -> float:
+    """Return VaR using the most recent ``window`` prices."""
+
+    if len(prices) > window:
+        slice_prices = prices[-window:]
+    else:
+        slice_prices = prices
+    return value_at_risk(slice_prices, confidence, memory=memory)
+
+
 @njit
 def conditional_value_at_risk(
     returns: Sequence[float], confidence: float = 0.95
