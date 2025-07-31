@@ -5,6 +5,7 @@ import logging
 import mmap
 import os
 import time
+import atexit
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
 import aiohttp
@@ -20,36 +21,88 @@ _DEPTH_CACHE: Dict[str, Tuple[float, Dict[str, float]]] = {}
 
 _MMAP_PATH = os.getenv("DEPTH_MMAP_PATH", "/tmp/depth_service.mmap")
 
+# Persistent mmap for reading depth snapshots
+_MMAP: mmap.mmap | None = None
+_MMAP_MTIME: float = 0.0
+_MMAP_SIZE: int = 0
+
+
+def _open_mmap() -> mmap.mmap | None:
+    """Return an mmap object for :data:`_MMAP_PATH` if available."""
+    global _MMAP, _MMAP_MTIME, _MMAP_SIZE
+    try:
+        st = os.stat(_MMAP_PATH)
+    except OSError:
+        if _MMAP is not None:
+            try:
+                _MMAP.close()
+            except Exception:
+                pass
+            _MMAP = None
+        _MMAP_MTIME = 0.0
+        _MMAP_SIZE = 0
+        return None
+    if _MMAP is not None:
+        if getattr(_MMAP, "closed", False) or _MMAP_SIZE != st.st_size or _MMAP_MTIME != st.st_mtime:
+            try:
+                _MMAP.close()
+            except Exception:
+                pass
+            _MMAP = None
+    if _MMAP is None:
+        f = open(_MMAP_PATH, "rb")
+        _MMAP = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        f.close()
+        _MMAP_SIZE = st.st_size
+        _MMAP_MTIME = st.st_mtime
+    return _MMAP
+
+
+def _close_mmap() -> None:
+    global _MMAP, _MMAP_MTIME, _MMAP_SIZE
+    if _MMAP is not None and not getattr(_MMAP, "closed", False):
+        try:
+            _MMAP.close()
+        except Exception:
+            pass
+    _MMAP = None
+    _MMAP_MTIME = 0.0
+    _MMAP_SIZE = 0
+
+
+atexit.register(_close_mmap)
+
 
 def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
     try:
-        with open(_MMAP_PATH, "rb") as f:
-            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
-                raw = bytes(m).rstrip(b"\x00")
-                if not raw:
-                    return 0.0, 0.0, 0.0
-                data = loads(raw.decode())
-                entry = data.get(token)
-                if not entry:
-                    return 0.0, 0.0, 0.0
-                rate = float(entry.get("tx_rate", 0.0))
-                if "bids" in entry and "asks" in entry:
-                    bids = float(entry.get("bids", 0.0))
-                    asks = float(entry.get("asks", 0.0))
-                else:
-                    total_bids = 0.0
-                    total_asks = 0.0
-                    for k, v in entry.items():
-                        if k == "tx_rate":
-                            continue
-                        if isinstance(v, dict):
-                            total_bids += float(v.get("bids", 0.0))
-                            total_asks += float(v.get("asks", 0.0))
-                    bids = total_bids
-                    asks = total_asks
-                depth = bids + asks
-                imb = (bids - asks) / depth if depth else 0.0
-                return depth, imb, rate
+        m = _open_mmap()
+        if m is None:
+            return 0.0, 0.0, 0.0
+        raw = bytes(m).rstrip(b"\x00")
+        if not raw:
+            return 0.0, 0.0, 0.0
+        data = loads(raw.decode())
+        entry = data.get(token)
+        if not entry:
+            return 0.0, 0.0, 0.0
+        rate = float(entry.get("tx_rate", 0.0))
+        if "bids" in entry and "asks" in entry:
+            bids = float(entry.get("bids", 0.0))
+            asks = float(entry.get("asks", 0.0))
+        else:
+            total_bids = 0.0
+            total_asks = 0.0
+            for k, v in entry.items():
+                if k == "tx_rate":
+                    continue
+                if isinstance(v, dict):
+                    total_bids += float(v.get("bids", 0.0))
+                    total_asks += float(v.get("asks", 0.0))
+            bids = total_bids
+            asks = total_asks
+        depth = bids + asks
+        imb = (bids - asks) / depth if depth else 0.0
+        return depth, imb, rate
     except Exception as exc:
         logger.exception("Failed to read depth snapshot", exc_info=exc)
         return 0.0, 0.0, 0.0
