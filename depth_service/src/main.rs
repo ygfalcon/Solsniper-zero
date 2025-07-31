@@ -21,6 +21,7 @@ use tokio::{
 };
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message as WsMessage};
 use sysinfo::{System, SystemExt};
+use zstd::stream::{decode_all, encode_all};
 
 fn cfg_str(cfg: &TomlTable, key: &str) -> Option<String> {
     cfg.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
@@ -127,6 +128,31 @@ type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 /// Aggregated state of all tokens
 type AggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 type LastSent = Arc<Mutex<Instant>>;
+
+fn maybe_decompress(data: &[u8]) -> Vec<u8> {
+    if data.len() > 4 && data.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
+        decode_all(data).unwrap_or_else(|_| data.to_vec())
+    } else {
+        data.to_vec()
+    }
+}
+
+fn compress_event(data: &[u8]) -> Vec<u8> {
+    let compress = std::env::var("COMPRESS_EVENTS")
+        .map(|v| !v.is_empty() && v != "0")
+        .unwrap_or(false);
+    if !compress {
+        return data.to_vec();
+    }
+    let algo = std::env::var("EVENT_COMPRESSION")
+        .unwrap_or_else(|_| "zstd".to_string())
+        .to_lowercase();
+    if algo == "zstd" {
+        encode_all(data, 0).unwrap_or_else(|_| data.to_vec())
+    } else {
+        data.to_vec()
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 struct EventMessage<T> {
@@ -485,7 +511,7 @@ async fn update_mmap(
         topic: "depth_update".to_string(),
         kind: Some(pb::event::Kind::DepthUpdate(pb::DepthUpdate { entries })),
     };
-    let proto = event.encode_to_vec();
+    let proto = compress_event(&event.encode_to_vec());
     let _ = ws_bin.send(proto.clone());
     let _ = ws_bin.send(binary.clone());
     *latest.lock().await = String::new();
@@ -1093,7 +1119,7 @@ async fn main() -> Result<()> {
                         let _ = write
                             .lock()
                             .await
-                            .send(WsMessage::Binary(online.encode_to_vec()))
+                            .send(WsMessage::Binary(compress_event(&online.encode_to_vec())))
                             .await;
                         let tx_metrics = tx.clone();
                         let tx_hb = tx.clone();
@@ -1136,12 +1162,13 @@ async fn main() -> Result<()> {
                         tokio::spawn(async move {
                             while let Some(Ok(msg)) = read.next().await {
                                 if let WsMessage::Binary(data) = msg {
-                                    if let Ok(ev) = pb::Event::decode(&*data) {
+                                    let decoded = maybe_decompress(&data);
+                                    if let Ok(ev) = pb::Event::decode(&*decoded) {
                                         if ev.topic == "heartbeat" {
                                             let _ = write_read
                                                 .lock()
                                                 .await
-                                                .send(WsMessage::Binary(data))
+                                                .send(WsMessage::Binary(compress_event(&decoded)))
                                                 .await;
                                         }
                                     }
@@ -1152,7 +1179,7 @@ async fn main() -> Result<()> {
                             if write
                                 .lock()
                                 .await
-                                .send(WsMessage::Binary(msg))
+                                .send(WsMessage::Binary(compress_event(&msg)))
                                 .await
                                 .is_err()
                             {

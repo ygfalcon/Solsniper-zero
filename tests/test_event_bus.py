@@ -373,3 +373,27 @@ def test_event_compression_algorithms(monkeypatch):
     ev_msg.ParseFromString(data)
     assert ev_msg.topic == "weights_updated"
 
+
+@pytest.mark.asyncio
+async def test_zstd_round_trip(monkeypatch):
+    import importlib
+    monkeypatch.setenv("COMPRESS_EVENTS", "1")
+    monkeypatch.delenv("EVENT_COMPRESSION", raising=False)
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+    if not ev._HAS_ZSTD:
+        pytest.skip("zstandard not installed")
+
+    port = 8780
+    await ev.start_ws_server("localhost", port)
+    from solhunter_zero import event_pb2
+    async with websockets.connect(f"ws://localhost:{port}") as ws:
+        ev.publish("depth_service_status", {"status": "ok"})
+        raw = await asyncio.wait_for(ws.recv(), timeout=1)
+        assert isinstance(raw, bytes)
+        assert raw.startswith(b"(\xb5/\xfd")
+        ev_msg = event_pb2.Event()
+        ev_msg.ParseFromString(ev._maybe_decompress(raw))
+        assert ev_msg.depth_service_status.status == "ok"
+    await ev.stop_ws_server()
+

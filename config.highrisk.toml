@@ -20,6 +20,7 @@ depth_service = true  # start the Rust depth_service automatically when true
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
 # depth_update_threshold = 0.0  # minimum relative change before broadcasting
 # depth_min_send_interval = 100 # min interval between snapshots in ms
+compress_events = true  # set to false to disable protobuf compression
 use_depth_stream = true  # set to false to disable depth-stream IPC
 use_depth_feed = false  # deprecated, depth snapshots are sent over websocket
 use_rust_exec = true  # set to false to execute swaps in Python

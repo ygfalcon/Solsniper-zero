@@ -63,7 +63,12 @@ _EVENT_COMPRESSION = os.getenv("EVENT_COMPRESSION")
 _USE_ZLIB_EVENTS = os.getenv("USE_ZLIB_EVENTS")
 if _EVENT_COMPRESSION is None:
     if COMPRESS_EVENTS:
-        EVENT_COMPRESSION = "zlib" if _USE_ZLIB_EVENTS else "zstd"
+        if _USE_ZLIB_EVENTS:
+            EVENT_COMPRESSION = "zlib"
+        elif _HAS_ZSTD:
+            EVENT_COMPRESSION = "zstd"
+        else:
+            EVENT_COMPRESSION = "zlib"
     else:
         EVENT_COMPRESSION = None
 else:
