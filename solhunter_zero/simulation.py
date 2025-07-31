@@ -20,6 +20,24 @@ from . import onchain_metrics, models
 from .http import get_session
 from solhunter_zero.lru import TTLCache
 
+# Optional GPU acceleration for simulations
+USE_GPU_SIM = os.getenv("USE_GPU_SIM", "0").lower() in {"1", "true", "yes"}
+_GPU_BACKEND = None
+if USE_GPU_SIM:
+    try:  # pragma: no cover - optional dependency
+        import torch  # type: ignore
+        if torch.cuda.is_available():
+            _GPU_BACKEND = "torch"
+    except Exception:
+        torch = None  # type: ignore
+    if _GPU_BACKEND is None:
+        try:  # pragma: no cover - optional dependency
+            import cupy as cp  # type: ignore
+            if cp.cuda.runtime.getDeviceCount() > 0:
+                _GPU_BACKEND = "cupy"
+        except Exception:
+            cp = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # Default base URL for the metrics API. Can be overridden by the
@@ -601,10 +619,27 @@ async def run_simulations_async(
     predicted_mean += bias.get("mean", 0.0)
     sigma = max(0.0, sigma + bias.get("volatility", 0.0))
 
-    daily_returns = np.random.normal(predicted_mean, sigma, (count, days))
-    rois = np.prod(1 + daily_returns, axis=1) - 1
-    rois = rois - gas_cost
-    success_probs = np.mean(daily_returns > 0, axis=1)
+    if USE_GPU_SIM and _GPU_BACKEND == "torch":
+        t_mean = torch.full((count, days), predicted_mean, device="cuda")
+        t_std = torch.full((count, days), sigma, device="cuda")
+        daily_returns = torch.normal(t_mean, t_std)
+        rois = torch.prod(1 + daily_returns, dim=1) - 1
+        rois = rois - gas_cost
+        success_probs = torch.mean(daily_returns > 0, dim=1)
+        success_probs = success_probs.cpu().numpy()
+        rois = rois.cpu().numpy()
+    elif USE_GPU_SIM and _GPU_BACKEND == "cupy":
+        daily_returns = cp.random.normal(predicted_mean, sigma, (count, days))
+        rois = cp.prod(1 + daily_returns, axis=1) - 1
+        rois = rois - gas_cost
+        success_probs = cp.mean(daily_returns > 0, axis=1)
+        success_probs = cp.asnumpy(success_probs)
+        rois = cp.asnumpy(rois)
+    else:
+        daily_returns = np.random.normal(predicted_mean, sigma, (count, days))
+        rois = np.prod(1 + daily_returns, axis=1) - 1
+        rois = rois - gas_cost
+        success_probs = np.mean(daily_returns > 0, axis=1)
 
     for prob, roi in zip(success_probs, rois):
         results.append(

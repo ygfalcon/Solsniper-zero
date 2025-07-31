@@ -105,6 +105,7 @@ ENV_VARS = {
     "max_hops": "MAX_HOPS",
     "path_algorithm": "PATH_ALGORITHM",
     "offline_data_interval": "OFFLINE_DATA_INTERVAL",
+    "use_gpu_sim": "USE_GPU_SIM",
 }
 
 
