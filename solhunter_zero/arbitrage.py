@@ -5,6 +5,7 @@ import json
 import heapq
 import time
 from typing import List
+import numpy as np
 
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
@@ -309,39 +310,44 @@ def _build_adjacency(
     if adj_key is not None:
         adjacency = _EDGE_CACHE.get(adj_key)
     if adjacency is None:
-        def step_cost(a: str, b: str) -> float:
-            return (
-                prices[a] * trade_amount * fees.get(a, 0.0)
-                + prices[b] * trade_amount * fees.get(b, 0.0)
-                + gas.get(a, 0.0)
-                + gas.get(b, 0.0)
-                + latency.get(a, 0.0)
-                + latency.get(b, 0.0)
-            )
+        price_arr = np.array([prices[v] for v in venues], dtype=float)
+        fee_arr = np.array([fees.get(v, 0.0) for v in venues], dtype=float)
+        gas_arr = np.array([gas.get(v, 0.0) for v in venues], dtype=float)
+        lat_arr = np.array([latency.get(v, 0.0) for v in venues], dtype=float)
 
-        def slip_cost(a: str, b: str) -> float:
-            if depth is None:
-                return 0.0
-            a_depth = depth.get(a, {}) if isinstance(depth, Mapping) else {}
-            b_depth = depth.get(b, {}) if isinstance(depth, Mapping) else {}
-            ask = float(a_depth.get("asks", 0.0))
-            bid = float(b_depth.get("bids", 0.0))
-            slip_a = trade_amount / ask if ask > 0 else 0.0
-            slip_b = trade_amount / bid if bid > 0 else 0.0
-            return prices[a] * trade_amount * slip_a + prices[b] * trade_amount * slip_b
+        base_cost = price_arr * trade_amount * fee_arr + gas_arr + lat_arr
+        step_matrix = base_cost[:, None] + base_cost[None, :]
+
+        if depth is not None:
+            ask_arr = np.array([
+                float((depth.get(v) or {}).get("asks", 0.0)) for v in venues
+            ], dtype=float)
+            bid_arr = np.array([
+                float((depth.get(v) or {}).get("bids", 0.0)) for v in venues
+            ], dtype=float)
+            slip_a = np.where(ask_arr > 0, trade_amount / ask_arr, 0.0)
+            slip_b = np.where(bid_arr > 0, trade_amount / bid_arr, 0.0)
+            slip_matrix = (
+                price_arr[:, None] * trade_amount * slip_a[:, None]
+                + price_arr[None, :] * trade_amount * slip_b[None, :]
+            )
+        else:
+            slip_matrix = 0.0
+
+        profit_matrix = (
+            (price_arr[None, :] - price_arr[:, None]) * trade_amount
+            - step_matrix
+            - slip_matrix
+        )
+        np.fill_diagonal(profit_matrix, float("-inf"))
 
         adjacency = {}
-        for a in venues:
+        for i, a in enumerate(venues):
             neigh = {}
-            for b in venues:
-                if a == b:
+            for j, b in enumerate(venues):
+                if i == j:
                     continue
-                profit = (
-                    (prices[b] - prices[a]) * trade_amount
-                    - step_cost(a, b)
-                    - slip_cost(a, b)
-                )
-                neigh[b] = profit
+                neigh[b] = float(profit_matrix[i, j])
             adjacency[a] = neigh
         if adj_key is not None:
             _EDGE_CACHE.set(adj_key, adjacency)
