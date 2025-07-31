@@ -502,6 +502,19 @@ class RLDaemon:
         sub = start_metrics_exporter(metrics_url)
         self._subscriptions.append(types.SimpleNamespace(__exit__=lambda *a, **k: sub()))
 
+        self._peer_weights: dict[str, float] = {}
+        if self.distributed_rl:
+            def _apply_weights(msg: Any) -> None:
+                w = getattr(msg, "weights", None)
+                if w is None and isinstance(msg, dict):
+                    w = msg.get("weights")
+                if isinstance(w, dict):
+                    self._peer_weights = dict(w)
+
+            sub = subscription("rl_weights", _apply_weights)
+            sub.__enter__()
+            self._subscriptions.append(sub)
+
     def close(self) -> None:
         for sub in self._subscriptions:
             sub.__exit__(None, None, None)
@@ -655,7 +668,16 @@ class RLDaemon:
                 reward += val
             else:
                 reward -= val
-        publish("rl_metrics", {"loss": 0.0, "reward": reward})
+        if self.distributed_rl:
+            grads: dict[str, float] = {}
+            try:
+                for name, param in self.model.named_parameters():
+                    grads[name] = float(param.detach().mean())
+            except Exception:
+                grads = {}
+            publish("rl_metrics", {"loss": 0.0, "reward": reward, "gradients": grads})
+        else:
+            publish("rl_metrics", {"loss": 0.0, "reward": reward})
 
     async def _loop(self, interval: float) -> None:
         while True:
@@ -767,4 +789,31 @@ class RLDaemon:
         if self._hb_task is None:
             self._hb_task = loop.create_task(send_heartbeat("rl_daemon"))
         return self._task
+
+
+def parameter_server() -> Any:
+    """Aggregate gradient updates from ``rl_metrics`` events and publish weights."""
+
+    updates: list[dict[str, float]] = []
+    weights: dict[str, float] = {}
+
+    def _on_metrics(msg: Any) -> None:
+        grads = getattr(msg, "gradients", None)
+        if grads is None and isinstance(msg, dict):
+            grads = msg.get("gradients")
+        if not isinstance(grads, dict):
+            return
+        updates.append({k: float(v) for k, v in grads.items()})
+        count = len(updates)
+        agg: dict[str, float] = {}
+        for g in updates:
+            for k, v in g.items():
+                agg[k] = agg.get(k, 0.0) + v
+        for k, v in agg.items():
+            weights[k] = v / count
+        publish("rl_weights", RLWeights(weights=weights))
+
+    sub = subscription("rl_metrics", _on_metrics)
+    sub.__enter__()
+    return sub
 
