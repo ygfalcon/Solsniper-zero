@@ -251,7 +251,10 @@ profit calculation so routes are ranked based on the borrowed size.
    agent's historical ROI. The coordinator normalizes ROI values into a
    confidence score and feeds these weights to the `AgentSwarm` at run time.
    To control how much each agent influences trades manually, add an
-   `agent_weights` table mapping agent names to weights:
+   `agent_weights` table mapping agent names to weights.  Set
+   `use_attention_swarm = true` and specify `attention_swarm_model` to load
+   a trained transformer that predicts these weights from ROI history and
+   market volatility:
 
    ```toml
    [agent_weights]
@@ -827,6 +830,9 @@ very small.
   dataset from `offline_data.db` and trains a classifier on depth change,
   transaction rate, whale activity and average swap size. Set
   `ACTIVITY_MODEL_PATH` to enable ranking with this model.
+- **Attention-based weighting** — `scripts/train_attention_swarm.py` trains a
+  small transformer on `memory.db` trades. Set `attention_swarm_model` in the
+  config and `use_attention_swarm = true` to enable this model at run time.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
