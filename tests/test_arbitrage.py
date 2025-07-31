@@ -27,19 +27,21 @@ def test_arbitrage_executes_orders(monkeypatch):
 
     called = []
 
-    async def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place_order(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         called.append((side, price))
         return {"ok": True}
 
-    monkeypatch.setattr('solhunter_zero.arbitrage.place_order_async', fake_place_order)
+    monkeypatch.setattr("solhunter_zero.arbitrage.place_order_async", fake_place_order)
 
     result = asyncio.run(
-        detect_and_execute_arbitrage('tok', [feed1, feed2], threshold=0.1, amount=5)
+        detect_and_execute_arbitrage("tok", [feed1, feed2], threshold=0.1, amount=5)
     )
 
     assert result == (0, 1)
-    assert ('buy', 1.0) in called
-    assert ('sell', 1.2) in called
+    assert ("buy", 1.0) in called
+    assert ("sell", 1.2) in called
 
 
 def test_flash_loan_arbitrage(monkeypatch):
@@ -95,6 +97,75 @@ def test_flash_loan_arbitrage(monkeypatch):
     assert b"swap" in parts[1]
 
 
+def test_flashloan_multi_hop(monkeypatch):
+    async def feed1(token):
+        return 1.0
+
+    async def feed2(token):
+        return 1.2
+
+    async def feed3(token):
+        return 1.5
+
+    kp = Keypair()
+    sent = {}
+
+    class FakeClient:
+        def __init__(self, url):
+            self.url = url
+
+        async def send_raw_transaction(self, data, opts=None):
+            sent["tx"] = data
+
+            class Resp:
+                value = "sig"
+
+            return Resp()
+
+        async def confirm_transaction(self, sig):
+            sent["confirm"] = sig
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr("solhunter_zero.flash_loans.AsyncClient", FakeClient)
+    monkeypatch.setattr(
+        arb.depth_client,
+        "snapshot",
+        lambda t: (
+            {
+                "feed1": {"bids": 10, "asks": 10},
+                "feed2": {"bids": 10, "asks": 10},
+                "feed3": {"bids": 10, "asks": 10},
+            },
+            5.0,
+        ),
+    )
+
+    result = asyncio.run(
+        detect_and_execute_arbitrage(
+            "tok",
+            [feed1, feed2, feed3],
+            threshold=0.0,
+            amount=5,
+            use_flash_loans=True,
+            keypair=kp,
+            max_flash_amount=10,
+            max_hops=3,
+            path_algorithm="dijkstra",
+            fees={"feed1": 0.0, "feed2": 0.0, "feed3": 0.0},
+            gas={"feed1": 0.0, "feed2": 0.0, "feed3": 0.0},
+            latencies={"feed1": 0.0, "feed2": 0.0, "feed3": 0.0},
+        )
+    )
+
+    assert result == (0, 2)
+    assert sent["confirm"] == "sig"
+
+
 def test_no_arbitrage(monkeypatch):
     async def feed1(token):
         return 1.0
@@ -105,17 +176,17 @@ def test_no_arbitrage(monkeypatch):
     called = {}
 
     async def fake_place_order(*a, **k):
-        called['called'] = True
+        called["called"] = True
         return {}
 
-    monkeypatch.setattr('solhunter_zero.arbitrage.place_order_async', fake_place_order)
+    monkeypatch.setattr("solhunter_zero.arbitrage.place_order_async", fake_place_order)
 
     result = asyncio.run(
-        detect_and_execute_arbitrage('tok', [feed1, feed2], threshold=0.1, amount=5)
+        detect_and_execute_arbitrage("tok", [feed1, feed2], threshold=0.1, amount=5)
     )
 
     assert result is None
-    assert 'called' not in called
+    assert "called" not in called
 
 
 def test_default_price_feeds(monkeypatch):
@@ -129,7 +200,9 @@ def test_default_price_feeds(monkeypatch):
 
     orders = []
 
-    async def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place_order(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         orders.append((side, price))
         return {"ok": True}
 
@@ -137,7 +210,9 @@ def test_default_price_feeds(monkeypatch):
     monkeypatch.setattr(arb, "fetch_raydium_price_async", fake_raydium)
     monkeypatch.setattr(arb, "place_order_async", fake_place_order)
 
-    result = asyncio.run(detect_and_execute_arbitrage("tok", None, threshold=0.1, amount=2))
+    result = asyncio.run(
+        detect_and_execute_arbitrage("tok", None, threshold=0.1, amount=2)
+    )
 
     assert result == (0, 1)
     assert ("buy", 1.5) in orders
@@ -151,7 +226,9 @@ async def _stream_once(value):
 def test_arbitrage_websocket(monkeypatch):
     calls = []
 
-    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         calls.append((side, price))
         return {"ok": True}
 
@@ -216,10 +293,15 @@ def test_arbitrage_multiple_tokens(monkeypatch):
     monkeypatch.setattr(arb, "place_order_async", fake_place)
 
     results = asyncio.run(
-        arb.detect_and_execute_arbitrage([
-            "tok1",
-            "tok2",
-        ], [feed_low, feed_high], threshold=0.1, amount=3)
+        arb.detect_and_execute_arbitrage(
+            [
+                "tok1",
+                "tok2",
+            ],
+            [feed_low, feed_high],
+            threshold=0.1,
+            amount=3,
+        )
     )
 
     assert results == [(0, 1), (0, 1)]
@@ -238,7 +320,9 @@ def test_arbitrage_env_streams(monkeypatch):
 
     calls = []
 
-    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         calls.append((side, price))
         return {"ok": True}
 
@@ -306,7 +390,9 @@ def test_arbitrage_env_streams_three(monkeypatch):
 
     calls = []
 
-    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         calls.append((side, price))
         return {"ok": True}
 
@@ -372,6 +458,7 @@ def test_arbitrage_env_streams_three_no_op(monkeypatch):
 def test_depth_aware_routing(monkeypatch):
     monkeypatch.setattr(arb, "USE_DEPTH_STREAM", False)
     monkeypatch.setattr(arb, "USE_SERVICE_EXEC", False)
+
     async def dex_a(token):
         return 1.0
 
@@ -395,7 +482,9 @@ def test_depth_aware_routing(monkeypatch):
 
     called = []
 
-    async def fake_place(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         called.append((side, price))
         return {"ok": True}
 
