@@ -2,8 +2,8 @@
 
 This module provides :class:`ArtifactMathAgent` which loads equations from
 ``datasets/artifact_math.json`` and derives a numeric score for a token. The
-score is computed from glyph mappings via :func:`decode_glyph_series` and then
-aggregated with :func:`pyramid_transform`.  When the score exceeds the configured
+score is computed from glyph mappings via :func:`map_glyph_series` and then
+aggregated with :func:`aggregate_scores`.  When the score exceeds the configured
 threshold a buy action is proposed; when it falls below ``-threshold`` and the
 portfolio holds the token a sell action is proposed.
 
@@ -22,7 +22,7 @@ from ..datasets.artifact_math import load_artifact_math
 
 
 # ---------------------------------------------------------------------------
-def decode_glyph_series(series: Sequence[str], mapping: Mapping[str, int]) -> List[int]:
+def map_glyph_series(series: Sequence[str], mapping: Mapping[str, int]) -> List[int]:
     """Return integer sequence for ``series`` using ``mapping``.
 
     Unknown glyphs are mapped to ``0``.
@@ -30,7 +30,7 @@ def decode_glyph_series(series: Sequence[str], mapping: Mapping[str, int]) -> Li
     return [int(mapping.get(g, 0)) for g in series]
 
 
-def pyramid_transform(values: Sequence[int]) -> float:
+def aggregate_scores(values: Sequence[int]) -> float:
     """Combine ``values`` into a single score.
 
     The current implementation simply returns ``sum(values) + 2`` which yields
@@ -104,8 +104,8 @@ class ArtifactMathAgent(BaseAgent):
         mapping = self._load_mapping()
         if not mapping:
             return []
-        series = decode_glyph_series(list(token), mapping)
-        score = pyramid_transform(series)
+        series = map_glyph_series(list(token), mapping)
+        score = aggregate_scores(series)
         if score > self.threshold:
             return [{"token": token, "side": "buy", "amount": self.amount, "price": 0.0}]
         if score < -self.threshold and token in portfolio.balances:
