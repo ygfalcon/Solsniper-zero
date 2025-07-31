@@ -153,6 +153,8 @@ direct transaction submission to the Solana RPC.
   - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.
     When set, depth updates are forwarded using the topic `depth_update`.
     The same value can be provided via `event_bus_url` in your config.
+  - `EVENT_BUS_COMPRESSION` – websocket compression algorithm (defaults to
+    `deflate`). Set to `none` to disable compression.
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
     new snapshot (defaults to `0`).
   - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between
