@@ -28,7 +28,7 @@ def _snapshot_from_mmap(token: str) -> tuple[float, float, float]:
                 raw = bytes(m).rstrip(b"\x00")
                 if not raw:
                     return 0.0, 0.0, 0.0
-                data = loads(raw.decode())
+                data = loads(raw)
                 entry = data.get(token)
                 if not entry:
                     return 0.0, 0.0, 0.0
@@ -86,13 +86,14 @@ async def stream_order_book(
         while True:
             try:
                 reader, writer = await asyncio.open_unix_connection(path)
-                writer.write(dumps({"cmd": "snapshot", "token": token}).encode())
+                payload = dumps({"cmd": "snapshot", "token": token})
+                writer.write(payload if isinstance(payload, (bytes, bytearray)) else payload.encode())
                 await writer.drain()
                 data = await reader.read()
                 writer.close()
                 await writer.wait_closed()
                 try:
-                    info = loads(data.decode())
+                    info = loads(data)
                     if "bids" in info and "asks" in info:
                         bids = float(info.get("bids", 0.0))
                         asks = float(info.get("asks", 0.0))

@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - optional dependency
 def dumps(obj: object) -> str | bytes:
     """Serialize *obj* to JSON using ``orjson`` when available."""
     if USE_ORJSON:
-        return _json.dumps(obj).decode()
+        return _json.dumps(obj)
     return _json.dumps(obj)
 
 

@@ -82,7 +82,8 @@ async def _place_order_ipc(
         try:
             reader, writer = await asyncio.open_unix_connection(socket_path)
             payload = {"cmd": "submit", "tx": tx_b64, "testnet": testnet}
-            writer.write(dumps(payload).encode())
+            data = dumps(payload)
+            writer.write(data if isinstance(data, (bytes, bytearray)) else data.encode())
             await writer.drain()
             if timeout:
                 data = await asyncio.wait_for(reader.read(), timeout)
@@ -91,7 +92,7 @@ async def _place_order_ipc(
             writer.close()
             await writer.wait_closed()
             if data:
-                return loads(data.decode())
+                return loads(data)
             return None
         except asyncio.TimeoutError:
             logger.warning("IPC order timed out, retrying")
