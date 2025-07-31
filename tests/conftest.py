@@ -80,14 +80,20 @@ for name in [
     "RLWeights",
     "RLCheckpoint",
     "PortfolioUpdated",
+    "TokenInfo",
+    "TokenAgg",
     "DepthUpdate",
+    "DepthDiff",
     "DepthServiceStatus",
     "Heartbeat",
     "TradeLogged",
     "RLMetrics",
     "PriceUpdate",
     "SystemMetrics",
+    "RouteRequest",
+    "RouteResponse",
     "SystemMetricsCombined",
+    "DoubleList",
     "RiskMetrics",
     "RiskUpdated",
     "RemoteSystemMetrics",
@@ -188,6 +194,7 @@ _stub_path = os.path.join(os.path.dirname(__file__), 'stubs.py')
 _spec = importlib.util.spec_from_file_location('stubs', _stub_path)
 _stubs = importlib.util.module_from_spec(_spec)
 assert _spec and _spec.loader
+import numpy  # ensure real numpy is loaded before stubs override it
 _spec.loader.exec_module(_stubs)
 _stubs.install_stubs()
 
