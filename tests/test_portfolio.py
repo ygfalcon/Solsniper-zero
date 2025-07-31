@@ -1,5 +1,9 @@
 import pytest
-from solhunter_zero.portfolio import Portfolio, calculate_order_size
+from solhunter_zero.portfolio import (
+    Portfolio,
+    calculate_order_size,
+    dynamic_order_size,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -231,4 +235,72 @@ def test_risk_metrics_event(monkeypatch):
                 assert math.isnan(a_val)
             else:
                 assert a_val == b_val
+
+
+def test_dynamic_order_size_prediction_boost():
+    base = dynamic_order_size(
+        100.0,
+        0.1,
+        None,
+        volatility=1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    boosted = dynamic_order_size(
+        100.0,
+        0.1,
+        0.2,
+        volatility=1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    assert boosted > base
+
+
+def test_dynamic_order_size_negative_prediction():
+    size = dynamic_order_size(
+        100.0,
+        0.1,
+        -0.2,
+        volatility=1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    assert size == 0.0
+
+
+def test_dynamic_order_size_drawdown_and_volatility():
+    base = dynamic_order_size(
+        100.0,
+        0.1,
+        0.1,
+        volatility=0.5,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    high_vol = dynamic_order_size(
+        100.0,
+        0.1,
+        0.1,
+        volatility=1.5,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    high_dd = dynamic_order_size(
+        100.0,
+        0.1,
+        0.1,
+        volatility=0.5,
+        drawdown=0.8,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    assert high_vol < base
+    assert high_dd < base
 

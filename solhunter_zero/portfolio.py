@@ -429,3 +429,80 @@ def calculate_order_size(
     if size <= gas_cost:
         return 0.0
     return size - gas_cost
+
+
+def dynamic_order_size(
+    balance: float,
+    expected_roi: float,
+    predicted_roi: float | None = None,
+    volatility: float = 0.0,
+    drawdown: float = 0.0,
+    *,
+    risk_tolerance: float = 0.1,
+    max_allocation: float = 0.2,
+    max_risk_per_token: float = 0.1,
+    max_drawdown: float = 1.0,
+    volatility_factor: float = 1.0,
+    gas_cost: float | None = None,
+    current_allocation: float = 0.0,
+    min_portfolio_value: float = 0.0,
+    correlation: float | None = None,
+    var: float | None = None,
+    var_threshold: float | None = None,
+) -> float:
+    """Return trade size using Kelly criterion with dynamic adjustments."""
+
+    if balance <= 0:
+        return 0.0
+
+    roi = expected_roi
+    if predicted_roi is not None:
+        roi = (expected_roi + predicted_roi) / 2
+    if roi <= 0:
+        return 0.0
+
+    if drawdown >= max_drawdown:
+        return 0.0
+
+    risk = volatility if volatility > 0 else 1.0
+    kelly_fraction = roi / (risk * risk)
+
+    adj_risk = (
+        risk_tolerance
+        * (1 - drawdown / max_drawdown)
+        / (1 + volatility * volatility_factor)
+    )
+    if correlation is not None:
+        corr = max(-1.0, min(1.0, correlation))
+        adj_risk *= max(0.0, 1 - corr)
+
+    fraction = kelly_fraction * adj_risk
+
+    remaining = max_allocation - current_allocation
+    max_fraction = min(max_risk_per_token, remaining)
+    fraction = min(max(fraction, 0.0), max_fraction)
+    if fraction <= 0:
+        return 0.0
+
+    effective_balance = max(balance, min_portfolio_value)
+    size = min(effective_balance * fraction, balance)
+
+    if (
+        var is not None
+        and var_threshold is not None
+        and var > var_threshold
+        and var > 0
+    ):
+        size *= var_threshold / var
+
+    if gas_cost is None:
+        try:
+            from .gas import get_current_fee
+
+            gas_cost = get_current_fee()
+        except Exception:
+            gas_cost = 0.0
+
+    if size <= gas_cost:
+        return 0.0
+    return size - gas_cost
