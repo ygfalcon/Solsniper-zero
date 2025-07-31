@@ -37,7 +37,7 @@ twitter_feeds = ""
 discord_feeds = ""
 dex_listing_ws_url = "wss://dex.example/ws"
 discovery_method = "websocket"
-tick_dataset = "datasets/sample_ticks.json"  # sample tick history for AlienGlyphAgent and AtlanteanWaveAgent
+tick_dataset = "solhunter_zero/data/sample_ticks.json"  # sample tick history for AlienGlyphAgent and AtlanteanWaveAgent
 
 risk_tolerance = 1.0
 max_allocation = 1.0
