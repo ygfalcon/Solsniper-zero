@@ -122,6 +122,33 @@ def recent_value_at_risk(
 
 
 @njit
+def conditional_value_at_risk_prices(
+    prices: Sequence[float], confidence: float = 0.95
+) -> float:
+    """Return CVaR computed from ``prices`` ordered oldest to newest."""
+
+    if len(prices) < 2:
+        return 0.0
+    returns = [prices[i + 1] / prices[i] - 1 for i in range(len(prices) - 1)]
+    return conditional_value_at_risk(returns, confidence)
+
+
+def recent_conditional_value_at_risk(
+    prices: Sequence[float],
+    *,
+    window: int = 30,
+    confidence: float = 0.95,
+) -> float:
+    """Return CVaR using the most recent ``window`` prices."""
+
+    if len(prices) > window:
+        slice_prices = prices[-window:]
+    else:
+        slice_prices = prices
+    return conditional_value_at_risk_prices(slice_prices, confidence)
+
+
+@njit
 def conditional_value_at_risk(
     returns: Sequence[float], confidence: float = 0.95
 ) -> float:
@@ -333,6 +360,7 @@ class RiskManager:
         prices: Sequence[float] | None = None,
         var_threshold: float | None = None,
         var_confidence: float = 0.95,
+        asset_cvar_threshold: float | None = None,
         covariance: float | None = None,
         covar_threshold: float | None = None,
         portfolio_cvar: float | None = None,
@@ -381,6 +409,12 @@ class RiskManager:
         price_history:
             Mapping of token to historical price sequence used for covariance
             and risk calculations when ``weights`` are provided.
+        var_threshold:
+            When provided alongside ``prices`` the position size is scaled down
+            when the token VaR exceeds this value.
+        asset_cvar_threshold:
+            Threshold for CVaR calculated from ``prices`` used to further limit
+            position sizing.
         portfolio_metrics:
             Optional mapping containing precomputed portfolio risk metrics such
             as ``covariance`` and ``correlation``.
@@ -442,6 +476,11 @@ class RiskManager:
             var = value_at_risk(prices, var_confidence, memory=memory)
             if var > var_threshold and var > 0:
                 scale *= var_threshold / var
+
+        if prices is not None and asset_cvar_threshold is not None:
+            cvar_val_single = conditional_value_at_risk_prices(prices, var_confidence)
+            if cvar_val_single > asset_cvar_threshold and cvar_val_single > 0:
+                scale *= asset_cvar_threshold / cvar_val_single
 
         if covariance is None and cov_val is not None:
             covariance = cov_val
