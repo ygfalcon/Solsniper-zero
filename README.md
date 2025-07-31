@@ -157,6 +157,10 @@ Key discovery options:
 The `depth_service` crate provides low‑latency order book snapshots and
 direct transaction submission to the Solana RPC.
 
+Install the Rust toolchain if `cargo` isn't available:
+`curl https://sh.rustup.rs -sSf | sh`. More details at
+<https://www.rust-lang.org/tools/install>.
+
 1. **Build and run the service**
    ```bash
    cargo run --manifest-path depth_service/Cargo.toml --release -- \
