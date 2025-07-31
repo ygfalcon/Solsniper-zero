@@ -194,13 +194,15 @@ direct transaction submission to the Solana RPC.
 4. **Faster route search**
    Path computation happens inside the Rust service when
    `use_service_route` is enabled (default). This is roughly ten times faster
-   than the Python fallback. Alternatively build the lightweight
-   `route_ffi` library to avoid IPC entirely:
+   than the Python fallback. When the Rust toolchain is installed,
+   `run.sh` automatically builds the lightweight `route_ffi` library if it is
+   missing to avoid IPC overhead:
 
    ```bash
    cargo build --manifest-path route_ffi/Cargo.toml --release
-   export ROUTE_FFI_LIB=route_ffi/target/release/libroute_ffi.so
    ```
+   After compilation `ROUTE_FFI_LIB` is set to
+   `route_ffi/target/release/libroute_ffi.so`.
    Set `USE_FFI_ROUTE=1` so Python uses the FFI path finder.
 
 ## Flash-Loan Arbitrage

@@ -52,6 +52,19 @@ if [ "${DEPTH_SERVICE,,}" = "true" ]; then
     cargo build --manifest-path depth_service/Cargo.toml --release
 fi
 
+# Build the optional route_ffi library if missing
+ROUTE_LIB="route_ffi/target/release/libroute_ffi.so"
+if [ ! -f "$ROUTE_LIB" ]; then
+    if command -v cargo >/dev/null 2>&1; then
+        cargo build --manifest-path route_ffi/Cargo.toml --release
+    else
+        echo "Warning: 'cargo' not found. Skipping route_ffi build." >&2
+    fi
+fi
+if [ -f "$ROUTE_LIB" ]; then
+    export ROUTE_FFI_LIB="$ROUTE_LIB"
+fi
+
 python -m solhunter_zero.metrics_aggregator &
 AGG_PID=$!
 trap 'kill $AGG_PID 2>/dev/null' EXIT
