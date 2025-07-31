@@ -147,10 +147,11 @@ Key discovery options:
   environment variable `MAX_CONCURRENCY` overrides this value.
 
    An example configuration file named `config.example.toml` is included in
-   the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
-   values as needed. A high risk preset called `config.highrisk.toml` is also
-   provided. The example configuration loads several built‑in **agents** that
-   replace the previous static strategy modules.
+   the project root. Run `cp config.example.toml config.toml` (or copy it to
+   `config.yaml`) and edit the values. A high risk preset called
+   `config.highrisk.toml` is also provided. The example configuration loads
+   several built‑in **agents** that replace the previous static strategy
+   modules.
 
 ## Rust Depth Service
 
