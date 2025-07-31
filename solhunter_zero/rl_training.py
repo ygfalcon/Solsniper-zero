@@ -784,6 +784,8 @@ class RLTraining:
             else:
                 device = "cpu"
         self.device = device
+        from .models import load_compiled_model
+        self.jit_model = load_compiled_model(str(self.model_path), device)
         acc = "gpu" if device == "cuda" else device
         kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
         if acc != "cpu":
@@ -810,16 +812,21 @@ class RLTraining:
         await self.data.setup()
         self.trainer.fit(self.model, self.data)
         torch.save(self.model.state_dict(), self.model_path)
-        script_path = self.model_path.with_suffix(".ptc")
+        from .models import export_torchscript, export_onnx
+
         try:
-            scripted = torch.jit.script(self.model.cpu())
-            scripted.save(script_path)
+            export_torchscript(self.model.cpu(), self.model_path.with_suffix(".ptc"))
         except Exception as exc:  # pragma: no cover - scripting optional
             logging.getLogger(__name__).warning(
-                "failed to script model: %s", exc
+                "failed to export torchscript: %s", exc
             )
-        finally:
-            self.model.to(self.device)
+        if os.getenv("EXPORT_ONNX"):
+            try:
+                sample = torch.zeros(1, 9, dtype=torch.float32)
+                export_onnx(self.model.cpu(), self.model_path.with_suffix(".onnx"), sample)
+            except Exception as exc:  # pragma: no cover - optional
+                logging.getLogger(__name__).warning("failed to export onnx: %s", exc)
+        self.model.to(self.device)
 
     async def _loop(self, interval: float) -> None:
         while True:
@@ -965,16 +972,19 @@ def fit(
     )
     trainer.fit(model, train_dataloaders=loader)
     torch.save(model.state_dict(), path)
-    script_path = path.with_suffix(".ptc")
+    from .models import export_torchscript, export_onnx
+
     try:
-        scripted = torch.jit.script(model.cpu())
-        scripted.save(script_path)
+        export_torchscript(model.cpu(), path.with_suffix(".ptc"))
     except Exception as exc:  # pragma: no cover - scripting optional
-        logging.getLogger(__name__).warning(
-            "failed to script model: %s", exc
-        )
-    finally:
-        model.to(device)
+        logging.getLogger(__name__).warning("failed to export torchscript: %s", exc)
+    if os.getenv("EXPORT_ONNX"):
+        try:
+            sample = torch.zeros(1, 9, dtype=torch.float32)
+            export_onnx(model.cpu(), path.with_suffix(".onnx"), sample)
+        except Exception as exc:  # pragma: no cover - optional
+            logging.getLogger(__name__).warning("failed to export onnx: %s", exc)
+    model.to(device)
 
 
 class MultiAgentRL:
