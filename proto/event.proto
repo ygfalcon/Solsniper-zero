@@ -91,6 +91,48 @@ message RouteResponse {
   double slippage = 3;
 }
 
+message ConfigUpdated {
+  string config_json = 1;
+}
+
+message PendingSwap {
+  string token = 1;
+  string address = 2;
+  double size = 3;
+  double slippage = 4;
+}
+
+message RemoteSystemMetrics {
+  double cpu = 1;
+  double memory = 2;
+}
+
+message DoubleList {
+  repeated double values = 1;
+}
+
+message RiskMetrics {
+  double covariance = 1;
+  double portfolio_cvar = 2;
+  double portfolio_evar = 3;
+  double correlation = 4;
+  repeated DoubleList cov_matrix = 5;
+  repeated DoubleList corr_matrix = 6;
+}
+
+message RiskUpdated {
+  double multiplier = 1;
+}
+
+message SystemMetricsCombined {
+  double cpu = 1;
+  double memory = 2;
+}
+
+message TokenDiscovered {
+  repeated string tokens = 1;
+}
+
 message Event {
   string topic = 1;
   oneof kind {
@@ -106,5 +148,12 @@ message Event {
     RLMetrics rl_metrics = 11;
     SystemMetrics system_metrics = 12;
     PriceUpdate price_update = 13;
+    ConfigUpdated config_updated = 14;
+    PendingSwap pending_swap = 15;
+    RemoteSystemMetrics remote_system_metrics = 16;
+    RiskMetrics risk_metrics = 17;
+    RiskUpdated risk_updated = 18;
+    SystemMetricsCombined system_metrics_combined = 19;
+    TokenDiscovered token_discovered = 20;
   }
 }
