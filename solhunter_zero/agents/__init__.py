@@ -86,6 +86,7 @@ def _ensure_agents_loaded() -> None:
     from .meta_conviction import MetaConvictionAgent
     from .fractal_agent import FractalAgent
     from .alien_cipher_agent import AlienCipherAgent
+    from .artifact_math_agent import ArtifactMathAgent
 
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -119,6 +120,7 @@ def _ensure_agents_loaded() -> None:
         "vanta": StrangeAttractorAgent,
         "inferna": FractalAgent,
         "alien_cipher": AlienCipherAgent,
+        "artifact_math": ArtifactMathAgent,
 
         "emotion": EmotionAgent,
 
