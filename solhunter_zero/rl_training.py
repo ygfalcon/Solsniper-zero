@@ -273,6 +273,24 @@ class TradeDataModule(pl.LightningDataModule):
         self.cpu_callback = cpu_callback
         self.dataset: _TradeDataset | None = None
 
+    def recompute_workers(self, loader: DataLoader | None = None) -> None:
+        """Recalculate ``num_workers`` and update ``loader`` in-place."""
+        if (
+            not self.dynamic_workers
+            or self.dataset is None
+            or self.num_workers is not None
+        ):
+            return
+        new_val = _calc_num_workers(
+            len(self.dataset),
+            dynamic=True,
+            cpu_callback=self.cpu_callback,
+        )
+        if loader is not None:
+            loader.num_workers = new_val
+            loader.pin_memory = self.pin_memory and new_val > 0
+            loader.persistent_workers = self.persistent_workers and new_val > 0
+
     async def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
         if self.mmap_path and Path(self.mmap_path).exists():
             mem = np.load(self.mmap_path, mmap_mode="r")
@@ -382,6 +400,9 @@ class LightningPPO(pl.LightningModule):
     def configure_optimizers(self):  # pragma: no cover - simple
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
 
+    def configure_callbacks(self):  # pragma: no cover - simple
+        return [_DynamicWorkersCallback()]
+
 
 class LightningDQN(pl.LightningModule):
     """Simple DQN model trained via mean squared error."""
@@ -413,6 +434,9 @@ class LightningDQN(pl.LightningModule):
     def configure_optimizers(self):  # pragma: no cover - simple
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
 
+    def configure_callbacks(self):  # pragma: no cover - simple
+        return [_DynamicWorkersCallback()]
+
 
 class _MetricsCallback(pl.callbacks.Callback):
     """Callback publishing metrics after each training epoch."""
@@ -431,6 +455,22 @@ class _MetricsCallback(pl.callbacks.Callback):
         except Exception:
             reward_val = float(reward.item())
         publish("rl_metrics", {"loss": loss_val, "reward": reward_val})
+
+
+class _DynamicWorkersCallback(pl.callbacks.Callback):
+    """Callback adjusting ``DataLoader`` worker count before each epoch."""
+
+    def on_train_epoch_start(self, trainer, pl_module) -> None:  # pragma: no cover - simple
+        dm = getattr(trainer, "datamodule", None)
+        if dm is None or not hasattr(dm, "recompute_workers"):
+            return
+        loaders = trainer.train_dataloader
+        if isinstance(loaders, list):
+            seq = loaders
+        else:
+            seq = [loaders]
+        for loader in seq:
+            dm.recompute_workers(loader)
 
 
 class RLTraining:

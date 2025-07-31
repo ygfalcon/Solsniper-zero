@@ -203,6 +203,45 @@ def test_dynamic_worker_count(monkeypatch, tmp_path):
     assert low > high
 
 
+def test_workers_adjusted_each_epoch(monkeypatch):
+    import solhunter_zero.rl_training as rl_training
+
+    class DummyDataset(rl_training.Dataset):
+        def __len__(self):
+            return 400
+
+        def __getitem__(self, idx):
+            return (
+                rl_training.torch.zeros(9),
+                rl_training.torch.tensor(0, dtype=rl_training.torch.long),
+                rl_training.torch.tensor(0.0),
+            )
+
+    class DummyLoader:
+        def __init__(self, *a, **kw):
+            self.num_workers = kw.get("num_workers")
+            self.pin_memory = kw.get("pin_memory")
+            self.persistent_workers = kw.get("persistent_workers")
+
+    monkeypatch.setattr(rl_training, "DataLoader", lambda *a, **kw: DummyLoader(*a, **kw))
+    monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
+    monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
+
+    cpu_val = {"v": 80.0}
+    dm = rl_training.TradeDataModule("db", dynamic_workers=True, cpu_callback=lambda: cpu_val["v"])
+    dm.dataset = DummyDataset()
+    loader = dm.train_dataloader()
+    cb = rl_training._DynamicWorkersCallback()
+    trainer = types.SimpleNamespace(datamodule=dm, train_dataloader=loader)
+
+    cb.on_train_epoch_start(trainer, rl_training.LightningPPO())
+    high = loader.num_workers
+    cpu_val["v"] = 10.0
+    cb.on_train_epoch_start(trainer, rl_training.LightningPPO())
+    low = loader.num_workers
+    assert low > high
+
+
 def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
     import solhunter_zero.rl_training as rl_training
 
