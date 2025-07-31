@@ -163,7 +163,7 @@ if importlib.util.find_spec("solana") is None:
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 
 # Additional optional dependency stubs
-for _mod_name in ["cachetools", "sqlalchemy", "watchfiles", "psutil"]:
+for _mod_name in ["numpy", "cachetools", "sqlalchemy", "watchfiles", "psutil", "flask"]:
     if importlib.util.find_spec(_mod_name) is None:
         mod = types.ModuleType(_mod_name)
         mod.__spec__ = importlib.machinery.ModuleSpec(_mod_name, None)
