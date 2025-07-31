@@ -29,7 +29,8 @@ class MemoryAwareAgent:
         return [{"token": token, "side": "buy", "amount": 1.0, "price": 1.0}]
 
 
-def test_swarm_feedback(tmp_path):
+def test_swarm_feedback(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     db = tmp_path / "mem.db"
     idx = tmp_path / "index.faiss"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
