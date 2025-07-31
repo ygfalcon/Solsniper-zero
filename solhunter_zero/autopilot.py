@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import os
 import signal
-import socket
 import subprocess
 import sys
 import time
+import asyncio
 from pathlib import Path
 
 from . import wallet, data_sync, main
@@ -65,6 +65,22 @@ def _get_config() -> tuple[str | None, dict]:
     return cfg_path, cfg
 
 
+async def _wait_depth(addr: str, port: int, deadline: float) -> None:
+    """Wait for the depth_service websocket to accept connections."""
+    while True:
+        try:
+            reader, writer = await asyncio.open_connection(addr, port)
+        except OSError:
+            if time.monotonic() > deadline:
+                print("depth_service websocket timed out", file=sys.stderr)
+                _stop_all()
+            await asyncio.sleep(0.1)
+        else:
+            writer.close()
+            await writer.wait_closed()
+            break
+
+
 def main() -> None:
     os.chdir(ROOT)
     signal.signal(signal.SIGINT, _stop_all)
@@ -86,15 +102,7 @@ def main() -> None:
     addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
     port = int(os.getenv("DEPTH_WS_PORT", "8765"))
     deadline = time.monotonic() + 30.0
-    while True:
-        try:
-            with socket.create_connection((addr, port), timeout=1):
-                break
-        except OSError:
-            if time.monotonic() > deadline:
-                print("depth_service websocket timed out", file=sys.stderr)
-                _stop_all()
-            time.sleep(0.1)
+    asyncio.run(_wait_depth(addr, port, deadline))
 
     main.run_auto()
     _stop_all()
