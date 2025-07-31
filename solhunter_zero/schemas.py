@@ -84,6 +84,7 @@ class SystemMetrics:
 
     cpu: float
     memory: float
+    proc_cpu: float | None = None
 
 
 _EVENT_SCHEMAS: Dict[str, Type] = {
