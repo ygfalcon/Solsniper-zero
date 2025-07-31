@@ -21,35 +21,6 @@ if importlib.util.find_spec("sentence_transformers") is None:
     st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
     sys.modules.setdefault("sentence_transformers", st_mod)
 
-if importlib.util.find_spec("torch") is None:
-    torch_mod = types.ModuleType("torch")
-    torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
-    torch_mod.__path__ = []
-    torch_mod.Tensor = object
-    torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
-    torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
-    torch_mod.load = lambda *a, **k: {}
-    class _NoGrad:
-        def __enter__(self):
-            pass
-        def __exit__(self, *exc):
-            pass
-    torch_mod.no_grad = lambda: _NoGrad()
-    torch_mod.tensor = lambda *a, **k: object()
-    sys.modules["torch"] = torch_mod
-    torch_nn = types.ModuleType("torch.nn")
-    torch_nn.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
-    torch_nn.Module = object
-    sys.modules["torch.nn"] = torch_nn
-    torch_opt = types.ModuleType("torch.optim")
-    torch_opt.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
-    sys.modules["torch.optim"] = torch_opt
-    tud = types.ModuleType("torch.utils.data")
-    tud.__spec__ = importlib.machinery.ModuleSpec("torch.utils.data", None)
-    tud.Dataset = object
-    tud.DataLoader = object
-    sys.modules["torch.utils.data"] = tud
 
 try:
     _gp_spec = importlib.util.find_spec("google.protobuf")
