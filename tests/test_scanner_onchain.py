@@ -199,3 +199,37 @@ def test_average_swap_size_cache(monkeypatch):
 
     assert calls["count"] == 1
 
+
+def test_mempool_tx_rate_model(monkeypatch, tmp_path):
+    from solhunter_zero.models.onchain_forecaster import LSTMForecaster, save_model
+    import torch
+
+    model = LSTMForecaster(input_dim=4, hidden_dim=2, num_layers=1, seq_len=2)
+    with torch.no_grad():
+        for p in model.parameters():
+            p.zero_()
+        model.fc.bias.fill_(0.5)
+    path = tmp_path / "oc.pt"
+    save_model(model, path)
+    monkeypatch.setenv("ONCHAIN_MODEL_PATH", str(path))
+
+    class Client:
+        def __init__(self, url):
+            self.url = url
+
+        def get_signatures_for_address(self, addr, limit=20):
+            return {"result": [{"blockTime": 1}, {"blockTime": 2}]}
+
+    monkeypatch.setattr(scanner_onchain, "Client", Client)
+    monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
+    import types, sys
+    oc = types.SimpleNamespace(order_book_depth_change=lambda *a, **k: 0.0)
+    sys.modules["solhunter_zero.onchain_metrics"] = oc
+    monkeypatch.setattr(scanner_onchain, "fetch_whale_wallet_activity", lambda t, u: 0.0)
+    monkeypatch.setattr(scanner_onchain, "fetch_average_swap_size", lambda t, u: 0.0)
+
+    scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
+    scanner_onchain.MEMPOOL_RATE_CACHE.clear()
+    rate = scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
+    assert rate == pytest.approx(0.5)
+

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import pytest
+from solhunter_zero.simulation import SimulationResult
 
 from solhunter_zero import models, simulation
 
@@ -84,3 +85,11 @@ def test_predict_price_movement_transformer(tmp_path, monkeypatch):
     monkeypatch.setenv("PRICE_MODEL_PATH", str(path))
     val = simulation.predict_price_movement("tok")
     assert val == pytest.approx(0.05)
+
+
+def test_predict_price_movement_returns_rate(monkeypatch):
+    sims = [SimulationResult(success_prob=1.0, expected_roi=0.1, tx_rate=2.0)]
+    monkeypatch.setattr(simulation, "run_simulations", lambda *a, **k: sims)
+    roi, rate = simulation.predict_price_movement("tok", return_tx_rate=True)
+    assert roi == pytest.approx(0.1)
+    assert rate == pytest.approx(2.0)

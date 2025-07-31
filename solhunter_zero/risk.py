@@ -354,6 +354,7 @@ class RiskManager:
         depth_change: float = 0.0,
         whale_activity: float = 0.0,
         tx_rate: float = 0.0,
+        tx_rate_pred: float | None = None,
         portfolio_value: float | None = None,
         funding_rate: float = 0.0,
         sentiment: float = 0.0,
@@ -392,6 +393,8 @@ class RiskManager:
             Fraction of liquidity controlled by large wallets.
         tx_rate:
             Mempool transaction rate from :mod:`onchain_metrics`.
+        tx_rate_pred:
+            Optional forecasted transaction rate overriding ``tx_rate`` when provided.
         portfolio_value:
             Current portfolio USD value.  When below ``min_portfolio_value`` the
             scaling factor is reduced further.
@@ -450,8 +453,9 @@ class RiskManager:
                 correlation = portfolio_metrics.get("correlation")
         if volume_spike > 1:
             scale *= min(volume_spike, 2.0)
-        if tx_rate > 1:
-            scale *= min(tx_rate, 2.0)
+        eff_rate = float(tx_rate_pred) if tx_rate_pred is not None else tx_rate
+        if eff_rate > 1:
+            scale *= min(eff_rate, 2.0)
         scale /= 1 + abs(depth_change)
         scale /= 1 + whale_activity
         scale *= self.risk_multiplier

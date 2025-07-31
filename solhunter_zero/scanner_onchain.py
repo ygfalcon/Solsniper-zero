@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import os
 from typing import List, Dict, Any
 
 from solhunter_zero.lru import TTLCache
@@ -32,6 +33,9 @@ METRIC_CACHE_TTL = 30  # seconds
 MEMPOOL_RATE_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
 WHALE_ACTIVITY_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
 AVG_SWAP_SIZE_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
+
+# history of on-chain features used for mempool rate forecasting
+MEMPOOL_FEATURE_HISTORY: Dict[tuple[str, str], list[list[float]]] = {}
 
 
 
@@ -122,12 +126,42 @@ def fetch_mempool_tx_rate(token: str, rpc_url: str, limit: int = 20) -> float:
             duration = max(times) - min(times)
             if duration > 0:
                 rate = float(len(times)) / float(duration)
-                MEMPOOL_RATE_CACHE.set(cache_key, rate)
-                return rate
-        rate = float(len(times))
+            else:
+                rate = float(len(times))
+        else:
+            rate = float(len(times))
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch mempool rate for %s: %s", token, exc)
         rate = 0.0
+
+    # update history for optional forecasting
+    features = []
+    try:
+        from . import onchain_metrics  # circular safe
+
+        depth_change = onchain_metrics.order_book_depth_change(token)
+        whale = fetch_whale_wallet_activity(token, rpc_url)
+        avg_swap = fetch_average_swap_size(token, rpc_url)
+        features = [float(depth_change), float(rate), float(whale), float(avg_swap)]
+    except Exception:
+        features = [0.0, float(rate), 0.0, 0.0]
+
+    hist = MEMPOOL_FEATURE_HISTORY.setdefault(cache_key, [])
+    hist.append(features)
+    model_path = os.getenv("ONCHAIN_MODEL_PATH")
+    if model_path:
+        from .models.onchain_forecaster import get_model
+
+        model = get_model(model_path)
+        if model is not None:
+            seq_len = getattr(model, "seq_len", 30)
+            if len(hist) >= seq_len:
+                seq = hist[-seq_len:]
+                try:
+                    rate = float(model.predict(seq))
+                except Exception as exc:  # pragma: no cover - model errors
+                    logger.warning("Forecast failed: %s", exc)
+    hist[:] = hist[-30:]
 
     MEMPOOL_RATE_CACHE.set(cache_key, rate)
     return rate

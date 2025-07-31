@@ -138,6 +138,13 @@ def test_optional_metrics_adjustment():
     assert bad.risk_tolerance < base.risk_tolerance
 
 
+def test_tx_rate_prediction(monkeypatch):
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.2, max_risk_per_token=0.2)
+    base = rm.adjusted(tx_rate=1.0)
+    higher = rm.adjusted(tx_rate=1.0, tx_rate_pred=2.0)
+    assert higher.risk_tolerance > base.risk_tolerance
+
+
 def test_from_config_parses_new_fields():
     cfg = {
         "funding_rate_factor": "2.0",
