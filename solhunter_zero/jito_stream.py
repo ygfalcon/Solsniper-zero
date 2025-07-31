@@ -30,10 +30,13 @@ async def stream_pending_transactions(
 
     headers = {"Authorization": auth} if auth else None
 
+    backoff = 1.0
+    max_backoff = 30
     while True:
         try:
             session = await get_session()
             async with session.ws_connect(url, headers=headers) as ws:
+                    backoff = 1.0
                     try:  # attempt protocol init for GraphQL-style feeds
                         await ws.send_json(
                             {
@@ -62,7 +65,8 @@ async def stream_pending_transactions(
             break
         except Exception as exc:  # pragma: no cover - network errors
             logger.error("Jito stream error: %s", exc)
-            await asyncio.sleep(1)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
 
 
 async def stream_pending_swaps(
