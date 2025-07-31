@@ -200,6 +200,8 @@ Install the Rust toolchain if `cargo` isn't available:
     broadcasts (defaults to `100`).
   - `CPU_LOW_THRESHOLD` / `CPU_HIGH_THRESHOLD` – CPU usage percentages
     controlling delay adjustments (defaults to `30` and `70`).
+  - `RL_MIN_INTERVAL` / `RL_MAX_INTERVAL` – bounds for the RL daemon's adaptive
+    update delay in seconds.
   - `MAX_CONCURRENCY` – maximum number of concurrent discovery and ranking
     tasks. When set to `0` the scanner uses half the available CPUs.
   - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
