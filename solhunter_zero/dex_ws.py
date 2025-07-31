@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+from .jsonutil import loads
 import logging
 import os
 from typing import AsyncGenerator, Iterable
@@ -45,7 +45,7 @@ async def stream_listed_tokens(
                 if msg.type != aiohttp.WSMsgType.TEXT:
                     continue
                 try:
-                    data = json.loads(msg.data)
+                    data = loads(msg.data)
                 except Exception:  # pragma: no cover - invalid message
                     continue
                 addr = data.get("address") or data.get("mint") or data.get("id")

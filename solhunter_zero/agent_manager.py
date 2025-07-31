@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
+from .jsonutil import loads, dumps
 import os
 import random
 import inspect
@@ -268,7 +268,7 @@ class AgentManager:
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
+                    data = loads(fh.read())
                 if isinstance(data, dict):
                     conf.update({str(k): float(v) for k, v in data.items()})
             except Exception:
@@ -721,7 +721,7 @@ class AgentManager:
                     data = tomllib.load(fh)
             else:
                 with open(path, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
+                    data = loads(fh.read())
         except Exception:
             return {}
         if not isinstance(data, dict):
@@ -747,7 +747,7 @@ class AgentManager:
                 fh.write(content)
         else:
             with open(path, "w", encoding="utf-8") as fh:
-                json.dump(self.weights, fh)
+                fh.write(dumps(self.weights))
 
     # ------------------------------------------------------------------
     #  Convenience helpers

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import json
+from .jsonutil import loads, dumps
 import ast
 from typing import Mapping, Any
 from pathlib import Path
@@ -262,7 +262,7 @@ def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
             data = val
         elif isinstance(val, str):
             try:
-                data = json.loads(val)
+                data = loads(val)
             except Exception:
                 try:
                     data = ast.literal_eval(val)

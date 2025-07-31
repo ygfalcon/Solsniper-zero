@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json
+from .jsonutil import loads, dumps
 import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Mapping
@@ -37,7 +37,7 @@ class Portfolio:
             return
         try:
             with open(self.path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                data = loads(f.read())
         except Exception:  # pragma: no cover - invalid file
             return
         self.balances = {
@@ -62,7 +62,7 @@ class Portfolio:
             for token, pos in self.balances.items()
         }
         with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+            f.write(dumps(data))
         publish(
             "portfolio_updated",
             PortfolioUpdated(
@@ -82,7 +82,7 @@ class Portfolio:
             for token, pos in self.balances.items()
         }
         async with aiofiles.open(self.path, "w", encoding="utf-8") as f:
-            await f.write(json.dumps(data))
+            await f.write(dumps(data))
         publish(
             "portfolio_updated",
             PortfolioUpdated(

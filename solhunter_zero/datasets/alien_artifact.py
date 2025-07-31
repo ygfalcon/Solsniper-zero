@@ -1,7 +1,7 @@
 """Alien artifact pattern dataset loader."""
 from __future__ import annotations
 
-import json
+from ..jsonutil import loads
 from importlib import resources
 from importlib.resources.abc import Traversable
 from pathlib import Path
@@ -18,7 +18,7 @@ def _load_dataset(path: Path | Traversable | str = DEFAULT_PATH) -> List[Dict[st
     obj = Path(path) if isinstance(path, str) else path
     with resources.as_file(obj) as p:
         with p.open("r", encoding="utf-8") as fh:
-            return json.load(fh)
+            return loads(fh.read())
 
 
 def load_patterns(path: Path | Traversable | str = DEFAULT_PATH) -> List[Dict[str, Any]]:
