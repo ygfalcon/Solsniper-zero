@@ -22,7 +22,14 @@ from . import rl_training
 from .rl_training import _ensure_mmap_dataset, MultiAgentRL
 from .rl_algorithms import _A3C, _DDPG
 from .risk import average_correlation
-from .event_bus import subscription, publish, send_heartbeat
+from .event_bus import (
+    subscription,
+    publish,
+    send_heartbeat,
+    connect_broker,
+    _BROKER_URL,  # type: ignore
+)
+from .config import get_broker_url
 from .schemas import ActionExecuted, RLCheckpoint, RLWeights
 
 logger = logging.getLogger(__name__)
@@ -327,6 +334,7 @@ class RLDaemon:
         multi_rl: bool | None = None,
         rl_population_size: int = 2,
         live: bool | None = None,
+        distributed_rl: bool | None = None,
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -336,6 +344,7 @@ class RLDaemon:
         self.algo = algo
         self.multi_rl = bool(multi_rl)
         self.live = bool(live)
+        self.distributed_rl = bool(distributed_rl)
         self.population: MultiAgentRL | None = None
         self.live_dataset: rl_training.LiveTradeDataset | None = None
         self.last_train_time: float | None = None
@@ -348,8 +357,21 @@ class RLDaemon:
             else:
                 device = "cpu"
         self.device = torch.device(device)
+        broker_url = get_broker_url()
+        if self.distributed_rl and broker_url and _BROKER_URL is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop:
+                loop.create_task(connect_broker(broker_url))
+            else:
+                asyncio.run(connect_broker(broker_url))
+
         if self.live:
-            self.live_dataset = rl_training.LiveTradeDataset()
+            self.live_dataset = rl_training.LiveTradeDataset(
+                broker_url=broker_url if self.distributed_rl else None
+            )
         if self.multi_rl:
             from .rl_training import MultiAgentRL
             self.population = MultiAgentRL(

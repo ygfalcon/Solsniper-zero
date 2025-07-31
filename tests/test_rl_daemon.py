@@ -180,6 +180,7 @@ from solhunter_zero.event_bus import (
     connect_ws,
     disconnect_ws,
 )
+import solhunter_zero.event_bus as event_bus
 import websockets
 import json
 import os
@@ -413,5 +414,26 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
 
     await disconnect_ws()
     await stop_ws_server()
+
+
+def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    OfflineData(f"sqlite:///{data_path}")
+    Memory(mem_db)
+
+    called = {}
+
+    async def fake_connect(url):
+        called['url'] = url
+
+    monkeypatch.setattr(event_bus, 'connect_broker', fake_connect)
+    import solhunter_zero.rl_daemon as rl_d
+    monkeypatch.setattr(rl_d, 'connect_broker', fake_connect)
+    monkeypatch.setenv('BROKER_URL', 'redis://localhost')
+
+    RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m.pt', distributed_rl=True)
+
+    assert called.get('url') == 'redis://localhost'
 
 

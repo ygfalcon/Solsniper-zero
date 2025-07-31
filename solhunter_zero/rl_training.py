@@ -51,7 +51,9 @@ except Exception:  # pragma: no cover - optional dependency
 from .offline_data import OfflineData
 from .simulation import predict_price_movement
 from .news import fetch_sentiment
-from .event_bus import publish, subscription
+from .event_bus import publish, subscription, connect_broker
+from .event_bus import _BROKER_URL  # type: ignore
+from .config import get_broker_url
 
 
 _CPU_USAGE = 0.0
@@ -154,9 +156,13 @@ def _compute_regimes(tokens: np.ndarray, prices: np.ndarray, weight: float, thr:
 
 
 class LiveTradeDataset:
-    """Buffer trade and depth events from :mod:`event_bus`."""
+    """Buffer trade and depth events from :mod:`event_bus`.
 
-    def __init__(self, capacity: int = 10000) -> None:
+    When ``broker_url`` is provided the dataset connects to the message
+    broker so events from remote peers are received as well.
+    """
+
+    def __init__(self, capacity: int = 10000, *, broker_url: str | None = None) -> None:
         self.capacity = int(capacity)
         self.trades: deque[Any] = deque(maxlen=self.capacity)
         self.snaps: deque[Any] = deque(maxlen=self.capacity)
@@ -208,6 +214,17 @@ class LiveTradeDataset:
         self._trade_sub.__enter__()
         self._depth_sub = subscription("depth_update", _add_depth)
         self._depth_sub.__enter__()
+
+        url = broker_url or get_broker_url()
+        if url and _BROKER_URL is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop:
+                loop.create_task(connect_broker(url))
+            else:
+                asyncio.run(connect_broker(url))
 
     def close(self) -> None:
         self._trade_sub.__exit__(None, None, None)
