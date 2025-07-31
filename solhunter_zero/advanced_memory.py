@@ -67,6 +67,22 @@ class Trade(Base):
     simulation_id = Column(Integer, ForeignKey("simulation_summaries.id"))
 
 
+def summarize_context(
+    trades: List[Trade], *, model: SentenceTransformer | None = None, dim: int | None = None
+) -> np.ndarray:
+    """Aggregate embeddings of ``trades`` into a single vector."""
+    if model is not None:
+        out_dim = model.get_sentence_embedding_dimension()
+    else:
+        out_dim = dim or 1
+    if not trades or model is None:
+        return np.zeros(out_dim, dtype="float32")
+    texts = [t.context or f"{t.direction} {t.token}" for t in trades]
+    vecs = model.encode(texts)
+    vecs = np.asarray(vecs, dtype="float32")
+    return vecs.mean(axis=0)
+
+
 class AdvancedMemory(BaseMemory):
     """Store trades with semantic search on context text."""
 
@@ -268,6 +284,18 @@ class AdvancedMemory(BaseMemory):
                 .limit(k)
                 .all()
             )
+
+    # ------------------------------------------------------------------
+    def latest_summary(self, *, limit: int = 10, token: str | None = None) -> np.ndarray:
+        """Return an aggregated embedding vector for recent trades."""
+        with self.Session() as session:
+            q = session.query(Trade)
+            if token is not None:
+                q = q.filter_by(token=token)
+            q = q.order_by(Trade.id.desc()).limit(limit)
+            trades = list(q)
+        dim = self.model.get_sentence_embedding_dimension() if self.model else 1
+        return summarize_context(trades, model=self.model, dim=dim)
 
     # ------------------------------------------------------------------
     def export_trades(self, since_id: int = 0) -> List[TradeLogged]:
