@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from .http import dumps
 import os
 import random
 from typing import Any, List
@@ -124,5 +125,5 @@ if __name__ == "__main__":  # pragma: no cover - simple CLI
     mgr = MemoryAgent(Memory(args.memory))
     rl = PopulationRL(mgr, population_size=args.population_size, weights_path=args.weights_path)
     best = rl.evolve()
-    print(json.dumps(best))
+    print(dumps(best).decode())
 
