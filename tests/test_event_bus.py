@@ -45,29 +45,37 @@ if importlib.util.find_spec("torch") is None:
     tud.DataLoader = object
     sys.modules.setdefault("torch.utils.data", tud)
 if importlib.util.find_spec("numpy") is None:
-    sys.modules.setdefault("numpy", types.ModuleType("numpy"))
+    np_mod = types.ModuleType("numpy")
+    np_mod.__spec__ = importlib.machinery.ModuleSpec("numpy", None)
+    sys.modules.setdefault("numpy", np_mod)
 if importlib.util.find_spec("aiohttp") is None:
-    sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
+    aiohttp_mod = types.ModuleType("aiohttp")
+    aiohttp_mod.__spec__ = importlib.machinery.ModuleSpec("aiohttp", None)
+    sys.modules.setdefault("aiohttp", aiohttp_mod)
 if importlib.util.find_spec("aiofiles") is None:
     aiof_mod = types.ModuleType("aiofiles")
     aiof_mod.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
     sys.modules.setdefault("aiofiles", aiof_mod)
 if importlib.util.find_spec("cachetools") is None:
     ct_mod = types.ModuleType("cachetools")
+    ct_mod.__spec__ = importlib.machinery.ModuleSpec("cachetools", None)
     ct_mod.LRUCache = dict
     ct_mod.TTLCache = dict
     sys.modules.setdefault("cachetools", ct_mod)
 if importlib.util.find_spec("psutil") is None:
     ps_mod = types.ModuleType("psutil")
+    ps_mod.__spec__ = importlib.machinery.ModuleSpec("psutil", None)
     ps_mod.cpu_percent = lambda *a, **k: 0.0
     ps_mod.virtual_memory = lambda: types.SimpleNamespace(percent=0.0)
     sys.modules.setdefault("psutil", ps_mod)
 if importlib.util.find_spec("watchfiles") is None:
     watch_mod = types.ModuleType("watchfiles")
+    watch_mod.__spec__ = importlib.machinery.ModuleSpec("watchfiles", None)
     watch_mod.awatch = lambda *a, **k: iter(())
     sys.modules.setdefault("watchfiles", watch_mod)
 if importlib.util.find_spec("sqlalchemy") is None:
     sa = types.ModuleType("sqlalchemy")
+    sa.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy", None)
     sa.create_engine = lambda *a, **k: None
     sa.MetaData = type("Meta", (), {"create_all": lambda *a, **k: None})
     sa.Column = lambda *a, **k: None
@@ -76,7 +84,9 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sa.select = lambda *a, **k: None
     sa.ForeignKey = lambda *a, **k: None
     ext = types.ModuleType("sqlalchemy.ext")
+    ext.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy.ext", None)
     async_mod = types.ModuleType("sqlalchemy.ext.asyncio")
+    async_mod.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy.ext.asyncio", None)
     async_mod.create_async_engine = lambda *a, **k: None
     async_mod.async_sessionmaker = lambda *a, **k: None
     async_mod.AsyncSession = object
@@ -86,6 +96,7 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sys.modules.setdefault("sqlalchemy.ext", ext)
     sys.modules.setdefault("sqlalchemy.ext.asyncio", async_mod)
     orm = types.ModuleType("orm")
+    orm.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy.orm", None)
 
     def declarative_base(*a, **k):
         return type("Base", (), {"metadata": sa.MetaData()})

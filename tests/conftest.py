@@ -2,6 +2,22 @@ import os
 import sys
 import types
 import importlib.util
+import importlib.machinery
+
+_orig_find_spec = importlib.util.find_spec
+
+
+def _safe_find_spec(name, package=None):
+    mod = sys.modules.get(name)
+    if mod is not None and getattr(mod, "__spec__", None) is None:
+        mod.__spec__ = importlib.machinery.ModuleSpec(name, None)
+    try:
+        return _orig_find_spec(name, package)
+    except ValueError:
+        return None
+
+
+importlib.util.find_spec = _safe_find_spec
 
 if importlib.util.find_spec("aiohttp") is None:
     aiohttp_mod = types.ModuleType("aiohttp")

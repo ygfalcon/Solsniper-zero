@@ -64,6 +64,7 @@ if importlib.util.find_spec("torch") is None:
     tud.DataLoader = object
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
+    pl.__spec__ = importlib.machinery.ModuleSpec("pytorch_lightning", None)
     callbacks = types.SimpleNamespace(Callback=object)
     pl.callbacks = callbacks
     import torch.nn as _nn
@@ -87,14 +88,18 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     sys.modules.setdefault("pytorch_lightning", pl)
 
 if importlib.util.find_spec("solders") is None:
-    sys.modules.setdefault("solders", types.ModuleType("solders"))
+    s_mod = types.ModuleType("solders")
+    s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
+    sys.modules.setdefault("solders", s_mod)
     sys.modules["solders.keypair"] = types.SimpleNamespace(Keypair=type("Keypair", (), {}))
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
     sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
 if importlib.util.find_spec("solana") is None:
-    sys.modules.setdefault("solana", types.ModuleType("solana"))
+    sol_mod = types.ModuleType("solana")
+    sol_mod.__spec__ = importlib.machinery.ModuleSpec("solana", None)
+    sys.modules.setdefault("solana", sol_mod)
     sys.modules["solana.rpc"] = types.ModuleType("rpc")
     sys.modules["solana.rpc.api"] = types.SimpleNamespace(Client=object)
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
@@ -104,16 +109,23 @@ try:
     import google
 except ModuleNotFoundError:
     google = types.ModuleType("google")
+    google.__spec__ = importlib.machinery.ModuleSpec("google", None)
     google.__path__ = []
     sys.modules.setdefault("google", google)
 if importlib.util.find_spec("google.protobuf") is None:
     protobuf = types.ModuleType("protobuf")
+    protobuf.__spec__ = importlib.machinery.ModuleSpec("google.protobuf", None)
     descriptor = types.ModuleType("descriptor")
+    descriptor.__spec__ = importlib.machinery.ModuleSpec("descriptor", None)
     descriptor_pool = types.ModuleType("descriptor_pool")
+    descriptor_pool.__spec__ = importlib.machinery.ModuleSpec("descriptor_pool", None)
     symbol_database = types.ModuleType("symbol_database")
+    symbol_database.__spec__ = importlib.machinery.ModuleSpec("symbol_database", None)
     symbol_database.Default = lambda: object()
     internal = types.ModuleType("internal")
+    internal.__spec__ = importlib.machinery.ModuleSpec("internal", None)
     internal.builder = types.ModuleType("builder")
+    internal.builder.__spec__ = importlib.machinery.ModuleSpec("builder", None)
     protobuf.descriptor = descriptor
     protobuf.descriptor_pool = descriptor_pool
     protobuf.symbol_database = symbol_database

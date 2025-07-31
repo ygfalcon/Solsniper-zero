@@ -11,6 +11,7 @@ import types
 
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
+    pl.__spec__ = importlib.machinery.ModuleSpec("pytorch_lightning", None)
     callbacks = types.SimpleNamespace(Callback=object)
     pl.callbacks = callbacks
     pl.LightningModule = type("LightningModule", (), {})
