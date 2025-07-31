@@ -1,7 +1,9 @@
+#[cfg(feature = "parallel")]
+use rayon::{prelude::*, ThreadPoolBuilder};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 #[cfg(feature = "parallel")]
-use rayon::prelude::*;
+use std::sync::Once;
 
 #[derive(Clone)]
 struct Node {
@@ -32,11 +34,11 @@ impl PartialOrd for Node {
         Some(self.cmp(other))
     }
 }
+use bincode;
+use bincode::Options;
 use libc::c_char;
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use bincode;
-use bincode::Options;
 
 #[derive(Deserialize)]
 struct InputMap(HashMap<String, f64>);
@@ -47,6 +49,20 @@ fn parse_map(ptr: *const c_char) -> Option<HashMap<String, f64>> {
     }
     let s = unsafe { CStr::from_ptr(ptr) }.to_str().ok()?;
     serde_json::from_str::<HashMap<String, f64>>(s).ok()
+}
+
+#[cfg(feature = "parallel")]
+static INIT: Once = Once::new();
+
+#[cfg(feature = "parallel")]
+fn init_thread_pool() {
+    INIT.call_once(|| {
+        if let Ok(var) = std::env::var("RAYON_NUM_THREADS") {
+            if let Ok(n) = var.parse::<usize>() {
+                let _ = ThreadPoolBuilder::new().num_threads(n).build_global();
+            }
+        }
+    });
 }
 
 fn best_route_internal(
@@ -148,7 +164,12 @@ fn search_from_start(
         path: vec![start.to_string()],
         visited,
     });
-    while let Some(Node { neg_profit, path, visited }) = heap.pop() {
+    while let Some(Node {
+        neg_profit,
+        path,
+        visited,
+    }) = heap.pop()
+    {
         let profit = -neg_profit;
         if path.len() > 1 && profit > best_profit {
             best_profit = profit;
@@ -283,6 +304,8 @@ pub extern "C" fn best_route_parallel_json(
     max_hops: u32,
     out_profit: *mut f64,
 ) -> *mut c_char {
+    #[cfg(feature = "parallel")]
+    init_thread_pool();
     let prices = match parse_map(prices_json) {
         Some(m) => m,
         None => return std::ptr::null_mut(),
