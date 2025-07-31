@@ -422,10 +422,16 @@ def stub_requests() -> None:
     class HTTPError(Exception):
         pass
 
+    exceptions = types.ModuleType('requests.exceptions')
+    exceptions.__spec__ = importlib.machinery.ModuleSpec('requests.exceptions', None)
+    exceptions.HTTPError = HTTPError
+
     mod.HTTPError = HTTPError
+    mod.exceptions = exceptions
     mod.get = lambda *a, **k: None
     mod.post = lambda *a, **k: None
     sys.modules.setdefault('requests', mod)
+    sys.modules.setdefault('requests.exceptions', exceptions)
 
 
 def stub_websockets() -> None:
