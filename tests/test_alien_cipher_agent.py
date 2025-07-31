@@ -1,7 +1,7 @@
 import asyncio
 
 from solhunter_zero.agents.alien_cipher_agent import AlienCipherAgent
-from solhunter_zero.datasets.alien_cipher import _DEFAULT_PATH as CIPHER_PATH
+from solhunter_zero.datasets.alien_cipher import DEFAULT_PATH as CIPHER_PATH
 from solhunter_zero.portfolio import Portfolio, Position
 
 

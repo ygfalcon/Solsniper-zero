@@ -15,8 +15,6 @@ DEFAULT_PATH = resources.files(__package__).joinpath(
     "sample_ticks.json",
 )
 
-# Backwards compatibility
-_DEFAULT_PATH = DEFAULT_PATH
 
 _cache_path: str | None = None
 _cache_data: List[Dict[str, Any]] | None = None
