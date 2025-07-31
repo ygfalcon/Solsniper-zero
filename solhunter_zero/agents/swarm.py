@@ -77,6 +77,12 @@ class AgentSwarm:
         """
 
         depth, imbalance, _ = order_book_ws.snapshot(token)
+        summary = None
+        if self.memory is not None and hasattr(self.memory, "latest_summary"):
+            try:
+                summary = self.memory.latest_summary()
+            except Exception:
+                summary = None
 
         async def run(agent: BaseAgent):
             if hasattr(agent, "last_outcome"):
@@ -85,6 +91,8 @@ class AgentSwarm:
             import inspect
             if "rl_action" in inspect.signature(agent.propose_trade).parameters:
                 kwargs["rl_action"] = rl_action
+            if summary is not None and "summary" in inspect.signature(agent.propose_trade).parameters:
+                kwargs["summary"] = summary
             return await agent.propose_trade(token, portfolio, **kwargs)
 
         results = await asyncio.gather(*(run(a) for a in self.agents))
