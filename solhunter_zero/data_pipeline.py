@@ -65,9 +65,9 @@ def start_depth_snapshot_listener(
 
     offline = data if isinstance(data, OfflineData) else OfflineData(f"sqlite:///{data}")
 
-    def _handler(payload: Mapping[str, Mapping[str, float]]) -> None:
+    async def _handler(payload: Mapping[str, Mapping[str, float]]) -> None:
         for token, entry in payload.items():
-            offline.log_snapshot(
+            await offline.log_snapshot(
                 token=token,
                 price=float(entry.get("price", 0.0)),
                 depth=float(entry.get("depth", 0.0)),
