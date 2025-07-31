@@ -8,6 +8,8 @@ import time
 import threading
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
+from watchfiles import awatch
+
 import aiohttp
 from .http import get_session, loads, dumps
 
@@ -30,20 +32,10 @@ _watch_loop: asyncio.AbstractEventLoop | None = None
 
 async def _watch_mmap(interval: float) -> None:
     """Watch :data:`_MMAP_PATH` and clear :data:`_DEPTH_CACHE` on changes."""
-    last_mtime = 0.0
-    try:
-        last_mtime = os.path.getmtime(_MMAP_PATH)
-    except OSError:
-        pass
-    while True:
-        await asyncio.sleep(interval)
-        try:
-            mtime = os.path.getmtime(_MMAP_PATH)
-        except OSError:
-            mtime = 0.0
-        if mtime != last_mtime:
-            last_mtime = mtime
-            _DEPTH_CACHE.clear()
+    async for _ in awatch(
+        _MMAP_PATH, poll_delay_ms=int(interval * 1000), debounce=0
+    ):
+        _DEPTH_CACHE.clear()
 
 
 def start_mmap_watch(interval: float = DEPTH_MMAP_POLL_INTERVAL) -> asyncio.Task:

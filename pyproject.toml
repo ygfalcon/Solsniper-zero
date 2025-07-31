@@ -27,6 +27,7 @@ dependencies = [
     "psutil",
     "tomli-w",
     "cachetools",
+    "watchfiles",
 ]
 
 [project.optional-dependencies]
