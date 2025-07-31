@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 from . import BaseAgent
 from ..portfolio import Portfolio
-from ..datasets.alien_cipher import load_alien_cipher, _DEFAULT_PATH as _DATA_PATH
+from ..datasets.alien_cipher import load_alien_cipher, DEFAULT_PATH as _DATA_PATH
 
 
 class AlienCipherAgent(BaseAgent):
