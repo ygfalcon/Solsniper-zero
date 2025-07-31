@@ -188,9 +188,15 @@ class AgentManager:
         sub.__enter__()
         self._subscriptions.append(sub)
 
+        self.rl_policy: Dict[str, float] = {}
+
         def _merge_rl_weights(payload):
             data = payload.weights if hasattr(payload, "weights") else payload.get("weights", {})
             if isinstance(data, dict):
+                try:
+                    self.rl_policy = {str(k): float(v) for k, v in data.items()}
+                except Exception:
+                    self.rl_policy = {}
                 for k, v in data.items():
                     try:
                         self.weights[str(k)] = float(v)
@@ -202,6 +208,20 @@ class AgentManager:
         rl_sub = subscription("rl_weights", _merge_rl_weights)
         rl_sub.__enter__()
         self._subscriptions.append(rl_sub)
+
+    def _get_rl_policy_confidence(self) -> Dict[str, float]:
+        """Return latest RL policy confidence scores if available."""
+        conf = dict(self.rl_policy)
+        path = os.getenv("RL_POLICY_PATH", "rl_policy.json")
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                if isinstance(data, dict):
+                    conf.update({str(k): float(v) for k, v in data.items()})
+            except Exception:
+                pass
+        return conf
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
         agents = list(self.agents)
@@ -318,6 +338,8 @@ class AgentManager:
         if isinstance(self.memory_agent.memory, AdvancedMemory):
             adv_mem = self.memory_agent.memory
 
+        rl_conf = self._get_rl_policy_confidence()
+
         for name, info in summary.items():
             spent = info.get("buy", 0.0)
             revenue = info.get("sell", 0.0)
@@ -338,6 +360,12 @@ class AgentManager:
             else:
                 continue
             factor *= 1.0 + success_rate
+            rl_factor = rl_conf.get(name)
+            if rl_factor is not None:
+                try:
+                    factor *= float(rl_factor)
+                except Exception:
+                    pass
             self.weights[name] = self.weights.get(name, 1.0) * factor
 
         self.coordinator.base_weights = self.weights
