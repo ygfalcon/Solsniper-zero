@@ -741,6 +741,14 @@ def fit(
     else:
         model = LightningPPO()
 
+    use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+    if use_compile:
+        try:
+            if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:
+                model = torch.compile(model)
+        except Exception:
+            pass
+
     path = Path(model_path)
     if path.exists():
         try:

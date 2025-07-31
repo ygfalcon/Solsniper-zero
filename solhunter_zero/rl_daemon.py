@@ -265,6 +265,14 @@ class RLDaemon:
             self.model: nn.Module = _DQN()
         else:
             self.model = _PPO()
+
+        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+        if use_compile:
+            try:
+                if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:
+                    self.model = torch.compile(self.model)
+            except Exception:
+                pass
         if self.model_path.exists():
             try:
                 self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
