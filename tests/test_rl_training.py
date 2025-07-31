@@ -184,6 +184,7 @@ def test_dynamic_worker_count(monkeypatch, tmp_path):
     monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
     monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
     monkeypatch.setattr(rl_training.torch, "save", lambda *a, **k: None)
+    monkeypatch.setattr(rl_training, "_ensure_mmap_dataset", lambda *a, **k: None)
 
     rl_training.fit(
         [],
@@ -267,6 +268,7 @@ def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
     monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
     monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
     monkeypatch.setattr(rl_training.torch, "save", lambda *a, **k: None)
+    monkeypatch.setattr(rl_training, "_ensure_mmap_dataset", lambda *a, **k: None)
 
     monkeypatch.setattr(
         rl_training.psutil,

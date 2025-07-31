@@ -328,7 +328,8 @@ class RLDaemon:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
         self.data = OfflineData(f"sqlite:///{data_path}")
-        _ensure_mmap_dataset(f"sqlite:///{data_path}", Path("datasets/offline_data.npz"))
+        self.mmap_path = Path("datasets/offline_data.npz")
+        _ensure_mmap_dataset(f"sqlite:///{data_path}", self.mmap_path)
         self.model_path = Path(model_path)
         self.algo = algo
         self.last_train_time: float | None = None
@@ -489,6 +490,8 @@ class RLDaemon:
             device=self.device.type,
             dynamic_workers=self.dynamic_workers,
             cpu_callback=self._cpu,
+            db_url=f"sqlite:///{self.data_path}",
+            mmap_path=str(self.mmap_path),
         )
         try:
             self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))

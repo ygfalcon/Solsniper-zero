@@ -823,7 +823,7 @@ For faster reinforcement learning training you can export the offline tables to
 a compressed NumPy archive and memory‑map it:
 
 ```bash
-python scripts/build_mmap_dataset.py --db offline_data.db --out datasets/offline_data.npz
+python scripts/build_mmap_dataset.py --db offline_data.db
 ```
 
 When present, `TradeDataModule` loads this archive instead of querying SQLite.

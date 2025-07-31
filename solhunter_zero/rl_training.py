@@ -805,6 +805,8 @@ def fit(
     device: str | None = None,
     dynamic_workers: bool = False,
     cpu_callback: Callable[[], float] | None = None,
+    db_url: str = "sqlite:///offline_data.db",
+    mmap_path: str = "datasets/offline_data.npz",
 ) -> None:
     """Train a lightweight RL model from in-memory samples.
 
@@ -821,6 +823,44 @@ def fit(
     device:
         Optional accelerator string, ``"cuda"`` or ``"mps"``.
     """
+
+    mmap_file = Path(mmap_path)
+    _ensure_mmap_dataset(db_url, mmap_file)
+
+    if mmap_file.exists():
+        mem = np.load(mmap_file, mmap_mode="r")
+        snaps_arr = mem["snapshots"]
+        trades_arr = mem["trades"]
+        from types import SimpleNamespace
+        from datetime import datetime
+
+        trades = [
+            SimpleNamespace(
+                token=str(r["token"]),
+                side=str(r["side"]),
+                price=float(r["price"]),
+                amount=float(r["amount"]),
+                timestamp=datetime.fromtimestamp(float(r["timestamp"])),
+            )
+            for r in trades_arr
+        ] + list(trades)
+        snaps = [
+            SimpleNamespace(
+                token=str(r["token"]),
+                price=float(r["price"]),
+                depth=float(r["depth"]),
+                total_depth=float(r["total_depth"]),
+                slippage=float(r["slippage"]),
+                volume=float(r["volume"]),
+                imbalance=float(r["imbalance"]),
+                tx_rate=float(r["tx_rate"]),
+                whale_share=float(r["whale_share"]),
+                spread=float(r["spread"]),
+                sentiment=float(r["sentiment"]),
+                timestamp=datetime.fromtimestamp(float(r["timestamp"])),
+            )
+            for r in snaps_arr
+        ] + list(snaps)
 
     dataset = _TradeDataset(trades, snaps, regime_weight=regime_weight)
     if len(dataset) == 0:
