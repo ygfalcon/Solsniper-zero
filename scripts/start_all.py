@@ -16,6 +16,12 @@ from solhunter_zero import data_sync
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 
+if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
+    from solhunter_zero import autopilot
+
+    autopilot.main()
+    raise SystemExit
+
 PROCS: list[subprocess.Popen] = []
 
 
