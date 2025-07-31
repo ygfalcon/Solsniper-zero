@@ -40,6 +40,7 @@ dev = [
 numba = ["numba"]
 fastjson = ["orjson"]
 fastcompress = ["lz4", "zstandard"]
+ray = ["ray[rllib]"]
 
 [project.scripts]
 solhunter-wallet = "solhunter_zero.wallet_cli:main"

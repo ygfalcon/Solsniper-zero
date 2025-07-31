@@ -384,6 +384,7 @@ class RLDaemon:
         distributed_rl: bool | None = None,
         hierarchical_rl: bool | None = None,
         hierarchical_model_path: str | Path = "hier_policy.json",
+        distributed_backend: str | None = None,
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -397,6 +398,7 @@ class RLDaemon:
         self.distributed_rl = bool(distributed_rl)
         self.hierarchical_rl = bool(hierarchical_rl)
         self.hierarchical_model_path = Path(hierarchical_model_path)
+        self.distributed_backend = distributed_backend
         self.hier_policy = None
         self.hier_weights: Dict[str, float] = {}
         self.population: MultiAgentRL | None = None
@@ -411,6 +413,17 @@ class RLDaemon:
             else:
                 device = "cpu"
         self.device = torch.device(device)
+        self.ray_trainer = None
+        if self.distributed_backend == "ray":
+            try:
+                from .ray_training import RayTraining
+                self.ray_trainer = RayTraining(
+                    db_url=f"sqlite:///{data_path}",
+                    model_path=self.model_path,
+                    algo=algo,
+                )
+            except Exception as exc:
+                logger.error("failed to initialize RayTraining: %s", exc)
         broker_url = get_broker_url()
         if self.distributed_rl and broker_url and _BROKER_URL is None:
             try:
@@ -536,6 +549,11 @@ class RLDaemon:
             self._task.cancel()
         if self._hb_task:
             self._hb_task.cancel()
+        if self.ray_trainer is not None:
+            try:
+                self.ray_trainer.close()
+            except Exception:
+                pass
 
     def _cpu(self) -> float:
         if self._cpu_callback:
@@ -627,15 +645,18 @@ class RLDaemon:
             self.population.train(trades, snaps)
             weights = self.population.best_weights()
         else:
-            rl_training.fit(
-                trades,
-                snaps,
-                model_path=self.model_path,
-                algo=self.algo,
-                device=self.device.type,
-                dynamic_workers=self.dynamic_workers,
-                cpu_callback=self._cpu,
-            )
+            if self.distributed_backend == "ray" and self.ray_trainer is not None:
+                self.ray_trainer.train()
+            else:
+                rl_training.fit(
+                    trades,
+                    snaps,
+                    model_path=self.model_path,
+                    algo=self.algo,
+                    device=self.device.type,
+                    dynamic_workers=self.dynamic_workers,
+                    cpu_callback=self._cpu,
+                )
             try:
                 self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
                 from .models import export_torchscript, load_compiled_model
