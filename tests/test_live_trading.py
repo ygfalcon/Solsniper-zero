@@ -4,68 +4,86 @@ import types
 import contextlib
 import importlib.machinery
 
-_faiss_mod = types.ModuleType('faiss')
-_faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
-sys.modules.setdefault('faiss', _faiss_mod)
-_st_mod = types.ModuleType('sentence_transformers')
-_st_mod.__spec__ = importlib.machinery.ModuleSpec('sentence_transformers', None)
-sys.modules.setdefault('sentence_transformers', _st_mod)
-sys.modules['sentence_transformers'].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(get_sentence_embedding_dimension=lambda:1, encode=lambda x: [])
-
-sklearn = types.ModuleType('sklearn')
-sklearn.__spec__ = importlib.machinery.ModuleSpec('sklearn', None)
-sys.modules.setdefault('sklearn', sklearn)
-sys.modules['sklearn.linear_model'] = types.SimpleNamespace(LinearRegression=object)
-sys.modules['sklearn.ensemble'] = types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object)
-sys.modules['sklearn.cluster'] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
-_xgb_mod = types.ModuleType('xgboost')
-_xgb_mod.__spec__ = importlib.machinery.ModuleSpec('xgboost', None)
-_xgb_mod.XGBRegressor = object
-sys.modules['xgboost'] = _xgb_mod
-
-torch_mod = types.ModuleType('torch')
-torch_mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
-torch_mod.no_grad = contextlib.nullcontext
-torch_mod.tensor = lambda *a, **k: None
-torch_mod.nn = types.SimpleNamespace(
-    LSTM=object,
-    Linear=object,
-    TransformerEncoder=object,
-    TransformerEncoderLayer=object,
-    Module=object,
-)
-torch_mod.optim = types.ModuleType('optim')
-torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
-torch_mod.utils = types.ModuleType('utils')
-torch_mod.utils.data = types.SimpleNamespace(Dataset=object, DataLoader=object)
-sys.modules['torch.utils'] = torch_mod.utils
-sys.modules['torch.utils.data'] = torch_mod.utils.data
-sys.modules['torch.nn'] = torch_mod.nn
-sys.modules['torch'] = torch_mod
-
-_pl_mod = types.ModuleType('pytorch_lightning')
-_pl_mod.callbacks = types.SimpleNamespace(Callback=object)
-_pl_mod.LightningModule = object
-_pl_mod.LightningDataModule = object
-_pl_mod.Trainer = object
-sys.modules.setdefault('pytorch_lightning', _pl_mod)
-
-_trans_mod = types.ModuleType('transformers')
-_trans_mod.__spec__ = importlib.machinery.ModuleSpec('transformers', None)
-_trans_mod.pipeline = lambda *a, **k: lambda *x, **y: None
-sys.modules.setdefault('transformers', _trans_mod)
-_bip_mod = types.ModuleType('bip_utils')
-_bip_mod.__spec__ = importlib.machinery.ModuleSpec('bip_utils', None)
-sys.modules.setdefault('bip_utils', _bip_mod)
-sys.modules['bip_utils'].Bip39SeedGenerator = object
-sys.modules['bip_utils'].Bip44 = object
-sys.modules['bip_utils'].Bip44Coins = object
-sys.modules['bip_utils'].Bip44Changes = object
-
-
 
 def test_live_trading(monkeypatch):
     with monkeypatch.context() as mp:
+        faiss_mod = types.ModuleType("faiss")
+        faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
+        mp.setitem(sys.modules, "faiss", faiss_mod)
+        st_mod = types.ModuleType("sentence_transformers")
+        st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
+        st_mod.SentenceTransformer = (
+            lambda *a, **k: types.SimpleNamespace(
+                get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
+            )
+        )
+        mp.setitem(sys.modules, "sentence_transformers", st_mod)
+
+        sklearn = types.ModuleType("sklearn")
+        sklearn.__spec__ = importlib.machinery.ModuleSpec("sklearn", None)
+        mp.setitem(sys.modules, "sklearn", sklearn)
+        mp.setitem(
+            sys.modules,
+            "sklearn.linear_model",
+            types.SimpleNamespace(LinearRegression=object),
+        )
+        mp.setitem(
+            sys.modules,
+            "sklearn.ensemble",
+            types.SimpleNamespace(
+                GradientBoostingRegressor=object, RandomForestRegressor=object
+            ),
+        )
+        mp.setitem(
+            sys.modules,
+            "sklearn.cluster",
+            types.SimpleNamespace(KMeans=object, DBSCAN=object),
+        )
+        xgb_mod = types.ModuleType("xgboost")
+        xgb_mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
+        xgb_mod.XGBRegressor = object
+        mp.setitem(sys.modules, "xgboost", xgb_mod)
+
+        torch_mod = types.ModuleType("torch")
+        torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+        torch_mod.no_grad = contextlib.nullcontext
+        torch_mod.tensor = lambda *a, **k: None
+        torch_mod.nn = types.SimpleNamespace(
+            LSTM=object,
+            Linear=object,
+            TransformerEncoder=object,
+            TransformerEncoderLayer=object,
+            Module=object,
+        )
+        torch_mod.optim = types.ModuleType("optim")
+        torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+        torch_mod.utils = types.ModuleType("utils")
+        torch_mod.utils.data = types.SimpleNamespace(Dataset=object, DataLoader=object)
+        mp.setitem(sys.modules, "torch.utils", torch_mod.utils)
+        mp.setitem(sys.modules, "torch.utils.data", torch_mod.utils.data)
+        mp.setitem(sys.modules, "torch.nn", torch_mod.nn)
+        mp.setitem(sys.modules, "torch", torch_mod)
+
+        pl_mod = types.ModuleType("pytorch_lightning")
+        pl_mod.callbacks = types.SimpleNamespace(Callback=object)
+        pl_mod.LightningModule = object
+        pl_mod.LightningDataModule = object
+        pl_mod.Trainer = object
+        mp.setitem(sys.modules, "pytorch_lightning", pl_mod)
+
+        trans_mod = types.ModuleType("transformers")
+        trans_mod.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
+        trans_mod.pipeline = lambda *a, **k: lambda *x, **y: None
+        mp.setitem(sys.modules, "transformers", trans_mod)
+
+        bip_mod = types.ModuleType("bip_utils")
+        bip_mod.__spec__ = importlib.machinery.ModuleSpec("bip_utils", None)
+        bip_mod.Bip39SeedGenerator = object
+        bip_mod.Bip44 = object
+        bip_mod.Bip44Coins = object
+        bip_mod.Bip44Changes = object
+        mp.setitem(sys.modules, "bip_utils", bip_mod)
+
         stub_models = types.ModuleType("solhunter_zero.models")
         stub_models.get_model = lambda *a, **k: None
         stub_models.load_compiled_model = lambda *a, **k: None
@@ -89,6 +107,7 @@ def test_live_trading(monkeypatch):
         monkeypatch.setenv("SOLHUNTER_CONFIG", str(cfg_path))
         monkeypatch.setenv("KEYPAIR_PATH", str(key_path))
         monkeypatch.setenv("AGENTS", "")
+        monkeypatch.setenv("USE_DEPTH_STREAM", "0")
 
         # Avoid network and slow components
         async def fake_discover(self, **_):
@@ -123,6 +142,11 @@ def test_live_trading(monkeypatch):
             fake_fetch,
         )
         monkeypatch.setattr(main_module, "_start_depth_service", lambda cfg: None)
+
+        async def _noop_ws(*_a, **_k):
+            return None
+
+        monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop_ws)
 
         # Capture Memory usage
         trades: list[dict] = []

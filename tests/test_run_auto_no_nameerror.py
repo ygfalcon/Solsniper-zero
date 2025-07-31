@@ -3,54 +3,72 @@ import types
 import contextlib
 import importlib.machinery
 
-_faiss = types.ModuleType('faiss')
-_faiss.__spec__ = importlib.machinery.ModuleSpec('faiss', loader=None)
-sys.modules.setdefault('faiss', _faiss)
-sys.modules.setdefault('sentence_transformers', types.ModuleType('sentence_transformers'))
-sys.modules['sentence_transformers'].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(get_sentence_embedding_dimension=lambda:1, encode=lambda x: [])
-
-sklearn = types.ModuleType('sklearn')
-sklearn.__spec__ = importlib.machinery.ModuleSpec('sklearn', loader=None)
-sys.modules.setdefault('sklearn', sklearn)
-sys.modules['sklearn.linear_model'] = types.SimpleNamespace(LinearRegression=object)
-sys.modules['sklearn.ensemble'] = types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object)
-sys.modules['sklearn.cluster'] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
-sys.modules['xgboost'] = types.ModuleType('xgboost')
-sys.modules['xgboost'].XGBRegressor = object
-
-torch_mod = types.ModuleType('torch')
-torch_mod.__spec__ = importlib.machinery.ModuleSpec('torch', loader=None)
-torch_mod.no_grad = contextlib.nullcontext
-torch_mod.tensor = lambda *a, **k: None
-torch_mod.nn = types.SimpleNamespace(
-    LSTM=object,
-    Linear=object,
-    TransformerEncoder=object,
-    TransformerEncoderLayer=object,
-    Module=object,
-)
-torch_mod.optim = types.ModuleType('optim')
-torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', loader=None)
-sys.modules['torch'] = torch_mod
-torch_mod.utils = types.ModuleType('utils')
-torch_mod.utils.data = types.SimpleNamespace(Dataset=object, DataLoader=object)
-sys.modules['torch.utils'] = torch_mod.utils
-sys.modules['torch.utils.data'] = torch_mod.utils.data
-sys.modules['torch.nn'] = torch_mod.nn
-
-_pl_mod = types.ModuleType('pytorch_lightning')
-_pl_mod.callbacks = types.SimpleNamespace(Callback=object)
-_pl_mod.LightningModule = object
-_pl_mod.LightningDataModule = object
-_pl_mod.Trainer = object
-sys.modules.setdefault('pytorch_lightning', _pl_mod)
-
-
 import solhunter_zero.config as cfg_mod
 
 
 def test_run_auto_no_nameerror(monkeypatch, tmp_path):
     with monkeypatch.context() as mp:
+        faiss_mod = types.ModuleType("faiss")
+        faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", loader=None)
+        mp.setitem(sys.modules, "faiss", faiss_mod)
+
+        st_mod = types.ModuleType("sentence_transformers")
+        st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", loader=None)
+        st_mod.SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
+            get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
+        )
+        mp.setitem(sys.modules, "sentence_transformers", st_mod)
+
+        sklearn = types.ModuleType("sklearn")
+        sklearn.__spec__ = importlib.machinery.ModuleSpec("sklearn", loader=None)
+        mp.setitem(sys.modules, "sklearn", sklearn)
+        mp.setitem(
+            sys.modules,
+            "sklearn.linear_model",
+            types.SimpleNamespace(LinearRegression=object),
+        )
+        mp.setitem(
+            sys.modules,
+            "sklearn.ensemble",
+            types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object),
+        )
+        mp.setitem(
+            sys.modules,
+            "sklearn.cluster",
+            types.SimpleNamespace(KMeans=object, DBSCAN=object),
+        )
+        xgb_mod = types.ModuleType("xgboost")
+        xgb_mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", loader=None)
+        xgb_mod.XGBRegressor = object
+        mp.setitem(sys.modules, "xgboost", xgb_mod)
+
+        torch_mod = types.ModuleType("torch")
+        torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", loader=None)
+        torch_mod.no_grad = contextlib.nullcontext
+        torch_mod.tensor = lambda *a, **k: None
+        torch_mod.nn = types.SimpleNamespace(
+            LSTM=object,
+            Linear=object,
+            TransformerEncoder=object,
+            TransformerEncoderLayer=object,
+            Module=object,
+        )
+        torch_mod.optim = types.ModuleType("optim")
+        torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec("torch.optim", loader=None)
+        torch_mod.utils = types.ModuleType("utils")
+        torch_mod.utils.data = types.SimpleNamespace(Dataset=object, DataLoader=object)
+        mp.setitem(sys.modules, "torch", torch_mod)
+        mp.setitem(sys.modules, "torch.utils", torch_mod.utils)
+        mp.setitem(sys.modules, "torch.utils.data", torch_mod.utils.data)
+        mp.setitem(sys.modules, "torch.nn", torch_mod.nn)
+
+        pl_mod = types.ModuleType("pytorch_lightning")
+        pl_mod.callbacks = types.SimpleNamespace(Callback=object)
+        pl_mod.LightningModule = object
+        pl_mod.LightningDataModule = object
+        pl_mod.Trainer = object
+        mp.setitem(sys.modules, "pytorch_lightning", pl_mod)
+
         stub_models = types.ModuleType("solhunter_zero.models")
         stub_models.get_model = lambda *a, **k: None
         stub_models.load_compiled_model = lambda *a, **k: None
@@ -64,6 +82,7 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
         stub_models.regime_classifier = sys.modules[
             "solhunter_zero.models.regime_classifier"
         ]
+
         from solhunter_zero import main as main_module
         cfg_dir = tmp_path / "cfg"
         cfg_dir.mkdir()
