@@ -30,8 +30,7 @@ _SERVICE_MANIFEST = (
     Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
 )
 
-if sys.platform != "win32":
-    install_uvloop()
+install_uvloop()
 
 
 def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
