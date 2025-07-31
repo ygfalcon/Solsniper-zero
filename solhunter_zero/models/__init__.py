@@ -5,6 +5,13 @@ import torch
 import torch.nn as nn
 
 from .token_activity_model import ActivityModel
+from .gnn import (
+    RouteGNN,
+    train_route_gnn,
+    save_route_gnn,
+    load_route_gnn,
+    rank_routes,
+)
 
 
 class PriceModel(nn.Module):
