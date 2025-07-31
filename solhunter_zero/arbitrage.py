@@ -253,6 +253,7 @@ _LAST_DEPTH: dict[str, float] = {}
 # shared HTTP session and price cache
 PRICE_CACHE_TTL = float(os.getenv("PRICE_CACHE_TTL", "30") or 30)
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
+MEMPOOL_WEIGHT = float(os.getenv("MEMPOOL_WEIGHT", "0.0001") or 0.0001)
 
 
 def _route_key(
@@ -325,6 +326,7 @@ def _build_adjacency(
     latency: Mapping[str, float],
     depth: Mapping[str, Mapping[str, float]] | None,
     token: str | None,
+    mempool_rate: float = 0.0,
 ) -> tuple[list[str], dict[str, dict[str, float]]]:
     """Return adjacency map for the search graph with caching."""
 
@@ -342,7 +344,12 @@ def _build_adjacency(
             fee_arr = np.array([fees.get(v, 0.0) for v in venues], dtype=float)
             gas_arr = np.array([gas.get(v, 0.0) for v in venues], dtype=float)
             lat_arr = np.array([latency.get(v, 0.0) for v in venues], dtype=float)
-            base_cost = price_arr * trade_amount * fee_arr + gas_arr + lat_arr
+            base_cost = (
+                price_arr * trade_amount * fee_arr
+                + gas_arr
+                + lat_arr
+                + mempool_rate * MEMPOOL_WEIGHT
+            )
             step_matrix = base_cost[:, None] + base_cost[None, :]
             profit_matrix = coeff * trade_amount - step_matrix
             np.fill_diagonal(profit_matrix, float("-inf"))
@@ -360,7 +367,12 @@ def _build_adjacency(
             gas_arr = np.array([gas.get(v, 0.0) for v in venues], dtype=float)
             lat_arr = np.array([latency.get(v, 0.0) for v in venues], dtype=float)
 
-            base_cost = price_arr * trade_amount * fee_arr + gas_arr + lat_arr
+            base_cost = (
+                price_arr * trade_amount * fee_arr
+                + gas_arr
+                + lat_arr
+                + mempool_rate * MEMPOOL_WEIGHT
+            )
             step_matrix = base_cost[:, None] + base_cost[None, :]
 
             if depth is not None:
@@ -825,6 +837,7 @@ def _best_route_py(
     gas: Mapping[str, float] | None = None,
     latency: Mapping[str, float] | None = None,
     depth: Mapping[str, Mapping[str, float]] | None = None,
+    mempool_rate: float = 0.0,
     use_flash_loans: bool | None = None,
     max_flash_amount: float | None = None,
     max_hops: int | None = None,
@@ -869,6 +882,7 @@ def _best_route_py(
             + gas.get(b, 0.0)
             + latency.get(a, 0.0)
             + latency.get(b, 0.0)
+            + mempool_rate * MEMPOOL_WEIGHT
         )
 
     def slip_cost(a: str, b: str) -> float:
@@ -936,6 +950,7 @@ def _best_route_numba(
     gas: Mapping[str, float] | None = None,
     latency: Mapping[str, float] | None = None,
     depth: Mapping[str, Mapping[str, float]] | None = None,
+    mempool_rate: float = 0.0,
     use_flash_loans: bool | None = None,
     max_flash_amount: float | None = None,
     max_hops: int | None = None,
@@ -969,6 +984,7 @@ def _best_route_numba(
         latency,
         depth,
         token,
+        mempool_rate,
     )
     index = {v: i for i, v in enumerate(venues)}
     import numpy as np
@@ -989,9 +1005,19 @@ def _best_route_numba(
 def _best_route(
     prices: Mapping[str, float],
     amount: float,
+    *,
+    mempool_rate: float = 0.0,
     **kwargs,
 ) -> tuple[list[str], float]:
     """Return the best route using the Rust FFI when available."""
+    path_algo = kwargs.get("path_algorithm")
+    if path_algo == "dijkstra":
+        return _best_route_numba(
+            prices,
+            amount,
+            mempool_rate=mempool_rate,
+            **kwargs,
+        )
     if USE_FFI_ROUTE and _HAS_ROUTEFFI:
         try:
             res = _routeffi.best_route(dict(prices), amount, **kwargs)
@@ -999,7 +1025,7 @@ def _best_route(
                 return res
         except Exception as exc:  # pragma: no cover - optional ffi failures
             logger.warning("ffi.best_route failed: %s", exc)
-    return _best_route_py(prices, amount, **kwargs)
+    return _best_route_py(prices, amount, mempool_rate=mempool_rate, **kwargs)
 
 
 async def _compute_route(
@@ -1049,7 +1075,7 @@ async def _compute_route(
         else:
             use_service = False
     if not use_service or not res:
-        depth_map, _ = depth_client.snapshot(token)
+        depth_map, mempool_rate = depth_client.snapshot(token)
         total = sum(
             float(v.get("bids", 0.0)) + float(v.get("asks", 0.0))
             for v in depth_map.values()
@@ -1063,6 +1089,7 @@ async def _compute_route(
             gas=gas,
             latency=latency,
             depth=depth_map,
+            mempool_rate=mempool_rate,
             use_flash_loans=use_flash_loans,
             max_flash_amount=max_flash_amount,
             max_hops=max_hops,

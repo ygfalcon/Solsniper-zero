@@ -139,6 +139,27 @@ def test_multi_hop(monkeypatch, numba_enabled, ffi_enabled):
     assert len(calls) == 4
 
 
+def test_multi_hop_mempool(monkeypatch, numba_enabled, ffi_enabled):
+    prices = {"dex1": 1.0, "dex2": 1.2, "dex3": 1.4}
+    depth = {v: {"bids": 10.0, "asks": 10.0} for v in prices}
+
+    path, profit = arb._best_route(
+        prices,
+        1.0,
+        token="tok",
+        depth=depth,
+        fees={v: 0.0 for v in prices},
+        gas={v: 0.0 for v in prices},
+        latency={v: 0.0 for v in prices},
+        mempool_rate=5.0,
+        max_hops=3,
+        path_algorithm="dijkstra",
+    )
+
+    assert path == ["dex1", "dex2", "dex3"]
+    assert profit > 0
+
+
 def test_new_venue_path(monkeypatch, numba_enabled, ffi_enabled):
     calls = []
 
