@@ -1,4 +1,4 @@
-import json
+from .jsonutil import dumps, loads
 import os
 import ctypes
 
@@ -69,10 +69,10 @@ def best_route(
     if LIB is None:
         return None
     prof = ctypes.c_double()
-    prices_json = json.dumps(prices).encode()
-    fees_json = json.dumps(fees or {}).encode()
-    gas_json = json.dumps(gas or {}).encode()
-    lat_json = json.dumps(latency or {}).encode()
+    prices_json = dumps(prices).encode()
+    fees_json = dumps(fees or {}).encode()
+    gas_json = dumps(gas or {}).encode()
+    lat_json = dumps(latency or {}).encode()
     func = getattr(LIB, "search_route_json", None)
     if func is None:
         func = LIB.best_route_json
@@ -83,7 +83,7 @@ def best_route(
         return None
     path_json = ctypes.string_at(ptr).decode()
     LIB.free_cstring(ptr)
-    path = json.loads(path_json)
+    path = loads(path_json)
     return path, prof.value
 
 
@@ -109,10 +109,10 @@ def best_route_parallel(
             max_hops=max_hops,
         )
     prof = ctypes.c_double()
-    prices_json = json.dumps(prices).encode()
-    fees_json = json.dumps(fees or {}).encode()
-    gas_json = json.dumps(gas or {}).encode()
-    lat_json = json.dumps(latency or {}).encode()
+    prices_json = dumps(prices).encode()
+    fees_json = dumps(fees or {}).encode()
+    gas_json = dumps(gas or {}).encode()
+    lat_json = dumps(latency or {}).encode()
     ptr = func(
         prices_json,
         fees_json,
@@ -126,7 +126,7 @@ def best_route_parallel(
         return None
     path_json = ctypes.string_at(ptr).decode()
     LIB.free_cstring(ptr)
-    path = json.loads(path_json)
+    path = loads(path_json)
     return path, prof.value
 
 
@@ -141,4 +141,4 @@ def decode_token_agg(buf: bytes) -> dict | None:
         return None
     s = ctypes.string_at(ptr).decode()
     LIB.free_cstring(ptr)
-    return json.loads(s)
+    return loads(s)

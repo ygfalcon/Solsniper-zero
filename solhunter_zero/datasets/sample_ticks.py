@@ -1,7 +1,7 @@
 """Loader for sample tick history used in tests and demos."""
 from __future__ import annotations
 
-import json
+from ..jsonutil import loads
 from importlib import resources
 from importlib.resources.abc import Traversable
 from pathlib import Path
@@ -25,7 +25,7 @@ def load_sample_ticks(path: Path | Traversable | str = DEFAULT_PATH) -> List[Dic
         obj = Path(path) if isinstance(path, str) else path
         with resources.as_file(obj) as p:
             with p.open("r", encoding="utf-8") as fh:
-                data = json.load(fh)
+                data = loads(fh.read())
     except Exception:
         _cache_path = str(path)
         _cache_data = []
