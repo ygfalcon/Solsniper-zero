@@ -1,6 +1,7 @@
 import sys
 import types
 import importlib.util
+from pathlib import Path
 
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
@@ -10,6 +11,51 @@ if importlib.util.find_spec("sentence_transformers") is None:
     sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
 if importlib.util.find_spec("faiss") is None:
     sys.modules.setdefault("faiss", types.ModuleType("faiss"))
+if importlib.util.find_spec("torch") is None:
+    torch_mod = types.ModuleType("torch")
+    torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+    torch_mod.__path__ = []
+    torch_mod.Tensor = object
+    torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
+    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
+    torch_mod.load = lambda *a, **k: {}
+    def _save(obj, path, *a, **k):
+        Path(path).touch()
+    torch_mod.save = _save
+    torch_mod.tensor = lambda *a, **k: object()
+    torch_mod.zeros = lambda *a, **k: object()
+    torch_mod.long = int
+    sys.modules.setdefault("torch", torch_mod)
+    torch_nn = types.ModuleType("torch.nn")
+    torch_nn.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
+    torch_nn.__path__ = []
+    torch_nn.Module = type(
+        "Module",
+        (),
+        {
+            "to": lambda self, *a, **k: None,
+            "load_state_dict": lambda self, *a, **k: None,
+        },
+    )
+    torch_nn.Sequential = lambda *a, **k: object()
+    torch_nn.Linear = lambda *a, **k: object()
+    torch_nn.ReLU = lambda *a, **k: object()
+    torch_nn.MSELoss = lambda *a, **k: object()
+    sys.modules.setdefault("torch.nn", torch_nn)
+    torch_opt = types.ModuleType("torch.optim")
+    torch_opt.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+    torch_opt.__path__ = []
+    sys.modules.setdefault("torch.optim", torch_opt)
+    torch_utils = types.ModuleType("torch.utils")
+    torch_utils.__spec__ = importlib.machinery.ModuleSpec("torch.utils", None)
+    torch_utils.__path__ = []
+    sys.modules.setdefault("torch.utils", torch_utils)
+    tud = types.ModuleType("torch.utils.data")
+    tud.__spec__ = importlib.machinery.ModuleSpec("torch.utils.data", None)
+    sys.modules.setdefault("torch.utils.data", tud)
+    tud.Dataset = object
+    tud.DataLoader = object
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
     callbacks = types.SimpleNamespace(Callback=object)
@@ -18,7 +64,10 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     pl.LightningModule = type(
         "LightningModule",
         (_nn.Module,),
-        {"save_hyperparameters": lambda self, *a, **k: None},
+        {
+            "save_hyperparameters": lambda self, *a, **k: None,
+            "state_dict": lambda self: {},
+        },
     )
     pl.LightningDataModule = type("LightningDataModule", (), {})
     pl.Trainer = type(
@@ -83,6 +132,7 @@ for name in [
     "Heartbeat",
     "TradeLogged",
     "RLMetrics",
+    "PriceUpdate",
     "SystemMetrics",
     "Event",
 ]:
@@ -195,3 +245,40 @@ def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
     low = counts[-1]
 
     assert low > high
+
+
+@pytest.mark.asyncio
+async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
+    import numpy as np
+    from pathlib import Path
+    from solhunter_zero.offline_data import OfflineData
+
+    db_url = f"sqlite:///{tmp_path/'data.db'}"
+    data = OfflineData(db_url)
+    await data.log_snapshot("tok", 1.0, 1.0, total_depth=1.0, imbalance=0.0, slippage=0.0, volume=0.0)
+    await data.log_trade("tok", "buy", 1.0, 1.0)
+
+    mmap_dir = tmp_path / "datasets"
+    mmap_dir.mkdir()
+    mmap_path = mmap_dir / "offline_data.npz"
+    await data.export_npz(mmap_path)
+
+    monkeypatch.chdir(tmp_path)
+
+    called = {}
+    orig_load = np.load
+
+    def fake_load(path, *a, **kw):
+        called["path"] = str(path)
+        return orig_load(path, *a, **kw)
+
+    monkeypatch.setattr(np, "load", fake_load)
+    monkeypatch.setattr(OfflineData, "list_trades", lambda *a, **k: (_ for _ in ()).throw(AssertionError("db used")))
+    monkeypatch.setattr(OfflineData, "list_snapshots", lambda *a, **k: (_ for _ in ()).throw(AssertionError("db used")))
+
+    trainer = RLTraining(db_url=db_url, model_path=tmp_path / "m.pt")
+    await trainer.data.setup()
+
+    assert Path(called["path"]).resolve() == mmap_path.resolve()
+    assert Path(trainer.data.mmap_path).resolve() == mmap_path.resolve()
+
