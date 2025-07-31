@@ -6,8 +6,11 @@ import re
 import os
 import statistics
 import contextlib
+import time
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
+
+import psutil
 
 from .event_bus import subscription
 
@@ -53,6 +56,7 @@ MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0
 _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 _CPU_PERCENT: float = 0.0
 _CPU_SMOOTHED: float = 0.0
+_CPU_LAST: float = 0.0
 _DYN_INTERVAL: float = 2.0
 _SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
 _KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
@@ -65,12 +69,13 @@ def _on_system_metrics(msg: Any) -> None:
     if cpu is None:
         return
     try:
-        global _CPU_PERCENT, _CPU_SMOOTHED
+        global _CPU_PERCENT, _CPU_SMOOTHED, _CPU_LAST
         _CPU_PERCENT = float(cpu)
         if _CPU_SMOOTHED:
             _CPU_SMOOTHED = _SMOOTHING * _CPU_PERCENT + (1 - _SMOOTHING) * _CPU_SMOOTHED
         else:
             _CPU_SMOOTHED = _CPU_PERCENT
+        _CPU_LAST = time.monotonic()
     except Exception:
         pass
 
@@ -95,6 +100,23 @@ def _step_limit(current: int, target: int, max_val: int) -> int:
     if new_val < 1:
         return 1
     return new_val
+
+
+def _current_cpu() -> float:
+    """Return recent CPU usage, sampling locally when stale."""
+    global _CPU_PERCENT, _CPU_SMOOTHED, _CPU_LAST
+    if not _CPU_SMOOTHED or time.monotonic() - _CPU_LAST > 10.0:
+        try:
+            cpu_now = float(psutil.cpu_percent(0.1))
+        except Exception:
+            cpu_now = _CPU_PERCENT
+        _CPU_PERCENT = cpu_now
+        if _CPU_SMOOTHED:
+            _CPU_SMOOTHED = _SMOOTHING * cpu_now + (1 - _SMOOTHING) * _CPU_SMOOTHED
+        else:
+            _CPU_SMOOTHED = cpu_now
+        _CPU_LAST = time.monotonic()
+    return _CPU_SMOOTHED
 
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
@@ -296,7 +318,7 @@ async def stream_ranked_mempool_tokens(
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
-                    cpu = _CPU_SMOOTHED
+                    cpu = _current_cpu()
                     target = _target_concurrency(cpu, max_concurrency, low, high)
                     new_limit = _step_limit(current_limit, target, max_concurrency)
                     if new_limit != current_limit:
@@ -322,7 +344,7 @@ async def stream_ranked_mempool_tokens(
             include_pools=include_pools,
         ):
             if cpu_usage_threshold is not None:
-                while _CPU_SMOOTHED > cpu_usage_threshold:
+                while _current_cpu() > cpu_usage_threshold:
                     await asyncio.sleep(0.05)
             address = tok["address"] if isinstance(tok, dict) else tok
             tg.create_task(worker(address))

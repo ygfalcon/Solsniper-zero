@@ -194,6 +194,8 @@ direct transaction submission to the Solana RPC.
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
     `system_metrics_combined`.
+  - When no metrics arrive for several seconds the scanners fall back to
+    `psutil.cpu_percent(0.1)` to keep scaling active.
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
     updates per second (defaults to `1` and `10`).
   - `--config <path>` – load these options from the given configuration file.

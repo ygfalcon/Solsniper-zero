@@ -299,11 +299,29 @@ def test_scan_tokens_async_dynamic(monkeypatch):
     monkeypatch.setattr(scanner.os, "cpu_count", lambda: 4)
     scanner._CPU_PERCENT = 0.0
     scanner._CPU_SMOOTHED = 0.0
+    scanner._CPU_LAST = 0.0
     scanner._DYN_INTERVAL = 0.0
     event_bus.publish("system_metrics_combined", {"cpu": 90.0})
 
     asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
     assert max_running <= 2
+
+
+def test_cpu_fallback(monkeypatch):
+    called = False
+
+    def fake_cpu(_=0.1):
+        nonlocal called
+        called = True
+        return 55.0
+
+    monkeypatch.setattr(scanner.psutil, "cpu_percent", fake_cpu)
+    monkeypatch.setattr(scanner, "_SMOOTHING", 1.0)
+    scanner._CPU_SMOOTHED = 0.0
+    scanner._CPU_LAST = 0.0
+    cpu = scanner._current_cpu()
+    assert cpu == 55.0
+    assert called
 
 
 def test_scanner_concurrency_controller(monkeypatch):
