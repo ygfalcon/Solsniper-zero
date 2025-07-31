@@ -38,6 +38,7 @@ from .hierarchical_rl import (
     save_policy,
     train_policy,
 )
+from .resource_monitor import get_cpu_usage
 
 logger = logging.getLogger(__name__)
 
@@ -724,17 +725,32 @@ class RLDaemon:
             publish("rl_metrics", {"loss": 0.0, "reward": reward})
 
     async def _loop(self, interval: float) -> None:
+        high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
+        low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+        min_i = float(os.getenv("RL_MIN_INTERVAL", str(max(0.01, interval / 2))) or max(0.01, interval / 2))
+        max_i = float(os.getenv("RL_MAX_INTERVAL", str(interval * 2)) or (interval * 2))
+        delay = max(min_i, min(max_i, interval))
         while True:
             try:
                 self.train()
             except Exception as exc:  # pragma: no cover - log errors
                 logger.error("daemon training failed: %s", exc)
-            await asyncio.sleep(interval)
+            cpu = get_cpu_usage()
+            if cpu > high:
+                delay = min(max_i, delay * 2)
+            elif cpu < low:
+                delay = max(min_i, delay / 2)
+            await asyncio.sleep(delay)
 
     async def _watch_external(self, interval: float) -> None:
+        high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
+        low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+        min_i = float(os.getenv("RL_MIN_INTERVAL", str(max(0.01, interval / 2))) or max(0.01, interval / 2))
+        max_i = float(os.getenv("RL_MAX_INTERVAL", str(interval * 2)) or (interval * 2))
+        delay = max(min_i, min(max_i, interval))
         last = self.model_path.stat().st_mtime if self.model_path.exists() else 0.0
         while True:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(delay)
             try:
                 mtime = self.model_path.stat().st_mtime
             except FileNotFoundError:
@@ -765,6 +781,11 @@ class RLDaemon:
                 self.last_train_time = time.time()
                 self.checkpoint_path = str(self.model_path)
                 logger.info("reloaded checkpoint from %s", self.model_path)
+            cpu = get_cpu_usage()
+            if cpu > high:
+                delay = min(max_i, delay * 2)
+            elif cpu < low:
+                delay = max(min_i, delay / 2)
 
     def start(
         self,
