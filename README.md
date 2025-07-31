@@ -715,8 +715,11 @@ Run a simple Flask-based UI with:
 python -m solhunter_zero.ui
 ```
 
-The UI provides **Start** and **Stop** buttons to control the trading loop. It
-is served on `http://localhost:5000` by default.
+The UI provides **Start** and **Stop** buttons to control the trading loop and
+includes a **Full Auto Mode** switch. When enabled the UI posts to the
+`/autostart` endpoint which launches the bot with the active configuration and
+keypair. The dashboard shows the running status, selected keypair and config.
+It is served on `http://localhost:5000` by default.
 When launched without a user configuration file or `SOLHUNTER_CONFIG`
 environment variable, the UI automatically loads the `config.highrisk.toml`
 preset.
