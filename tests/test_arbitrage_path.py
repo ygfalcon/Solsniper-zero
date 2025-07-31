@@ -37,7 +37,29 @@ def numba_enabled(monkeypatch, request):
     return request.param
 
 
-def test_arbitrage_path_selection(monkeypatch, numba_enabled):
+@pytest.fixture(params=[False, True])
+def ffi_enabled(monkeypatch, request):
+    monkeypatch.setenv("USE_FFI_ROUTE", "1" if request.param else "0")
+    if request.param:
+        from pathlib import Path
+        import subprocess
+        lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+        if not lib_path.exists():
+            subprocess.run([
+                "cargo",
+                "build",
+                "--manifest-path",
+                str(Path(__file__).resolve().parents[1] / "route_ffi/Cargo.toml"),
+                "--release",
+            ], check=True)
+        monkeypatch.setenv("ROUTE_FFI_LIB", str(lib_path))
+    import importlib
+    importlib.reload(arb.routeffi)
+    importlib.reload(arb)
+    return request.param
+
+
+def test_arbitrage_path_selection(monkeypatch, numba_enabled, ffi_enabled):
     calls = []
 
     async def fake_place(token, side, amount, price, **_):
@@ -62,7 +84,7 @@ def test_arbitrage_path_selection(monkeypatch, numba_enabled):
     assert ("sell", 1.2) in calls
 
 
-def test_concurrent_execution(monkeypatch, numba_enabled):
+def test_concurrent_execution(monkeypatch, numba_enabled, ffi_enabled):
     async def slow_place(*a, **k):
         await asyncio.sleep(0.05)
         return {"ok": True}
@@ -77,7 +99,7 @@ def test_concurrent_execution(monkeypatch, numba_enabled):
     assert duration < 0.1
 
 
-def test_multi_hop(monkeypatch, numba_enabled):
+def test_multi_hop(monkeypatch, numba_enabled, ffi_enabled):
     calls = []
 
     async def fake_place(token, side, amount, price, **_):
@@ -102,7 +124,7 @@ def test_multi_hop(monkeypatch, numba_enabled):
     assert len(calls) == 4
 
 
-def test_new_venue_path(monkeypatch, numba_enabled):
+def test_new_venue_path(monkeypatch, numba_enabled, ffi_enabled):
     calls = []
 
     async def fake_place(token, side, amount, price, **_):
@@ -162,7 +184,7 @@ def _legacy_best_route(prices, amount):
     return best, best_profit
 
 
-def test_graph_search_profit(numba_enabled):
+def test_graph_search_profit(numba_enabled, ffi_enabled):
     prices = {"dex1": 1.0, "dex2": 1.2, "dex3": 1.3}
     old_path, old_profit = _legacy_best_route(prices, 1.0)
     new_path, new_profit = arb._best_route(
@@ -175,7 +197,7 @@ def test_graph_search_profit(numba_enabled):
     assert new_profit >= old_profit
 
 
-def test_weighted_algorithm_profit(numba_enabled):
+def test_weighted_algorithm_profit(numba_enabled, ffi_enabled):
     prices = {f"dex{i}": 1.0 + 0.1 * i for i in range(6)}
 
     start = time.perf_counter()
@@ -211,7 +233,7 @@ class _CountingCache(arb.LRUCache):
         super().set(key, value)
 
 
-def test_edge_cache_reuse(monkeypatch, numba_enabled):
+def test_edge_cache_reuse(monkeypatch, numba_enabled, ffi_enabled):
     cache = _CountingCache()
     monkeypatch.setattr(arb, "_EDGE_CACHE", cache)
 
@@ -225,7 +247,7 @@ def test_edge_cache_reuse(monkeypatch, numba_enabled):
     assert cache.set_count == first
 
 
-def test_edge_cache_invalidation(monkeypatch, numba_enabled):
+def test_edge_cache_invalidation(monkeypatch, numba_enabled, ffi_enabled):
     cache = _CountingCache()
     monkeypatch.setattr(arb, "_EDGE_CACHE", cache)
 

@@ -8,3 +8,5 @@ depth_service/Cargo.lock
 depth_service/src/solhunter_zero.rs
 */__pycache__/
 
+route_ffi/target/
+route_ffi/Cargo.lock

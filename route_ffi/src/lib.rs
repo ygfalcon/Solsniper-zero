@@ -1,0 +1,154 @@
+use std::collections::{HashMap, HashSet, BinaryHeap};
+use std::cmp::Ordering;
+
+#[derive(Clone)]
+struct Node {
+    neg_profit: f64,
+    path: Vec<String>,
+    visited: HashSet<String>,
+}
+
+impl Eq for Node {}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.neg_profit == other.neg_profit
+    }
+}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .neg_profit
+            .partial_cmp(&self.neg_profit)
+            .unwrap_or(Ordering::Equal)
+    }
+}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+use std::ffi::{CStr, CString};
+use libc::c_char;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct InputMap(HashMap<String, f64>);
+
+fn parse_map(ptr: *const c_char) -> Option<HashMap<String, f64>> {
+    if ptr.is_null() {
+        return Some(HashMap::new());
+    }
+    let s = unsafe { CStr::from_ptr(ptr) }.to_str().ok()?;
+    serde_json::from_str::<HashMap<String, f64>>(s).ok()
+}
+
+fn best_route_internal(
+    prices: &HashMap<String, f64>,
+    amount: f64,
+    fees: &HashMap<String, f64>,
+    gas: &HashMap<String, f64>,
+    latency: &HashMap<String, f64>,
+    max_hops: usize,
+) -> Option<(Vec<String>, f64)> {
+    if prices.len() < 2 || max_hops < 2 {
+        return None;
+    }
+    let trade_amount = amount;
+    let venues: Vec<String> = prices.keys().cloned().collect();
+    let mut adjacency: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    for a in venues.iter() {
+        let mut neigh = HashMap::new();
+        for b in venues.iter() {
+            if a == b {
+                continue;
+            }
+            let pa = *prices.get(a).unwrap_or(&0.0);
+            let pb = *prices.get(b).unwrap_or(&0.0);
+            let cost = pa * trade_amount * fees.get(a).copied().unwrap_or(0.0)
+                + pb * trade_amount * fees.get(b).copied().unwrap_or(0.0)
+                + gas.get(a).copied().unwrap_or(0.0)
+                + gas.get(b).copied().unwrap_or(0.0)
+                + latency.get(a).copied().unwrap_or(0.0)
+                + latency.get(b).copied().unwrap_or(0.0);
+            let profit = (pb - pa) * trade_amount - cost;
+            neigh.insert(b.clone(), profit);
+        }
+        adjacency.insert(a.clone(), neigh);
+    }
+    let mut best_path: Vec<String> = Vec::new();
+    let mut best_profit = f64::NEG_INFINITY;
+    let mut heap: BinaryHeap<Node> = BinaryHeap::new();
+    for v in venues.iter() {
+        let visited: HashSet<String> = std::iter::once(v.clone()).collect();
+        heap.push(Node { neg_profit: 0.0, path: vec![v.clone()], visited });
+    }
+    while let Some(Node { neg_profit, path, visited }) = heap.pop() {
+        let profit = -neg_profit;
+        if path.len() > 1 && profit > best_profit {
+            best_profit = profit;
+            best_path = path.clone();
+        }
+        if path.len() >= max_hops {
+            continue;
+        }
+        let last = path.last().unwrap().clone();
+        if let Some(neigh) = adjacency.get(&last) {
+            for (nxt, val) in neigh {
+                if visited.contains(nxt) {
+                    continue;
+                }
+                let mut new_path = path.clone();
+                new_path.push(nxt.clone());
+                let mut new_vis = visited.clone();
+                new_vis.insert(nxt.clone());
+                let new_profit = profit + val;
+                heap.push(Node { neg_profit: -new_profit, path: new_path, visited: new_vis });
+            }
+        }
+    }
+    if best_profit.is_finite() {
+        Some((best_path, best_profit))
+    } else {
+        None
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn best_route_json(
+    prices_json: *const c_char,
+    fees_json: *const c_char,
+    gas_json: *const c_char,
+    latency_json: *const c_char,
+    amount: f64,
+    max_hops: u32,
+    out_profit: *mut f64,
+) -> *mut c_char {
+    let prices = match parse_map(prices_json) {
+        Some(m) => m,
+        None => return std::ptr::null_mut(),
+    };
+    let fees = parse_map(fees_json).unwrap_or_default();
+    let gas = parse_map(gas_json).unwrap_or_default();
+    let latency = parse_map(latency_json).unwrap_or_default();
+    match best_route_internal(&prices, amount, &fees, &gas, &latency, max_hops as usize) {
+        Some((path, profit)) => unsafe {
+            *out_profit = profit;
+            let s = serde_json::to_string(&path).unwrap_or_else(|_| "[]".to_string());
+            CString::new(s).unwrap().into_raw()
+        },
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn free_cstring(ptr: *mut c_char) {
+    if ptr.is_null() {
+        return;
+    }
+    unsafe {
+        drop(CString::from_raw(ptr));
+    }
+}
