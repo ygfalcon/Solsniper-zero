@@ -791,12 +791,13 @@ HTML_PAGE = """
 <head>
     <title>SolHunter UI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
     <div class="container">
-    <button id='start'>Start</button>
-    <button id='stop'>Stop</button>
+    <button id='start'><i class="fa fa-play"></i> Start</button>
+    <button id='stop'><i class="fa fa-stop"></i> Stop</button>
     <select id='keypair_select'></select>
     <pre id='status_info'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
@@ -1034,7 +1035,9 @@ HTML_PAGE = """
             tradeChart.update();
         });
         fetch('/roi').then(r => r.json()).then(data => {
-            document.getElementById('roi_value').textContent = data.roi.toFixed(4);
+            const roiEl = document.getElementById('roi_value');
+            roiEl.textContent = data.roi.toFixed(4);
+            roiEl.className = data.roi >= 0 ? 'positive' : 'negative';
             roiChart.data.labels.push('');
             roiChart.data.datasets[0].data.push(data.roi);
             if(roiChart.data.labels.length>50){roiChart.data.labels.shift();roiChart.data.datasets[0].data.shift();}
