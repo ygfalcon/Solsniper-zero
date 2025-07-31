@@ -28,6 +28,10 @@ class OrderPlacementError(Exception):
 logger = logging.getLogger(__name__)
 install_uvloop()
 
+# Event loop used for synchronous order placement when no running loop is
+# available.  Created lazily on first use and reused across calls.
+_order_loop: asyncio.AbstractEventLoop | None = None
+
 # Using Jupiter Aggregator REST API for token swaps.
 _DEX_CFG = load_dex_config()
 DEX_BASE_URL = _DEX_CFG.base_url
@@ -139,7 +143,15 @@ def place_order(
                 resp.raise_for_status()
                 return await resp.json()
 
-        data = asyncio.run(_post())
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            global _order_loop
+            if _order_loop is None:
+                _order_loop = asyncio.new_event_loop()
+            data = _order_loop.run_until_complete(_post())
+        else:
+            data = asyncio.run_coroutine_threadsafe(_post(), loop).result()
         tx_b64 = data.get("swapTransaction")
         if not tx_b64 or keypair is None:
             return data
