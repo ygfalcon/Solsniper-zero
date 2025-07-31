@@ -132,6 +132,7 @@ agents = [
     "mev_sandwich",
     "flashloan_sandwich",
     "sac",
+    "artifact_math",  # example custom agent
 ]
 
 [agent_weights]
