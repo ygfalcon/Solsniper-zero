@@ -63,3 +63,28 @@ def test_replicated_trade_dedup(tmp_path):
     trades = mem.list_trades()
     assert len(trades) == 1
     assert trades[0].uuid == tid
+
+
+def test_memory_sync_exchange(tmp_path):
+    db1 = tmp_path / "a.db"
+    idx1 = tmp_path / "a.index"
+    db2 = tmp_path / "b.db"
+    idx2 = tmp_path / "b.index"
+
+    mem1 = AdvancedMemory(url=f"sqlite:///{db1}", index_path=str(idx1), replicate=True)
+    mem2 = AdvancedMemory(url=f"sqlite:///{db2}", index_path=str(idx2), replicate=True)
+
+    mem1.log_trade(token="A", direction="buy", amount=1.0, price=1.0)
+
+    from solhunter_zero.event_bus import publish
+    from solhunter_zero.schemas import MemorySyncRequest
+
+    publish("memory_sync_request", MemorySyncRequest(last_id=0))
+
+    assert len(mem2.list_trades()) == 1
+
+    mem2.log_trade(token="B", direction="sell", amount=2.0, price=2.0)
+    publish("memory_sync_request", MemorySyncRequest(last_id=0))
+
+    assert len(mem1.list_trades()) == 2
+    assert len(mem2.list_trades()) == 2
