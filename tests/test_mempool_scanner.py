@@ -372,11 +372,23 @@ def test_dynamic_concurrency(monkeypatch):
 
 
 def test_mempool_concurrency_functions(monkeypatch):
-    monkeypatch.setattr(dynamic_limit, "_KP", 0.5)
+    import types
+
+    monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=0.0))
+    monkeypatch.setenv("CONCURRENCY_KP", "0.5")
+    dynamic_limit._CPU_EMA = 0.0
+
     tgt = dynamic_limit._target_concurrency(90.0, 4, 40.0, 80.0)
     cur = dynamic_limit._step_limit(4, tgt, 4)
     assert tgt == 1
     assert cur == 2
+
+    for _ in range(5):
+        tgt = dynamic_limit._target_concurrency(10.0, 4, 40.0, 80.0)
+        cur = dynamic_limit._step_limit(cur, tgt, 4)
+
+    assert cur >= 3
+
+    monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=95.0))
     tgt = dynamic_limit._target_concurrency(10.0, 4, 40.0, 80.0)
-    cur = dynamic_limit._step_limit(cur, tgt, 4)
-    assert cur == 3
+    assert tgt == 1

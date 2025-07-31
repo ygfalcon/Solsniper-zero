@@ -81,6 +81,7 @@ for name in [
     "RLCheckpoint",
     "PortfolioUpdated",
     "DepthUpdate",
+    "DepthDiff",
     "DepthServiceStatus",
     "Heartbeat",
     "TradeLogged",
