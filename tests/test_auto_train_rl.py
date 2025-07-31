@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 
 import pytest
+pytest.importorskip("torch")
 
 from solhunter_zero.rl_daemon import RLDaemon
 from solhunter_zero.agents.ppo_agent import PPOAgent

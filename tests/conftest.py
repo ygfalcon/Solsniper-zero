@@ -9,6 +9,188 @@ if importlib.util.find_spec("aiohttp") is None:
     aiohttp_mod.TCPConnector = object
     sys.modules["aiohttp"] = aiohttp_mod
 
+# Stub other optional dependencies when unavailable
+if importlib.util.find_spec("transformers") is None:
+    trans_mod = types.ModuleType("transformers")
+    trans_mod.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
+    trans_mod.pipeline = lambda *a, **k: lambda *a2, **k2: None
+    sys.modules["transformers"] = trans_mod
+
+if importlib.util.find_spec("sentence_transformers") is None:
+    st_mod = types.ModuleType("sentence_transformers")
+    st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
+    sys.modules.setdefault("sentence_transformers", st_mod)
+
+if importlib.util.find_spec("torch") is None:
+    torch_mod = types.ModuleType("torch")
+    torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+    torch_mod.__path__ = []
+    torch_mod.Tensor = object
+    torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
+    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
+    torch_mod.load = lambda *a, **k: {}
+    class _NoGrad:
+        def __enter__(self):
+            pass
+        def __exit__(self, *exc):
+            pass
+    torch_mod.no_grad = lambda: _NoGrad()
+    torch_mod.tensor = lambda *a, **k: object()
+    sys.modules["torch"] = torch_mod
+    torch_nn = types.ModuleType("torch.nn")
+    torch_nn.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
+    torch_nn.Module = object
+    sys.modules["torch.nn"] = torch_nn
+    torch_opt = types.ModuleType("torch.optim")
+    torch_opt.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+    sys.modules["torch.optim"] = torch_opt
+    tud = types.ModuleType("torch.utils.data")
+    tud.__spec__ = importlib.machinery.ModuleSpec("torch.utils.data", None)
+    tud.Dataset = object
+    tud.DataLoader = object
+    sys.modules["torch.utils.data"] = tud
+
+try:
+    _gp_spec = importlib.util.find_spec("google.protobuf")
+except ModuleNotFoundError:
+    _gp_spec = None
+if _gp_spec is None:
+    protobuf = types.ModuleType("protobuf")
+    descriptor = types.ModuleType("descriptor")
+    descriptor_pool = types.ModuleType("descriptor_pool")
+    symbol_database = types.ModuleType("symbol_database")
+    symbol_database.Default = lambda: object()
+    internal = types.ModuleType("internal")
+    internal.builder = types.ModuleType("builder")
+    runtime_version = types.ModuleType("runtime_version")
+    runtime_version.ValidateProtobufRuntimeVersion = lambda *a, **k: None
+    protobuf.descriptor = descriptor
+    protobuf.descriptor_pool = descriptor_pool
+    protobuf.symbol_database = symbol_database
+    protobuf.internal = internal
+    protobuf.runtime_version = runtime_version
+    try:
+        import google
+    except ModuleNotFoundError:
+        google = types.ModuleType("google")
+        google.__path__ = []
+        sys.modules.setdefault("google", google)
+    google.protobuf = protobuf
+    sys.modules.setdefault("google.protobuf", protobuf)
+    sys.modules.setdefault("google.protobuf.descriptor", descriptor)
+    sys.modules.setdefault("google.protobuf.descriptor_pool", descriptor_pool)
+    sys.modules.setdefault("google.protobuf.symbol_database", symbol_database)
+    sys.modules.setdefault("google.protobuf.internal", internal)
+    sys.modules.setdefault("google.protobuf.internal.builder", internal.builder)
+    sys.modules.setdefault("google.protobuf.runtime_version", runtime_version)
+
+event_pb2 = types.ModuleType("event_pb2")
+for name in [
+    "ActionExecuted",
+    "WeightsUpdated",
+    "RLWeights",
+    "RLCheckpoint",
+    "PortfolioUpdated",
+    "DepthUpdate",
+    "DepthServiceStatus",
+    "Heartbeat",
+    "TradeLogged",
+    "RLMetrics",
+    "PriceUpdate",
+    "SystemMetrics",
+    "SystemMetricsCombined",
+    "RiskMetrics",
+    "RiskUpdated",
+    "RemoteSystemMetrics",
+    "TokenDiscovered",
+    "MemorySyncRequest",
+    "MemorySyncResponse",
+    "PendingSwap",
+    "ConfigUpdated",
+    "Event",
+]:
+    setattr(event_pb2, name, type(name, (), {}))
+sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
+sys.modules.setdefault("event_pb2", event_pb2)
+
+if importlib.util.find_spec("solders") is None:
+    solders_mod = types.ModuleType("solders")
+    solders_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
+    sys.modules["solders"] = solders_mod
+    kp_mod = types.ModuleType("solders.keypair")
+
+    class Keypair:
+        def __init__(self, data: bytes | None = None):
+            self._data = data or b"\x00" * 64
+
+        @classmethod
+        def from_bytes(cls, b: bytes):
+            return cls(bytes(b))
+
+        @classmethod
+        def from_seed(cls, seed: bytes):
+            return cls(seed.ljust(64, b"\0"))
+
+        def to_bytes(self) -> bytes:
+            return self._data
+
+        def to_bytes_array(self) -> list[int]:
+            return list(self._data)
+
+        def sign_message(self, _msg: bytes) -> bytes:
+            return b"sig"
+
+        def pubkey(self) -> str:
+            return "0" * 32
+
+    kp_mod.Keypair = Keypair
+    kp_mod.__spec__ = importlib.machinery.ModuleSpec("solders.keypair", None)
+    sys.modules["solders.keypair"] = kp_mod
+    for name in ["pubkey", "hash", "message", "transaction", "instruction", "signature"]:
+        mod = types.ModuleType(f"solders.{name}")
+        mod.__spec__ = importlib.machinery.ModuleSpec(f"solders.{name}", None)
+        sys.modules.setdefault(f"solders.{name}", mod)
+    sys.modules["solders.pubkey"].Pubkey = object
+    sys.modules["solders.hash"].Hash = object
+    sys.modules["solders.message"].MessageV0 = object
+    sys.modules["solders.transaction"].VersionedTransaction = type("VersionedTransaction", (), {"populate": staticmethod(lambda *a, **k: object())})
+    sys.modules["solders.instruction"].Instruction = object
+    sys.modules["solders.instruction"].AccountMeta = object
+    sys.modules["solders.signature"].Signature = type("Signature", (), {"default": staticmethod(lambda: object())})
+
+if importlib.util.find_spec("solana") is None:
+    sol_mod = types.ModuleType("solana")
+    sol_mod.__spec__ = importlib.machinery.ModuleSpec("solana", None)
+    sys.modules["solana"] = sol_mod
+    pub_mod = types.ModuleType("solana.publickey")
+    pub_mod.__spec__ = importlib.machinery.ModuleSpec("solana.publickey", None)
+
+    class PublicKey:
+        def __init__(self, value: str | None = None):
+            self.value = value
+
+        @staticmethod
+        def default():
+            return PublicKey("0" * 32)
+
+        @staticmethod
+        def from_string(val: str):
+            return PublicKey(val)
+
+    pub_mod.PublicKey = PublicKey
+    sys.modules["solana.publickey"] = pub_mod
+    rpc_mod = types.ModuleType("solana.rpc")
+    rpc_mod.__spec__ = importlib.machinery.ModuleSpec("solana.rpc", None)
+    sys.modules.setdefault("solana.rpc", rpc_mod)
+    sys.modules.setdefault("solana.rpc.api", types.SimpleNamespace(Client=object, __spec__=importlib.machinery.ModuleSpec("solana.rpc.api", None)))
+    sys.modules.setdefault("solana.rpc.async_api", types.SimpleNamespace(AsyncClient=object, __spec__=importlib.machinery.ModuleSpec("solana.rpc.async_api", None)))
+    ws_mod = types.ModuleType("solana.rpc.websocket_api")
+    ws_mod.__spec__ = importlib.machinery.ModuleSpec("solana.rpc.websocket_api", None)
+    ws_mod.connect = lambda *a, **k: None
+    ws_mod.RpcTransactionLogsFilterMentions = object
+    sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
+
 # Ensure project root is in sys.path when running tests directly with 'pytest'
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if PROJECT_ROOT not in sys.path:

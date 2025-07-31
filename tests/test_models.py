@@ -1,6 +1,6 @@
 import numpy as np
-import torch
 import pytest
+torch = pytest.importorskip("torch")
 
 from solhunter_zero import models
 

@@ -1,6 +1,7 @@
 import json
 import os
 import pytest
+pytest.importorskip("solders")
 from solhunter_zero import wallet
 from solders.keypair import Keypair
 

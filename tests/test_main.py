@@ -4,8 +4,8 @@ from solhunter_zero.simulation import SimulationResult
 import asyncio
 import os
 import json
+pytest.importorskip("solders")
 from solders.keypair import Keypair
-from solhunter_zero.simulation import SimulationResult
 
 
 @pytest.fixture(autouse=True)

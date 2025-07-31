@@ -202,7 +202,8 @@ def test_average_swap_size_cache(monkeypatch):
 
 def test_mempool_tx_rate_model(monkeypatch, tmp_path):
     from solhunter_zero.models.onchain_forecaster import LSTMForecaster, save_model
-    import torch
+    import pytest
+    torch = pytest.importorskip("torch")
 
     model = LSTMForecaster(input_dim=4, hidden_dim=2, num_layers=1, seq_len=2)
     with torch.no_grad():
