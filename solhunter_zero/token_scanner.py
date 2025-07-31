@@ -64,7 +64,7 @@ def _current_cpu() -> float:
     global _CPU_PERCENT, _CPU_SMOOTHED, _CPU_LAST
     if not _CPU_SMOOTHED or time.monotonic() - _CPU_LAST > 10.0:
         try:
-            cpu_now = float(psutil.cpu_percent(0.1))
+            cpu_now = float(psutil.cpu_percent(interval=None))
         except Exception:
             cpu_now = _CPU_PERCENT
         _CPU_PERCENT = cpu_now
