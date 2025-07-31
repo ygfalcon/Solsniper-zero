@@ -607,6 +607,37 @@ async def best_route(
     data = await client.request(payload, timeout)
     if not data:
         return None
+
+
+async def cached_route(
+    token: str,
+    amount: float,
+    *,
+    socket_path: str = DEPTH_SERVICE_SOCKET,
+    timeout: float | None = None,
+    max_hops: int | None = None,
+) -> tuple[list[str], float, float] | None:
+    """Request a precomputed trading path from the Rust service."""
+
+    client = await get_ipc_client(socket_path)
+    req = pb.RouteRequest(token=token, amount=amount)
+    if max_hops is not None:
+        req.max_hops = int(max_hops)
+    reader, writer = await client._ensure()
+    writer.write(req.SerializeToString())
+    await writer.drain()
+    if timeout is not None:
+        data = await asyncio.wait_for(reader.read(), timeout)
+    else:
+        data = await reader.read()
+    if not data:
+        return None
+    try:
+        resp = pb.RouteResponse()
+        resp.ParseFromString(data)
+        return list(resp.path), float(resp.profit), float(resp.slippage)
+    except Exception:
+        return None
     try:
         resp = loads(data)
         path = [str(p) for p in resp.get("path", [])]
