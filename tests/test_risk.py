@@ -280,3 +280,21 @@ def test_hedge_ratio_and_portfolio_metrics():
     rm = RiskManager()
     adj = rm.adjusted(portfolio_metrics=pf.risk_metrics)
     assert adj.risk_tolerance < rm.risk_tolerance
+
+def test_var_forecast_adjustment(tmp_path, monkeypatch):
+    from solhunter_zero.models.var_forecaster import VaRForecaster, save_var_model
+    import torch
+    model = VaRForecaster(seq_len=2, hidden_dim=2, num_layers=1)
+    with torch.no_grad():
+        for p in model.parameters():
+            p.zero_()
+        model.fc.bias.fill_(0.1)
+    path = tmp_path / "var.pt"
+    save_var_model(model, path)
+    monkeypatch.setenv("VAR_MODEL_PATH", str(path))
+    rm = RiskManager(risk_tolerance=0.1, max_allocation=0.2, max_risk_per_token=0.2)
+    prices = [1.0, 1.0, 1.0]
+    base = rm.adjusted()
+    adj = rm.adjusted(prices=prices, var_threshold=0.05)
+    assert adj.risk_tolerance < base.risk_tolerance
+

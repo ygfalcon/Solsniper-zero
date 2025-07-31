@@ -857,6 +857,7 @@ very small.
   dataset from `offline_data.db` and trains a classifier on depth change,
   transaction rate, whale activity and average swap size. Set
   `ACTIVITY_MODEL_PATH` to enable ranking with this model.
+- **VaR forecasting** — `scripts/train_var_forecaster.py` trains an LSTM on `offline_data.db` prices. Set `VAR_MODEL_PATH` so `RiskManager` can scale risk using the forecast.
 - **Attention-based weighting** — `scripts/train_attention_swarm.py` trains a
   small transformer on `memory.db` trades. Set `attention_swarm_model` in the
   config and `use_attention_swarm = true` to enable this model at run time.
@@ -916,11 +917,18 @@ To train the activity detection model run:
 ```bash
 python scripts/train_activity_model.py --db offline_data.db --out models/activity.pt
 ```
+To train the VaR forecasting model run:
+
+```bash
+python scripts/train_var_forecaster.py --db offline_data.db --out models/var.pt
+```
+
 
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
 `predict_price_movement()` can load it automatically. Both LSTM and transformer
 models are supported.
 Set `ACTIVITY_MODEL_PATH` to `models/activity.pt` to enable early activity scoring.
+Set `VAR_MODEL_PATH` to `models/var.pt` to enable VaR-based risk scaling.
 
 You can train a soft actor-critic policy from the same dataset:
 

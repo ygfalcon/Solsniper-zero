@@ -35,6 +35,7 @@ metrics_url = ""
 # Optional paths to trained ML models
 # PRICE_MODEL_PATH = "models/price.pt"   # LSTM or transformer
 # ACTIVITY_MODEL_PATH = "models/activity.pt"
+# VAR_MODEL_PATH = "models/var.pt"   # VaR forecaster
 news_feeds = "https://news.example.com/rss"
 twitter_feeds = ""
 discord_feeds = ""

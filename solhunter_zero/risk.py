@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence
 
 import logging
+import os
 import numpy as np
 
 try:  # pragma: no cover - optional dependency
@@ -476,6 +477,21 @@ class RiskManager:
             var = value_at_risk(prices, var_confidence, memory=memory)
             if var > var_threshold and var > 0:
                 scale *= var_threshold / var
+
+        var_model_path = os.getenv("VAR_MODEL_PATH")
+        if var_model_path and prices is not None:
+            try:
+                from .models.var_forecaster import get_model as _get_var_model
+                var_model = _get_var_model(var_model_path)
+            except Exception:
+                var_model = None
+            if var_model is not None:
+                seq_len = getattr(var_model, "seq_len", len(prices))
+                if len(prices) >= seq_len:
+                    seq = np.asarray(prices[-seq_len:], dtype=float)
+                    predicted = float(var_model.predict(seq))
+                    if var_threshold is not None and predicted > var_threshold and predicted > 0:
+                        scale *= var_threshold / predicted
 
         if prices is not None and asset_cvar_threshold is not None:
             cvar_val_single = conditional_value_at_risk_prices(prices, var_confidence)
