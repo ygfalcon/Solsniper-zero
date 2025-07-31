@@ -40,7 +40,7 @@ async def sync_snapshots(
     db_path: str = "offline_data.db",
     base_url: str | None = None,
     limit_gb: float | None = None,
-    concurrency: int = 5,
+    concurrency: int | None = None,
 ) -> None:
     """Download order-book snapshots and insert them into ``db_path``."""
 
@@ -65,6 +65,10 @@ async def sync_snapshots(
             )
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("failed to fetch sentiment: %s", exc)
+
+    if concurrency is None or concurrency <= 0:
+        cpu_count = os.cpu_count() or 1
+        concurrency = max(1, cpu_count // 2)
 
     sem = asyncio.Semaphore(concurrency)
     session = await get_session()

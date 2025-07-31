@@ -6,6 +6,7 @@ import re
 import os
 import statistics
 import contextlib
+import psutil
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
@@ -245,7 +246,8 @@ async def stream_ranked_mempool_tokens(
         threshold = MEMPOOL_SCORE_THRESHOLD
 
     if max_concurrency is None or max_concurrency <= 0:
-        max_concurrency = os.cpu_count() or 1
+        cpu_count = os.cpu_count() or 1
+        max_concurrency = max(1, cpu_count // 2)
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency
@@ -271,7 +273,7 @@ async def stream_ranked_mempool_tokens(
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
-                    cpu = _CPU_PERCENT
+                    cpu = psutil.cpu_percent()
                     if cpu > high and current_limit == max_concurrency:
                         await _set_limit(max(1, max_concurrency // 2))
                     elif cpu < low and current_limit < max_concurrency:
@@ -280,6 +282,21 @@ async def stream_ranked_mempool_tokens(
                 pass
 
         adjust_task = asyncio.create_task(_adjust())
+    elif cpu_usage_threshold is not None:
+        async def _adjust_threshold() -> None:
+            nonlocal current_limit
+            try:
+                while True:
+                    await asyncio.sleep(_dyn_interval)
+                    cpu = psutil.cpu_percent()
+                    if cpu > cpu_usage_threshold and current_limit == max_concurrency:
+                        await _set_limit(max(1, max_concurrency // 2))
+                    elif cpu <= cpu_usage_threshold and current_limit < max_concurrency:
+                        await _set_limit(max_concurrency)
+            except asyncio.CancelledError:
+                pass
+
+        adjust_task = asyncio.create_task(_adjust_threshold())
     queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
     tasks: set[asyncio.Task] = set()
 
@@ -296,9 +313,6 @@ async def stream_ranked_mempool_tokens(
         keywords=keywords,
         include_pools=include_pools,
     ):
-        if cpu_usage_threshold is not None:
-            while _CPU_PERCENT > cpu_usage_threshold:
-                await asyncio.sleep(0.05)
         address = tok["address"] if isinstance(tok, dict) else tok
         task = asyncio.create_task(worker(address))
         tasks.add(task)

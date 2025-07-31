@@ -1,7 +1,7 @@
 import asyncio
 
 import solhunter_zero.mempool_scanner as mp_scanner
-from solhunter_zero import scanner_common, event_bus
+from solhunter_zero import scanner_common
 
 scanner_common.TOKEN_SUFFIX = ""
 
@@ -247,7 +247,7 @@ def test_stream_ranked_with_depth(monkeypatch):
 
 def test_default_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 0.0
+    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", lambda: 0.0)
 
     async def fake_stream(_url, **__):
         for t in ("a", "b", "c", "d"):
@@ -274,23 +274,26 @@ def test_default_concurrency(monkeypatch):
             pass
 
     asyncio.run(run())
-    assert max_running <= 4
+    assert max_running <= 2
 
 
 def test_cpu_threshold_reduces_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 90.0
+    cpu = [90.0]
+    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", lambda: cpu[0])
+    mp_scanner._DYN_INTERVAL = 0.01
 
     orig_sleep = asyncio.sleep
 
     async def fake_sleep(delay):
-        if delay == 0.05:
-            event_bus.publish("system_metrics", {"cpu": 10.0, "memory": 50.0})
+        if delay == 0.01:
+            cpu[0] = 10.0
         await orig_sleep(0)
 
     monkeypatch.setattr(mp_scanner.asyncio, "sleep", fake_sleep)
 
     async def fake_stream(_url, **__):
+        await asyncio.sleep(0)
         for t in ("a", "b"):
             yield t
 
@@ -315,12 +318,12 @@ def test_cpu_threshold_reduces_concurrency(monkeypatch):
             pass
 
     asyncio.run(run())
-    assert max_running <= 2
+    assert max_running <= 1
 
 
 def test_dynamic_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 90.0
+    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", lambda: 90.0)
     mp_scanner._DYN_INTERVAL = 0.01
 
     async def fake_stream(_url, **__):
@@ -349,4 +352,4 @@ def test_dynamic_concurrency(monkeypatch):
             pass
 
     asyncio.run(run())
-    assert max_running <= 2
+    assert max_running <= 1

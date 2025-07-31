@@ -159,9 +159,9 @@ direct transaction submission to the Solana RPC.
     broadcasts (defaults to `100`).
   - `CPU_LOW_THRESHOLD` / `CPU_HIGH_THRESHOLD` – CPU usage percentages
     controlling delay adjustments (defaults to `20` and `80`).
-  - `MAX_CONCURRENCY` – maximum number of concurrent ranking tasks. When set
-    to `0` the scanner uses half the available CPUs.
-  - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
+  - `MAX_CONCURRENCY` – maximum number of concurrent ranking tasks. Defaults
+    to half the available CPUs when set to `0`.
+  - `CPU_USAGE_THRESHOLD` – reduce concurrency when CPU usage stays above this
     percentage.
   - `system_metrics` events are published with current CPU and memory usage
     collected by a background monitor.
