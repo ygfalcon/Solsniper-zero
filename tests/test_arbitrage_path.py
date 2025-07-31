@@ -3,7 +3,6 @@ import time
 import pytest
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
-from solhunter_zero.event_bus import publish
 from itertools import permutations
 
 async def dex1(token):
@@ -54,7 +53,7 @@ def ffi_enabled(monkeypatch, request):
             ], check=True)
         monkeypatch.setenv("ROUTE_FFI_LIB", str(lib_path))
     import importlib
-    importlib.reload(arb.routeffi)
+    importlib.reload(arb._routeffi)
     importlib.reload(arb)
     return request.param
 
@@ -223,9 +222,9 @@ def test_weighted_algorithm_profit(numba_enabled, ffi_enabled):
     assert t2 <= t1 * 1.5
 
 
-class _CountingCache(arb.LRUCache):
-    def __init__(self):
-        super().__init__(maxsize=128)
+class _CountingCache(arb.TTLCache):
+    def __init__(self, ttl=60.0):
+        super().__init__(maxsize=128, ttl=ttl)
         self.set_count = 0
 
     def set(self, key, value):
@@ -248,7 +247,7 @@ def test_edge_cache_reuse(monkeypatch, numba_enabled, ffi_enabled):
 
 
 def test_edge_cache_invalidation(monkeypatch, numba_enabled, ffi_enabled):
-    cache = _CountingCache()
+    cache = _CountingCache(ttl=0.05)
     monkeypatch.setattr(arb, "_EDGE_CACHE", cache)
 
     prices = {"dex1": 1.0, "dex2": 1.2}
@@ -256,7 +255,6 @@ def test_edge_cache_invalidation(monkeypatch, numba_enabled, ffi_enabled):
 
     arb._best_route(prices, 1.0, token="tok", depth=depth)
     first = cache.set_count
-    arb._LAST_DEPTH["tok"] = 1.0
-    publish("depth_update", {"tok": {"depth": 2.0}})
+    time.sleep(0.06)
     arb._best_route(prices, 1.0, token="tok", depth=depth)
     assert cache.set_count > first

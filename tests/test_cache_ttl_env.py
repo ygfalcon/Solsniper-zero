@@ -6,6 +6,7 @@ CASES = [
     ("solhunter_zero.simulation", "SIM_MODEL_CACHE_TTL", "SIM_MODEL_CACHE", 300.0),
     ("solhunter_zero.scanner_common", "TREND_CACHE_TTL", "TREND_CACHE", 60.0),
     ("solhunter_zero.arbitrage", "PRICE_CACHE_TTL", "PRICE_CACHE", 30.0),
+    ("solhunter_zero.arbitrage", "EDGE_CACHE_TTL", "_EDGE_CACHE", 60.0),
     ("solhunter_zero.onchain_metrics", "DEX_METRICS_CACHE_TTL", "DEX_METRICS_CACHE", 30.0),
     ("solhunter_zero.onchain_metrics", "TOKEN_VOLUME_CACHE_TTL", "TOKEN_VOLUME_CACHE", 30.0),
     ("solhunter_zero.onchain_metrics", "TOP_VOLUME_TOKENS_CACHE_TTL", "TOP_VOLUME_TOKENS_CACHE", 60.0),
