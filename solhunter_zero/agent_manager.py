@@ -286,6 +286,15 @@ class AgentManager:
                 weights[ag.name] = weights.get(ag.name, 1.0) * float(w)
                 selected.append(ag)
             agents = selected
+        if self.rl_daemon is not None and getattr(self.rl_daemon, "hier_weights", None):
+            try:
+                pol_w = self.rl_daemon.hier_weights
+                for ag in agents:
+                    w = pol_w.get(ag.name)
+                    if w is not None:
+                        weights[ag.name] = weights.get(ag.name, 1.0) * float(w)
+            except Exception:
+                pass
         rl_action = None
         if self.rl_daemon is not None:
             prices = portfolio.price_history.get(token, [])
