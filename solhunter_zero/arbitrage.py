@@ -1002,15 +1002,26 @@ async def _compute_route(
     res = None
     if use_service:
         try:
-            res = await depth_client.best_route(
+            res = await depth_client.cached_route(
                 token,
                 amount,
                 socket_path=DEPTH_SERVICE_SOCKET,
                 max_hops=max_hops,
             )
         except Exception as exc:  # pragma: no cover - service optional
-            logger.warning("depth_service.best_route failed: %s", exc)
+            logger.debug("depth_service.cached_route failed: %s", exc)
             res = None
+        if not res:
+            try:
+                res = await depth_client.best_route(
+                    token,
+                    amount,
+                    socket_path=DEPTH_SERVICE_SOCKET,
+                    max_hops=max_hops,
+                )
+            except Exception as exc:  # pragma: no cover - service optional
+                logger.warning("depth_service.best_route failed: %s", exc)
+                res = None
         if res:
             path, profit, _ = res
         else:

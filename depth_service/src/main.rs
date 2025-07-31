@@ -127,6 +127,7 @@ type LatestBin = Arc<Mutex<Vec<u8>>>;
 type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 /// Aggregated state of all tokens
 type AggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
+type AdjMap = Arc<Mutex<HashMap<String, route::AdjacencyMatrix>>>;
 type LastSent = Arc<Mutex<Instant>>;
 
 fn maybe_decompress(data: &[u8]) -> Vec<u8> {
@@ -336,6 +337,7 @@ async fn update_mmap(
     dex_map: &DexMap,
     mem: &MempoolMap,
     agg: &AggMap,
+    adj: &AdjMap,
     mmap: &SharedMmap,
     offsets: &OffsetMap,
     next_off: &NextOffset,
@@ -353,6 +355,8 @@ async fn update_mmap(
     let dexes = dex_map.lock().await;
     let mem_map = mem.lock().await;
 
+    let adj_matrix = route::build_adjacency_matrix(&dexes, token);
+
     let mut entry = TokenAgg::default();
     for (dex_name, dex) in dexes.iter() {
         if let Some(info) = dex.get(token) {
@@ -368,6 +372,10 @@ async fn update_mmap(
 
     drop(dexes);
     drop(mem_map);
+
+    if let Some(adj_data) = adj_matrix.clone() {
+        adj.lock().await.insert(token.to_string(), adj_data.clone());
+    }
 
     let mut agg_lock = agg.lock().await;
     agg_lock.insert(token.to_string(), entry.clone());
@@ -388,6 +396,11 @@ async fn update_mmap(
     // Serialize only the updated token in a compact binary format
     let options = bincode::options().with_fixint_encoding();
     let json = options.serialize(&entry)?;
+    let adj_json = if let Some(ref adj_mat) = adj_matrix {
+        Some(options.serialize(adj_mat)?)
+    } else {
+        None
+    };
     let mut offsets_lock = offsets.lock().await;
     let mut next_lock = next_off.lock().await;
     let mut header_changed = false;
@@ -413,6 +426,32 @@ async fn update_mmap(
             (off, json.len())
         }
     };
+    let adj_key = format!("adj_{}", token);
+    let mut adj_offset = None;
+    if let Some(buf) = adj_json.as_ref() {
+        match offsets_lock.get_mut(&adj_key) {
+            Some((off, len)) => {
+                let o = *off;
+                if buf.len() > *len {
+                    *off = *next_lock;
+                    *len = buf.len();
+                    *next_lock += buf.len();
+                    header_changed = true;
+                    adj_offset = Some((o, *len));
+                } else {
+                    *len = (*len).max(buf.len());
+                    adj_offset = Some((o, *len));
+                }
+            }
+            None => {
+                let off = *next_lock;
+                offsets_lock.insert(adj_key.clone(), (off, buf.len()));
+                *next_lock += buf.len();
+                header_changed = true;
+                adj_offset = Some((off, buf.len()));
+            }
+        }
+    }
     if *next_lock > mmap.lock().await.len() {
         *next_lock = 0;
     }
@@ -441,6 +480,17 @@ async fn update_mmap(
         for i in data_off + json.len()..data_off + old_len {
             if i < mmap_lock.len() {
                 mmap_lock[i] = 0;
+            }
+        }
+    }
+    if let (Some(buf), Some((off, old))) = (adj_json.as_ref(), adj_offset) {
+        let o = header_size + off;
+        if o + buf.len() <= mmap_lock.len() {
+            mmap_lock[o..o + buf.len()].copy_from_slice(buf);
+            for i in o + buf.len()..o + old {
+                if i < mmap_lock.len() {
+                    mmap_lock[i] = 0;
+                }
             }
         }
     }
@@ -533,6 +583,7 @@ async fn connect_feed(
     dex_map: DexMap,
     mem: MempoolMap,
     agg: AggMap,
+    adj: AdjMap,
     mmap: SharedMmap,
     offsets: OffsetMap,
     next_off: NextOffset,
@@ -576,6 +627,7 @@ async fn connect_feed(
                     &dex_map,
                     &mem,
                     &agg,
+                    &adj,
                     &mmap,
                     &offsets,
                     &next_off,
@@ -603,6 +655,7 @@ async fn connect_price_feed(
     dex_map: DexMap,
     mem: MempoolMap,
     agg: AggMap,
+    adj: AdjMap,
     mmap: SharedMmap,
     offsets: OffsetMap,
     next_off: NextOffset,
@@ -643,6 +696,7 @@ async fn connect_price_feed(
                     &dex_map,
                     &mem,
                     &agg,
+                    &adj,
                     &mmap,
                     &offsets,
                     &next_off,
@@ -669,6 +723,7 @@ async fn connect_mempool(
     mem: MempoolMap,
     dex_map: DexMap,
     agg: AggMap,
+    adj: AdjMap,
     mmap: SharedMmap,
     offsets: OffsetMap,
     next_off: NextOffset,
@@ -701,6 +756,7 @@ async fn connect_mempool(
                     &dex_map,
                     &mem,
                     &agg,
+                    &adj,
                     &mmap,
                     &offsets,
                     &next_off,
@@ -727,6 +783,7 @@ async fn ipc_server(
     dex_map: DexMap,
     mem: MempoolMap,
     agg: AggMap,
+    adj: AdjMap,
     exec: Arc<ExecContext>,
     notify_rx: tokio::sync::watch::Receiver<()>,
 ) -> Result<()> {
@@ -782,6 +839,7 @@ async fn ipc_server(
         let agg_map = agg.clone();
         let exec = exec.clone();
         let auto_map = auto_map.clone();
+        let adj = adj.clone();
         tokio::spawn(async move {
             let mut buf = Vec::new();
             if stream.read_to_end(&mut buf).await.is_ok() {
@@ -933,6 +991,21 @@ async fn ipc_server(
                             } else {
                                 let _ = stream.write_all(b"{}\n").await;
                             }
+                        }
+                    } else if let Ok(req) = pb::RouteRequest::decode(&*buf) {
+                        let hops = if req.max_hops == 0 { 4 } else { req.max_hops as usize };
+                        let adj_map = adj.lock().await;
+                        if let Some(adj_mat) = adj_map.get(&req.token) {
+                            if let Some(res) = route::best_route_matrix(adj_mat, req.amount, hops) {
+                                let resp = pb::RouteResponse { path: res.path, profit: res.profit, slippage: res.slippage };
+                                let _ = stream.write_all(&resp.encode_to_vec()).await;
+                            } else {
+                                let resp = pb::RouteResponse::default();
+                                let _ = stream.write_all(&resp.encode_to_vec()).await;
+                            }
+                        } else {
+                            let resp = pb::RouteResponse::default();
+                            let _ = stream.write_all(&resp.encode_to_vec()).await;
                         }
                     }
                 }
@@ -1088,6 +1161,7 @@ async fn main() -> Result<()> {
     let dex_map: DexMap = Arc::new(Mutex::new(HashMap::new()));
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let agg_map: AggMap = Arc::new(Mutex::new(HashMap::new()));
+    let adj_map: AdjMap = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
     let (ws_bin_tx, _) = broadcast::channel(16);
     let latest: LatestSnap = Arc::new(Mutex::new(String::new()));
@@ -1225,6 +1299,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_feed(
@@ -1233,6 +1308,7 @@ async fn main() -> Result<()> {
                 d,
                 m,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1264,6 +1340,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1272,6 +1349,7 @@ async fn main() -> Result<()> {
                 d,
                 m,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1303,6 +1381,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1311,6 +1390,7 @@ async fn main() -> Result<()> {
                 d,
                 m,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1342,6 +1422,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1350,6 +1431,7 @@ async fn main() -> Result<()> {
                 d,
                 m,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1381,6 +1463,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1389,6 +1472,7 @@ async fn main() -> Result<()> {
                 d,
                 m,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1420,6 +1504,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1428,6 +1513,7 @@ async fn main() -> Result<()> {
                 d,
                 m,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1459,6 +1545,7 @@ async fn main() -> Result<()> {
         let latest_bin_c = latest_bin.clone();
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
+        let adj_map = adj_map.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_mempool(
@@ -1466,6 +1553,7 @@ async fn main() -> Result<()> {
                 m,
                 d,
                 a,
+                adj_map.clone(),
                 mm,
                 off,
                 next,
@@ -1503,6 +1591,7 @@ async fn main() -> Result<()> {
         dex_map,
         mem_map,
         agg_map,
+        adj_map,
         exec,
         notify_rx,
     )
