@@ -912,6 +912,11 @@ variable or the `--num-workers` flag on `solhunter-train` and
 On a 4‑core test machine throughput increased from about 250 samples/s with a
 single worker to around 700 samples/s with four workers.
 
+When `multi_rl = true` the RL daemon maintains a small population of models
+and trains each one on the most recent trades. After every update the model
+with the highest score publishes its policy via the `rl_weights` event. The
+size of this population is controlled by `rl_population_size`.
+
 Torch 2 adds the `torch.compile` API which can speed up both training and
 inference. Models are compiled automatically when this feature is available.
 Set `USE_TORCH_COMPILE=0` to disable this optimization.

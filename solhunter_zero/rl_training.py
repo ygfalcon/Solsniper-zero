@@ -889,3 +889,106 @@ def fit(
         )
     finally:
         model.to(device)
+
+
+class MultiAgentRL:
+    """Train and evaluate multiple RL models in parallel."""
+
+    def __init__(
+        self,
+        *,
+        db_url: str = "sqlite:///offline_data.db",
+        algos: Iterable[str] | None = None,
+        population_size: int = 2,
+        model_base: str = "population_model.pt",
+        device: str | None = None,
+        regime_weight: float = 1.0,
+    ) -> None:
+        self.db_url = db_url
+        self.regime_weight = float(regime_weight)
+        self.algos = list(algos or ["ppo"])
+        self.population_size = int(population_size)
+        self.device = device
+        self.trainers: list[RLTraining] = []
+        self.model_paths: list[Path] = []
+        self._algos_used: list[str] = []
+        for i in range(self.population_size):
+            algo = self.algos[i % len(self.algos)]
+            path = Path(model_base).with_name(
+                f"{Path(model_base).stem}_{i}_{algo}.pt"
+            )
+            self.model_paths.append(path)
+            self.trainers.append(
+                RLTraining(
+                    db_url=db_url,
+                    model_path=path,
+                    algo=algo,
+                    device=device,
+                    regime_weight=self.regime_weight,
+                )
+            )
+            self._algos_used.append(algo)
+        self.best_idx: int | None = None
+
+    def close(self) -> None:
+        for t in self.trainers:
+            try:
+                t.close()
+            except Exception:
+                pass
+
+    def _score(self, model: pl.LightningModule, dataset: Dataset) -> float:
+        loader = DataLoader(dataset, batch_size=64)
+        device = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
+        model.eval()
+        total = 0.0
+        with torch.no_grad():
+            for states, actions, rewards in loader:
+                states = states.to(device)
+                if hasattr(model, "actor"):
+                    out = model.actor(states)
+                elif hasattr(model, "model"):
+                    out = model.model(states)
+                else:
+                    out = model(states)
+                if out.ndim == 2 and out.shape[1] == 1:
+                    preds = (out.squeeze() >= 0).long().cpu()
+                else:
+                    preds = out.argmax(dim=1).cpu()
+                mask = preds == actions
+                if mask.any():
+                    total += float(rewards[mask].sum())
+        return total
+
+    def train(self, trades: Iterable[Any], snaps: Iterable[Any]) -> None:
+        dataset = _TradeDataset(trades, snaps, regime_weight=self.regime_weight)
+        scores: list[float] = []
+        for algo, trainer in zip(self._algos_used, self.trainers):
+            fit(
+                trades,
+                snaps,
+                model_path=trainer.model_path,
+                algo=algo,
+                regime_weight=self.regime_weight,
+                device=self.device,
+            )
+            try:
+                trainer.model.load_state_dict(torch.load(trainer.model_path))
+            except Exception:
+                pass
+            scores.append(self._score(trainer.model, dataset))
+        if scores:
+            self.best_idx = int(max(range(len(scores)), key=lambda i: scores[i]))
+
+    def best_weights(self) -> dict[str, float]:
+        if self.best_idx is None:
+            return {}
+        model = self.trainers[self.best_idx].model
+        weights: dict[str, float] = {}
+        try:
+            for name, param in model.named_parameters():
+                weights[name] = float(param.detach().mean())
+        except Exception:
+            pass
+        return weights
