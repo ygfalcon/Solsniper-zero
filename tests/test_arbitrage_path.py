@@ -1,6 +1,7 @@
 import asyncio
 import time
 import pytest
+import aiohttp
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 from solhunter_zero.event_bus import publish
@@ -260,3 +261,57 @@ def test_edge_cache_invalidation(monkeypatch, numba_enabled, ffi_enabled):
     publish("depth_update", {"tok": {"depth": 2.0}})
     arb._best_route(prices, 1.0, token="tok", depth=depth)
     assert cache.set_count > first
+
+class _DummyWS:
+    def __init__(self, messages):
+        self._messages = list(messages)
+        self.closed = False
+
+    async def send_str(self, _):
+        pass
+
+    async def receive(self):
+        if not self._messages:
+            self.closed = True
+            return aiohttp.http_websocket.WSMessage(
+                aiohttp.WSMsgType.CLOSE, None, None
+            )
+        return self._messages.pop(0)
+
+class _DummyManager:
+    def __init__(self, messages):
+        self.ws = _DummyWS(messages)
+        self.opens = 0
+
+    async def get_ws(self, url):
+        if self.opens == 0:
+            self.opens += 1
+        return self.ws
+
+    async def reconnect(self, url):
+        return self.ws
+
+    async def close(self, url):
+        self.ws.closed = True
+
+
+def test_stream_reuses_connection(monkeypatch):
+    msgs = [
+        aiohttp.http_websocket.WSMessage(aiohttp.WSMsgType.TEXT, '{"price":1.0}', ''),
+        aiohttp.http_websocket.WSMessage(aiohttp.WSMsgType.TEXT, '{"price":1.1}', ''),
+    ]
+    manager = _DummyManager(msgs)
+    monkeypatch.setattr(arb, 'WS_MANAGER', manager)
+
+    async def _run():
+        gen1 = arb.stream_orca_prices('tok', url='ws://o')
+        val1 = await anext(gen1)
+        await gen1.aclose()
+        gen2 = arb.stream_orca_prices('tok2', url='ws://o')
+        val2 = await anext(gen2)
+        await gen2.aclose()
+        return val1, val2
+
+    result = asyncio.run(_run())
+    assert result == (1.0, 1.1)
+    assert manager.opens == 1

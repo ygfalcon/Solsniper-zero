@@ -50,6 +50,7 @@ except Exception:  # pragma: no cover - ffi unavailable
 
 import aiohttp
 from .http import get_session
+from .ws_manager import WS_MANAGER
 from .scanner_common import JUPITER_WS_URL
 
 from .exchange import (
@@ -615,18 +616,33 @@ async def stream_orca_prices(
     if not url:
         return
 
-    session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
+        ws = await WS_MANAGER.get_ws(url)
         try:
             await ws.send_str(json.dumps({"token": token}))
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
+        except Exception:
+            ws = await WS_MANAGER.reconnect(url)
+            continue
+        while True:
+            try:
+                msg = await ws.receive()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                await WS_MANAGER.reconnect(url)
+                break
             if msg.type != aiohttp.WSMsgType.TEXT:
+                if msg.type in (
+                    aiohttp.WSMsgType.CLOSE,
+                    aiohttp.WSMsgType.CLOSED,
+                    aiohttp.WSMsgType.ERROR,
+                ):
+                    await WS_MANAGER.reconnect(url)
+                    break
                 continue
             try:
                 data = json.loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
+            except Exception:
                 continue
             price = data.get("price")
             if isinstance(price, (int, float)):
@@ -641,18 +657,33 @@ async def stream_raydium_prices(
     if not url:
         return
 
-    session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
+        ws = await WS_MANAGER.get_ws(url)
         try:
             await ws.send_str(json.dumps({"token": token}))
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
+        except Exception:
+            ws = await WS_MANAGER.reconnect(url)
+            continue
+        while True:
+            try:
+                msg = await ws.receive()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                await WS_MANAGER.reconnect(url)
+                break
             if msg.type != aiohttp.WSMsgType.TEXT:
+                if msg.type in (
+                    aiohttp.WSMsgType.CLOSE,
+                    aiohttp.WSMsgType.CLOSED,
+                    aiohttp.WSMsgType.ERROR,
+                ):
+                    await WS_MANAGER.reconnect(url)
+                    break
                 continue
             try:
                 data = json.loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
+            except Exception:
                 continue
             price = data.get("price")
             if isinstance(price, (int, float)):
@@ -667,18 +698,33 @@ async def stream_phoenix_prices(
     if not url:
         return
 
-    session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
+        ws = await WS_MANAGER.get_ws(url)
         try:
             await ws.send_str(json.dumps({"token": token}))
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
+        except Exception:
+            ws = await WS_MANAGER.reconnect(url)
+            continue
+        while True:
+            try:
+                msg = await ws.receive()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                await WS_MANAGER.reconnect(url)
+                break
             if msg.type != aiohttp.WSMsgType.TEXT:
+                if msg.type in (
+                    aiohttp.WSMsgType.CLOSE,
+                    aiohttp.WSMsgType.CLOSED,
+                    aiohttp.WSMsgType.ERROR,
+                ):
+                    await WS_MANAGER.reconnect(url)
+                    break
                 continue
             try:
                 data = json.loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
+            except Exception:
                 continue
             price = data.get("price")
             if isinstance(price, (int, float)):
@@ -693,18 +739,33 @@ async def stream_meteora_prices(
     if not url:
         return
 
-    session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
+        ws = await WS_MANAGER.get_ws(url)
         try:
             await ws.send_str(json.dumps({"token": token}))
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
+        except Exception:
+            ws = await WS_MANAGER.reconnect(url)
+            continue
+        while True:
+            try:
+                msg = await ws.receive()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                await WS_MANAGER.reconnect(url)
+                break
             if msg.type != aiohttp.WSMsgType.TEXT:
+                if msg.type in (
+                    aiohttp.WSMsgType.CLOSE,
+                    aiohttp.WSMsgType.CLOSED,
+                    aiohttp.WSMsgType.ERROR,
+                ):
+                    await WS_MANAGER.reconnect(url)
+                    break
                 continue
             try:
                 data = json.loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
+            except Exception:
                 continue
             price = data.get("price")
             if isinstance(price, (int, float)):
@@ -719,18 +780,33 @@ async def stream_jupiter_prices(
     if not url:
         return
 
-    session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
+        ws = await WS_MANAGER.get_ws(url)
         try:
             await ws.send_str(json.dumps({"token": token}))
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
+        except Exception:
+            ws = await WS_MANAGER.reconnect(url)
+            continue
+        while True:
+            try:
+                msg = await ws.receive()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                await WS_MANAGER.reconnect(url)
+                break
             if msg.type != aiohttp.WSMsgType.TEXT:
+                if msg.type in (
+                    aiohttp.WSMsgType.CLOSE,
+                    aiohttp.WSMsgType.CLOSED,
+                    aiohttp.WSMsgType.ERROR,
+                ):
+                    await WS_MANAGER.reconnect(url)
+                    break
                 continue
             try:
                 data = json.loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
+            except Exception:
                 continue
             price = data.get("price")
             if isinstance(price, (int, float)):
@@ -743,18 +819,33 @@ def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
     async def _stream(token: str, url: str = url) -> AsyncGenerator[float, None]:
         if not url:
             return
-        session = await get_session()
-        async with session.ws_connect(url) as ws:
+        while True:
+            ws = await WS_MANAGER.get_ws(url)
             try:
                 await ws.send_str(json.dumps({"token": token}))
-            except Exception:  # pragma: no cover - send failures
-                pass
-            async for msg in ws:
+            except Exception:
+                ws = await WS_MANAGER.reconnect(url)
+                continue
+            while True:
+                try:
+                    msg = await ws.receive()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    await WS_MANAGER.reconnect(url)
+                    break
                 if msg.type != aiohttp.WSMsgType.TEXT:
+                    if msg.type in (
+                        aiohttp.WSMsgType.CLOSE,
+                        aiohttp.WSMsgType.CLOSED,
+                        aiohttp.WSMsgType.ERROR,
+                    ):
+                        await WS_MANAGER.reconnect(url)
+                        break
                     continue
                 try:
                     data = json.loads(msg.data)
-                except Exception:  # pragma: no cover - invalid message
+                except Exception:
                     continue
                 price = data.get("price")
                 if isinstance(price, (int, float)):
