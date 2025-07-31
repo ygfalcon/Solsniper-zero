@@ -32,15 +32,19 @@ def _on_metrics(msg: Any) -> None:
     publish("system_metrics_combined", {"cpu": avg_cpu, "memory": avg_mem})
 
 
-_def_sub = None
+_def_subs = []
 
 
 def start() -> None:
-    """Begin aggregating ``system_metrics`` events."""
-    global _def_sub
-    if _def_sub is None:
-        _def_sub = subscription("system_metrics", _on_metrics)
-        _def_sub.__enter__()
+    """Begin aggregating ``system_metrics`` events from local and remote peers."""
+    global _def_subs
+    if not _def_subs:
+        _def_subs = [
+            subscription("system_metrics", _on_metrics),
+            subscription("remote_system_metrics", _on_metrics),
+        ]
+        for sub in _def_subs:
+            sub.__enter__()
 
 
 async def _run_forever() -> None:
