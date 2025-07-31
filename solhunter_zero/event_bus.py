@@ -158,6 +158,48 @@ if _WS_COMPRESSION:
     if comp in {"", "none", "0"}:
         _WS_COMPRESSION = None
 
+# magic header for batched binary websocket messages
+_BATCH_MAGIC = b"EBAT"
+
+
+def _pack_batch(msgs: List[Any]) -> Any:
+    """Return a single frame containing all ``msgs``."""
+    if not msgs:
+        return b""
+    first = msgs[0]
+    if isinstance(first, bytes):
+        parts = [len(m).to_bytes(4, "big") + m for m in msgs]
+        return _BATCH_MAGIC + len(msgs).to_bytes(4, "big") + b"".join(parts)
+    return _dumps(msgs)
+
+
+def _unpack_batch(data: Any) -> List[Any] | None:
+    """Return list of messages if ``data`` is a batched frame."""
+    if isinstance(data, bytes):
+        if len(data) >= len(_BATCH_MAGIC) + 4 and data.startswith(_BATCH_MAGIC):
+            off = len(_BATCH_MAGIC)
+            count = int.from_bytes(data[off:off + 4], "big")
+            off += 4
+            msgs = []
+            for _ in range(count):
+                if off + 4 > len(data):
+                    break
+                ln = int.from_bytes(data[off:off + 4], "big")
+                off += 4
+                msgs.append(data[off:off + ln])
+                off += ln
+            if len(msgs) == count:
+                return msgs
+        return None
+    if isinstance(data, str):
+        try:
+            obj = _loads(data)
+        except Exception:
+            return None
+        if isinstance(obj, list):
+            return obj
+    return None
+
 # mapping of topic -> list of handlers
 _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(list)
 
@@ -511,6 +553,8 @@ async def broadcast_ws(
     to_server: bool = True,
 ) -> None:
     """Send ``message`` to websocket peers."""
+    if isinstance(message, list):
+        message = _pack_batch(message)
     if to_clients:
         clients = list(_ws_clients)
         coros = [ws.send(message) for ws in clients]
@@ -543,8 +587,10 @@ async def _flush_outgoing() -> None:
                 msgs.append(q.get_nowait())
             except asyncio.QueueEmpty:
                 break
-        coros = [broadcast_ws(m) for m in msgs]
-        await asyncio.gather(*coros, return_exceptions=True)
+        if len(msgs) == 1:
+            await broadcast_ws(msgs[0])
+        else:
+            await broadcast_ws(msgs)
 
 
 async def _receiver(ws) -> None:
@@ -552,19 +598,20 @@ async def _receiver(ws) -> None:
     try:
         async for msg in ws:
             try:
-                if isinstance(msg, bytes):
-                    data = _maybe_decompress(msg)
-                    ev = pb.Event()
-                    ev.ParseFromString(data)
-                    payload = _decode_payload(ev)
-                    publish(ev.topic, payload, _broadcast=False)
-                    await broadcast_ws(msg, to_server=False)
-                else:
-                    data = _loads(msg)
-                    topic = data.get("topic")
-                    payload = data.get("payload")
-                    publish(topic, payload, _broadcast=False)
-                    await broadcast_ws(msg, to_server=False)
+                msgs = _unpack_batch(msg) or [msg]
+                for single in msgs:
+                    if isinstance(single, bytes):
+                        data = _maybe_decompress(single)
+                        ev = pb.Event()
+                        ev.ParseFromString(data)
+                        payload = _decode_payload(ev)
+                        publish(ev.topic, payload, _broadcast=False)
+                    else:
+                        data = _loads(single)
+                        topic = data.get("topic")
+                        payload = data.get("payload")
+                        publish(topic, payload, _broadcast=False)
+                await broadcast_ws(msg, to_server=False)
             except Exception:  # pragma: no cover - malformed msg
                 continue
     finally:
@@ -584,14 +631,16 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
         try:
             async for msg in ws:
                 try:
-                    if isinstance(msg, bytes):
-                        data = _maybe_decompress(msg)
-                        ev = pb.Event()
-                        ev.ParseFromString(data)
-                        publish(ev.topic, _decode_payload(ev), _broadcast=False)
-                    else:
-                        data = _loads(msg)
-                        publish(data.get("topic"), data.get("payload"), _broadcast=False)
+                    msgs = _unpack_batch(msg) or [msg]
+                    for single in msgs:
+                        if isinstance(single, bytes):
+                            data = _maybe_decompress(single)
+                            ev = pb.Event()
+                            ev.ParseFromString(data)
+                            publish(ev.topic, _decode_payload(ev), _broadcast=False)
+                        else:
+                            data = _loads(single)
+                            publish(data.get("topic"), data.get("payload"), _broadcast=False)
                 except Exception:  # pragma: no cover - malformed message
                     continue
         finally:
