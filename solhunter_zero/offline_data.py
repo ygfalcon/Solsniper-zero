@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import asyncio
 from contextlib import suppress
 from sqlalchemy import (
@@ -79,6 +80,12 @@ class OfflineData:
 
     def start_writer(self, batch_size: int = 100, interval: float = 1.0) -> None:
         """Start background writer flushing queued entries."""
+        env_batch = os.getenv("OFFLINE_BATCH_SIZE")
+        env_interval = os.getenv("OFFLINE_FLUSH_INTERVAL")
+        if env_batch is not None:
+            batch_size = int(env_batch)
+        if env_interval is not None:
+            interval = float(env_interval)
         self._batch_size = batch_size
         self._interval = interval
         self._queue = asyncio.Queue()
@@ -116,11 +123,12 @@ class OfflineData:
 
     async def _flush(self, items: list[tuple[str, dict]]) -> None:
         async with self.Session() as session:
-            for typ, data in items:
-                if typ == "snap":
-                    session.add(MarketSnapshot(**data))
-                else:
-                    session.add(MarketTrade(**data))
+            snaps = [MarketSnapshot(**d) for t, d in items if t == "snap"]
+            trades = [MarketTrade(**d) for t, d in items if t != "snap"]
+            if snaps:
+                await session.run_sync(lambda s: s.bulk_save_objects(snaps))
+            if trades:
+                await session.run_sync(lambda s: s.bulk_save_objects(trades))
             await session.commit()
 
     async def log_snapshot(

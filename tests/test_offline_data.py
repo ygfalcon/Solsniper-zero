@@ -56,6 +56,41 @@ async def test_async_queue_commit(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_queue_flush_interval(tmp_path, monkeypatch):
+    from sqlalchemy.ext.asyncio import AsyncSession
+    import asyncio
+
+    commits = 0
+    orig_commit = AsyncSession.commit
+
+    async def counting_commit(self, *a, **k):
+        nonlocal commits
+        commits += 1
+        return await orig_commit(self, *a, **k)
+
+    monkeypatch.setattr(AsyncSession, "commit", counting_commit)
+
+    data = OfflineData(f"sqlite:///{tmp_path/'int.db'}")
+    data.start_writer(batch_size=10, interval=0.01)
+    for _ in range(5):
+        await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0)
+    await asyncio.sleep(0.05)
+    await data.close()
+
+    assert commits == 1
+
+
+@pytest.mark.asyncio
+async def test_start_writer_env(monkeypatch):
+    monkeypatch.setenv("OFFLINE_BATCH_SIZE", "3")
+    monkeypatch.setenv("OFFLINE_FLUSH_INTERVAL", "0.5")
+    data = OfflineData("sqlite:///:memory:")
+    data.start_writer()
+    assert data._batch_size == 3
+    assert data._interval == 0.5
+
+
+@pytest.mark.asyncio
 async def test_export_npz_matches_manual(tmp_path):
     import numpy as np
 
