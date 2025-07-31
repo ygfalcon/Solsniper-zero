@@ -449,7 +449,8 @@ async def _init_rl_training(
     policy = cfg.get("rl_policy", "mlp")
     auto_train = auto_train_cfg
     tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
-    dyn_workers = bool(cfg.get("rl_dynamic_workers", False))
+    cpu_count = os.cpu_count() or 1
+    dyn_workers = bool(cfg.get("rl_dynamic_workers", cpu_count > 1))
 
     daemon = RLDaemon(
         memory_path=mem_db,

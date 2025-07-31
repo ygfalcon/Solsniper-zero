@@ -21,22 +21,33 @@ from .http import get_session
 from solhunter_zero.lru import TTLCache
 
 # Optional GPU acceleration for simulations
-USE_GPU_SIM = os.getenv("USE_GPU_SIM", "0").lower() in {"1", "true", "yes"}
+_use_gpu_env = os.getenv("USE_GPU_SIM")
+USE_GPU_SIM = (
+    _use_gpu_env is not None
+    and str(_use_gpu_env).lower() in {"1", "true", "yes"}
+)
 _GPU_BACKEND = None
-if USE_GPU_SIM:
+try:  # pragma: no cover - optional dependency
+    import torch  # type: ignore
+    if torch.cuda.is_available() or (
+        hasattr(torch, "backends")
+        and hasattr(torch.backends, "mps")
+        and torch.backends.mps.is_available()
+    ):
+        _GPU_BACKEND = "torch"
+        if _use_gpu_env is None:
+            USE_GPU_SIM = True
+except Exception:
+    torch = None  # type: ignore
+if _GPU_BACKEND is None:
     try:  # pragma: no cover - optional dependency
-        import torch  # type: ignore
-        if torch.cuda.is_available():
-            _GPU_BACKEND = "torch"
+        import cupy as cp  # type: ignore
+        if cp.cuda.runtime.getDeviceCount() > 0:
+            _GPU_BACKEND = "cupy"
+            if _use_gpu_env is None:
+                USE_GPU_SIM = True
     except Exception:
-        torch = None  # type: ignore
-    if _GPU_BACKEND is None:
-        try:  # pragma: no cover - optional dependency
-            import cupy as cp  # type: ignore
-            if cp.cuda.runtime.getDeviceCount() > 0:
-                _GPU_BACKEND = "cupy"
-        except Exception:
-            cp = None  # type: ignore
+        cp = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
