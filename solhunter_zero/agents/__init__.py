@@ -33,7 +33,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
 
     from .opportunity_cost import OpportunityCostAgent
 
-
+    from .artifact_math_agent import ArtifactMathAgent
 
 
 class BaseAgent(ABC):
@@ -77,6 +77,7 @@ def _ensure_agents_loaded() -> None:
     from .opportunity_cost import OpportunityCostAgent
     from .trend import TrendAgent
     from .smart_discovery import SmartDiscoveryAgent
+    from .artifact_math_agent import ArtifactMathAgent
 
     from .dqn import DQNAgent
     from .ramanujan_agent import RamanujanAgent
@@ -84,41 +85,39 @@ def _ensure_agents_loaded() -> None:
     from .meta_conviction import MetaConvictionAgent
     from .fractal_agent import FractalAgent
 
-    BUILT_IN_AGENTS.update({
-        "simulation": SimulationAgent,
-        "conviction": ConvictionAgent,
-        "arbitrage": ArbitrageAgent,
-        "exit": ExitAgent,
-        "execution": ExecutionAgent,
-        "memory": MemoryAgent,
-        "discovery": DiscoveryAgent,
-        "reinforcement": ReinforcementAgent,
-        "portfolio": PortfolioAgent,
-        "portfolio_manager": PortfolioManager,
-        "portfolio_optimizer": PortfolioOptimizer,
-        "hedging": HedgingAgent,
-        "crossdex_rebalancer": CrossDEXRebalancer,
-        "dqn": DQNAgent,
-        "ppo": PPOAgent,
-        "sac": SACAgent,
-        "opportunity_cost": OpportunityCostAgent,
-        "trend": TrendAgent,
-        "smart_discovery": SmartDiscoveryAgent,
-
-        "momentum": MomentumAgent,
-        "mempool_sniper": MempoolSniperAgent,
-        "mev_sandwich": MEVSandwichAgent,
-        "flashloan_sandwich": FlashloanSandwichAgent,
-
-        "meta_conviction": MetaConvictionAgent,
-
-        "ramanujan": RamanujanAgent,
-        "vanta": StrangeAttractorAgent,
-        "inferna": FractalAgent,
-
-        "emotion": EmotionAgent,
-
-    })
+    BUILT_IN_AGENTS.update(
+        {
+            "simulation": SimulationAgent,
+            "conviction": ConvictionAgent,
+            "arbitrage": ArbitrageAgent,
+            "exit": ExitAgent,
+            "execution": ExecutionAgent,
+            "memory": MemoryAgent,
+            "discovery": DiscoveryAgent,
+            "reinforcement": ReinforcementAgent,
+            "portfolio": PortfolioAgent,
+            "portfolio_manager": PortfolioManager,
+            "portfolio_optimizer": PortfolioOptimizer,
+            "hedging": HedgingAgent,
+            "crossdex_rebalancer": CrossDEXRebalancer,
+            "dqn": DQNAgent,
+            "ppo": PPOAgent,
+            "sac": SACAgent,
+            "opportunity_cost": OpportunityCostAgent,
+            "trend": TrendAgent,
+            "smart_discovery": SmartDiscoveryAgent,
+            "momentum": MomentumAgent,
+            "mempool_sniper": MempoolSniperAgent,
+            "mev_sandwich": MEVSandwichAgent,
+            "flashloan_sandwich": FlashloanSandwichAgent,
+            "artifact_math": ArtifactMathAgent,
+            "meta_conviction": MetaConvictionAgent,
+            "ramanujan": RamanujanAgent,
+            "vanta": StrangeAttractorAgent,
+            "inferna": FractalAgent,
+            "emotion": EmotionAgent,
+        }
+    )
 
     for ep in importlib.metadata.entry_points(group="solhunter_zero.agents"):
         try:

@@ -11,3 +11,4 @@ depth_service/src/solhunter_zero.rs
 route_ffi/target/
 route_ffi/Cargo.lock
 solhunter_zero/libroute_ffi.so
+*.egg-info/
