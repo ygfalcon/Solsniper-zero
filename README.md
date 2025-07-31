@@ -419,6 +419,13 @@ profit calculation so routes are ranked based on the borrowed size.
    `COMPRESS_EVENTS=1` selects zstd by default. Set `COMPRESS_EVENTS=0` to
    disable compression or `USE_ZLIB_EVENTS=1` if older nodes expect zlib
    compressed messages.
+   Install the optional compression libraries with:
+   ```bash
+   pip install .[fastcompress]
+   ```
+   Then verify compression is active by running
+   `python scripts/compression_demo.py`, which prints the message size and
+   latency with and without zstd compression.
 19. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
