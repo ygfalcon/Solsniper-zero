@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict, deque
 from typing import List, Dict, Any
 
 from . import BaseAgent
@@ -45,27 +46,65 @@ class CrossDEXRebalancer(BaseAgent):
         self.latency_weight = float(latency_weight)
         self.fee_weight = float(fee_weight)
         self._last = 0.0
+        stream_enabled = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
         if use_depth_feed is None:
-            use_depth_feed = os.getenv("USE_DEPTH_FEED", "0").lower() in {"1", "true", "yes"}
+            use_depth_feed = stream_enabled or (
+                os.getenv("USE_DEPTH_FEED", "0").lower() in {"1", "true", "yes"}
+            )
+        else:
+            use_depth_feed = bool(use_depth_feed) or stream_enabled
         self.use_depth_feed = bool(use_depth_feed)
         self._depth_cache: Dict[str, Dict[str, Dict[str, float]]] = {}
+        self._depth_window: Dict[str, Dict[str, Dict[str, deque]]] = {}
         self._unsub = None
         self._fees: Dict[str, float] = dict(DEX_FEES)
         self._latency: Dict[str, float] = {}
         self._latency_task: asyncio.Task | None = None
+        self._latency_updates: Dict[str, float] = {}
+        self._latency_unsub = None
         if self.use_depth_feed:
             self._unsub = subscribe("depth_update", self._handle_depth)
+        self._latency_unsub = subscribe("dex_latency", self._handle_latency)
 
     # ------------------------------------------------------------------
     def _handle_depth(self, payload: Dict[str, Dict[str, Any]]) -> None:
-        self._depth_cache.update(payload)
+        for token, entry in payload.items():
+            dex_map = entry.get("dex") or {
+                k: v for k, v in entry.items() if isinstance(v, dict)
+            }
+            token_cache = self._depth_cache.setdefault(token, {})
+            token_window = self._depth_window.setdefault(token, {})
+            for venue, info in dex_map.items():
+                bids = float(info.get("bids", 0.0))
+                asks = float(info.get("asks", 0.0))
+                win = token_window.setdefault(
+                    venue,
+                    {"bids": deque(maxlen=5), "asks": deque(maxlen=5)},
+                )
+                win["bids"].append(bids)
+                win["asks"].append(asks)
+                avg_bids = sum(win["bids"]) / len(win["bids"])
+                avg_asks = sum(win["asks"]) / len(win["asks"])
+                token_cache[venue] = {"bids": avg_bids, "asks": avg_asks}
+
+    def _handle_latency(self, payload: Dict[str, Any]) -> None:
+        for venue, val in payload.items():
+            try:
+                self._latency_updates[venue] = float(val)
+            except Exception:
+                pass
 
     def close(self) -> None:
         if self._unsub:
             self._unsub()
+        if self._latency_unsub:
+            self._latency_unsub()
 
     async def _ensure_latency(self) -> None:
         loop = asyncio.get_event_loop()
+        if self._latency_updates:
+            self._latency.update(self._latency_updates)
+            self._latency_updates.clear()
         if self._latency_task is None:
             self._latency = await measure_dex_latency_async(VENUE_URLS)
             self._latency_task = loop.create_task(measure_dex_latency_async(VENUE_URLS))
@@ -142,7 +181,7 @@ class CrossDEXRebalancer(BaseAgent):
 
         if self.use_depth_feed:
             depth_data = self._depth_cache.get(token)
-            if depth_data is None:
+            if not depth_data:
                 depth_data, _ = snapshot(token)
         else:
             depth_data, _ = snapshot(token)
