@@ -9,6 +9,7 @@ from typing import Any, Iterable, List, Tuple
 import time
 import psutil
 from collections import deque
+from .multi_rl import PopulationRL
 
 try:
     from numba import njit  # type: ignore
@@ -999,12 +1000,18 @@ class MultiAgentRL:
         model_base: str = "population_model.pt",
         device: str | None = None,
         regime_weight: float = 1.0,
+        controller_path: str | Path | None = None,
     ) -> None:
         self.db_url = db_url
         self.regime_weight = float(regime_weight)
         self.algos = list(algos or ["ppo"])
         self.population_size = int(population_size)
         self.device = device
+        ctrl_path = (
+            Path(controller_path)
+            if controller_path is not None
+            else Path(model_base).with_name(f"{Path(model_base).stem}_controller.json")
+        )
         self.trainers: list[RLTraining] = []
         self.model_paths: list[Path] = []
         self._algos_used: list[str] = []
@@ -1025,6 +1032,7 @@ class MultiAgentRL:
             )
             self._algos_used.append(algo)
         self.best_idx: int | None = None
+        self.controller = PopulationRL(None, population_size=self.population_size, weights_path=str(ctrl_path))
 
     def close(self) -> None:
         for t in self.trainers:
@@ -1088,3 +1096,16 @@ class MultiAgentRL:
         except Exception:
             pass
         return weights
+
+    # ------------------------------------------------------------------
+    def train_controller(self, agent_names: Iterable[str]) -> dict[str, float]:
+        """Train the hierarchical controller and return best weights."""
+        names = list(agent_names)
+        if not any(cfg.get("weights") for cfg in self.controller.population):
+            self.controller.population = [
+                {"weights": {n: 1.0 for n in names}, "risk": {"risk_multiplier": 1.0}},
+                {"weights": {n: 0.5 for n in names}, "risk": {"risk_multiplier": 1.0}},
+            ]
+        best = self.controller.evolve()
+        w = best.get("weights", {}) if isinstance(best, dict) else {}
+        return {n: float(w.get(n, 1.0)) for n in names}

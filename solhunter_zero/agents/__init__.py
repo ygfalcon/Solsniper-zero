@@ -88,6 +88,7 @@ def _ensure_agents_loaded() -> None:
     from .alien_cipher_agent import AlienCipherAgent
     from .artifact_math_agent import ArtifactMathAgent
     from .rl_weight_agent import RLWeightAgent
+    from .hierarchical_rl_agent import HierarchicalRLAgent
 
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -123,6 +124,7 @@ def _ensure_agents_loaded() -> None:
         "alien_cipher": AlienCipherAgent,
         "artifact_math": ArtifactMathAgent,
         "rl_weight": RLWeightAgent,
+        "hierarchical_rl": HierarchicalRLAgent,
 
         "emotion": EmotionAgent,
 

@@ -25,11 +25,13 @@ from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
 from .agents.attention_swarm import AttentionSwarm, load_model
 from .agents.rl_weight_agent import RLWeightAgent
+from .agents.hierarchical_rl_agent import HierarchicalRLAgent
 from .regime import detect_regime
 from . import mutation
 from .event_bus import publish, subscription
 from .schemas import ActionExecuted, WeightsUpdated
 from .multi_rl import PopulationRL
+from .rl_training import MultiAgentRL
 from .datasets.sample_ticks import load_sample_ticks, DEFAULT_PATH as _TICKS_PATH
 
 
@@ -132,6 +134,7 @@ class AgentManager:
         attention_model_path: str | None = None,
         use_rl_weights: bool = False,
         rl_weights_path: str | None = None,
+        hierarchical_rl: MultiAgentRL | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
@@ -184,6 +187,12 @@ class AgentManager:
                 weights_path=rl_weights_path or "rl_weights.json",
             )
             self.agents.append(self.rl_weight_agent)
+
+        self.hierarchical_rl = hierarchical_rl
+        self.hierarchical_agent: HierarchicalRLAgent | None = None
+        if self.hierarchical_rl is not None:
+            self.hierarchical_agent = HierarchicalRLAgent(self.hierarchical_rl)
+            self.agents.append(self.hierarchical_agent)
 
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
