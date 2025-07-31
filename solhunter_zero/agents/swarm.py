@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import Iterable, List, Dict, Any
 
 from .. import order_book_ws
@@ -64,6 +65,7 @@ class AgentSwarm:
         portfolio: Portfolio,
         *,
         weights: Dict[str, float] | None = None,
+        rl_action: list[float] | None = None,
     ) -> List[Dict[str, Any]]:
         """Gather proposals from all agents and return aggregated actions.
 
@@ -79,12 +81,11 @@ class AgentSwarm:
         async def run(agent: BaseAgent):
             if hasattr(agent, "last_outcome"):
                 agent.last_outcome = self._last_outcomes.get(agent.name)
-            return await agent.propose_trade(
-                token,
-                portfolio,
-                depth=depth,
-                imbalance=imbalance,
-            )
+            kwargs = dict(depth=depth, imbalance=imbalance)
+            import inspect
+            if "rl_action" in inspect.signature(agent.propose_trade).parameters:
+                kwargs["rl_action"] = rl_action
+            return await agent.propose_trade(token, portfolio, **kwargs)
 
         results = await asyncio.gather(*(run(a) for a in self.agents))
 

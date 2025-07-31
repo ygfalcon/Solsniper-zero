@@ -114,6 +114,7 @@ class AgentManager:
         memory_agent: MemoryAgent | None = None,
         emotion_agent: EmotionAgent | None = None,
         population_rl: PopulationRL | None = None,
+        rl_daemon: Any | None = None,
         weights_path: str | os.PathLike | None = None,
         strategy_selection: bool = False,
         vote_threshold: float = 0.0,
@@ -155,6 +156,7 @@ class AgentManager:
         )
 
         self.population_rl = population_rl
+        self.rl_daemon = rl_daemon
 
         self.weight_config_paths = list(weight_config_paths or [])
         self.weight_configs = self._load_weight_configs(self.weight_config_paths)
@@ -242,6 +244,26 @@ class AgentManager:
         weights = self.coordinator.compute_weights(agents, regime=regime)
         if self.selector:
             agents, weights = self.selector.weight_agents(agents, weights)
+        rl_action = None
+        if self.rl_daemon is not None:
+            prices = portfolio.price_history.get(token, [])
+            price = prices[-1] if prices else 0.0
+            try:
+                from .order_book_ws import snapshot
+                depth, _imb, rate = snapshot(token)
+            except Exception:
+                depth = 0.0
+                rate = 0.0
+            try:
+                rl_action = await self.rl_daemon.predict_action(
+                    portfolio,
+                    token,
+                    price,
+                    depth=depth,
+                    tx_rate=rate,
+                )
+            except Exception:
+                rl_action = None
         if self.use_attention_swarm and self.attention_swarm:
             rois = self.coordinator._roi_by_agent([a.name for a in agents])
             prices = portfolio.price_history.get(token, [])
@@ -254,7 +276,7 @@ class AgentManager:
                 weights = {a.name: float(pred[i]) for i, a in enumerate(agents)}
                 publish("weights_updated", WeightsUpdated(weights=dict(weights)))
         swarm = AgentSwarm(agents)
-        return await swarm.propose(token, portfolio, weights=weights)
+        return await swarm.propose(token, portfolio, weights=weights, rl_action=rl_action)
 
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
