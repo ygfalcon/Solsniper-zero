@@ -52,6 +52,20 @@ if importlib.util.find_spec("aiofiles") is None:
     aiof_mod = types.ModuleType("aiofiles")
     aiof_mod.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
     sys.modules.setdefault("aiofiles", aiof_mod)
+if importlib.util.find_spec("cachetools") is None:
+    ct_mod = types.ModuleType("cachetools")
+    ct_mod.LRUCache = dict
+    ct_mod.TTLCache = dict
+    sys.modules.setdefault("cachetools", ct_mod)
+if importlib.util.find_spec("psutil") is None:
+    ps_mod = types.ModuleType("psutil")
+    ps_mod.cpu_percent = lambda *a, **k: 0.0
+    ps_mod.virtual_memory = lambda: types.SimpleNamespace(percent=0.0)
+    sys.modules.setdefault("psutil", ps_mod)
+if importlib.util.find_spec("watchfiles") is None:
+    watch_mod = types.ModuleType("watchfiles")
+    watch_mod.awatch = lambda *a, **k: iter(())
+    sys.modules.setdefault("watchfiles", watch_mod)
 if importlib.util.find_spec("sqlalchemy") is None:
     sa = types.ModuleType("sqlalchemy")
     sa.create_engine = lambda *a, **k: None
@@ -59,8 +73,18 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sa.Column = lambda *a, **k: None
     sa.String = sa.Integer = sa.Float = sa.Numeric = sa.Text = object
     sa.DateTime = object
+    sa.select = lambda *a, **k: None
     sa.ForeignKey = lambda *a, **k: None
+    ext = types.ModuleType("sqlalchemy.ext")
+    async_mod = types.ModuleType("sqlalchemy.ext.asyncio")
+    async_mod.create_async_engine = lambda *a, **k: None
+    async_mod.async_sessionmaker = lambda *a, **k: None
+    async_mod.AsyncSession = object
+    ext.asyncio = async_mod
+    sa.ext = ext
     sys.modules.setdefault("sqlalchemy", sa)
+    sys.modules.setdefault("sqlalchemy.ext", ext)
+    sys.modules.setdefault("sqlalchemy.ext.asyncio", async_mod)
     orm = types.ModuleType("orm")
 
     def declarative_base(*a, **k):
@@ -456,4 +480,31 @@ async def test_websocket_batching():
             values.append(dict(ev_msg.weights_updated.weights)["x"])
         assert set(values) == {1.0, 2.0}
     await stop_ws_server()
+
+
+@pytest.mark.asyncio
+async def test_websocket_compressed_batch(monkeypatch):
+    import importlib
+    monkeypatch.setenv("EVENT_BUS_COMPRESSION", "deflate")
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+
+    port = 8794
+    await ev.start_ws_server("localhost", port)
+    from solhunter_zero import event_pb2
+    async with websockets.connect(f"ws://localhost:{port}") as ws:
+        ev.publish("weights_updated", {"weights": {"x": 3}})
+        ev.publish("weights_updated", {"weights": {"x": 4}})
+        raw = await asyncio.wait_for(ws.recv(), timeout=1)
+        assert isinstance(raw, bytes)
+        msgs = ev._unpack_batch(raw)
+        assert msgs is not None and len(msgs) == 2
+        values = []
+        for m in msgs:
+            ev_msg = event_pb2.Event()
+            ev_msg.ParseFromString(ev._maybe_decompress(m))
+            values.append(dict(ev_msg.weights_updated.weights)["x"])
+        assert set(values) == {3.0, 4.0}
+    await ev.stop_ws_server()
+    importlib.reload(ev)
 
