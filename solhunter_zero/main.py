@@ -447,6 +447,7 @@ async def _init_rl_training(
     data_path = cfg.get("rl_db_path", "offline_data.db")
     model_path = cfg.get("rl_model_path", "ppo_model.pt")
     algo = cfg.get("rl_algo", "ppo")
+    policy = cfg.get("rl_policy", "mlp")
     auto_train = auto_train_cfg
     tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
     dyn_workers = bool(cfg.get("rl_dynamic_workers", False))
@@ -456,6 +457,7 @@ async def _init_rl_training(
         data_path=data_path,
         model_path=model_path,
         algo=algo,
+        policy=policy,
         dynamic_workers=dyn_workers,
     )
     task = daemon.start(rl_interval, auto_train=auto_train, tune_interval=tune_interval)
