@@ -65,6 +65,10 @@ OFFLINE_TOKENS = ["offlinebonk1", "offlinebonk2"]
 TREND_CACHE_TTL = float(os.getenv("TREND_CACHE_TTL", "60") or 60)
 TREND_CACHE = TTLCache(maxsize=1, ttl=TREND_CACHE_TTL)
 
+# cache for DEX listing results
+LISTING_CACHE_TTL = float(os.getenv("LISTING_CACHE_TTL", "60") or 60)
+LISTING_CACHE = TTLCache(maxsize=3, ttl=LISTING_CACHE_TTL)
+
 
 def token_matches(
     address: str,
@@ -191,6 +195,10 @@ def fetch_raydium_listings() -> List[str]:
 
 
 async def fetch_raydium_listings_async() -> List[str]:
+    cached = LISTING_CACHE.get("raydium")
+    if cached is not None:
+        return cached
+
     session = await get_session()
     try:
         async with session.get(RAYDIUM_LISTINGS_API, timeout=10) as resp:
@@ -199,7 +207,10 @@ async def fetch_raydium_listings_async() -> List[str]:
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch Raydium listings: %s", exc)
         return []
-    return parse_listing_tokens(data)
+
+    tokens = parse_listing_tokens(data)
+    LISTING_CACHE.set("raydium", tokens)
+    return tokens
 
 
 def fetch_orca_listings() -> List[str]:
@@ -208,6 +219,10 @@ def fetch_orca_listings() -> List[str]:
 
 
 async def fetch_orca_listings_async() -> List[str]:
+    cached = LISTING_CACHE.get("orca")
+    if cached is not None:
+        return cached
+
     session = await get_session()
     try:
         async with session.get(ORCA_LISTINGS_API, timeout=10) as resp:
@@ -216,7 +231,10 @@ async def fetch_orca_listings_async() -> List[str]:
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch Orca listings: %s", exc)
         return []
-    return parse_listing_tokens(data)
+
+    tokens = parse_listing_tokens(data)
+    LISTING_CACHE.set("orca", tokens)
+    return tokens
 
 
 def fetch_phoenix_listings() -> List[str]:
@@ -225,6 +243,10 @@ def fetch_phoenix_listings() -> List[str]:
 
 
 async def fetch_phoenix_listings_async() -> List[str]:
+    cached = LISTING_CACHE.get("phoenix")
+    if cached is not None:
+        return cached
+
     session = await get_session()
     try:
         async with session.get(PHOENIX_LISTINGS_API, timeout=10) as resp:
@@ -233,7 +255,10 @@ async def fetch_phoenix_listings_async() -> List[str]:
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch Phoenix listings: %s", exc)
         return []
-    return parse_listing_tokens(data)
+
+    tokens = parse_listing_tokens(data)
+    LISTING_CACHE.set("phoenix", tokens)
+    return tokens
 
 
 def fetch_meteora_listings() -> List[str]:
