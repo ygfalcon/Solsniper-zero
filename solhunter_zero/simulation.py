@@ -115,7 +115,7 @@ def _model_cache_key(token: str, model_type: str, metrics: dict, days: int) -> t
 def get_price_model(model_path: str | None = None):
     """Return cached price model reloading when the file changes."""
     global _PRICE_MODEL, _PRICE_MTIME
-    model_path = model_path or os.getenv("PRICE_MODEL_PATH")
+    model_path = model_path or os.getenv("PRICE_MODEL_PATH") or os.getenv("GRAPH_MODEL_PATH")
     if not model_path or not os.path.exists(model_path):
         _PRICE_MODEL = None
         _PRICE_MTIME = 0.0
@@ -320,8 +320,51 @@ def predict_price_movement(
         dh = metrics.get("depth_history") or []
         if isinstance(
             model,
-            (models.TransformerModel, models.DeepTransformerModel, models.XLTransformerModel),
+            (
+                models.TransformerModel,
+                models.DeepTransformerModel,
+                models.XLTransformerModel,
+            ),
         ):
+            tdh = metrics.get("total_depth_history") or [0.0] * len(ph)
+            sh = metrics.get("slippage_history") or [0.0] * len(ph)
+            vh = metrics.get("volume_history") or [0.0] * len(ph)
+            th = metrics.get("tx_count_history") or [0.0] * len(ph)
+            mr = metrics.get("mempool_rate_history") or [0.0] * len(ph)
+            ws = metrics.get("whale_share_history") or [0.0] * len(ph)
+            sp = metrics.get("spread_history") or [0.0] * len(ph)
+            n = min(
+                len(ph),
+                len(lh),
+                len(dh),
+                len(tdh),
+                len(sh),
+                len(vh),
+                len(th),
+                len(mr),
+                len(ws),
+                len(sp),
+            )
+            if n >= 30:
+                seq = np.column_stack(
+                    [
+                        ph[-30:],
+                        lh[-30:],
+                        dh[-30:],
+                        tdh[-30:],
+                        sh[-30:],
+                        vh[-30:],
+                        th[-30:],
+                        mr[-30:],
+                        ws[-30:],
+                        sp[-30:],
+                    ]
+                )
+                try:
+                    return float(model.predict(seq))
+                except Exception:
+                    pass
+        elif isinstance(model, models.GraphPriceModel):
             tdh = metrics.get("total_depth_history") or [0.0] * len(ph)
             sh = metrics.get("slippage_history") or [0.0] * len(ph)
             vh = metrics.get("volume_history") or [0.0] * len(ph)
