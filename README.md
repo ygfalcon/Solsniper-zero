@@ -1082,6 +1082,17 @@ python -m solhunter_zero.backtest_cli prices.json -c config.toml --optimize --it
 
 The best weight configuration found is printed as JSON.
 
+## Protobuf Generation
+
+Protocol buffer classes are generated with `grpcio-tools`. If you modify
+`proto/event.proto`, run:
+
+```bash
+python -m grpc_tools.protoc -I proto --python_out=solhunter_zero proto/event.proto
+```
+
+This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
+
 ## Troubleshooting
 
 - **Permission denied when connecting to the socket** — check that
