@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
 from typing import Dict, Any, List
 
 import aiohttp
@@ -11,8 +12,6 @@ from ..event_bus import subscription
 from . import BaseAgent
 from ..exchange import (
     place_order_async,
-    ORCA_DEX_URL,
-    RAYDIUM_DEX_URL,
     DEX_BASE_URL,
     VENUE_URLS,
     SWAP_PATH,
@@ -59,9 +58,12 @@ class ExecutionAgent(BaseAgent):
         self.priority_fees = list(priority_fees) if priority_fees else None
         self.priority_rpc = list(priority_rpc) if priority_rpc else None
         self._cpu_usage = 0.0
+        self._cpu_smoothed = 0.0
+        self._smoothing = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
         self._resource_subs = [
             subscription("system_metrics", self._on_resource_update),
             subscription("resource_update", self._on_resource_update),
+            subscription("system_metrics_combined", self._on_resource_update),
         ]
         for sub in self._resource_subs:
             sub.__enter__()
@@ -75,9 +77,16 @@ class ExecutionAgent(BaseAgent):
             return
         try:
             self._cpu_usage = float(cpu)
+            if self._cpu_smoothed:
+                self._cpu_smoothed = (
+                    self._smoothing * self._cpu_usage
+                    + (1 - self._smoothing) * self._cpu_smoothed
+                )
+            else:
+                self._cpu_smoothed = self._cpu_usage
         except Exception:
             return
-        frac = max(0.0, min(1.0, self._cpu_usage / 100.0))
+        frac = max(0.0, min(1.0, self._cpu_smoothed / 100.0))
         conc = max(1, int(round(self._base_concurrency * max(0.1, 1.0 - frac))))
         if conc != self._sem._value:
             self._sem = asyncio.Semaphore(conc)
