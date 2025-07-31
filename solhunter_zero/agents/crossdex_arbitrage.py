@@ -4,7 +4,8 @@ import asyncio
 from typing import List, Dict, Any, Mapping, Sequence, Callable, Awaitable
 
 from . import BaseAgent
-from ..arbitrage import DEX_FEES, DEX_GAS, DEX_LATENCY, VENUE_URLS, measure_dex_latency_async
+from ..arbitrage import DEX_FEES, DEX_GAS, DEX_LATENCY, VENUE_URLS
+from ..event_bus import subscribe
 from .. import routeffi as _routeffi
 from ..portfolio import Portfolio
 
@@ -44,12 +45,12 @@ class CrossDEXArbitrage(BaseAgent):
         self._fees: Dict[str, float] = dict(DEX_FEES)
         self._gas: Dict[str, float] = dict(DEX_GAS)
         self._latency: Dict[str, float] = dict(DEX_LATENCY)
-        self._latency_task: asyncio.Task | None = None
         self._latency_updates: Dict[str, float] = {}
+        self._latency_unsub = subscribe("dex_latency_update", self._handle_latency)
 
     def close(self) -> None:
-        if self._latency_task:
-            self._latency_task.cancel()
+        if self._latency_unsub:
+            self._latency_unsub()
 
     def _handle_latency(self, payload: Mapping[str, Any]) -> None:
         for venue, val in payload.items():
@@ -59,27 +60,11 @@ class CrossDEXArbitrage(BaseAgent):
                 pass
 
     async def _ensure_latency(self) -> None:
-        loop = asyncio.get_event_loop()
         if self._latency_updates:
             self._latency.update(self._latency_updates)
             self._latency_updates.clear()
-        if self._latency_task is None:
-            self._latency = await measure_dex_latency_async(
-                VENUE_URLS, dynamic_concurrency=True
-            )
-            self._latency_task = loop.create_task(
-                measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
-            )
-        elif self._latency_task.done():
-            try:
-                res = self._latency_task.result()
-                if isinstance(res, dict):
-                    self._latency.update(res)
-            except Exception:
-                pass
-            self._latency_task = loop.create_task(
-                measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
-            )
+        if not self._latency:
+            self._latency.update(DEX_LATENCY)
 
     async def propose_trade(
         self,

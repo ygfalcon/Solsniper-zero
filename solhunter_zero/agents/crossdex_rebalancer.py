@@ -15,7 +15,7 @@ from ..arbitrage import (
     VENUE_URLS,
     DEX_BASE_URL,
     DEX_FEES,
-    measure_dex_latency_async,
+    DEX_LATENCY,
 )
 from .. import routeffi as _routeffi
 from ..mev_executor import MEVExecutor
@@ -60,12 +60,11 @@ class CrossDEXRebalancer(BaseAgent):
         self._unsub = None
         self._fees: Dict[str, float] = dict(DEX_FEES)
         self._latency: Dict[str, float] = {}
-        self._latency_task: asyncio.Task | None = None
         self._latency_updates: Dict[str, float] = {}
         self._latency_unsub = None
         if self.use_depth_feed:
             self._unsub = subscribe("depth_update", self._handle_depth)
-        self._latency_unsub = subscribe("dex_latency", self._handle_latency)
+        self._latency_unsub = subscribe("dex_latency_update", self._handle_latency)
 
     # ------------------------------------------------------------------
     def _best_order(
@@ -137,27 +136,11 @@ class CrossDEXRebalancer(BaseAgent):
             self._latency_unsub()
 
     async def _ensure_latency(self) -> None:
-        loop = asyncio.get_event_loop()
         if self._latency_updates:
             self._latency.update(self._latency_updates)
             self._latency_updates.clear()
-        if self._latency_task is None:
-            self._latency = await measure_dex_latency_async(
-                VENUE_URLS, dynamic_concurrency=True
-            )
-            self._latency_task = loop.create_task(
-                measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
-            )
-        elif self._latency_task.done():
-            try:
-                result = self._latency_task.result()
-                if isinstance(result, dict):
-                    self._latency.update(result)
-            except Exception:
-                pass
-            self._latency_task = loop.create_task(
-                measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
-            )
+        if not self._latency:
+            self._latency.update(DEX_LATENCY)
 
     # ------------------------------------------------------------------
     async def _split_action(

@@ -67,6 +67,7 @@ ENV_VARS = {
     "dex_fees": "DEX_FEES",
     "dex_gas": "DEX_GAS",
     "dex_latency": "DEX_LATENCY",
+    "dex_latency_refresh_interval": "DEX_LATENCY_REFRESH_INTERVAL",
     "priority_fees": "PRIORITY_FEES",
     "priority_rpc": "PRIORITY_RPC",
     "jito_rpc_url": "JITO_RPC_URL",
