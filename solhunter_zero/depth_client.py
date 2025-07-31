@@ -178,6 +178,7 @@ _decode_adj_matrix = _decode_adj_matrix_py
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
 SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
+WS_SNAPSHOT: Dict[str, Dict[str, Any]] = {}
 
 # IPC connection pooling
 _CONNECTIONS: Dict[str, "_IPCClient"] = {}
@@ -410,9 +411,13 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                     try:
                         ev = pb.Event()
                         ev.ParseFromString(msg.data)
-                        if ev.topic != "depth_update" or not ev.HasField(
-                            "depth_update"
-                        ):
+                        if ev.topic == "depth_update" and ev.HasField("depth_update"):
+                            entries = ev.depth_update.entries
+                            topic = "depth_update"
+                        elif ev.topic == "depth_diff" and ev.HasField("depth_diff"):
+                            entries = ev.depth_diff.entries
+                            topic = "depth_diff"
+                        else:
                             continue
                     except Exception:
                         continue
@@ -430,9 +435,13 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                                 for d, di in e.dex.items()
                             },
                         }
-                        for tok, e in ev.depth_update.entries.items()
+                        for tok, e in entries.items()
                     }
-                    publish("depth_update", data)
+                    if topic == "depth_update":
+                        WS_SNAPSHOT.clear()
+                    for k, v in data.items():
+                        WS_SNAPSHOT[k] = v
+                    publish(topic, data)
                     count += 1
                     if max_updates is not None and count >= max_updates:
                         publish("depth_service_status", {"status": "disconnected"})

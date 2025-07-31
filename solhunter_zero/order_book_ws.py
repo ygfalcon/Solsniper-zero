@@ -12,6 +12,7 @@ from watchfiles import awatch
 
 import aiohttp
 from .http import get_session, loads, dumps
+from . import event_pb2 as pb
 
 logger = logging.getLogger(__name__)
 
@@ -180,47 +181,67 @@ async def stream_order_book(
                 session = await get_session()
                 async with session.ws_connect(url) as ws:
                         async for msg in ws:
-                            if msg.type != aiohttp.WSMsgType.TEXT:
-                                continue
-                            try:
-                                data = loads(msg.data)
-                            except Exception as exc:
-                                logger.error("Failed to parse depth message: %s", exc)
-                                continue
-                            token = data.get("token")
-                            if not token:
-                                continue
-                            if "bids" in data and "asks" in data:
-                                bids = float(data.get("bids", 0.0))
-                                asks = float(data.get("asks", 0.0))
-                                rate = float(data.get("tx_rate", 0.0))
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    data = loads(msg.data)
+                                except Exception as exc:
+                                    logger.error("Failed to parse depth message: %s", exc)
+                                    continue
+                                token = data.get("token")
+                                if not token:
+                                    continue
+                                if "bids" in data and "asks" in data:
+                                    bids = float(data.get("bids", 0.0))
+                                    asks = float(data.get("asks", 0.0))
+                                    rate = float(data.get("tx_rate", 0.0))
+                                else:
+                                    bids = 0.0
+                                    asks = 0.0
+                                    rate = float(data.get("tx_rate", 0.0))
+                                    for v in data.values():
+                                        if isinstance(v, dict):
+                                            bids += float(v.get("bids", 0.0))
+                                            asks += float(v.get("asks", 0.0))
+                                updates = {token: {"bids": bids, "asks": asks, "tx_rate": rate}}
+                            elif msg.type == aiohttp.WSMsgType.BINARY:
+                                try:
+                                    ev = pb.Event()
+                                    ev.ParseFromString(msg.data)
+                                    if ev.topic == "depth_update" and ev.HasField("depth_update"):
+                                        entries = ev.depth_update.entries
+                                    elif ev.topic == "depth_diff" and ev.HasField("depth_diff"):
+                                        entries = ev.depth_diff.entries
+                                    else:
+                                        continue
+                                except Exception:
+                                    continue
+                                updates = {
+                                    tok: {
+                                        "bids": e.bids,
+                                        "asks": e.asks,
+                                        "tx_rate": e.tx_rate,
+                                    }
+                                    for tok, e in entries.items()
+                                }
                             else:
-                                bids = 0.0
-                                asks = 0.0
-                                rate = float(data.get("tx_rate", 0.0))
-                                for v in data.values():
-                                    if isinstance(v, dict):
-                                        bids += float(v.get("bids", 0.0))
-                                        asks += float(v.get("asks", 0.0))
+                                continue
+
                             now = time.time()
                             for k, (ts, _) in list(_DEPTH_CACHE.items()):
                                 if now - ts > ORDERBOOK_CACHE_TTL:
                                     _DEPTH_CACHE.pop(k, None)
-                            _DEPTH_CACHE[token] = (
-                                now,
-                                {
-                                    "bids": bids,
-                                    "asks": asks,
-                                    "tx_rate": rate,
-                                },
-                            )
-                            depth, imb, txr = snapshot(token)
-                            yield {
-                                "token": token,
-                                "depth": depth,
-                                "imbalance": imb,
-                                "tx_rate": txr,
-                            }
+                            for token, info in updates.items():
+                                _DEPTH_CACHE[token] = (
+                                    now,
+                                    info,
+                                )
+                                depth, imb, txr = snapshot(token)
+                                yield {
+                                    "token": token,
+                                    "depth": depth,
+                                    "imbalance": imb,
+                                    "tx_rate": txr,
+                                }
                             count += 1
                             if max_updates is not None and count >= max_updates:
                                 return
