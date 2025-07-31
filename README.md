@@ -337,6 +337,7 @@ profit calculation so routes are ranked based on the borrowed size.
     export TOKEN_VOLUME_CACHE_TTL=45
     export TOP_VOLUME_TOKENS_CACHE_TTL=90
     export DEPTH_CACHE_TTL=1
+    export EDGE_CACHE_TTL=60
     ```
 13. **HTTP connector limits**
    Tune the aiohttp connector:
