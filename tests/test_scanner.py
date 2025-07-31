@@ -250,3 +250,54 @@ def test_scan_tokens_async_mempool(monkeypatch):
     unsub()
     assert result == ["memtok"]
     assert events == [result]
+
+
+def test_scan_tokens_async_concurrency(monkeypatch):
+    running = 0
+    max_running = 0
+
+    async def fake_task(*_a, **_k):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0)
+        running -= 1
+        return ["x"]
+
+    monkeypatch.setattr(scanner.TokenScanner, "scan", lambda *a, **k: fake_task())
+    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", fake_task)
+    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", fake_task)
+    monkeypatch.setattr(scanner, "fetch_orca_listings_async", fake_task)
+    monkeypatch.setattr(scanner, "_fetch_dex_ws_tokens", fake_task)
+    monkeypatch.setattr(scanner, "DEX_LISTING_WS_URL", "ws://dex")
+    monkeypatch.setattr(scanner.os, "cpu_count", lambda: 4)
+    scanner._CPU_PERCENT = 0.0
+
+    asyncio.run(scanner.scan_tokens_async(max_concurrency=2))
+    assert max_running <= 2
+
+
+def test_scan_tokens_async_dynamic(monkeypatch):
+    running = 0
+    max_running = 0
+
+    async def fake_task(*_a, **_k):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0)
+        running -= 1
+        return ["x"]
+
+    monkeypatch.setattr(scanner.TokenScanner, "scan", lambda *a, **k: fake_task())
+    monkeypatch.setattr(scanner, "fetch_trending_tokens_async", fake_task)
+    monkeypatch.setattr(scanner, "fetch_raydium_listings_async", fake_task)
+    monkeypatch.setattr(scanner, "fetch_orca_listings_async", fake_task)
+    monkeypatch.setattr(scanner, "_fetch_dex_ws_tokens", fake_task)
+    monkeypatch.setattr(scanner, "DEX_LISTING_WS_URL", "ws://dex")
+    monkeypatch.setattr(scanner.os, "cpu_count", lambda: 4)
+    scanner._CPU_PERCENT = 90.0
+    scanner._DYN_INTERVAL = 0.0
+
+    asyncio.run(scanner.scan_tokens_async(dynamic_concurrency=True))
+    assert max_running <= 2

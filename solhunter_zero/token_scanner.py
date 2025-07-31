@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import List
+import os
+import contextlib
+from typing import List, Any
 
 import aiohttp
 from .http import get_session
@@ -20,9 +22,29 @@ from .scanner_common import (
     parse_birdeye_tokens,
 )
 from . import dex_ws
-from .event_bus import publish
+from .event_bus import publish, subscription
 
 logger = logging.getLogger(__name__)
+
+_CPU_PERCENT: float = 0.0
+_DYN_INTERVAL: float = 2.0
+
+
+def _on_system_metrics(msg: Any) -> None:
+    """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
+    cpu = getattr(msg, "cpu", None)
+    if isinstance(msg, dict):
+        cpu = msg.get("cpu", cpu)
+    if cpu is None:
+        return
+    try:
+        global _CPU_PERCENT
+        _CPU_PERCENT = float(cpu)
+    except Exception:
+        pass
+
+_resource_sub = subscription("system_metrics_combined", _on_system_metrics)
+_resource_sub.__enter__()
 
 
 class TokenScanner:
@@ -127,22 +149,80 @@ async def _fetch_dex_ws_tokens() -> List[str]:
 
 
 async def scan_tokens_async(
-    *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
+    *,
+    offline: bool = False,
+    token_file: str | None = None,
+    method: str = "websocket",
+    max_concurrency: int | None = None,
+    cpu_usage_threshold: float | None = None,
+    dynamic_concurrency: bool = False,
 ) -> List[str]:
-    """Discover tokens asynchronously using the specified ``method``."""
+    """Discover tokens asynchronously using the specified ``method``.
+
+    Parameters
+    ----------
+    max_concurrency:
+        Maximum number of concurrent subtasks. Defaults to ``os.cpu_count()``.
+    cpu_usage_threshold:
+        Pause task creation while CPU usage exceeds this percentage.
+    dynamic_concurrency:
+        Reduce the limit to half when CPU usage stays above
+        ``CPU_HIGH_THRESHOLD`` and restore it when below ``CPU_LOW_THRESHOLD``.
+    """
+
+    if max_concurrency is None or max_concurrency <= 0:
+        max_concurrency = os.cpu_count() or 1
+
+    sem = asyncio.Semaphore(max_concurrency)
+    current_limit = max_concurrency
+    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
+    high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
+    low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+    adjust_task: asyncio.Task | None = None
+
+    async def _set_limit(new_limit: int) -> None:
+        nonlocal current_limit
+        diff = new_limit - current_limit
+        if diff > 0:
+            for _ in range(diff):
+                sem.release()
+        elif diff < 0:
+            for _ in range(-diff):
+                await sem.acquire()
+        current_limit = new_limit
+
+    if dynamic_concurrency:
+        async def _adjust() -> None:
+            nonlocal current_limit
+            try:
+                while True:
+                    await asyncio.sleep(_dyn_interval)
+                    cpu = _CPU_PERCENT
+                    if cpu > high and current_limit == max_concurrency:
+                        await _set_limit(max(1, max_concurrency // 2))
+                    elif cpu < low and current_limit < max_concurrency:
+                        await _set_limit(max_concurrency)
+            except asyncio.CancelledError:
+                pass
+
+        adjust_task = asyncio.create_task(_adjust())
+        await asyncio.sleep(0)
+
+    async def _run(coro: asyncio.Future) -> Any:
+        if cpu_usage_threshold is not None:
+            while _CPU_PERCENT > cpu_usage_threshold:
+                await asyncio.sleep(0.05)
+        async with sem:
+            return await coro
 
     scanner = TokenScanner()
-    base_task = asyncio.create_task(
-        scanner.scan(offline=offline, token_file=token_file, method=method)
-    )
-
-    tasks: list[asyncio.Task] = [base_task]
+    tasks: list[asyncio.Task] = [asyncio.create_task(_run(scanner.scan(offline=offline, token_file=token_file, method=method)))]
     if not offline and token_file is None:
-        tasks.append(asyncio.create_task(fetch_trending_tokens_async()))
-        tasks.append(asyncio.create_task(fetch_raydium_listings_async()))
-        tasks.append(asyncio.create_task(fetch_orca_listings_async()))
+        tasks.append(asyncio.create_task(_run(fetch_trending_tokens_async())))
+        tasks.append(asyncio.create_task(_run(fetch_raydium_listings_async())))
+        tasks.append(asyncio.create_task(_run(fetch_orca_listings_async())))
         if DEX_LISTING_WS_URL and method not in {"onchain", "pools", "file"}:
-            tasks.append(asyncio.create_task(_fetch_dex_ws_tokens()))
+            tasks.append(asyncio.create_task(_run(_fetch_dex_ws_tokens())))
 
     results = await asyncio.gather(*tasks)
     tokens = results[0] or []
@@ -152,6 +232,10 @@ async def scan_tokens_async(
     if extras:
         tokens = list(dict.fromkeys(tokens + extras))
     publish("token_discovered", tokens)
+    if adjust_task:
+        adjust_task.cancel()
+        with contextlib.suppress(Exception):
+            await adjust_task
     return tokens
 
 

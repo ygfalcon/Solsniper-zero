@@ -132,6 +132,8 @@ Key discovery options:
   mempool before they are considered by discovery agents.
 - `trend_volume_threshold` filters out tokens with on-chain volume below this
   value when ranking new opportunities.
+- `max_concurrency` limits how many discovery tasks run in parallel. The
+  environment variable `MAX_CONCURRENCY` overrides this value.
 
    An example configuration file named `config.example.toml` is included in
    the project root. Copy it to `config.toml` (or `config.yaml`) and edit the
@@ -172,10 +174,12 @@ direct transaction submission to the Solana RPC.
     broadcasts (defaults to `100`).
   - `CPU_LOW_THRESHOLD` / `CPU_HIGH_THRESHOLD` – CPU usage percentages
     controlling delay adjustments (defaults to `20` and `80`).
-  - `MAX_CONCURRENCY` – maximum number of concurrent ranking tasks. When set
-    to `0` the scanner uses half the available CPUs.
+  - `MAX_CONCURRENCY` – maximum number of concurrent discovery and ranking
+    tasks. When set to `0` the scanner uses half the available CPUs.
   - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
     percentage.
+  - `DYNAMIC_CONCURRENCY_INTERVAL` – how often CPU usage is sampled when
+    adjusting task limits (defaults to `2`).
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
     `system_metrics_combined`.
