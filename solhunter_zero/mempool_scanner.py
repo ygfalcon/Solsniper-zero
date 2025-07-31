@@ -52,7 +52,9 @@ MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0
 
 _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 _CPU_PERCENT: float = 0.0
+_CPU_SMOOTHED: float = 0.0
 _DYN_INTERVAL: float = 2.0
+_SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
 
 def _on_system_metrics(msg: Any) -> None:
     """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
@@ -62,8 +64,12 @@ def _on_system_metrics(msg: Any) -> None:
     if cpu is None:
         return
     try:
-        global _CPU_PERCENT
+        global _CPU_PERCENT, _CPU_SMOOTHED
         _CPU_PERCENT = float(cpu)
+        if _CPU_SMOOTHED:
+            _CPU_SMOOTHED = _SMOOTHING * _CPU_PERCENT + (1 - _SMOOTHING) * _CPU_SMOOTHED
+        else:
+            _CPU_SMOOTHED = _CPU_PERCENT
     except Exception:
         pass
 
@@ -267,11 +273,10 @@ async def stream_ranked_mempool_tokens(
 
     if dynamic_concurrency:
         async def _adjust() -> None:
-            nonlocal current_limit
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
-                    cpu = _CPU_PERCENT
+                    cpu = _CPU_SMOOTHED
                     if cpu > high and current_limit == max_concurrency:
                         await _set_limit(max(1, max_concurrency // 2))
                     elif cpu < low and current_limit < max_concurrency:
@@ -297,7 +302,7 @@ async def stream_ranked_mempool_tokens(
         include_pools=include_pools,
     ):
         if cpu_usage_threshold is not None:
-            while _CPU_PERCENT > cpu_usage_threshold:
+            while _CPU_SMOOTHED > cpu_usage_threshold:
                 await asyncio.sleep(0.05)
         address = tok["address"] if isinstance(tok, dict) else tok
         task = asyncio.create_task(worker(address))
