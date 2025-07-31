@@ -20,7 +20,7 @@ from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .rl_training import _ensure_mmap_dataset, MultiAgentRL
-from .rl_algorithms import _A3C, _DDPG
+from .rl_algorithms import _A3C, _DDPG, TransformerPolicy
 from .risk import average_correlation
 from .event_bus import (
     subscription,
@@ -324,6 +324,7 @@ class RLDaemon:
         data_path: str = "offline_data.db",
         model_path: str | Path = "ppo_model.pt",
         algo: str = "ppo",
+        policy: str = "mlp",
         device: str | None = None,
         *,
         agents: Iterable[Any] | None = None,
@@ -342,6 +343,7 @@ class RLDaemon:
         _ensure_mmap_dataset(f"sqlite:///{data_path}", Path("datasets/offline_data.npz"))
         self.model_path = Path(model_path)
         self.algo = algo
+        self.policy = policy
         self.multi_rl = bool(multi_rl)
         self.live = bool(live)
         self.distributed_rl = bool(distributed_rl)
@@ -383,13 +385,13 @@ class RLDaemon:
             self.model = _PPO()
         else:
             if algo == "dqn":
-                self.model: nn.Module = _DQN()
+                self.model = _DQN()
             elif algo == "a3c":
-                self.model = _A3C()
+                self.model = TransformerPolicy() if self.policy == "transformer" else _A3C()
             elif algo == "ddpg":
                 self.model = _DDPG()
             else:
-                self.model = _PPO()
+                self.model = TransformerPolicy() if self.policy == "transformer" else _PPO()
 
         use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
         if use_compile:
