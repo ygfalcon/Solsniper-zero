@@ -361,6 +361,19 @@ def stop() -> dict:
     return jsonify({"status": "stopped"})
 
 
+@app.route("/autostart", methods=["POST"])
+def autostart() -> dict:
+    """Launch the bot in fully automatic mode."""
+    global trading_thread
+    if trading_thread and trading_thread.is_alive():
+        return jsonify({"status": "already running"})
+    trading_thread = threading.Thread(
+        target=main_module.run_auto, daemon=True
+    )
+    trading_thread.start()
+    return jsonify({"status": "started"})
+
+
 def _run_start_all() -> None:
     """Run scripts/start_all.py in a subprocess and wait for it to exit."""
     global start_all_proc
@@ -741,6 +754,10 @@ HTML_PAGE = """
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
     <select id='keypair_select'></select>
+    <label><input id='auto_toggle' type='checkbox'> Full Auto Mode</label>
+    <pre id='status_info'></pre>
+    <p>Active Keypair: <span id='active_keypair'></span></p>
+    <p>Active Config: <span id='active_config'></span></p>
 
     <h3>ROI: <span id='roi_value'>0</span></h3>
     <canvas id='roi_chart' width='400' height='100'></canvas>
@@ -788,6 +805,13 @@ HTML_PAGE = """
     document.getElementById('stop').onclick = function() {
         fetch('/stop_all', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+    document.getElementById('auto_toggle').onchange = function() {
+        if(this.checked) {
+            fetch('/autostart', {method:'POST'}).then(r=>r.json()).then(console.log);
+        } else {
+            fetch('/stop_all', {method:'POST'}).then(r=>r.json()).then(console.log);
+        }
+    };
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
         type: 'line',
@@ -834,6 +858,7 @@ HTML_PAGE = """
                 opt.value = n; opt.textContent = n; sel.appendChild(opt);
             });
             sel.value = data.active || '';
+            document.getElementById('active_keypair').textContent = data.active || '';
         });
     }
     document.getElementById('keypair_select').onchange = function() {
@@ -885,6 +910,12 @@ HTML_PAGE = """
         });
     }
 
+    function loadConfig() {
+        fetch('/configs').then(r => r.json()).then(data => {
+            document.getElementById('active_config').textContent = data.active || '';
+        });
+    }
+
     document.getElementById('save_weights').onclick = function() {
         const data = {};
         document.querySelectorAll('#weights_controls input').forEach(inp => {
@@ -898,6 +929,10 @@ HTML_PAGE = """
     };
 
     function refreshData() {
+        fetch('/status').then(r => r.json()).then(data => {
+            document.getElementById('status_info').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('auto_toggle').checked = data.trading_loop;
+        });
         fetch('/positions').then(r => r.json()).then(data => {
             document.getElementById('positions').textContent = JSON.stringify(data, null, 2);
         });
@@ -950,10 +985,15 @@ HTML_PAGE = """
     }
 
     loadKeypairs();
+    loadConfig();
     loadRisk();
     loadWeights();
     refreshData();
-    setInterval(refreshData, 5000);
+    setInterval(function(){
+        refreshData();
+        loadConfig();
+        loadKeypairs();
+    }, 5000);
     try {
         const rlSock = new WebSocket('ws://' + window.location.hostname + ':8767');
         rlSock.onmessage = function(ev) {
