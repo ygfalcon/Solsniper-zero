@@ -28,6 +28,18 @@ sys.modules.setdefault("torch.nn", torch_mod.nn)
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 sys.modules.setdefault("transformers", dummy_trans)
+dummy_sklearn = types.ModuleType("sklearn")
+dummy_sklearn.linear_model = types.SimpleNamespace(LinearRegression=object)
+dummy_sklearn.ensemble = types.SimpleNamespace(
+    GradientBoostingRegressor=object,
+    RandomForestRegressor=object,
+)
+sys.modules.setdefault("sklearn", dummy_sklearn)
+sys.modules.setdefault("sklearn.linear_model", dummy_sklearn.linear_model)
+sys.modules.setdefault("sklearn.ensemble", dummy_sklearn.ensemble)
+dummy_watchfiles = types.ModuleType("watchfiles")
+dummy_watchfiles.awatch = lambda *a, **k: None
+sys.modules.setdefault("watchfiles", dummy_watchfiles)
 
 from solhunter_zero import ui, config
 import solhunter_zero.data_sync as data_sync
@@ -38,42 +50,46 @@ import threading
 
 
 def test_start_and_stop(monkeypatch):
-    calls = []
+    ui.start_all_thread = None
+    ui.start_all_proc = None
+    events = []
 
-    async def fake_loop():
-        calls.append(True)
-        ui.stop_event.set()
+    class DummyProc:
+        def __init__(self, *a, **k):
+            events.append("start")
+            self.ev = threading.Event()
 
-    monkeypatch.setattr(ui, "trading_loop", fake_loop)
-    monkeypatch.setattr(ui, "loop_delay", 0)
-    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
-    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
-    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
-    async def fake_sync():
-        calls.append("sync")
-    monkeypatch.setattr(data_sync, "sync_recent", fake_sync)
-    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
-    monkeypatch.setenv("DEX_BASE_URL", "x")
+        def poll(self):
+            return None if not self.ev.is_set() else 0
+
+        def wait(self, timeout=None):
+            self.ev.wait(timeout)
+
+        def terminate(self):
+            events.append("term")
+            self.ev.set()
+
+        def kill(self):
+            events.append("kill")
+            self.ev.set()
+
+    monkeypatch.setattr(ui.subprocess, "Popen", DummyProc)
 
     client = ui.app.test_client()
 
-    resp = client.post("/start")
+    resp = client.post("/start_all")
     assert resp.get_json()["status"] == "started"
+    assert ui.start_all_thread and ui.start_all_thread.is_alive()
 
-    for _ in range(100):
-        time.sleep(0.01)
-        if calls:
-            break
+    resp = client.post("/start_all")
+    assert resp.get_json()["status"] == "already running"
 
-    resp = client.post("/start")
-    assert resp.get_json()["status"] in {"already running", "started"}
-
-    resp = client.post("/stop")
+    resp = client.post("/stop_all")
     assert resp.get_json()["status"] == "stopped"
 
-    ui.trading_thread.join(timeout=1)
-    assert not ui.trading_thread.is_alive()
-    assert "sync" in calls
+    ui.start_all_thread.join(timeout=1)
+    assert not ui.start_all_thread.is_alive()
+    assert "term" in events
 
 
 
@@ -340,6 +356,39 @@ def test_token_history_endpoint(monkeypatch):
 def _setup_memory(monkeypatch):
     mem = ui.Memory("sqlite:///:memory:")
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: mem)
+
+    orig_session = mem.Session
+
+    def _sync_session():
+        async_session = orig_session()
+
+        class Wrapper:
+            def __enter__(self_wr):
+                from solhunter_zero.util import run_coro
+                return run_coro(async_session.__aenter__())
+
+            def __exit__(self_wr, exc_type, exc, tb):
+                from solhunter_zero.util import run_coro
+                return run_coro(async_session.__aexit__(exc_type, exc, tb))
+
+            def execute(self_wr, *a, **k):
+                from solhunter_zero.util import run_coro
+                return run_coro(async_session.execute(*a, **k))
+
+            def commit(self_wr):
+                from solhunter_zero.util import run_coro
+                return run_coro(async_session.commit())
+
+        return Wrapper()
+
+    mem.Session = _sync_session
+
+    orig = mem.log_trade
+    def _sync_log_trade(*a, **k):
+        from solhunter_zero.util import run_coro
+        return run_coro(orig(*a, **k))
+
+    mem.log_trade = _sync_log_trade
     return mem
 
 
