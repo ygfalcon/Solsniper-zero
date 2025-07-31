@@ -111,8 +111,8 @@ USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true"
 USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "1").lower() in {"1", "true", "yes"}
 
 _ffi_env = os.getenv("USE_FFI_ROUTE")
-if _ffi_env:
-    USE_FFI_ROUTE = _ffi_env.lower() in {"1", "true", "yes"}
+if _ffi_env is not None:
+    USE_FFI_ROUTE = _ffi_env.strip().lower() not in {"0", "false", "no"}
 else:
     try:  # prefer the FFI path when available
         USE_FFI_ROUTE = _routeffi.available()

@@ -225,8 +225,8 @@ direct transaction submission to the Solana RPC.
   cargo build --manifest-path route_ffi/Cargo.toml --release
   ```
   Python automatically loads the compiled library from
-  ``solhunter_zero/libroute_ffi.so``. Set `USE_FFI_ROUTE=0` to force the
-  Python implementation.
+  ``solhunter_zero/libroute_ffi.so`` and uses it by default when
+  present. Set `USE_FFI_ROUTE=0` to force the Python implementation.
 
 ## Flash-Loan Arbitrage
 
@@ -467,7 +467,10 @@ The trading logic is implemented by a swarm of small agents:
     `dex_gas` and `dex_latency`.  These latency values are
     measured concurrently at startup by pinging each API and
     websocket endpoint.  Set `MEASURE_DEX_LATENCY=0` to skip
-    this automatic measurement.
+    this automatic measurement. When the optional `route_ffi`
+    library is available the agent uses it automatically for
+    path computations. Set `USE_FFI_ROUTE=0` to disable this
+    behavior.
 - **ExitAgent** — proposes sells when stop-loss, take-profit or trailing stop thresholds are hit.
 - **ExecutionAgent** — rate‑limited order executor.
   When `PRIORITY_FEES` is set the agent scales the compute-unit price
