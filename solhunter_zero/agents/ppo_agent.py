@@ -77,6 +77,14 @@ class PPOAgent(BaseAgent):
         )
         self.actor.to(self.device)
         self.critic.to(self.device)
+        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+        if use_compile:
+            try:
+                if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:
+                    self.actor = torch.compile(self.actor)
+                    self.critic = torch.compile(self.critic)
+            except Exception:
+                pass
         self.optimizer = optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()),
             lr=learning_rate,

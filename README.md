@@ -895,6 +895,10 @@ variable or the `--num-workers` flag on `solhunter-train` and
 On a 4‑core test machine throughput increased from about 250 samples/s with a
 single worker to around 700 samples/s with four workers.
 
+Torch 2 adds the `torch.compile` API which can speed up both training and
+inference. Models are compiled automatically when this feature is available.
+Set `USE_TORCH_COMPILE=0` to disable this optimization.
+
 Set `rl_auto_train = true` in `config.toml` to enable automatic hyperparameter
 tuning. When enabled the RL daemon starts automatically with the trading loop.
 It spawns `scripts/auto_train_rl.py` which periodically retrains the PPO model
