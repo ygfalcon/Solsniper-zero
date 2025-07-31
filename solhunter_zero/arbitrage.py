@@ -271,9 +271,9 @@ def invalidate_route(token: str | None = None) -> None:
     if token is None:
         ROUTE_CACHE.clear()
         return
-    keys = [k for k in ROUTE_CACHE._cache if k[0] == token]
+    keys = [k for k in ROUTE_CACHE.keys() if k[0] == token]
     for k in keys:
-        ROUTE_CACHE._cache.pop(k, None)
+        ROUTE_CACHE.pop(k, None)
 
 
 def invalidate_edges(token: str | None = None) -> None:
@@ -1036,7 +1036,7 @@ async def _compute_route(
             path_algorithm=path_algorithm,
         )
 
-    ROUTE_CACHE.set(key, (path, profit))
+    ROUTE_CACHE[key] = (path, profit)
     return path, profit
 
 
