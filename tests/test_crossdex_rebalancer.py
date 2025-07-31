@@ -32,7 +32,7 @@ def test_crossdex_split(monkeypatch):
         lambda t: ({"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}}, 0.0),
     )
 
-    async def fake_latency(urls):
+    async def fake_latency(urls, *a, **k):
         return {"dexA": 0.5, "dexB": 0.01}
 
     monkeypatch.setattr(
@@ -76,7 +76,7 @@ def test_crossdex_feed(monkeypatch):
         fail_snapshot,
     )
 
-    async def fake_latency(urls):
+    async def fake_latency(urls, *a, **k):
         return {"dexA": 0.1, "dexB": 0.1}
 
     monkeypatch.setattr(
@@ -119,7 +119,7 @@ def test_crossdex_latency_update(monkeypatch):
         lambda t: ({"dexA": {"bids": 50, "asks": 50}, "dexB": {"bids": 50, "asks": 50}}, 0.0),
     )
 
-    async def base_latency(urls):
+    async def base_latency(urls, *a, **k):
         return {"dexA": 0.5, "dexB": 0.01}
 
     monkeypatch.setattr(
@@ -161,7 +161,7 @@ def test_crossdex_depth_window(monkeypatch):
         fail_snapshot,
     )
 
-    async def const_latency(urls):
+    async def const_latency(urls, *a, **k):
         return {"dexA": 0.1, "dexB": 0.1}
 
     monkeypatch.setattr(

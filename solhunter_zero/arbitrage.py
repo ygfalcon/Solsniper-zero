@@ -6,6 +6,10 @@ import heapq
 import time
 from typing import List
 import numpy as np
+import contextlib
+
+from .dynamic_limit import _target_concurrency, _step_limit
+from . import resource_monitor
 
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
@@ -155,6 +159,9 @@ MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {
     "no",
 }
 
+# Interval in seconds between dynamic concurrency adjustments
+_DYN_INTERVAL: float = 2.0
+
 
 async def _ping_url(
     session: aiohttp.ClientSession, url: str, attempts: int = 3
@@ -183,14 +190,59 @@ async def _ping_url(
 
 
 async def measure_dex_latency_async(
-    urls: Mapping[str, str], attempts: int = 3
+    urls: Mapping[str, str],
+    attempts: int = 3,
+    *,
+    max_concurrency: int | None = None,
+    dynamic_concurrency: bool = False,
 ) -> dict[str, float]:
     """Asynchronously measure latency for each URL in ``urls``."""
+
+    if max_concurrency is None or max_concurrency <= 0:
+        max_concurrency = os.cpu_count() or 1
+
+    sem = asyncio.Semaphore(max_concurrency)
+    current_limit = max_concurrency
+    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
+    high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
+    low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+    adjust_task: asyncio.Task | None = None
+
+    async def _set_limit(new_limit: int) -> None:
+        nonlocal current_limit
+        diff = new_limit - current_limit
+        if diff > 0:
+            for _ in range(diff):
+                sem.release()
+        elif diff < 0:
+            for _ in range(-diff):
+                await sem.acquire()
+        current_limit = new_limit
+
+    if dynamic_concurrency:
+        async def _adjust() -> None:
+            try:
+                while True:
+                    await asyncio.sleep(_dyn_interval)
+                    cpu = resource_monitor.get_cpu_usage()
+                    target = _target_concurrency(cpu, max_concurrency, low, high)
+                    new_limit = _step_limit(current_limit, target, max_concurrency)
+                    if new_limit != current_limit:
+                        await _set_limit(new_limit)
+            except asyncio.CancelledError:
+                pass
+
+        adjust_task = asyncio.create_task(_adjust())
+        await asyncio.sleep(0)
 
     session = await get_session()
 
     async def _measure(name: str, url: str) -> tuple[str, float]:
-        coros = [_ping_url(session, url, 1) for _ in range(max(1, attempts))]
+        async def _run() -> float:
+            async with sem:
+                return await _ping_url(session, url, 1)
+
+        coros = [_run() for _ in range(max(1, attempts))]
         results = await asyncio.gather(*coros, return_exceptions=True)
         times = [t for t in results if isinstance(t, (int, float))]
         value = sum(times) / len(times) if times else 0.0
@@ -203,6 +255,10 @@ async def measure_dex_latency_async(
         if isinstance(res, tuple):
             n, v = res
             latency[n] = v
+    if adjust_task:
+        adjust_task.cancel()
+        with contextlib.suppress(Exception):
+            await adjust_task
     return latency
 
 

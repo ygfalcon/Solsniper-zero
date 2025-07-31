@@ -22,7 +22,7 @@ def test_crossdex_arbitrage_best_path(monkeypatch):
 
     monkeypatch.setattr(
         "solhunter_zero.agents.crossdex_arbitrage.measure_dex_latency_async",
-        lambda urls: {"dex1": 0.0, "dex2": 0.0, "dex3": 0.0},
+        lambda urls, *a, **k: {"dex1": 0.0, "dex2": 0.0, "dex3": 0.0},
     )
     monkeypatch.setattr(
         "solhunter_zero.agents.crossdex_arbitrage.DEX_FEES",

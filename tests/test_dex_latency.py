@@ -71,3 +71,63 @@ async def test_measure_latency_parallel(monkeypatch):
     assert res["d1"] == pytest.approx(0.05)
     assert len(calls) == 6
     assert duration < 0.1
+
+
+@pytest.mark.asyncio
+async def test_measure_latency_concurrency_limit(monkeypatch):
+    import solhunter_zero.arbitrage as mod
+
+    async def fake_get_session():
+        return object()
+
+    running = 0
+    max_running = 0
+
+    async def fake_ping(session, url, attempts=1):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0.05)
+        running -= 1
+        return 0.05
+
+    monkeypatch.setattr(mod, "get_session", fake_get_session)
+    monkeypatch.setattr(mod, "_ping_url", fake_ping)
+
+    await mod.measure_dex_latency_async(
+        {"d1": "u1", "d2": "u2", "d3": "u3"}, attempts=1, max_concurrency=2
+    )
+    assert max_running <= 2
+
+
+@pytest.mark.asyncio
+async def test_measure_latency_dynamic_limit(monkeypatch):
+    import solhunter_zero.arbitrage as mod
+
+    monkeypatch.setattr(mod.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(mod.resource_monitor, "get_cpu_usage", lambda: 90.0)
+    mod._DYN_INTERVAL = 0.0
+
+    async def fake_get_session():
+        return object()
+
+    running = 0
+    max_running = 0
+
+    async def fake_ping(session, url, attempts=1):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return 0.05
+
+    monkeypatch.setattr(mod, "get_session", fake_get_session)
+    monkeypatch.setattr(mod, "_ping_url", fake_ping)
+
+    await mod.measure_dex_latency_async(
+        {"d1": "u1", "d2": "u2", "d3": "u3", "d4": "u4"},
+        attempts=1,
+        dynamic_concurrency=True,
+    )
+    assert max_running <= 2
