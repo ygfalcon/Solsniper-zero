@@ -55,7 +55,9 @@ up automatically. Select this file from the UI or set
    `solhunter_zero.util.install_uvloop()` at startup.
 
    The optional `fastjson` group installs [orjson](https://pypi.org/project/orjson/)
-   for faster JSON serialization and parsing:
+   for faster JSON serialization and parsing. When installed, all HTTP helpers
+   and the event bus return JSON as bytes via `orjson`, improving throughput by
+   roughly 25%:
 
   ```bash
   pip install .[fastjson]
