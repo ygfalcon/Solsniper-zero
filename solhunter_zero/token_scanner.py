@@ -221,15 +221,25 @@ async def scan_tokens_async(
             return await coro
 
     scanner = TokenScanner()
-    tasks: list[asyncio.Task] = [asyncio.create_task(_run(scanner.scan(offline=offline, token_file=token_file, method=method)))]
-    if not offline and token_file is None:
-        tasks.append(asyncio.create_task(_run(fetch_trending_tokens_async())))
-        tasks.append(asyncio.create_task(_run(fetch_raydium_listings_async())))
-        tasks.append(asyncio.create_task(_run(fetch_orca_listings_async())))
-        if DEX_LISTING_WS_URL and method not in {"onchain", "pools", "file"}:
-            tasks.append(asyncio.create_task(_run(_fetch_dex_ws_tokens())))
 
-    results = await asyncio.gather(*tasks)
+    async with asyncio.TaskGroup() as tg:
+        main_task = tg.create_task(
+            _run(
+                scanner.scan(
+                    offline=offline, token_file=token_file, method=method
+                )
+            )
+        )
+        tasks = [main_task]
+        if not offline and token_file is None:
+            tasks.append(tg.create_task(_run(fetch_trending_tokens_async())))
+            tasks.append(tg.create_task(_run(fetch_raydium_listings_async())))
+            tasks.append(tg.create_task(_run(fetch_orca_listings_async())))
+            if DEX_LISTING_WS_URL and method not in {"onchain", "pools", "file"}:
+                tasks.append(tg.create_task(_run(_fetch_dex_ws_tokens())))
+        # TaskGroup will wait for all tasks
+
+    results = [t.result() for t in tasks]
     tokens = results[0] or []
     extras: List[str] = []
     for res in results[1:]:

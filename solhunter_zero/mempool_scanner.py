@@ -286,7 +286,6 @@ async def stream_ranked_mempool_tokens(
 
         adjust_task = asyncio.create_task(_adjust())
     queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
-    tasks: set[asyncio.Task] = set()
 
     async def worker(addr: str) -> None:
         async with sem:
@@ -295,24 +294,21 @@ async def stream_ranked_mempool_tokens(
                 combined = data["momentum"] * (1.0 - data["whale_activity"])
                 await queue.put({"address": addr, **data, "combined_score": combined})
 
-    async for tok in stream_mempool_tokens(
-        rpc_url,
-        suffix=suffix,
-        keywords=keywords,
-        include_pools=include_pools,
-    ):
-        if cpu_usage_threshold is not None:
-            while _CPU_SMOOTHED > cpu_usage_threshold:
-                await asyncio.sleep(0.05)
-        address = tok["address"] if isinstance(tok, dict) else tok
-        task = asyncio.create_task(worker(address))
-        tasks.add(task)
-        task.add_done_callback(tasks.discard)
-        while not queue.empty():
-            yield queue.get_nowait()
+    async with asyncio.TaskGroup() as tg:
+        async for tok in stream_mempool_tokens(
+            rpc_url,
+            suffix=suffix,
+            keywords=keywords,
+            include_pools=include_pools,
+        ):
+            if cpu_usage_threshold is not None:
+                while _CPU_SMOOTHED > cpu_usage_threshold:
+                    await asyncio.sleep(0.05)
+            address = tok["address"] if isinstance(tok, dict) else tok
+            tg.create_task(worker(address))
+            while not queue.empty():
+                yield queue.get_nowait()
 
-    if tasks:
-        await asyncio.gather(*tasks)
     while not queue.empty():
         yield queue.get_nowait()
     if adjust_task:
