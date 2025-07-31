@@ -326,6 +326,7 @@ class RLDaemon:
         cpu_callback: Callable[[], float] | None = None,
         multi_rl: bool | None = None,
         rl_population_size: int = 2,
+        live: bool | None = None,
     ) -> None:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
@@ -334,7 +335,9 @@ class RLDaemon:
         self.model_path = Path(model_path)
         self.algo = algo
         self.multi_rl = bool(multi_rl)
+        self.live = bool(live)
         self.population: MultiAgentRL | None = None
+        self.live_dataset: rl_training.LiveTradeDataset | None = None
         self.last_train_time: float | None = None
         self.checkpoint_path: str = str(self.model_path)
         if device is None:
@@ -345,6 +348,8 @@ class RLDaemon:
             else:
                 device = "cpu"
         self.device = torch.device(device)
+        if self.live:
+            self.live_dataset = rl_training.LiveTradeDataset()
         if self.multi_rl:
             from .rl_training import MultiAgentRL
             self.population = MultiAgentRL(
@@ -441,6 +446,8 @@ class RLDaemon:
     def close(self) -> None:
         for sub in self._subscriptions:
             sub.__exit__(None, None, None)
+        if self.live_dataset is not None:
+            self.live_dataset.close()
         if self._task:
             self._task.cancel()
         if self._hb_task:
@@ -456,6 +463,8 @@ class RLDaemon:
 
     def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
         """Return new trades and snapshots since the last training cycle."""
+        if self.live_dataset is not None:
+            return self.live_dataset.fetch_new()
         trades: list[Trade] = []
         snaps: list[MarketSnapshot] = []
         with self.memory.Session() as session:
@@ -607,6 +616,8 @@ class RLDaemon:
         tune_interval: float | None = None,
     ) -> asyncio.Task:
         """Begin the training loop in the current or a background event loop."""
+        if self.live and interval == 3600.0:
+            interval = 5.0
         if self._task is not None:
             return self._task
 

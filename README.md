@@ -938,6 +938,11 @@ and trains each one on the most recent trades. After every update the model
 with the highest score publishes its policy via the `rl_weights` event. The
 size of this population is controlled by `rl_population_size`.
 
+Enable `rl_live = true` to train directly from streamed `trade_logged` and
+`depth_update` events. The daemon uses the new `LiveTradeDataset` to buffer
+recent updates and performs incremental training every few seconds when this
+mode is active.
+
 Torch 2 adds the `torch.compile` API which can speed up both training and
 inference. Models are compiled automatically when this feature is available.
 Set `USE_TORCH_COMPILE=0` to disable this optimization.

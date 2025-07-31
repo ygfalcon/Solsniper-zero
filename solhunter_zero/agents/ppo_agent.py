@@ -95,6 +95,10 @@ class PPOAgent(BaseAgent):
         if self.model_path.exists():
             self._load_weights()
 
+        from ..event_bus import subscription
+        self._rl_sub = subscription("rl_weights", lambda _p: self.reload_weights())
+        self._rl_sub.__enter__()
+
     # ------------------------------------------------------------------
     def _load_weights(self) -> None:
         script_path = self.model_path.with_suffix(".ptc")
@@ -258,3 +262,7 @@ class PPOAgent(BaseAgent):
         if position:
             return [{"token": token, "side": "sell", "amount": position.amount, "price": 0.0, "agent": self.name}]
         return []
+
+    def close(self) -> None:
+        if getattr(self, "_rl_sub", None):
+            self._rl_sub.__exit__(None, None, None)

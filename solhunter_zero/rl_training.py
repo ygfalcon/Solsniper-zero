@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Tuple
 import time
 import psutil
+from collections import deque
 
 try:
     from numba import njit  # type: ignore
@@ -150,6 +151,74 @@ def _compute_regimes(tokens: np.ndarray, prices: np.ndarray, weight: float, thr:
     change = prices / base - 1.0
     res = np.where(change > thr, 1.0, np.where(change < -thr, -1.0, 0.0))
     return res.astype(np.float32) * weight
+
+
+class LiveTradeDataset:
+    """Buffer trade and depth events from :mod:`event_bus`."""
+
+    def __init__(self, capacity: int = 10000) -> None:
+        self.capacity = int(capacity)
+        self.trades: deque[Any] = deque(maxlen=self.capacity)
+        self.snaps: deque[Any] = deque(maxlen=self.capacity)
+        self._last_trade = 0
+        self._last_snap = 0
+
+        def _add_trade(payload: Any) -> None:
+            from types import SimpleNamespace
+
+            self.trades.append(
+                SimpleNamespace(
+                    token=getattr(payload, "token", None) or payload.get("token"),
+                    direction=getattr(payload, "direction", None)
+                    or payload.get("direction"),
+                    amount=float(getattr(payload, "amount", payload.get("amount", 0.0))),
+                    price=float(getattr(payload, "price", payload.get("price", 0.0))),
+                    timestamp=getattr(payload, "timestamp", datetime.datetime.utcnow()),
+                )
+            )
+
+        def _add_depth(payload: Any) -> None:
+            from types import SimpleNamespace
+
+            entries = getattr(payload, "entries", None) or payload.get("entries", {})
+            ts = getattr(payload, "ts", None)
+            for tok, info in entries.items():
+                bids = float(getattr(info, "bids", info.get("bids", 0.0)))
+                asks = float(getattr(info, "asks", info.get("asks", 0.0)))
+                tx = float(getattr(info, "tx_rate", info.get("tx_rate", 0.0)))
+                t = datetime.datetime.utcfromtimestamp(float(ts or getattr(info, "ts", time.time())))
+                self.snaps.append(
+                    SimpleNamespace(
+                        token=tok,
+                        price=float(getattr(info, "price", info.get("price", 0.0))),
+                        depth=bids + asks,
+                        total_depth=bids + asks,
+                        slippage=0.0,
+                        volume=0.0,
+                        imbalance=(bids - asks),
+                        tx_rate=tx,
+                        whale_share=0.0,
+                        spread=0.0,
+                        sentiment=0.0,
+                        timestamp=t,
+                    )
+                )
+
+        self._trade_sub = subscription("trade_logged", _add_trade)
+        self._trade_sub.__enter__()
+        self._depth_sub = subscription("depth_update", _add_depth)
+        self._depth_sub.__enter__()
+
+    def close(self) -> None:
+        self._trade_sub.__exit__(None, None, None)
+        self._depth_sub.__exit__(None, None, None)
+
+    def fetch_new(self) -> tuple[list[Any], list[Any]]:
+        trades = list(self.trades)[self._last_trade :]
+        snaps = list(self.snaps)[self._last_snap :]
+        self._last_trade = len(self.trades)
+        self._last_snap = len(self.snaps)
+        return trades, snaps
 
 
 class _TradeDataset(Dataset):
