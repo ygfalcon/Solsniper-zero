@@ -27,6 +27,8 @@ __all__ = [
     "MultiAgentRL",
     "RLTraining",
     "RLDaemon",
+    "decode_glyph_series",
+    "pyramid_transform",
 ]
 
 
@@ -99,4 +101,12 @@ def __getattr__(name: str):
         from .rl_daemon import RLDaemon as cls
 
         return cls
+    if name == "decode_glyph_series":
+        from .ancient_math import decode_glyph_series as func
+
+        return func
+    if name == "pyramid_transform":
+        from .ancient_math import pyramid_transform as func
+
+        return func
     raise AttributeError(name)
