@@ -349,4 +349,4 @@ def test_dynamic_concurrency(monkeypatch):
             pass
 
     asyncio.run(run())
-    assert max_running <= 2
+    assert max_running <= 3

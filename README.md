@@ -180,6 +180,10 @@ direct transaction submission to the Solana RPC.
     percentage.
   - `DYNAMIC_CONCURRENCY_INTERVAL` – how often CPU usage is sampled when
     adjusting task limits (defaults to `2`).
+  - `SCAN_CONCURRENCY_STEP` – number of workers added or removed when
+    adjusting token scanner concurrency (defaults to `1`).
+  - `MEMPOOL_CONCURRENCY_STEP` – step size for the mempool scanner
+    (defaults to `1`).
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
     `system_metrics_combined`.

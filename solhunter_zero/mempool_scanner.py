@@ -239,7 +239,11 @@ async def stream_ranked_mempool_tokens(
     cpu_usage_threshold: float | None = None,
     dynamic_concurrency: bool = False,
 ) -> AsyncGenerator[Dict[str, float], None]:
-    """Yield ranked token events from the mempool."""
+    """Yield ranked token events from the mempool.
+
+    When ``dynamic_concurrency`` is enabled, the worker limit is adjusted by
+    ``MEMPOOL_CONCURRENCY_STEP`` based on averaged CPU usage metrics.
+    """
 
     if threshold is None:
         threshold = MEMPOOL_SCORE_THRESHOLD
@@ -252,6 +256,7 @@ async def stream_ranked_mempool_tokens(
     _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
+    step = int(os.getenv("MEMPOOL_CONCURRENCY_STEP", "1") or 1)
     adjust_task: asyncio.Task | None = None
 
     async def _set_limit(new_limit: int) -> None:
@@ -272,10 +277,10 @@ async def stream_ranked_mempool_tokens(
                 while True:
                     await asyncio.sleep(_dyn_interval)
                     cpu = _CPU_PERCENT
-                    if cpu > high and current_limit == max_concurrency:
-                        await _set_limit(max(1, max_concurrency // 2))
+                    if cpu > high and current_limit > 1:
+                        await _set_limit(max(1, current_limit - step))
                     elif cpu < low and current_limit < max_concurrency:
-                        await _set_limit(max_concurrency)
+                        await _set_limit(min(max_concurrency, current_limit + step))
             except asyncio.CancelledError:
                 pass
 
