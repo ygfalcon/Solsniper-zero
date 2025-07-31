@@ -4,6 +4,8 @@ from typing import Iterable, Sequence, Tuple, Any
 import torch
 import torch.nn as nn
 
+from .token_activity_model import ActivityModel
+
 
 class PriceModel(nn.Module):
     """Simple LSTM based predictor."""
@@ -159,6 +161,12 @@ def save_model(model: nn.Module, path: str) -> None:
             "hidden_dim": model.hidden_dim,
             "num_layers": model.num_layers,
         }
+    elif isinstance(model, ActivityModel):
+        cfg = {
+            "cls": "ActivityModel",
+            "input_dim": model.input_dim,
+            "hidden_dim": model.hidden_dim,
+        }
     else:
         cfg = {"cls": type(model).__name__}
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
@@ -183,6 +191,8 @@ def load_model(path: str) -> nn.Module:
             model_cls = DeepTransformerModel
         elif cls_name == "XLTransformerModel":
             model_cls = XLTransformerModel
+        elif cls_name == "ActivityModel":
+            model_cls = ActivityModel
         else:
             model_cls = PriceModel
         model = model_cls(**cfg)

@@ -36,6 +36,8 @@ _BIAS: dict[str, float] = {"mean": 0.0, "volatility": 0.0}
 # Cached price model and modification time for fast reloads
 _PRICE_MODEL = None
 _PRICE_MTIME = 0.0
+_ACTIVITY_MODEL = None
+_ACTIVITY_MTIME = 0.0
 
 # module level cache for token metrics
 TOKEN_METRICS_CACHE_TTL = float(os.getenv("TOKEN_METRICS_CACHE_TTL", "30") or 30)
@@ -110,6 +112,24 @@ def get_price_model(model_path: str | None = None):
     return _PRICE_MODEL
 
 
+def get_activity_model(model_path: str | None = None):
+    """Return cached activity model reloading when file changes."""
+    global _ACTIVITY_MODEL, _ACTIVITY_MTIME
+    model_path = model_path or os.getenv("ACTIVITY_MODEL_PATH")
+    if not model_path or not os.path.exists(model_path):
+        _ACTIVITY_MODEL = None
+        _ACTIVITY_MTIME = 0.0
+        return None
+    try:
+        mtime = os.path.getmtime(model_path)
+    except OSError:
+        return None
+    if _ACTIVITY_MODEL is None or mtime > _ACTIVITY_MTIME:
+        _ACTIVITY_MODEL = models.get_model(model_path, reload=True)
+        _ACTIVITY_MTIME = mtime
+    return _ACTIVITY_MODEL
+
+
 def log_trade_outcome(roi: float) -> None:
     """Record a realized trade ROI for later bias correction."""
     _TRADE_ROIS.append(float(roi))
@@ -147,6 +167,7 @@ class SimulationResult:
     depth_change: float = 0.0
     tx_rate: float = 0.0
     whale_activity: float = 0.0
+    activity_score: float = 0.0
 
 
 
@@ -312,6 +333,37 @@ def predict_price_movement(
     return sims[0].expected_roi if sims else 0.0
 
 
+def predict_token_activity(
+    token: str,
+    *,
+    metrics: dict | None = None,
+    model_path: str | None = None,
+) -> float:
+    """Return activity score using the optional ML model."""
+
+    model = get_activity_model(model_path)
+    if model is None:
+        return 0.0
+
+    if metrics is None:
+        rpc = os.getenv("SOLANA_RPC_URL")
+        if not rpc:
+            return 0.0
+        metrics = onchain_metrics.collect_onchain_insights(token, rpc)
+
+    feat = [
+        float(metrics.get("depth_change", 0.0)),
+        float(metrics.get("tx_rate", 0.0)),
+        float(metrics.get("whale_activity", 0.0)),
+        float(metrics.get("avg_swap_size", 0.0)),
+    ]
+
+    try:
+        return model.predict(feat)
+    except Exception:
+        return 0.0
+
+
 async def run_simulations_async(
     token: str,
     count: int = 1000,
@@ -342,6 +394,7 @@ async def run_simulations_async(
     depth_change = 0.0
     tx_rate = 0.0
     whale_activity = 0.0
+    avg_swap_size = 0.0
 
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url:
@@ -359,11 +412,21 @@ async def run_simulations_async(
             depth_change = insights.get("depth_change", 0.0)
             tx_rate = insights.get("tx_rate", 0.0)
             whale_activity = insights.get("whale_activity", 0.0)
+            avg_swap_size = insights.get("avg_swap_size", 0.0)
         except Exception as exc:  # pragma: no cover - unexpected errors
             logger.warning("On-chain metric fetch failed: %s", exc)
 
     depth_features = metrics.get("depth_per_dex", [])
     slip_features = metrics.get("slippage_per_dex", [])
+    activity_score = predict_token_activity(
+        token,
+        metrics={
+            "depth_change": depth_change,
+            "tx_rate": tx_rate,
+            "whale_activity": whale_activity,
+            "avg_swap_size": avg_swap_size,
+        },
+    )
     if metrics.get("volume", 0.0) < min_volume:
         return []
 
@@ -561,6 +624,7 @@ async def run_simulations_async(
                 depth_change=depth_change,
                 tx_rate=tx_rate,
                 whale_activity=whale_activity,
+                activity_score=activity_score,
             )
         )
 

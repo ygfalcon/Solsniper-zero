@@ -820,6 +820,10 @@ very small.
   `scripts/train_price_model.py` or the offline
   `scripts/train_transformer_agent.py`. Set `PRICE_MODEL_PATH` to the resulting
   model file and `predict_price_movement()` will load it automatically.
+- **Early activity detection** — `scripts/train_activity_model.py` builds a
+  dataset from `offline_data.db` and trains a classifier on depth change,
+  transaction rate, whale activity and average swap size. Set
+  `ACTIVITY_MODEL_PATH` to enable ranking with this model.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
@@ -867,8 +871,15 @@ Offline snapshots can also be used to train a transformer-based price model:
 python scripts/train_transformer_agent.py --db sqlite:///offline_data.db --out models/price.pt
 ```
 
+To train the activity detection model run:
+
+```bash
+python scripts/train_activity_model.py --db offline_data.db --out models/activity.pt
+```
+
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
 `predict_price_movement()` can load it automatically.
+Set `ACTIVITY_MODEL_PATH` to `models/activity.pt` to enable early activity scoring.
 
 You can train a soft actor-critic policy from the same dataset:
 
@@ -895,6 +906,7 @@ updated model back to disk so `ConvictionAgent` picks up the new weights.
 
 Set the `PRICE_MODEL_PATH` environment variable to `models/price.pt` so trading
 agents reload each checkpoint automatically.
+Use `ACTIVITY_MODEL_PATH` in the same way to reload the activity model.
 
 To continuously retrain the RL models on GPU run `scripts/train_rl_gpu.py`:
 
