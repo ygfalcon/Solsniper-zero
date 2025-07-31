@@ -1,7 +1,7 @@
 """Trading agent that scores tokens using a simple arithmetic dataset.
 
 This module provides :class:`ArtifactMathAgent` which loads equations from
-``datasets/artifact_math.json`` and derives a numeric score for a token. The
+``solhunter_zero/data/artifact_math.json`` and derives a numeric score for a token. The
 score is computed from glyph mappings via :func:`map_glyph_series` and then
 aggregated with :func:`aggregate_scores`.  When the score exceeds the configured
 threshold a buy action is proposed; when it falls below ``-threshold`` and the

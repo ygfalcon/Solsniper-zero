@@ -10,7 +10,7 @@ from typing import Any, List, Dict
 DEFAULT_PATH = resources.files(__package__).joinpath(
     "..",
     "..",
-    "datasets",
+    "data",
     "artifact_math.json",
 )
 

@@ -55,4 +55,7 @@ where = ["."]
 include = ["solhunter_zero*"]
 
 [tool.setuptools.package-data]
-"solhunter_zero" = ["libroute_ffi.so"]
+"solhunter_zero" = [
+    "libroute_ffi.so",
+    "data/*.json",
+]
