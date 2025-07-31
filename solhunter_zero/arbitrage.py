@@ -198,10 +198,26 @@ async def measure_dex_latency_async(
 ) -> dict[str, float]:
     """Asynchronously measure latency for each URL in ``urls``."""
 
-    if max_concurrency is None or max_concurrency <= 0:
-        max_concurrency = os.cpu_count() or 1
+    cache_key = (tuple(sorted(urls.items())), attempts)
+    cached = DEX_LATENCY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
 
-    sem = asyncio.Semaphore(max_concurrency)
+    if max_concurrency is None or max_concurrency <= 0:
+        max_concurrency = max(os.cpu_count() or 1, len(urls) * attempts)
+
+    class _Noop:
+        async def __aenter__(self):
+            return None
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    use_sem = dynamic_concurrency or max_concurrency < len(urls) * attempts
+    sem: asyncio.Semaphore | _Noop
+    if use_sem:
+        sem = asyncio.Semaphore(max_concurrency)
+    else:
+        sem = _Noop()
     current_limit = max_concurrency
     _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
@@ -259,6 +275,7 @@ async def measure_dex_latency_async(
         adjust_task.cancel()
         with contextlib.suppress(Exception):
             await adjust_task
+    DEX_LATENCY_CACHE.set(cache_key, latency)
     return latency
 
 
@@ -315,6 +332,8 @@ _LAST_DEPTH: dict[str, float] = {}
 # shared HTTP session and price cache
 PRICE_CACHE_TTL = float(os.getenv("PRICE_CACHE_TTL", "30") or 30)
 PRICE_CACHE = TTLCache(maxsize=256, ttl=PRICE_CACHE_TTL)
+DEX_LATENCY_CACHE_TTL = float(os.getenv("DEX_LATENCY_CACHE_TTL", "30") or 30)
+DEX_LATENCY_CACHE = TTLCache(maxsize=64, ttl=DEX_LATENCY_CACHE_TTL)
 MEMPOOL_WEIGHT = float(os.getenv("MEMPOOL_WEIGHT", "0.0001") or 0.0001)
 
 

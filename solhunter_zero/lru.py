@@ -1,14 +1,140 @@
-from typing import Any, Hashable
-from cachetools import LRUCache as _LRUCache, TTLCache as _TTLCache
+"""Lightweight LRU and TTL caches used throughout the project."""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from collections import OrderedDict
+from typing import Any, Hashable, Iterable
+
+try:  # cachetools is optional when running tests
+    from cachetools import LRUCache as _LRUCache
+except Exception:  # pragma: no cover - fallback when cachetools missing
+    class _LRUCache(dict):  # type: ignore
+        def __init__(self, maxsize: int = 128, *args: Any, **kwargs: Any) -> None:
+            self.maxsize = maxsize
+            super().__init__(*args, **kwargs)
+        def __setitem__(self, key: Hashable, value: Any) -> None:
+            if len(self) >= self.maxsize:
+                next(iter(self))
+                self.pop(next(iter(self)), None)
+            super().__setitem__(key, value)
+
+try:
+    from cachetools import TTLCache as _BaseTTL
+except Exception:  # pragma: no cover - fallback when cachetools missing
+    _BaseTTL = object  # type: ignore
 
 # Re-export :class:`cachetools.LRUCache` for external modules.
 LRUCache = _LRUCache
 
 
-class TTLCache(_TTLCache):
-    """TTL cache implemented using :class:`cachetools.TTLCache`."""
+class TTLCache(_BaseTTL):
+    """A simple TTL cache usable from async code.
+
+    The implementation intentionally avoids a dependency on ``cachetools`` so
+    that tests can run without the optional package installed.  When
+    ``cachetools`` is available the public API mirrors its behaviour closely.
+    """
+
+    def __init__(self, maxsize: int = 128, ttl: float = 60.0) -> None:
+        self.maxsize = maxsize
+        self.ttl = float(ttl)
+        self._data: "OrderedDict[Hashable, tuple[Any, float]]" = OrderedDict()
+        self._pending: dict[Hashable, asyncio.Task] = {}
+        self._lock = asyncio.Lock()
+
+    # internal helpers -----------------------------------------------------
+    def _purge(self) -> None:
+        now = time.monotonic()
+        keys: Iterable[Hashable] = list(self._data.keys())
+        for k in keys:
+            _, exp = self._data[k]
+            if exp <= now:
+                self._data.pop(k, None)
+
+    def _evict(self) -> None:
+        while len(self._data) > self.maxsize:
+            self._data.popitem(last=False)
+
+    # basic dict API -------------------------------------------------------
+    def get(self, key: Hashable, default: Any = None) -> Any:
+        self._purge()
+        item = self._data.get(key)
+        if item is None:
+            return default
+        value, exp = item
+        if exp <= time.monotonic():
+            self._data.pop(key, None)
+            return default
+        return value
+
+    def __contains__(self, key: Hashable) -> bool:  # pragma: no cover - trivial
+        return self.get(key) is not None
+
+    def __getitem__(self, key: Hashable) -> Any:  # pragma: no cover - trivial
+        val = self.get(key)
+        if val is None:
+            raise KeyError(key)
+        return val
+
+    def __setitem__(self, key: Hashable, value: Any) -> None:
+        self.set(key, value)
 
     def set(self, key: Hashable, value: Any) -> None:
-        """Set ``key`` to ``value`` in the cache."""
-        self[key] = value
+        self._purge()
+        self._data[key] = (value, time.monotonic() + self.ttl)
+        self._evict()
+
+    def pop(self, key: Hashable, default: Any = None) -> Any:
+        item = self._data.pop(key, None)
+        if item is None:
+            return default
+        return item[0]
+
+    def clear(self) -> None:  # pragma: no cover - trivial
+        self._data.clear()
+
+    def keys(self):  # pragma: no cover - trivial
+        self._purge()
+        return list(self._data.keys())
+
+    def __len__(self) -> int:  # pragma: no cover - trivial
+        self._purge()
+        return len(self._data)
+
+    # async helpers -------------------------------------------------------
+    async def get_or_set_async(
+        self, key: Hashable, coro: "asyncio.Future | asyncio.coroutine | Any"
+    ) -> Any:
+        """Return cached value or set result of awaited ``coro``.
+
+        ``coro`` may be a coroutine object or a callable returning a coroutine.
+        Only a single task will execute ``coro`` when a key is missing; other
+        callers will await the same task.
+        """
+
+        val = self.get(key)
+        if val is not None:
+            return val
+
+        async with self._lock:
+            val = self.get(key)
+            if val is not None:
+                return val
+            task = self._pending.get(key)
+            if task is None:
+                if callable(coro):
+                    task = asyncio.create_task(coro())
+                else:
+                    task = asyncio.create_task(coro)
+                self._pending[key] = task
+
+        try:
+            val = await task
+            self.set(key, val)
+            return val
+        finally:
+            self._pending.pop(key, None)
+
 

@@ -168,36 +168,35 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
 
     base = base_url or DEX_BASE_URL
     cache_key = (token, base)
-    cached = DEX_METRICS_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
 
-    metrics = {"liquidity": 0.0, "depth": 0.0, "volume": 0.0}
-    if not token:
+    async def _compute() -> Dict[str, float]:
+        metrics = {"liquidity": 0.0, "depth": 0.0, "volume": 0.0}
+        if not token:
+            return metrics
+
+        session = await get_session()
+
+        async def fetch_metric(path: str, metric_key: str) -> None:
+            url = f"{base.rstrip('/')}{path}?token={token}"
+            try:
+                async with session.get(url, timeout=5) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+                val = data.get(metric_key)
+                if isinstance(val, (int, float)):
+                    metrics[metric_key] = float(val)
+            except Exception as exc:  # pragma: no cover - network errors
+                logger.warning("Failed to fetch %s for %s: %s", metric_key, token, exc)
+
+        await asyncio.gather(
+            fetch_metric(LIQ_PATH, "liquidity"),
+            fetch_metric(DEPTH_PATH, "depth"),
+            fetch_metric(VOLUME_PATH, "volume"),
+        )
+
         return metrics
 
-    session = await get_session()
-
-    async def fetch_metric(path: str, metric_key: str) -> None:
-        url = f"{base.rstrip('/')}{path}?token={token}"
-        try:
-            async with session.get(url, timeout=5) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-            val = data.get(metric_key)
-            if isinstance(val, (int, float)):
-                metrics[metric_key] = float(val)
-        except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to fetch %s for %s: %s", metric_key, token, exc)
-
-    await asyncio.gather(
-        fetch_metric(LIQ_PATH, "liquidity"),
-        fetch_metric(DEPTH_PATH, "depth"),
-        fetch_metric(VOLUME_PATH, "volume"),
-    )
-
-    DEX_METRICS_CACHE.set(cache_key, metrics)
-    return metrics
+    return await DEX_METRICS_CACHE.get_or_set_async(cache_key, _compute)
 
 
 async def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, float]:
