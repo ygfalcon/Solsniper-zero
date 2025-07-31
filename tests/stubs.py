@@ -575,6 +575,39 @@ def stub_faiss() -> None:
     sys.modules.setdefault('faiss', mod)
 
 
+def stub_transformers() -> None:
+    """Provide lightweight stubs for the ``transformers`` package."""
+    try:
+        import importlib.util
+
+        spec = importlib.util.find_spec('transformers')
+        if spec is not None and spec.loader is not None:
+            return
+    except Exception:  # pragma: no cover - safety net
+        pass
+
+    mod = sys.modules.get('transformers')
+    if mod is None:
+        mod = types.ModuleType('transformers')
+        mod.__spec__ = importlib.machinery.ModuleSpec('transformers', None)
+        sys.modules['transformers'] = mod
+
+    class AutoTokenizer:
+        @classmethod
+        def from_pretrained(cls, *a, **k):
+            return cls()
+
+    class AutoModelForCausalLM:
+        @classmethod
+        def from_pretrained(cls, *a, **k):
+            return cls()
+
+    if not hasattr(mod, 'AutoTokenizer'):
+        mod.AutoTokenizer = AutoTokenizer
+    if not hasattr(mod, 'AutoModelForCausalLM'):
+        mod.AutoModelForCausalLM = AutoModelForCausalLM
+
+
 def install_stubs() -> None:
     stub_numpy()
     stub_cachetools()
@@ -585,6 +618,7 @@ def install_stubs() -> None:
     stub_requests()
     stub_aiofiles()
     stub_websockets()
+    stub_transformers()
     stub_bip_utils()
     stub_faiss()
 

@@ -22,13 +22,56 @@ if importlib.util.find_spec("faiss") is None:
 if importlib.util.find_spec("torch") is None:
     tmod = types.ModuleType("torch")
     tmod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+    tmod.__path__ = []
+    tmod.Tensor = object
+    tmod.cuda = types.SimpleNamespace(is_available=lambda: False)
+    tmod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    class _Device:
+        def __init__(self, typ="cpu"):
+            self.type = str(typ)
+
+    tmod.device = _Device
+    tmod.load = lambda *a, **k: {}
+    tmod.save = lambda *a, **k: None
+    tmod.tensor = lambda *a, **k: object()
+    tmod.zeros = lambda *a, **k: object()
+    tmod.long = int
     sys.modules.setdefault("torch", tmod)
     nn_mod = types.ModuleType("torch.nn")
     nn_mod.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
+    nn_mod.__path__ = []
+    nn_mod.Module = type("Module", (), {})
+    utils_module = types.ModuleType("torch.nn.utils")
+    utils_module.__spec__ = importlib.machinery.ModuleSpec("torch.nn.utils", None)
+    utils_module.rnn = types.SimpleNamespace(pad_sequence=lambda *a, **k: None)
+    sys.modules.setdefault("torch.nn.utils", utils_module)
+    sys.modules.setdefault("torch.nn.utils.rnn", utils_module.rnn)
+    nn_mod.utils = utils_module
     sys.modules.setdefault("torch.nn", nn_mod)
     opt_mod = types.ModuleType("torch.optim")
     opt_mod.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+    opt_mod.__path__ = []
     sys.modules.setdefault("torch.optim", opt_mod)
+    utils_mod = types.ModuleType("torch.utils")
+    utils_mod.__spec__ = importlib.machinery.ModuleSpec("torch.utils", None)
+    utils_mod.__path__ = []
+    sys.modules.setdefault("torch.utils", utils_mod)
+    tud = types.ModuleType("torch.utils.data")
+    tud.__spec__ = importlib.machinery.ModuleSpec("torch.utils.data", None)
+    tud.Dataset = object
+    tud.DataLoader = object
+    sys.modules.setdefault("torch.utils.data", tud)
+if importlib.util.find_spec("sklearn") is None:
+    sk_mod = types.ModuleType("sklearn")
+    sk_mod.linear_model = types.SimpleNamespace(LinearRegression=object)
+    sk_mod.ensemble = types.SimpleNamespace(
+        GradientBoostingRegressor=object, RandomForestRegressor=object
+    )
+    sk_mod.cluster = types.SimpleNamespace(KMeans=object, DBSCAN=object)
+    sys.modules.setdefault("sklearn", sk_mod)
+    sys.modules.setdefault("sklearn.linear_model", sk_mod.linear_model)
+    sys.modules.setdefault("sklearn.ensemble", sk_mod.ensemble)
+    sys.modules.setdefault("sklearn.cluster", sk_mod.cluster)
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
     pl.__spec__ = importlib.machinery.ModuleSpec("pytorch_lightning", None)
