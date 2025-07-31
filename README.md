@@ -44,6 +44,9 @@ up automatically. Select this file from the UI or set
    [PyYAML](https://pyyaml.org/) and
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
+   The dependency [watchfiles](https://pypi.org/project/watchfiles/) is
+   also installed and is used by the order book utilities to watch the
+   depth mmap for changes.
 
    Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
    install automatically with `pip install .[uvloop]`. Running `./run.sh`
@@ -158,6 +161,9 @@ direct transaction submission to the Solana RPC.
    Ensure `DEPTH_SERVICE_SOCKET` and `DEPTH_MMAP_PATH` are exported before
    launching the Python modules. They default to
    `/tmp/depth_service.sock` and `/tmp/depth_service.mmap` respectively.
+   The `order_book_ws` module watches this mmap file with
+   [watchfiles](https://pypi.org/project/watchfiles/) and automatically
+   invalidates its cache on changes.
    Additional variables allow customization:
    - `DEPTH_WS_ADDR` / `DEPTH_WS_PORT` – address and port for the built-in
      websocket server (defaults to `0.0.0.0:8765`).
