@@ -287,6 +287,52 @@ def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
     assert low > high
 
 
+def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
+    import solhunter_zero.rl_training as rl_training
+    from solhunter_zero import event_bus
+
+    class DummyDataset(rl_training.Dataset):
+        def __len__(self):
+            return 400
+
+        def __getitem__(self, idx):
+            return (
+                rl_training.torch.zeros(9),
+                rl_training.torch.tensor(0, dtype=rl_training.torch.long),
+                rl_training.torch.tensor(0.0),
+            )
+
+    class DummyLoader:
+        def __init__(self, *a, **kw):
+            self.num_workers = kw.get("num_workers")
+            self.pin_memory = kw.get("pin_memory")
+            self.persistent_workers = kw.get("persistent_workers")
+
+    monkeypatch.setattr(rl_training, "DataLoader", lambda *a, **kw: DummyLoader(*a, **kw))
+    monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
+    monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(rl_training.torch, "save", lambda *a, **k: None)
+
+    trainer = rl_training.RLTraining(
+        db_url="db",
+        model_path=tmp_path / "m.pt",
+        dynamic_workers=True,
+        worker_update_interval=0.0,
+    )
+    trainer.data.dataset = DummyDataset()
+    loader = trainer.data.train_dataloader()
+    trainer.recompute_workers(loader)
+
+    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
+    high = loader.num_workers
+    event_bus.publish("system_metrics_combined", {"cpu": 10.0})
+    low = loader.num_workers
+
+    trainer.close()
+
+    assert low > high
+
+
 @pytest.mark.asyncio
 async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
     import numpy as np

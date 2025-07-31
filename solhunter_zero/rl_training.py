@@ -560,6 +560,7 @@ class RLTraining:
         persistent_workers: bool | None = None,
         dynamic_workers: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
+        worker_update_interval: float | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         dyn_workers = dynamic_workers
@@ -585,6 +586,10 @@ class RLTraining:
             dynamic_workers=dyn_workers,
             cpu_callback=cpu_callback,
         )
+        self.worker_update_interval = worker_update_interval if worker_update_interval is not None else 10.0
+        self._worker_last = 0.0
+        self._worker_loaders: list[DataLoader] = []
+        self._worker_sub = None
         if algo == "dqn":
             self.model: pl.LightningModule = LightningDQN()
         else:
@@ -617,6 +622,11 @@ class RLTraining:
             self._metrics_sub()
         except Exception:
             pass
+        if self._worker_sub is not None:
+            try:
+                self._worker_sub.__exit__(None, None, None)
+            except Exception:
+                pass
 
     async def train(self) -> None:
         """Run one training cycle and persist weights."""
@@ -647,6 +657,51 @@ class RLTraining:
         if self._task is None:
             self._task = asyncio.create_task(self._loop(interval))
         return self._task
+
+    def recompute_workers(self, loader: DataLoader | None = None) -> None:
+        """Subscribe to metrics and adjust ``DataLoader`` workers on updates."""
+
+        if not self.data.dynamic_workers or self.data.num_workers is not None:
+            return
+
+        if loader is not None and loader not in self._worker_loaders:
+            self._worker_loaders.append(loader)
+
+        if self._worker_sub is not None:
+            return
+
+        last = {"ts": 0.0}
+        cpu_val = {"v": 0.0}
+
+        def _handle(payload: Any) -> None:
+            cpu = getattr(payload, "cpu", None)
+            if isinstance(payload, dict):
+                cpu = payload.get("cpu", cpu)
+            if cpu is None:
+                return
+            try:
+                cpu_val["v"] = float(cpu)
+            except Exception:
+                return
+            now = time.time()
+            if now - last["ts"] < self.worker_update_interval:
+                return
+            last["ts"] = now
+            if self.data.dataset is None:
+                return
+            new_val = _calc_num_workers(
+                len(self.data.dataset),
+                dynamic=True,
+                cpu_callback=lambda: cpu_val["v"],
+            )
+            for ld in list(self._worker_loaders):
+                ld.num_workers = new_val
+                ld.pin_memory = self.data.pin_memory and new_val > 0
+                ld.persistent_workers = self.data.persistent_workers and new_val > 0
+
+        sub = subscription("system_metrics_combined", _handle)
+        sub.__enter__()
+        self._worker_sub = sub
 
 
 def fit(
