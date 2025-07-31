@@ -43,13 +43,37 @@ class FakeWriter:
         self.waited = True
 
 
+def _encode_entry(obj):
+    tx_rate = float(obj.get("tx_rate", 0.0))
+    dex = {
+        k: {
+            "bids": float(v.get("bids", 0.0)),
+            "asks": float(v.get("asks", 0.0)),
+            "tx_rate": float(v.get("tx_rate", 0.0)),
+        }
+        for k, v in obj.items()
+        if isinstance(v, dict)
+    }
+    bids = sum(d["bids"] for d in dex.values())
+    asks = sum(d["asks"] for d in dex.values())
+    buf = bytearray()
+    buf.extend(struct.pack("<Q", len(dex)))
+    for name, info in dex.items():
+        nb = name.encode()
+        buf.extend(struct.pack("<Q", len(nb)))
+        buf.extend(nb)
+        buf.extend(struct.pack("<ddd", info["bids"], info["asks"], info["tx_rate"]))
+    buf.extend(struct.pack("<dddq", bids, asks, tx_rate, 0))
+    return bytes(buf)
+
+
 def build_index(path, entries):
     header = bytearray(b"IDX1")
     header.extend(struct.pack("<I", len(entries)))
     header_size = 8 + sum(2 + len(k) + 8 for k in entries)
     data = bytearray()
     for token, obj in entries.items():
-        b = json.dumps(obj).encode()
+        b = _encode_entry(obj)
         header.extend(struct.pack("<H", len(token)))
         header.extend(token.encode())
         header.extend(struct.pack("<II", header_size + len(data), len(b)))
@@ -79,9 +103,7 @@ def test_snapshot(tmp_path, monkeypatch):
 
 
 def test_snapshot_cache(tmp_path, monkeypatch):
-    data = {
-        "tok": {"tx_rate": 1.0, "dex": {"bids": 1, "asks": 1}}
-    }
+    data = {"tok": {"tx_rate": 1.0, "dex": {"bids": 1, "asks": 1}}}
     path = tmp_path / "depth.mmap"
     build_index(path, data)
     monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
@@ -117,9 +139,7 @@ def test_snapshot_cache(tmp_path, monkeypatch):
 
 
 def test_snapshot_json_fallback(tmp_path, monkeypatch):
-    data = {
-        "tok": {"tx_rate": 3.0, "dex": {"bids": 2, "asks": 4}}
-    }
+    data = {"tok": {"tx_rate": 3.0, "dex": {"bids": 2, "asks": 4}}}
     path = tmp_path / "depth.mmap"
     path.write_text(json.dumps(data))
     monkeypatch.setattr(depth_client, "MMAP_PATH", str(path))
@@ -223,9 +243,7 @@ def test_submit_tx_batch(monkeypatch):
     monkeypatch.setattr(asyncio, "open_unix_connection", fake_conn)
 
     async def run():
-        return await depth_client.submit_tx_batch(
-            ["t1", "t2"], socket_path="sock"
-        )
+        return await depth_client.submit_tx_batch(["t1", "t2"], socket_path="sock")
 
     sigs = asyncio.run(run())
     payload = json.loads(captured["writer"].data.decode())
@@ -315,9 +333,7 @@ def test_best_route(monkeypatch):
     monkeypatch.setattr(asyncio, "open_unix_connection", fake_conn)
 
     async def run():
-        return await depth_client.best_route(
-            "TOK", 2.0, socket_path="sock", max_hops=4
-        )
+        return await depth_client.best_route("TOK", 2.0, socket_path="sock", max_hops=4)
 
     res = asyncio.run(run())
     payload = json.loads(captured["writer"].data.decode())
@@ -381,7 +397,10 @@ def test_listen_depth_ws(monkeypatch):
     assert events[0][0] == "depth_service_status"
     assert events[0][1]["status"] == "connected"
     assert events[1] == ("depth_update", msgs[0])
-    assert events[2][0] == "depth_service_status" and events[2][1]["status"] == "disconnected"
+    assert (
+        events[2][0] == "depth_service_status"
+        and events[2][1]["status"] == "disconnected"
+    )
 
 
 def test_connection_pool_reuse(monkeypatch):

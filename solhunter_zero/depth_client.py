@@ -104,6 +104,44 @@ def _build_token_offsets(buf: memoryview) -> None:
     _TOKEN_MAP_SIZE = _MMAP_SIZE
 
 
+def _decode_token_agg(buf: bytes) -> Dict[str, Any]:
+    """Decode a :class:`TokenAgg` serialized with fixed-int bincode."""
+    off = 0
+    dex = {}
+    if off + 8 > len(buf):
+        return {}
+    count = struct.unpack_from("<Q", buf, off)[0]
+    off += 8
+    for _ in range(count):
+        if off + 8 > len(buf):
+            return {}
+        klen = struct.unpack_from("<Q", buf, off)[0]
+        off += 8
+        if off + klen > len(buf):
+            return {}
+        key = buf[off : off + klen].decode()
+        off += klen
+        if off + 24 > len(buf):
+            return {}
+        bids, asks, tx_rate = struct.unpack_from("<ddd", buf, off)
+        off += 24
+        dex[key] = {"bids": bids, "asks": asks, "tx_rate": tx_rate}
+    if off + 24 > len(buf):
+        return {}
+    bids, asks, tx_rate = struct.unpack_from("<ddd", buf, off)
+    off += 24
+    if off + 8 > len(buf):
+        return {}
+    ts = struct.unpack_from("<q", buf, off)[0]
+    return {
+        "dex": dex,
+        "bids": bids,
+        "asks": asks,
+        "tx_rate": tx_rate,
+        "ts": ts,
+    }
+
+
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
 SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
@@ -236,14 +274,18 @@ async def stream_depth_ws(
                         if data_off + data_len > len(buf):
                             continue
                         try:
-                            entry = loads(buf[data_off : data_off + data_len])
+                            entry = _decode_token_agg(
+                                buf[data_off : data_off + data_len]
+                            )
                         except Exception:
                             continue
                     elif msg.type == aiohttp.WSMsgType.BINARY:
                         try:
                             ev = pb.Event()
                             ev.ParseFromString(msg.data)
-                            if ev.topic != "depth_update" or not ev.HasField("depth_update"):
+                            if ev.topic != "depth_update" or not ev.HasField(
+                                "depth_update"
+                            ):
                                 continue
                             e = ev.depth_update.entries.get(token)
                             if e is None:
@@ -253,7 +295,11 @@ async def stream_depth_ws(
                                 "asks": e.asks,
                                 "tx_rate": e.tx_rate,
                                 "dex": {
-                                    d: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate}
+                                    d: {
+                                        "bids": di.bids,
+                                        "asks": di.asks,
+                                        "tx_rate": di.tx_rate,
+                                    }
                                     for d, di in e.dex.items()
                                 },
                             }
@@ -331,7 +377,9 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                     try:
                         ev = pb.Event()
                         ev.ParseFromString(msg.data)
-                        if ev.topic != "depth_update" or not ev.HasField("depth_update"):
+                        if ev.topic != "depth_update" or not ev.HasField(
+                            "depth_update"
+                        ):
                             continue
                     except Exception:
                         continue
@@ -341,7 +389,11 @@ async def listen_depth_ws(*, max_updates: Optional[int] = None) -> None:
                             "asks": e.asks,
                             "tx_rate": e.tx_rate,
                             "dex": {
-                                d: {"bids": di.bids, "asks": di.asks, "tx_rate": di.tx_rate}
+                                d: {
+                                    "bids": di.bids,
+                                    "asks": di.asks,
+                                    "tx_rate": di.tx_rate,
+                                }
                                 for d, di in e.dex.items()
                             },
                         }
@@ -383,15 +435,14 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
                 slice_bytes = bytes(buf[data_off : data_off + data_len]).rstrip(b"\x00")
                 if not slice_bytes:
                     return {}, 0.0
-                entry = loads(slice_bytes)
+                entry = _decode_token_agg(slice_bytes)
                 rate = float(entry.get("tx_rate", 0.0))
                 venues = {
                     d: {
                         "bids": float(i.get("bids", 0.0)),
                         "asks": float(i.get("asks", 0.0)),
                     }
-                    for d, i in entry.items()
-                    if isinstance(i, dict)
+                    for d, i in entry.get("dex", {}).items()
                 }
                 SNAPSHOT_CACHE[token] = (now, rate, venues)
                 return venues, rate
