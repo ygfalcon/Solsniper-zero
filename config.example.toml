@@ -152,3 +152,4 @@ rl_dynamic_workers = false
 multi_rl = false
 rl_population_size = 2
 rl_live = false
+distributed_rl = false

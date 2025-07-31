@@ -958,6 +958,11 @@ Enable `rl_live = true` to train directly from streamed `trade_logged` and
 recent updates and performs incremental training every few seconds when this
 mode is active.
 
+Enable `distributed_rl = true` so multiple bots share a single training loop.
+Set `BROKER_URL` to a common Redis or NATS instance and launch each bot with
+`--distributed-rl` or the configuration flag. The RL daemon collects incoming
+`trade_logged` and `depth_update` events from all peers before every update.
+
 Torch 2 adds the `torch.compile` API which can speed up both training and
 inference. Models are compiled automatically when this feature is available.
 Set `USE_TORCH_COMPILE=0` to disable this optimization.

@@ -19,6 +19,7 @@ async def main() -> None:
     parser.add_argument("--interval", type=float, default=3600.0)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--event-bus")
+    parser.add_argument("--distributed-rl", action="store_true")
     args = parser.parse_args()
     if args.event_bus:
         os.environ["EVENT_BUS_URL"] = args.event_bus
@@ -46,6 +47,7 @@ async def main() -> None:
         algo="dqn",
         device=args.device,
         agents=[dqn_agent],
+        distributed_rl=args.distributed_rl,
     )
     ppo_daemon = RLDaemon(
         memory_path=args.memory,
@@ -54,6 +56,7 @@ async def main() -> None:
         algo="ppo",
         device=args.device,
         agents=[ppo_agent],
+        distributed_rl=args.distributed_rl,
     )
 
     dqn_daemon.start(args.interval)
