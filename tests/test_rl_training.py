@@ -134,6 +134,15 @@ for name in [
     "RLMetrics",
     "PriceUpdate",
     "SystemMetrics",
+    "SystemMetricsCombined",
+    "RiskMetrics",
+    "RiskUpdated",
+    "RemoteSystemMetrics",
+    "TokenDiscovered",
+    "MemorySyncRequest",
+    "MemorySyncResponse",
+    "PendingSwap",
+    "ConfigUpdated",
     "Event",
 ]:
     setattr(event_pb2, name, object())
@@ -395,5 +404,39 @@ async def test_mmap_generated_when_missing(monkeypatch, tmp_path):
     assert mmap_path.exists()
     assert Path(trainer.data.mmap_path).resolve() == mmap_path.resolve()
     assert "--db" in called.get("args", [])
+
+
+def test_prioritized_sampler(monkeypatch):
+    import types
+    import datetime as dt
+    import solhunter_zero.rl_training as rl_training
+
+    class DummySampler:
+        def __init__(self, weights, num_samples, replacement=True):
+            self.weights = list(float(w) for w in weights)
+            self.num_samples = num_samples
+
+        def __iter__(self):
+            import random
+            total = sum(self.weights)
+            probs = [w / total for w in self.weights]
+            for _ in range(self.num_samples):
+                yield random.choices(range(len(self.weights)), probs)[0]
+
+    monkeypatch.setattr(rl_training, "WeightedRandomSampler", DummySampler)
+
+    trades = [
+        types.SimpleNamespace(token="t", side="buy", price=1.0, amount=1.0, timestamp=dt.datetime.utcnow()),
+        types.SimpleNamespace(token="t", side="sell", price=1.0, amount=2.0, timestamp=dt.datetime.utcnow()),
+    ]
+
+    ds = rl_training._TradeDataset(trades, [])
+    prio = rl_training.PrioritizedReplayDataset(ds)
+    sampler = rl_training.WeightedRandomSampler(prio.weights, 500, replacement=True)
+    counts = {0: 0, 1: 0}
+    for idx in sampler:
+        counts[idx] += 1
+
+    assert counts[1] > counts[0]
 
 

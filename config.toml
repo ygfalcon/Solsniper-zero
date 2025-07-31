@@ -145,6 +145,7 @@ rl_auto_train = false
 rl_tune_interval = 3600
 regime_weight = 1.0
 rl_dynamic_workers = false
+rl_prioritized_replay = false
 multi_rl = false
 rl_population_size = 2
 rl_live = false
