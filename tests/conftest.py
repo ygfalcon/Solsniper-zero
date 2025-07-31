@@ -191,6 +191,13 @@ if importlib.util.find_spec("solana") is None:
     ws_mod.RpcTransactionLogsFilterMentions = object
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 
+# Additional optional dependency stubs
+for _mod_name in ["cachetools", "sqlalchemy", "watchfiles", "psutil"]:
+    if importlib.util.find_spec(_mod_name) is None:
+        mod = types.ModuleType(_mod_name)
+        mod.__spec__ = importlib.machinery.ModuleSpec(_mod_name, None)
+        sys.modules.setdefault(_mod_name, mod)
+
 # Ensure project root is in sys.path when running tests directly with 'pytest'
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if PROJECT_ROOT not in sys.path:
