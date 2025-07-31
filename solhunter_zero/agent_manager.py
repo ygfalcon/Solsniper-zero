@@ -12,6 +12,7 @@ from .advanced_memory import AdvancedMemory
 
 import logging
 import tomllib
+from .trade_analyzer import TradeAnalyzer
 
 from .agents import BaseAgent, load_agent
 from .agents.execution import ExecutionAgent
@@ -120,6 +121,8 @@ class AgentManager:
         regime_weights: Dict[str, Dict[str, float]] | None = None,
         evolve_interval: int = 1,
         mutation_threshold: float = 0.0,
+        weight_config_paths: list[str] | None = None,
+        strategy_rotation_interval: int = 0,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
@@ -148,6 +151,11 @@ class AgentManager:
         )
 
         self.population_rl = population_rl
+
+        self.weight_config_paths = list(weight_config_paths or [])
+        self.weight_configs = self._load_weight_configs(self.weight_config_paths)
+        self.strategy_rotation_interval = int(strategy_rotation_interval)
+        self.active_weight_config: str | None = None
 
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
@@ -260,6 +268,22 @@ class AgentManager:
             except Exception:
                 pass
 
+        rot_int = cfg.get("strategy_rotation_interval")
+        if rot_int is not None:
+            try:
+                self.strategy_rotation_interval = int(rot_int)
+            except Exception:
+                pass
+
+        w_paths = cfg.get("weight_config_paths")
+        if w_paths is not None:
+            if isinstance(w_paths, str):
+                w_paths = [p.strip() for p in w_paths.split(",") if p.strip()]
+            elif not isinstance(w_paths, list):
+                w_paths = []
+            self.weight_config_paths = list(w_paths)
+            self.weight_configs = self._load_weight_configs(self.weight_config_paths)
+
         reg_w = cfg.get("regime_weights")
         if reg_w is not None:
             if isinstance(reg_w, str):
@@ -319,6 +343,36 @@ class AgentManager:
         self.coordinator.base_weights = self.weights
         self.save_weights()
         publish("weights_updated", WeightsUpdated(weights=dict(self.weights)))
+
+    def rotate_weight_configs(self) -> None:
+        """Select the best preset weight config based on recent ROI."""
+        if not self.memory_agent or not self.weight_configs:
+            return
+        analyzer = TradeAnalyzer(self.memory_agent.memory)
+        rois = analyzer.roi_by_agent()
+        best_name = None
+        best_score = float("-inf")
+        best_weights: Dict[str, float] | None = None
+        for name, weights in self.weight_configs.items():
+            score = 0.0
+            for ag, w in weights.items():
+                score += rois.get(ag, 0.0) * float(w)
+            if score > best_score:
+                best_score = score
+                best_name = name
+                best_weights = weights
+        if best_weights is None:
+            return
+        changed = any(
+            self.weights.get(k) != float(v) for k, v in best_weights.items()
+        )
+        if changed:
+            for k, v in best_weights.items():
+                self.weights[str(k)] = float(v)
+            self.coordinator.base_weights = self.weights
+            self.save_weights()
+            publish("weights_updated", WeightsUpdated(weights=dict(self.weights)))
+        self.active_weight_config = best_name
 
     # ------------------------------------------------------------------
     #  Mutation helpers
@@ -484,6 +538,14 @@ class AgentManager:
             return {}
         return {str(k): float(v) for k, v in data.items()}
 
+    def _load_weight_configs(self, paths: Iterable[str]) -> Dict[str, Dict[str, float]]:
+        configs: Dict[str, Dict[str, float]] = {}
+        for p in paths:
+            w = self._load_weights(p)
+            if w:
+                configs[os.path.basename(p)] = w
+        return configs
+
     def save_weights(self, path: str | os.PathLike | None = None) -> None:
         path = path or self.weights_path
         if not path:
@@ -582,6 +644,12 @@ class AgentManager:
                 regime_weights = {}
         evolve_interval = int(cfg.get("evolve_interval", 1))
         mutation_threshold = float(cfg.get("mutation_threshold", 0.0))
+        weight_config_paths = cfg.get("weight_config_paths") or []
+        if isinstance(weight_config_paths, str):
+            weight_config_paths = [
+                p.strip() for p in weight_config_paths.split(",") if p.strip()
+            ]
+        strategy_rotation_interval = int(cfg.get("strategy_rotation_interval", 0))
 
         jito_rpc_url = cfg.get("jito_rpc_url")
         jito_auth = cfg.get("jito_auth")
@@ -611,6 +679,8 @@ class AgentManager:
             regime_weights=regime_weights,
             evolve_interval=evolve_interval,
             mutation_threshold=mutation_threshold,
+            weight_config_paths=weight_config_paths,
+            strategy_rotation_interval=strategy_rotation_interval,
         )
 
     def close(self) -> None:

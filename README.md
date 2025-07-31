@@ -131,6 +131,8 @@ dynamic_weights: true
 weight_step: 0.05
 evolve_interval: 1
 mutation_threshold: 0.0
+strategy_rotation_interval: 0
+weight_config_paths: []
 ```
 
 Key discovery options:
@@ -421,6 +423,8 @@ Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
 `--dry-run` to skip order submission entirely, `--offline` to avoid
 network requests and use a static token list, or `--token-list <file>`
 to load token addresses from a file.
+Use `--strategy-rotation-interval N` with one or more `--weight-config` files
+to automatically test and switch weight presets every `N` iterations.
 
 ## MEV Bundles
 
@@ -500,6 +504,9 @@ while decreasing the weight of those with losses.
 Every ``evolve_interval`` iterations the manager also calls ``evolve()`` to
 spawn new agent mutations and prune those with an ROI below
 ``mutation_threshold``.
+If multiple weight presets are provided via ``weight_config_paths`` the manager
+evaluates them every ``strategy_rotation_interval`` iterations and activates the
+best performing set.
 Each trade outcome is also logged to the advanced memory. Agents look up
 previous success rates when deciding whether to accept new simulation results.
 
