@@ -157,3 +157,5 @@ rl_weights_path = "rl_weights.json"
 rl_weight_population = 4
 # Enable FAISS GPU index for faster memory search
 gpu_memory_index = false
+hierarchical_rl = true
+hierarchical_model_path = "hier_policy.json"

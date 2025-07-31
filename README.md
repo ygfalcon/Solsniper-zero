@@ -1018,6 +1018,10 @@ To forward events to a remote bus use the `--event-bus` option when running
 python scripts/run_rl_daemon.py --event-bus wss://bus.example.com
 ```
 
+Hierarchical RL training now runs by default and stores its policy in
+`hier_policy.json`. Use `--no-hierarchical-rl` with the daemon script to
+disable this behaviour.
+
 Alternatively start the trainer manually using the dedicated CLI:
 
 ```bash

@@ -382,7 +382,7 @@ class RLDaemon:
         rl_population_size: int = 2,
         live: bool | None = None,
         distributed_rl: bool | None = None,
-        hierarchical_rl: bool | None = None,
+        hierarchical_rl: bool | None = True,
         hierarchical_model_path: str | Path = "hier_policy.json",
         distributed_backend: str | None = None,
     ) -> None:
@@ -396,7 +396,7 @@ class RLDaemon:
         self.multi_rl = bool(multi_rl)
         self.live = bool(live)
         self.distributed_rl = bool(distributed_rl)
-        self.hierarchical_rl = bool(hierarchical_rl)
+        self.hierarchical_rl = True if hierarchical_rl is None else bool(hierarchical_rl)
         self.hierarchical_model_path = Path(hierarchical_model_path)
         self.distributed_backend = distributed_backend
         self.hier_policy = None
