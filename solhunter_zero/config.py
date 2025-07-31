@@ -72,6 +72,7 @@ ENV_VARS = {
     "jito_ws_url": "JITO_WS_URL",
     "jito_ws_auth": "JITO_WS_AUTH",
     "event_bus_url": "EVENT_BUS_URL",
+    "broker_url": "BROKER_URL",
     "compress_events": "COMPRESS_EVENTS",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
@@ -308,6 +309,7 @@ _sub = _event_bus.subscription("config_updated", _update_active)
 _sub.__enter__()
 try:
     _event_bus._reload_bus(None)
+    _event_bus._reload_broker(None)
 except Exception:
     pass
 
@@ -316,6 +318,13 @@ def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
     """Return websocket URL of the external event bus if configured."""
     cfg = cfg or _ACTIVE_CONFIG
     url = os.getenv("EVENT_BUS_URL") or str(cfg.get("event_bus_url", ""))
+    return url or None
+
+
+def get_broker_url(cfg: Mapping[str, Any] | None = None) -> str | None:
+    """Return message broker URL if configured."""
+    cfg = cfg or _ACTIVE_CONFIG
+    url = os.getenv("BROKER_URL") or str(cfg.get("broker_url", ""))
     return url or None
 
 
