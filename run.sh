@@ -44,7 +44,7 @@ EOF
 fi
 
 if command -v cargo >/dev/null 2>&1; then
-    cargo build --manifest-path route_ffi/Cargo.toml --release
+    cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
 fi
 
 if [ "${DEPTH_SERVICE,,}" = "true" ]; then

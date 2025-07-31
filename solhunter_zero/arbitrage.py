@@ -1046,7 +1046,11 @@ def _best_route(
             "max_hops": kwargs.get("max_hops", MAX_HOPS),
         }
         try:
-            res = _routeffi.best_route(dict(prices), amount, **ffi_kwargs)
+            if _routeffi.parallel_enabled():
+                func = _routeffi.best_route_parallel
+            else:
+                func = _routeffi.best_route
+            res = func(dict(prices), amount, **ffi_kwargs)
             if res:
                 return res
         except Exception as exc:  # pragma: no cover - optional ffi failures

@@ -223,14 +223,17 @@ direct transaction submission to the Solana RPC.
   than the Python fallback. A lightweight `route_ffi` library is built
   automatically during installation and copied into the package so no
   manual steps are required. When the `cargo` command is available `run.sh`
-  builds the library automatically. If you need to rebuild it manually run:
+  builds the library automatically. If you need to rebuild it manually run
+  with the optional parallel feature enabled:
 
   ```bash
-  cargo build --manifest-path route_ffi/Cargo.toml --release
+  cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
   ```
   Python automatically loads the compiled library from
   ``solhunter_zero/libroute_ffi.so`` and uses it by default when
-  present. Set `USE_FFI_ROUTE=0` to force the Python implementation. When
+  present. When built with the parallel feature the FFI exposes a
+  multithreaded route search which the bot enables automatically.
+  Set `USE_FFI_ROUTE=0` to force the Python implementation. When
   the library is detected locally the arbitrage path search now calls it
   directly, improving route calculation speed by roughly a factor of two
   compared to the pure Python implementation.

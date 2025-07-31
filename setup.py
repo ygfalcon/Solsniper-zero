@@ -13,6 +13,7 @@ def build_route_ffi(root: Path, out_dir: Path):
             "--manifest-path",
             str(root / "route_ffi" / "Cargo.toml"),
             "--release",
+            "--features=parallel",
         ],
         check=True,
     )
