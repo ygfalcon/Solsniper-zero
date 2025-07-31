@@ -133,8 +133,11 @@ async def stream_order_book(
             raise ValueError("ipc url must include token")
         path, token = url[6:].split("?", 1)
         count = 0
+        backoff = 1.0
+        max_backoff = 30.0
         while True:
             try:
+                backoff = 1.0
                 reader, writer = await asyncio.open_unix_connection(path)
                 payload = dumps({"cmd": "snapshot", "token": token})
                 writer.write(payload if isinstance(payload, (bytes, bytearray)) else payload.encode())
@@ -178,37 +181,41 @@ async def stream_order_book(
                     await asyncio.sleep(rate_limit)
             except Exception as exc:  # pragma: no cover - IPC errors
                 logger.error("IPC order book error: %s", exc)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
     else:
         count = 0
+        backoff = 1.0
+        max_backoff = 30.0
         while True:
             try:
                 session = await get_session()
                 async with session.ws_connect(url) as ws:
-                        async for msg in ws:
-                            if msg.type == aiohttp.WSMsgType.TEXT:
-                                try:
-                                    data = loads(msg.data)
-                                except Exception as exc:
-                                    logger.error("Failed to parse depth message: %s", exc)
-                                    continue
-                                token = data.get("token")
-                                if not token:
-                                    continue
-                                if "bids" in data and "asks" in data:
-                                    bids = float(data.get("bids", 0.0))
-                                    asks = float(data.get("asks", 0.0))
-                                    rate = float(data.get("tx_rate", 0.0))
-                                else:
-                                    bids = 0.0
-                                    asks = 0.0
-                                    rate = float(data.get("tx_rate", 0.0))
-                                    for v in data.values():
-                                        if isinstance(v, dict):
-                                            bids += float(v.get("bids", 0.0))
-                                            asks += float(v.get("asks", 0.0))
+                    backoff = 1.0
+                    async for msg in ws:
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            try:
+                                data = loads(msg.data)
+                            except Exception as exc:
+                                logger.error("Failed to parse depth message: %s", exc)
+                                continue
+                            token = data.get("token")
+                            if not token:
+                                continue
+                            if "bids" in data and "asks" in data:
+                                bids = float(data.get("bids", 0.0))
+                                asks = float(data.get("asks", 0.0))
+                                rate = float(data.get("tx_rate", 0.0))
+                            else:
+                                bids = 0.0
+                                asks = 0.0
+                                rate = float(data.get("tx_rate", 0.0))
+                                for v in data.values():
+                                    if isinstance(v, dict):
+                                        bids += float(v.get("bids", 0.0))
+                                        asks += float(v.get("asks", 0.0))
                                 updates = {token: {"bids": bids, "asks": asks, "tx_rate": rate}}
-                            elif msg.type == aiohttp.WSMsgType.BINARY:
+                        elif msg.type == aiohttp.WSMsgType.BINARY:
                                 try:
                                     ev = pb.Event()
                                     ev.ParseFromString(msg.data)
@@ -228,8 +235,8 @@ async def stream_order_book(
                                     }
                                     for tok, e in entries.items()
                                 }
-                            else:
-                                continue
+                        else:
+                            continue
 
                             now = time.time()
                             for k, (ts, _) in list(_DEPTH_CACHE.items()):
@@ -254,4 +261,5 @@ async def stream_order_book(
                                 await asyncio.sleep(rate_limit)
             except Exception as exc:  # pragma: no cover - network errors
                 logger.error("Order book websocket error: %s", exc)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
