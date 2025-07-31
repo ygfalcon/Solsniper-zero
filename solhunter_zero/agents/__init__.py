@@ -33,6 +33,8 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
 
     from .alien_cipher_agent import AlienCipherAgent
 
+    from .llm_reasoner import LLMReasoner
+
     from .opportunity_cost import OpportunityCostAgent
 
 
@@ -125,6 +127,8 @@ def _ensure_agents_loaded() -> None:
         "artifact_math": ArtifactMathAgent,
         "rl_weight": RLWeightAgent,
         "hierarchical_rl": HierarchicalRLAgent,
+
+        "llm_reasoner": LLMReasoner,
 
         "emotion": EmotionAgent,
 

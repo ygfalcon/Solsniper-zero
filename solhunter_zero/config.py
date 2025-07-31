@@ -58,6 +58,8 @@ ENV_VARS = {
     "token_suffix": "TOKEN_SUFFIX",
     "token_keywords": "TOKEN_KEYWORDS",
     "volume_threshold": "VOLUME_THRESHOLD",
+    "llm_model": "LLM_MODEL",
+    "llm_context_length": "LLM_CONTEXT_LENGTH",
     "agents": "AGENTS",
     "agent_weights": "AGENT_WEIGHTS",
     "weights_path": "WEIGHTS_PATH",
