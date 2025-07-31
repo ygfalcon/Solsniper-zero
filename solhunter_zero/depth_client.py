@@ -146,6 +146,35 @@ def _decode_token_agg_py(buf: bytes) -> Dict[str, Any]:
 _decode_token_agg = routeffi.decode_token_agg or _decode_token_agg_py
 
 
+def _decode_adj_matrix_py(buf: bytes) -> tuple[list[str], list[float]]:
+    off = 0
+    if off + 8 > len(buf):
+        return [], []
+    count = struct.unpack_from("<Q", buf, off)[0]
+    off += 8
+    venues = []
+    for _ in range(count):
+        if off + 8 > len(buf):
+            return [], []
+        l = struct.unpack_from("<Q", buf, off)[0]
+        off += 8
+        if off + l > len(buf):
+            return [], []
+        venues.append(buf[off : off + l].decode())
+        off += l
+    if off + 8 > len(buf):
+        return [], []
+    mlen = struct.unpack_from("<Q", buf, off)[0]
+    off += 8
+    if off + 8 * mlen > len(buf):
+        return venues, []
+    matrix = list(struct.unpack_from(f"<{mlen}d", buf, off))
+    return venues, matrix
+
+
+_decode_adj_matrix = _decode_adj_matrix_py
+
+
 # Depth snapshot caching
 DEPTH_CACHE_TTL = float(os.getenv("DEPTH_CACHE_TTL", "0.5"))
 SNAPSHOT_CACHE: Dict[str, Tuple[float, float, Dict[str, Dict[str, float]]]] = {}
@@ -474,6 +503,35 @@ def snapshot(token: str) -> Tuple[Dict[str, Dict[str, float]], float]:
         return venues, rate
     except Exception:
         return {}, 0.0
+
+
+def get_adjacency_matrix(token: str) -> tuple[list[str], list[list[float]]] | None:
+    """Return the precomputed adjacency matrix for ``token`` if available."""
+
+    try:
+        m = open_mmap()
+        if m is None:
+            return None
+        buf = memoryview(m)
+        if _TOKEN_MAP_SIZE != _MMAP_SIZE or not TOKEN_OFFSETS:
+            _build_token_offsets(buf)
+        offset = TOKEN_OFFSETS.get(f"adj_{token}")
+        if not offset:
+            return None
+        data_off, data_len = offset
+        if data_off + data_len > len(buf):
+            return None
+        slice_bytes = bytes(buf[data_off : data_off + data_len])
+        if not slice_bytes.strip(b"\x00"):
+            return None
+        venues, matrix = _decode_adj_matrix(slice_bytes)
+        n = len(venues)
+        if n == 0 or len(matrix) != n * n:
+            return None
+        mat2d = [matrix[i * n : (i + 1) * n] for i in range(n)]
+        return venues, mat2d
+    except Exception:
+        return None
 
 
 async def submit_signed_tx(

@@ -334,47 +334,68 @@ def _build_adjacency(
     if adj_key is not None:
         adjacency = _EDGE_CACHE.get(adj_key)
     if adjacency is None:
-        price_arr = np.array([prices[v] for v in venues], dtype=float)
-        fee_arr = np.array([fees.get(v, 0.0) for v in venues], dtype=float)
-        gas_arr = np.array([gas.get(v, 0.0) for v in venues], dtype=float)
-        lat_arr = np.array([latency.get(v, 0.0) for v in venues], dtype=float)
-
-        base_cost = price_arr * trade_amount * fee_arr + gas_arr + lat_arr
-        step_matrix = base_cost[:, None] + base_cost[None, :]
-
-        if depth is not None:
-            ask_arr = np.array(
-                [float((depth.get(v) or {}).get("asks", 0.0)) for v in venues],
-                dtype=float,
-            )
-            bid_arr = np.array(
-                [float((depth.get(v) or {}).get("bids", 0.0)) for v in venues],
-                dtype=float,
-            )
-            slip_a = np.where(ask_arr > 0, trade_amount / ask_arr, 0.0)
-            slip_b = np.where(bid_arr > 0, trade_amount / bid_arr, 0.0)
-            slip_matrix = (
-                price_arr[:, None] * trade_amount * slip_a[:, None]
-                + price_arr[None, :] * trade_amount * slip_b[None, :]
-            )
+        service = depth_client.get_adjacency_matrix(token) if token else None
+        if service and set(service[0]) == set(venues):
+            venues = service[0]
+            coeff = np.array(service[1], dtype=float)
+            price_arr = np.array([prices[v] for v in venues], dtype=float)
+            fee_arr = np.array([fees.get(v, 0.0) for v in venues], dtype=float)
+            gas_arr = np.array([gas.get(v, 0.0) for v in venues], dtype=float)
+            lat_arr = np.array([latency.get(v, 0.0) for v in venues], dtype=float)
+            base_cost = price_arr * trade_amount * fee_arr + gas_arr + lat_arr
+            step_matrix = base_cost[:, None] + base_cost[None, :]
+            profit_matrix = coeff * trade_amount - step_matrix
+            np.fill_diagonal(profit_matrix, float("-inf"))
+            adjacency = {
+                a: {
+                    b: float(profit_matrix[i, j])
+                    for j, b in enumerate(venues)
+                    if i != j
+                }
+                for i, a in enumerate(venues)
+            }
         else:
-            slip_matrix = 0.0
+            price_arr = np.array([prices[v] for v in venues], dtype=float)
+            fee_arr = np.array([fees.get(v, 0.0) for v in venues], dtype=float)
+            gas_arr = np.array([gas.get(v, 0.0) for v in venues], dtype=float)
+            lat_arr = np.array([latency.get(v, 0.0) for v in venues], dtype=float)
 
-        profit_matrix = (
-            (price_arr[None, :] - price_arr[:, None]) * trade_amount
-            - step_matrix
-            - slip_matrix
-        )
-        np.fill_diagonal(profit_matrix, float("-inf"))
+            base_cost = price_arr * trade_amount * fee_arr + gas_arr + lat_arr
+            step_matrix = base_cost[:, None] + base_cost[None, :]
 
-        adjacency = {}
-        for i, a in enumerate(venues):
-            neigh = {}
-            for j, b in enumerate(venues):
-                if i == j:
-                    continue
-                neigh[b] = float(profit_matrix[i, j])
-            adjacency[a] = neigh
+            if depth is not None:
+                ask_arr = np.array(
+                    [float((depth.get(v) or {}).get("asks", 0.0)) for v in venues],
+                    dtype=float,
+                )
+                bid_arr = np.array(
+                    [float((depth.get(v) or {}).get("bids", 0.0)) for v in venues],
+                    dtype=float,
+                )
+                slip_a = np.where(ask_arr > 0, trade_amount / ask_arr, 0.0)
+                slip_b = np.where(bid_arr > 0, trade_amount / bid_arr, 0.0)
+                slip_matrix = (
+                    price_arr[:, None] * trade_amount * slip_a[:, None]
+                    + price_arr[None, :] * trade_amount * slip_b[None, :]
+                )
+            else:
+                slip_matrix = 0.0
+
+            profit_matrix = (
+                (price_arr[None, :] - price_arr[:, None]) * trade_amount
+                - step_matrix
+                - slip_matrix
+            )
+            np.fill_diagonal(profit_matrix, float("-inf"))
+
+            adjacency = {
+                a: {
+                    b: float(profit_matrix[i, j])
+                    for j, b in enumerate(venues)
+                    if i != j
+                }
+                for i, a in enumerate(venues)
+            }
         if adj_key is not None:
             _EDGE_CACHE.set(adj_key, adjacency)
 
