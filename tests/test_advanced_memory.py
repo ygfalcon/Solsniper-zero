@@ -1,7 +1,8 @@
 from solhunter_zero.advanced_memory import AdvancedMemory
 
 
-def test_insert_search_persist(tmp_path):
+def test_insert_search_persist(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     db = tmp_path / "mem.db"
     idx = tmp_path / "index.faiss"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
@@ -32,7 +33,8 @@ def test_insert_search_persist(tmp_path):
     assert results2 and results2[0].id == trades[0].id
 
 
-def test_advanced_list_filters(tmp_path):
+def test_advanced_list_filters(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     db = tmp_path / "mem.db"
     idx = tmp_path / "idx.faiss"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
@@ -46,7 +48,8 @@ def test_advanced_list_filters(tmp_path):
     assert ids == [c]
 
 
-def test_replicated_trade_dedup(tmp_path):
+def test_replicated_trade_dedup(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     db = tmp_path / "rep.db"
     idx = tmp_path / "rep.index"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx), replicate=True)
@@ -65,7 +68,8 @@ def test_replicated_trade_dedup(tmp_path):
     assert trades[0].uuid == tid
 
 
-def test_memory_sync_exchange(tmp_path):
+def test_memory_sync_exchange(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     db1 = tmp_path / "a.db"
     idx1 = tmp_path / "a.index"
     db2 = tmp_path / "b.db"
@@ -90,7 +94,8 @@ def test_memory_sync_exchange(tmp_path):
     assert len(mem2.list_trades()) == 2
 
 
-def test_cluster_trades_groups(tmp_path):
+def test_cluster_trades_groups(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     import numpy as np
     import faiss
     import solhunter_zero.advanced_memory as am

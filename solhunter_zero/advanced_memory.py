@@ -14,8 +14,26 @@ except Exception:  # pragma: no cover - optional dependency
     SentenceTransformer = None
 
 # Optional GPU index for FAISS
-GPU_MEMORY_INDEX = os.getenv("GPU_MEMORY_INDEX", "0").lower() in {"1", "true", "yes"}
+_GPU_ENV = os.getenv("GPU_MEMORY_INDEX")
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
+if _GPU_ENV is not None:
+    GPU_MEMORY_INDEX = _GPU_ENV.lower() in {"1", "true", "yes"}
+else:  # auto-detect CUDA devices
+    _detected = False
+    if _HAS_FAISS_GPU:
+        try:
+            faiss.StandardGpuResources()
+            _detected = True
+        except Exception:
+            _detected = False
+    if not _detected:
+        try:
+            import torch
+
+            _detected = torch.cuda.is_available()
+        except Exception:
+            _detected = False
+    GPU_MEMORY_INDEX = bool(_detected)
 from sqlalchemy import (
     create_engine,
     Column,
