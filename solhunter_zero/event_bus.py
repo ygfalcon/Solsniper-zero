@@ -427,22 +427,22 @@ async def broadcast_ws(
                 asyncio.create_task(reconnect_ws(url))
 
 
-async def _flush_outgoing(interval: float = 0.01) -> None:
+async def _flush_outgoing() -> None:
     """Background task to flush queued websocket messages."""
     global _outgoing_queue
     q = _outgoing_queue
     if q is None:
         return
     while True:
-        await asyncio.sleep(interval)
-        msgs: list[Any] = []
+        # wait for at least one message
+        msg = await q.get()
+        msgs: list[Any] = [msg]
+        # drain the queue until empty so we batch dispatch
         while True:
             try:
                 msgs.append(q.get_nowait())
             except asyncio.QueueEmpty:
                 break
-        if not msgs:
-            continue
         coros = [broadcast_ws(m) for m in msgs]
         await asyncio.gather(*coros, return_exceptions=True)
 
