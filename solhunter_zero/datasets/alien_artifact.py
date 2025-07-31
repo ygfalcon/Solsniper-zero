@@ -2,25 +2,34 @@
 from __future__ import annotations
 
 import json
-import os
+from importlib import resources
+from pathlib import Path
 from typing import List, Dict, Any
 
-# Path to the dataset JSON file relative to this module
-_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "alien_artifact_patterns.json")
+# Path to the dataset JSON file bundled with the package
+DEFAULT_PATH = resources.files(__package__).joinpath(
+    "..",
+    "..",
+    "datasets",
+    "alien_artifact_patterns.json",
+)
+
+# Backwards compatibility for callers expecting the old name
+_DATA_PATH = DEFAULT_PATH
 
 _patterns: List[Dict[str, Any]] | None = None
 
 
-def _load_dataset() -> List[Dict[str, Any]]:
-    with open(_DATA_PATH, "r", encoding="utf-8") as fh:
+def _load_dataset(path: Path = DEFAULT_PATH) -> List[Dict[str, Any]]:
+    with path.open("r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def load_patterns() -> List[Dict[str, Any]]:
+def load_patterns(path: Path = DEFAULT_PATH) -> List[Dict[str, Any]]:
     """Return list of alien artifact patterns."""
     global _patterns
-    if _patterns is None:
-        _patterns = _load_dataset()
+    if _patterns is None or path != DEFAULT_PATH:
+        _patterns = _load_dataset(path)
     return _patterns
 
 

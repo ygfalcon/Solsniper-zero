@@ -2,35 +2,44 @@
 from __future__ import annotations
 
 import json
-import os
+from importlib import resources
+from pathlib import Path
 from typing import Any, List, Dict
 
 # Default dataset path relative to the repository root
-_DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "datasets", "artifact_math.json")
+DEFAULT_PATH = resources.files(__package__).joinpath(
+    "..",
+    "..",
+    "datasets",
+    "artifact_math.json",
+)
+
+# Backwards compatibility
+_DEFAULT_PATH = DEFAULT_PATH
 
 # Module level cache so we do not repeatedly load the same file
 _cache_path: str | None = None
 _cache_data: Any | None = None
 
 
-def load_artifact_math(path: str = _DEFAULT_PATH) -> List[Dict[str, Any]] | Dict[str, Any]:
+def load_artifact_math(path: Path | str = DEFAULT_PATH) -> List[Dict[str, Any]] | Dict[str, Any]:
     """Return the artifact math dataset located at ``path``.
 
     The result is cached on the module level; subsequent calls with the same
     ``path`` will reuse the previously loaded data.
     """
     global _cache_path, _cache_data
-    if _cache_data is not None and _cache_path == path:
+    if _cache_data is not None and _cache_path == str(path):
         return _cache_data
 
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with Path(path).open("r", encoding="utf-8") as fh:
             data = json.load(fh)
     except Exception:
-        _cache_path = path
+        _cache_path = str(path)
         _cache_data = []
         return _cache_data
 
-    _cache_path = path
+    _cache_path = str(path)
     _cache_data = data
     return data
