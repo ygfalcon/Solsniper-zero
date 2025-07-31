@@ -5,6 +5,7 @@ import importlib.util
 
 if importlib.util.find_spec("aiohttp") is None:
     aiohttp_mod = types.ModuleType("aiohttp")
+    aiohttp_mod.__spec__ = importlib.machinery.ModuleSpec("aiohttp", None)
     aiohttp_mod.ClientSession = object
     aiohttp_mod.TCPConnector = object
     sys.modules["aiohttp"] = aiohttp_mod
@@ -163,11 +164,16 @@ if importlib.util.find_spec("solana") is None:
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 
 # Additional optional dependency stubs
-for _mod_name in ["numpy", "cachetools", "sqlalchemy", "watchfiles", "psutil", "flask"]:
-    if importlib.util.find_spec(_mod_name) is None:
-        mod = types.ModuleType(_mod_name)
-        mod.__spec__ = importlib.machinery.ModuleSpec(_mod_name, None)
-        sys.modules.setdefault(_mod_name, mod)
+# Lightweight feature complete stubs for optional dependencies
+import importlib.util
+import os
+
+_stub_path = os.path.join(os.path.dirname(__file__), 'stubs.py')
+_spec = importlib.util.spec_from_file_location('stubs', _stub_path)
+_stubs = importlib.util.module_from_spec(_spec)
+assert _spec and _spec.loader
+_spec.loader.exec_module(_stubs)
+_stubs.install_stubs()
 
 # Ensure project root is in sys.path when running tests directly with 'pytest'
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
