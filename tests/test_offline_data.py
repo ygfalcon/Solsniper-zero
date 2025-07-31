@@ -53,3 +53,51 @@ async def test_async_queue_commit(tmp_path, monkeypatch):
 
     assert commits <= 1
     assert queued_cpu >= 0
+
+
+@pytest.mark.asyncio
+async def test_export_npz_matches_manual(tmp_path):
+    import numpy as np
+
+    db = f"sqlite:///{tmp_path/'data.db'}"
+    data = OfflineData(db)
+    await data.log_snapshot("tok", 1.0, 2.0, total_depth=3.0, imbalance=0.5, slippage=0.0, volume=0.0)
+    await data.log_trade("tok", "buy", 1.0, 2.0)
+
+    out = tmp_path / "offline.npz"
+    npz = await data.export_npz(out)
+
+    snaps = await data.list_snapshots()
+    trades = await data.list_trades()
+
+    exp_snaps = np.array([
+        (
+            s.token,
+            float(s.price),
+            float(s.depth),
+            float(getattr(s, "total_depth", 0.0)),
+            float(getattr(s, "slippage", 0.0)),
+            float(getattr(s, "volume", 0.0)),
+            float(s.imbalance),
+            float(getattr(s, "tx_rate", 0.0)),
+            float(getattr(s, "whale_share", 0.0)),
+            float(getattr(s, "spread", 0.0)),
+            float(getattr(s, "sentiment", 0.0)),
+            s.timestamp.timestamp(),
+        )
+        for s in snaps
+    ], dtype=npz["snapshots"].dtype)
+
+    exp_trades = np.array([
+        (
+            t.token,
+            t.side,
+            float(t.price),
+            float(t.amount),
+            t.timestamp.timestamp(),
+        )
+        for t in trades
+    ], dtype=npz["trades"].dtype)
+
+    assert np.array_equal(npz["snapshots"], exp_snaps)
+    assert np.array_equal(npz["trades"], exp_trades)

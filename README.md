@@ -788,7 +788,8 @@ python scripts/build_mmap_dataset.py --db offline_data.db --out datasets/offline
 
 When this file exists `TradeDataModule` loads it instead of querying SQLite.
 On a small dataset this lowered preparation time from around 3&nbsp;s to under
-half a second.
+half a second. Using ``numpy.fromiter`` for snapshot and trade exports further
+reduces the step to roughly 0.2&nbsp;s.
 `RLTraining` likewise uses this file automatically when `mmap_path` is not
 explicitly set.
 
