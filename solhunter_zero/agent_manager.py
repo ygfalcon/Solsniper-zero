@@ -10,6 +10,7 @@ from typing import Iterable, Dict, Any, List
 from .backtester import backtest_weighted, DEFAULT_STRATEGIES
 from .backtest_cli import bayesian_optimize_weights
 from .advanced_memory import AdvancedMemory
+import torch
 
 import logging
 import tomllib
@@ -179,7 +180,11 @@ class AgentManager:
         self._attn_history: list[list[float]] = []
         if self.use_attention_swarm and attention_model_path:
             try:
-                self.attention_swarm = load_model(attention_model_path)
+                attn_device = os.getenv(
+                    "ATTENTION_SWARM_DEVICE",
+                    "cuda" if torch.cuda.is_available() else "cpu",
+                )
+                self.attention_swarm = load_model(attention_model_path, device=attn_device)
             except Exception:
                 self.attention_swarm = None
 
@@ -424,7 +429,11 @@ class AgentManager:
         attn_path = cfg.get("attention_swarm_model")
         if attn_path is not None:
             try:
-                self.attention_swarm = load_model(str(attn_path))
+                attn_device = os.getenv(
+                    "ATTENTION_SWARM_DEVICE",
+                    "cuda" if torch.cuda.is_available() else "cpu",
+                )
+                self.attention_swarm = load_model(str(attn_path), device=attn_device)
             except Exception:
                 self.attention_swarm = None
 

@@ -13,12 +13,24 @@ from ..advanced_memory import AdvancedMemory
 class AttentionSwarm(nn.Module):
     """Tiny transformer predicting agent weights from ROI history."""
 
-    def __init__(self, num_agents: int, seq_len: int = 5, hidden_dim: int = 32, num_layers: int = 2) -> None:
+    def __init__(
+        self,
+        num_agents: int,
+        seq_len: int = 5,
+        hidden_dim: int = 32,
+        num_layers: int = 2,
+        *,
+        device: str = "cpu",
+    ) -> None:
         super().__init__()
         self.num_agents = int(num_agents)
         self.seq_len = int(seq_len)
         self.hidden_dim = int(hidden_dim)
         self.num_layers = int(num_layers)
+
+        if device != "cpu" and not torch.cuda.is_available():
+            device = "cpu"
+        self.device = torch.device(device)
 
         input_dim = num_agents + 2
         nhead = max(1, min(4, input_dim))
@@ -28,8 +40,11 @@ class AttentionSwarm(nn.Module):
         self.encoder = nn.TransformerEncoder(layer, num_layers)
         self.fc = nn.Linear(input_dim, num_agents)
         self.softmax = nn.Softmax(dim=-1)
+        self.to(self.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.device != self.device:
+            x = x.to(self.device)
         enc = self.encoder(x)
         out = enc[:, -1]
         return self.softmax(self.fc(out))
@@ -37,8 +52,8 @@ class AttentionSwarm(nn.Module):
     def predict(self, seq: Sequence[Sequence[float]]) -> Sequence[float]:
         self.eval()
         with torch.no_grad():
-            t = torch.tensor(seq, dtype=torch.float32).unsqueeze(0)
-            w = self(t)[0]
+            t = torch.tensor(seq, dtype=torch.float32).unsqueeze(0).to(self.device)
+            w = self(t)[0].detach().cpu()
             return [float(v) for v in w]
 
 
@@ -111,11 +126,18 @@ def train_attention_swarm(
     lr: float = 1e-3,
     hidden_dim: int = 32,
     num_layers: int = 2,
+    device: str = "cpu",
 ) -> AttentionSwarm:
     """Fit an :class:`AttentionSwarm` from ``memory`` trades."""
 
     X, y = make_training_data(memory, agents, window=window, seq_len=seq_len)
-    model = AttentionSwarm(len(agents), seq_len=seq_len, hidden_dim=hidden_dim, num_layers=num_layers)
+    if device != "cpu" and not torch.cuda.is_available():
+        device = "cpu"
+    X = X.to(device)
+    y = y.to(device)
+    model = AttentionSwarm(
+        len(agents), seq_len=seq_len, hidden_dim=hidden_dim, num_layers=num_layers, device=device
+    )
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(int(epochs)):
@@ -138,10 +160,13 @@ def save_model(model: AttentionSwarm, path: str) -> None:
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
 
 
-def load_model(path: str) -> AttentionSwarm:
-    obj = torch.load(path, map_location="cpu")
+def load_model(path: str, *, device: str = "cpu") -> AttentionSwarm:
+    if device != "cpu" and not torch.cuda.is_available():
+        device = "cpu"
+    obj = torch.load(path, map_location=device)
     cfg = obj.get("cfg", {})
-    model = AttentionSwarm(**cfg)
+    model = AttentionSwarm(**cfg, device=device)
     model.load_state_dict(obj["state"])
     model.eval()
     return model
+

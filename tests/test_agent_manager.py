@@ -17,9 +17,17 @@ if importlib.util.find_spec("torch") is None:
     sys.modules.setdefault("torch", types.ModuleType("torch"))
     sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
     sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
+if importlib.util.find_spec("pytorch_lightning") is None:
+    pl = types.ModuleType("pytorch_lightning")
+    pl.callbacks = types.SimpleNamespace(Callback=object)
+    pl.LightningModule = object
+    pl.LightningDataModule = object
+    pl.Trainer = object
+    sys.modules.setdefault("pytorch_lightning", pl)
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.attention_swarm import AttentionSwarm
 from solhunter_zero.memory import Memory
 
 
@@ -80,4 +88,21 @@ def test_rotate_weight_configs_selects_best(tmp_path):
     mgr.rotate_weight_configs()
     assert mgr.weights["a1"] == 2.0
     assert mgr.weights["a2"] == 0.5
+
+
+def test_attention_swarm_device_env(monkeypatch, tmp_path):
+    from solhunter_zero import agent_manager as am
+    called = {}
+
+    def fake_load(path, *, device="cpu"):
+        called["device"] = device
+        return AttentionSwarm(1, device=device)
+
+    monkeypatch.setattr(am, "load_model", fake_load)
+    monkeypatch.setenv("ATTENTION_SWARM_DEVICE", "cuda")
+    monkeypatch.setattr(am.torch.cuda, "is_available", lambda: True)
+    model_path = tmp_path / "m.pt"
+    model_path.write_text("x")
+    AgentManager([], use_attention_swarm=True, attention_model_path=str(model_path))
+    assert called["device"] == "cuda"
 
