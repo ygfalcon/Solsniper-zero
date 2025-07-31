@@ -245,6 +245,7 @@ PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
 USE_NUMBA_ROUTE = os.getenv("USE_NUMBA_ROUTE", "0").lower() in {"1", "true", "yes"}
 USE_GNN_ROUTING = os.getenv("USE_GNN_ROUTING", "0").lower() in {"1", "true", "yes"}
 GNN_MODEL_PATH = os.getenv("GNN_MODEL_PATH", "route_gnn.pt")
+ROUTE_GENERATOR_PATH = os.getenv("ROUTE_GENERATOR_PATH", "route_generator.pt")
 
 from solhunter_zero.lru import LRUCache, TTLCache
 from .event_bus import subscribe
@@ -1015,17 +1016,61 @@ def _best_route(
     if use_gnn_routing:
         try:
             from .models.gnn import load_route_gnn, rank_routes
+            from .models.route_generator import load_route_generator
 
             model = load_route_gnn(gnn_model_path)
+            generator = load_route_generator(ROUTE_GENERATOR_PATH)
         except Exception:
             model = None
+            generator = None
         if model is not None:
-            cand = _list_paths(
-                prices,
-                amount,
-                mempool_rate=mempool_rate,
-                **kwargs,
-            )
+            routes: list[list[str]] | None = None
+            if generator is not None:
+                try:
+                    routes = generator.generate(max_hops=kwargs.get("max_hops", MAX_HOPS))
+                except Exception:
+                    routes = None
+            cand: list[tuple[list[str], float]]
+            if routes:
+                fees = kwargs.get("fees")
+                gas = kwargs.get("gas")
+                latency = kwargs.get("latency")
+                depth = kwargs.get("depth")
+                token = kwargs.get("token")
+                use_flash_loans = kwargs.get("use_flash_loans")
+                max_flash_amount = kwargs.get("max_flash_amount")
+                trade_amount = (
+                    min(max_flash_amount or amount, amount) if (use_flash_loans or USE_FLASH_LOANS) else amount
+                )
+                venues, adjacency = _build_adjacency(
+                    prices,
+                    trade_amount,
+                    fees or {},
+                    gas or {},
+                    latency or {},
+                    depth,
+                    token,
+                    mempool_rate,
+                )
+                cand = []
+                for r in routes:
+                    profit = 0.0
+                    valid = True
+                    for a, b in zip(r[:-1], r[1:]):
+                        val = adjacency.get(a, {}).get(b)
+                        if val is None:
+                            valid = False
+                            break
+                        profit += val
+                    if valid:
+                        cand.append((r, profit))
+            else:
+                cand = _list_paths(
+                    prices,
+                    amount,
+                    mempool_rate=mempool_rate,
+                    **kwargs,
+                )
             if cand:
                 idx = rank_routes(model, [p for p, _ in cand])
                 return cand[idx]

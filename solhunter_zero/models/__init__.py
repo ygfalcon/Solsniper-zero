@@ -13,6 +13,12 @@ from .gnn import (
     load_route_gnn,
     rank_routes,
 )
+from .route_generator import (
+    RouteGenerator,
+    train_route_generator,
+    save_route_generator,
+    load_route_generator,
+)
 
 
 class PriceModel(nn.Module):
