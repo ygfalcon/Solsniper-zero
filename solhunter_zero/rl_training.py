@@ -186,17 +186,58 @@ class _TradeDataset(Dataset):
         imbalance = np.zeros(n, dtype=np.float32)
         tx_rate = np.zeros(n, dtype=np.float32)
 
-        for token, data in snap_data.items():
-            mask = tokens == token
-            if not np.any(mask):
-                continue
-            tts = timestamps[mask]
-            idx = np.searchsorted(data["ts"], tts, side="right") - 1
-            idx[idx < 0] = 0
-            depth[mask] = data["depth"][idx]
-            slippage[mask] = data["slippage"][idx]
-            imbalance[mask] = data["imbalance"][idx]
-            tx_rate[mask] = data["tx_rate"][idx]
+        # Vectorized lookup of snapshot features for each trade
+        if snap_data:
+            uniq_tokens = np.unique(tokens)
+
+            snap_tokens = []
+            snap_ts = []
+            snap_depth = []
+            snap_slip = []
+            snap_imb = []
+            snap_tx = []
+            for tok in uniq_tokens:
+                data = snap_data.get(tok)
+                if data is None:
+                    # token may have no snapshot data
+                    continue
+                m = np.full_like(data["ts"], fill_value=tok, dtype=object)
+                snap_tokens.append(m)
+                snap_ts.append(data["ts"])
+                snap_depth.append(data["depth"])
+                snap_slip.append(data["slippage"])
+                snap_imb.append(data["imbalance"])
+                snap_tx.append(data["tx_rate"])
+
+            if snap_ts:
+                snap_tokens = np.concatenate(snap_tokens)
+                snap_ts = np.concatenate(snap_ts)
+                snap_depth = np.concatenate(snap_depth)
+                snap_slip = np.concatenate(snap_slip)
+                snap_imb = np.concatenate(snap_imb)
+                snap_tx = np.concatenate(snap_tx)
+
+                token_map = {t: i for i, t in enumerate(np.unique(snap_tokens))}
+                snap_tok_idx = np.array([token_map[t] for t in snap_tokens])
+                trade_tok_idx = np.array([token_map.get(t, -1) for t in tokens])
+
+                shift = np.max(snap_ts) + 1.0
+                encoded_snaps = snap_tok_idx * shift + snap_ts
+                order = np.argsort(encoded_snaps)
+                encoded_snaps = encoded_snaps[order]
+                snap_depth = snap_depth[order]
+                snap_slip = snap_slip[order]
+                snap_imb = snap_imb[order]
+                snap_tx = snap_tx[order]
+
+                encoded_trades = trade_tok_idx * shift + timestamps
+                idx = np.searchsorted(encoded_snaps, encoded_trades, side="right") - 1
+                idx[idx < 0] = 0
+                valid = trade_tok_idx >= 0
+                depth[valid] = snap_depth[idx[valid]]
+                slippage[valid] = snap_slip[idx[valid]]
+                imbalance[valid] = snap_imb[idx[valid]]
+                tx_rate[valid] = snap_tx[idx[valid]]
 
         unique_tokens = np.unique(tokens)
         pred_cache: dict[str, float] = {}
