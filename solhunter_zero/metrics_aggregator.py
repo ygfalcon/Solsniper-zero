@@ -10,6 +10,9 @@ from .event_bus import publish, subscription
 
 # Keep the last few readings
 _HISTORY: Deque[Tuple[float, float]] = deque(maxlen=4)
+# running totals for O(1) average updates
+_CPU_TOTAL: float = 0.0
+_MEM_TOTAL: float = 0.0
 
 
 def _on_metrics(msg: Any) -> None:
@@ -26,9 +29,16 @@ def _on_metrics(msg: Any) -> None:
         mem = float(mem)
     except Exception:
         return
+    global _CPU_TOTAL, _MEM_TOTAL
+    if len(_HISTORY) == _HISTORY.maxlen:
+        old_cpu, old_mem = _HISTORY.popleft()
+        _CPU_TOTAL -= old_cpu
+        _MEM_TOTAL -= old_mem
     _HISTORY.append((cpu, mem))
-    avg_cpu = sum(c for c, _ in _HISTORY) / len(_HISTORY)
-    avg_mem = sum(m for _, m in _HISTORY) / len(_HISTORY)
+    _CPU_TOTAL += cpu
+    _MEM_TOTAL += mem
+    avg_cpu = _CPU_TOTAL / len(_HISTORY)
+    avg_mem = _MEM_TOTAL / len(_HISTORY)
     publish("system_metrics_combined", {"cpu": avg_cpu, "memory": avg_mem})
 
 
