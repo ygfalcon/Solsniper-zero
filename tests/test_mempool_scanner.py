@@ -2,7 +2,7 @@ import asyncio
 
 import solhunter_zero.mempool_scanner as mp_scanner
 from solhunter_zero import dynamic_limit
-from solhunter_zero import scanner_common, event_bus
+from solhunter_zero import scanner_common, event_bus, resource_monitor as rm
 
 scanner_common.TOKEN_SUFFIX = ""
 
@@ -248,7 +248,7 @@ def test_stream_ranked_with_depth(monkeypatch):
 
 def test_default_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 0.0
+    monkeypatch.setattr(rm, "get_cpu_usage", lambda: 0.0)
 
     async def fake_stream(_url, **__):
         for t in ("a", "b", "c", "d"):
@@ -280,13 +280,15 @@ def test_default_concurrency(monkeypatch):
 
 def test_cpu_threshold_reduces_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 90.0
+    cpu_val = 90.0
+    monkeypatch.setattr(rm, "get_cpu_usage", lambda: cpu_val)
 
     orig_sleep = asyncio.sleep
 
     async def fake_sleep(delay):
+        nonlocal cpu_val
         if delay == 0.05:
-            event_bus.publish("system_metrics_combined", {"cpu": 10.0, "memory": 50.0})
+            cpu_val = 10.0
         await orig_sleep(0)
 
     monkeypatch.setattr(mp_scanner.asyncio, "sleep", fake_sleep)
@@ -327,22 +329,18 @@ def test_cpu_fallback(monkeypatch):
         called = True
         return 33.0
 
-    monkeypatch.setattr(mp_scanner.psutil, "cpu_percent", fake_cpu)
-    monkeypatch.setattr(mp_scanner, "_SMOOTHING", 1.0)
-    mp_scanner._CPU_SMOOTHED = 0.0
-    mp_scanner._CPU_LAST = 0.0
-    cpu = mp_scanner._current_cpu()
+    monkeypatch.setattr(rm.psutil, "cpu_percent", fake_cpu)
+    rm._CPU_PERCENT = 0.0
+    rm._CPU_LAST = 0.0
+    cpu = rm.get_cpu_usage()
     assert cpu == 33.0
     assert called
 
 
 def test_dynamic_concurrency(monkeypatch):
     monkeypatch.setattr(mp_scanner.os, "cpu_count", lambda: 4)
-    mp_scanner._CPU_PERCENT = 0.0
-    mp_scanner._CPU_SMOOTHED = 0.0
-    mp_scanner._CPU_LAST = 0.0
+    monkeypatch.setattr(rm, "get_cpu_usage", lambda: 90.0)
     mp_scanner._DYN_INTERVAL = 0.0
-    event_bus.publish("system_metrics_combined", {"cpu": 90.0})
 
     async def fake_stream(_url, **__):
         await asyncio.sleep(0)

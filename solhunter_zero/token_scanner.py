@@ -4,10 +4,7 @@ import asyncio
 import logging
 import os
 import contextlib
-import time
 from typing import List, Any
-
-import psutil
 
 import aiohttp
 from .http import get_session
@@ -25,55 +22,13 @@ from .scanner_common import (
     parse_birdeye_tokens,
 )
 from . import dex_ws
-from .event_bus import publish, subscription
+from .event_bus import publish
 from .dynamic_limit import _target_concurrency, _step_limit
+from . import resource_monitor
 
 logger = logging.getLogger(__name__)
 
-_CPU_PERCENT: float = 0.0
-_CPU_SMOOTHED: float = 0.0
-_CPU_LAST: float = 0.0
 _DYN_INTERVAL: float = 2.0
-_SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
-
-
-def _on_system_metrics(msg: Any) -> None:
-    """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
-    cpu = getattr(msg, "cpu", None)
-    if isinstance(msg, dict):
-        cpu = msg.get("cpu", cpu)
-    if cpu is None:
-        return
-    try:
-        global _CPU_PERCENT, _CPU_SMOOTHED, _CPU_LAST
-        _CPU_PERCENT = float(cpu)
-        if _CPU_SMOOTHED:
-            _CPU_SMOOTHED = _SMOOTHING * _CPU_PERCENT + (1 - _SMOOTHING) * _CPU_SMOOTHED
-        else:
-            _CPU_SMOOTHED = _CPU_PERCENT
-        _CPU_LAST = time.monotonic()
-    except Exception:
-        pass
-
-_resource_sub = subscription("system_metrics_combined", _on_system_metrics)
-_resource_sub.__enter__()
-
-
-def _current_cpu() -> float:
-    """Return recent CPU usage, sampling locally when stale."""
-    global _CPU_PERCENT, _CPU_SMOOTHED, _CPU_LAST
-    if not _CPU_SMOOTHED or time.monotonic() - _CPU_LAST > 10.0:
-        try:
-            cpu_now = float(psutil.cpu_percent(interval=None))
-        except Exception:
-            cpu_now = _CPU_PERCENT
-        _CPU_PERCENT = cpu_now
-        if _CPU_SMOOTHED:
-            _CPU_SMOOTHED = _SMOOTHING * cpu_now + (1 - _SMOOTHING) * _CPU_SMOOTHED
-        else:
-            _CPU_SMOOTHED = cpu_now
-        _CPU_LAST = time.monotonic()
-    return _CPU_SMOOTHED
 
 
 class TokenScanner:
@@ -226,7 +181,7 @@ async def scan_tokens_async(
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
-                    cpu = _current_cpu()
+                    cpu = resource_monitor.get_cpu_usage()
                     target = _target_concurrency(cpu, max_concurrency, low, high)
                     new_limit = _step_limit(current_limit, target, max_concurrency)
                     if new_limit != current_limit:
@@ -239,7 +194,7 @@ async def scan_tokens_async(
 
     async def _run(coro: asyncio.Future) -> Any:
         if cpu_usage_threshold is not None:
-            while _current_cpu() > cpu_usage_threshold:
+            while resource_monitor.get_cpu_usage() > cpu_usage_threshold:
                 await asyncio.sleep(0.05)
         async with sem:
             return await coro
