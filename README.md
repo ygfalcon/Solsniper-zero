@@ -119,15 +119,20 @@ dex_gas: "{}"
 dex_latency: "{}"
 epsilon: 0.1
 discount: 0.95
+alien_cipher_dataset: datasets/alien_glyphs.npz
+cipher_history: 10
+glyph_variance: 0.3
 agents:
   - simulation
   - conviction
   - arbitrage
+  - alien_cipher
   - exit
 agent_weights:
   simulation: 1.0
   conviction: 1.0
   arbitrage: 1.0
+  alien_cipher: 1.0
 dynamic_weights: true
 weight_step: 0.05
 evolve_interval: 1
@@ -509,6 +514,9 @@ The trading logic is implemented by a swarm of small agents:
   mempool entropy and conviction velocity. Trades when divergence aligns with a
   known profitable manifold.
 - **FractalAgent** — matches ROI fractal patterns using wavelet fingerprints.
+- **AlienCipherAgent** — decodes chaotic patterns from alien glyphs using the
+  dataset `datasets/alien_glyphs.npz`. Tune `cipher_history` for how many past
+  glyph sequences to analyze and `glyph_variance` to control pattern noise.
 - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 - **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
  - **CrossDEXRebalancer** — distributes trades across venues according to order-book depth, measured latency and per‑venue fees. It asks `PortfolioOptimizer` for base actions,
