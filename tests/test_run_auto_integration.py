@@ -4,23 +4,33 @@ import contextlib
 import json
 import os
 import pytest
+import importlib.machinery
 
-sys.modules.setdefault('faiss', types.ModuleType('faiss'))
-sys.modules.setdefault('sentence_transformers', types.ModuleType('sentence_transformers'))
+_faiss_mod = types.ModuleType('faiss')
+_faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
+sys.modules.setdefault('faiss', _faiss_mod)
+_st_mod = types.ModuleType('sentence_transformers')
+_st_mod.__spec__ = importlib.machinery.ModuleSpec('sentence_transformers', None)
+sys.modules.setdefault('sentence_transformers', _st_mod)
 sys.modules['sentence_transformers'].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(get_sentence_embedding_dimension=lambda:1, encode=lambda x: [])
 
 sklearn = types.ModuleType('sklearn')
+sklearn.__spec__ = importlib.machinery.ModuleSpec('sklearn', None)
 sys.modules.setdefault('sklearn', sklearn)
 sys.modules['sklearn.linear_model'] = types.SimpleNamespace(LinearRegression=object)
 sys.modules['sklearn.ensemble'] = types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object)
-sys.modules['xgboost'] = types.ModuleType('xgboost')
-sys.modules['xgboost'].XGBRegressor = object
+_xgb_mod = types.ModuleType('xgboost')
+_xgb_mod.__spec__ = importlib.machinery.ModuleSpec('xgboost', None)
+_xgb_mod.XGBRegressor = object
+sys.modules['xgboost'] = _xgb_mod
 
 torch_mod = types.ModuleType('torch')
+torch_mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
 torch_mod.no_grad = contextlib.nullcontext
 torch_mod.tensor = lambda *a, **k: None
 torch_mod.nn = types.SimpleNamespace(LSTM=object, Linear=object, TransformerEncoder=object, TransformerEncoderLayer=object)
 torch_mod.optim = types.ModuleType('optim')
+torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
 sys.modules['torch'] = torch_mod
 
 sys.modules['solhunter_zero.models'] = types.SimpleNamespace(get_model=lambda *a, **k: None)

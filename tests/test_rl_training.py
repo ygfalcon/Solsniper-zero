@@ -1,16 +1,22 @@
 import sys
 import types
 import importlib.util
+import importlib.machinery
 from pathlib import Path
 
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 if importlib.util.find_spec("transformers") is None:
+    dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
     sys.modules.setdefault("transformers", dummy_trans)
 if importlib.util.find_spec("sentence_transformers") is None:
-    sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
+    st_mod = types.ModuleType("sentence_transformers")
+    st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
+    sys.modules.setdefault("sentence_transformers", st_mod)
 if importlib.util.find_spec("faiss") is None:
-    sys.modules.setdefault("faiss", types.ModuleType("faiss"))
+    faiss_mod = types.ModuleType("faiss")
+    faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
+    sys.modules.setdefault("faiss", faiss_mod)
 if importlib.util.find_spec("torch") is None:
     torch_mod = types.ModuleType("torch")
     torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)

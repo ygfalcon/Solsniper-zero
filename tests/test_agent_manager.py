@@ -3,20 +3,32 @@ import asyncio
 import sys
 import types
 import importlib.util
+import importlib.machinery
 
 # Stub heavy optional dependencies to keep import lightweight
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 if importlib.util.find_spec("transformers") is None:
+    dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
     sys.modules.setdefault("transformers", dummy_trans)
 if importlib.util.find_spec("sentence_transformers") is None:
-    sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
+    st_mod = types.ModuleType("sentence_transformers")
+    st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
+    sys.modules.setdefault("sentence_transformers", st_mod)
 if importlib.util.find_spec("faiss") is None:
-    sys.modules.setdefault("faiss", types.ModuleType("faiss"))
+    faiss_mod = types.ModuleType("faiss")
+    faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
+    sys.modules.setdefault("faiss", faiss_mod)
 if importlib.util.find_spec("torch") is None:
-    sys.modules.setdefault("torch", types.ModuleType("torch"))
-    sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
-    sys.modules.setdefault("torch.optim", types.ModuleType("torch.optim"))
+    tmod = types.ModuleType("torch")
+    tmod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+    sys.modules.setdefault("torch", tmod)
+    nn_mod = types.ModuleType("torch.nn")
+    nn_mod.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
+    sys.modules.setdefault("torch.nn", nn_mod)
+    opt_mod = types.ModuleType("torch.optim")
+    opt_mod.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+    sys.modules.setdefault("torch.optim", opt_mod)
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
     pl.callbacks = types.SimpleNamespace(Callback=object)
