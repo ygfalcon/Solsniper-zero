@@ -1031,12 +1031,22 @@ def _best_route(
             mempool_rate=mempool_rate,
             **kwargs,
         )
-    if USE_FFI_ROUTE and _HAS_ROUTEFFI:
+    if USE_FFI_ROUTE and _routeffi.available():
+        fees = dict(kwargs.get("fees") or {})
+        gas = dict(kwargs.get("gas") or {})
+        latency = dict(kwargs.get("latency") or {})
+        for v in prices.keys():
+            fees.setdefault(v, DEX_FEES.get(v, 0.0))
+            gas.setdefault(v, DEX_GAS.get(v, 0.0))
+            latency.setdefault(v, DEX_LATENCY.get(v, 0.0))
+        ffi_kwargs = {
+            "fees": fees,
+            "gas": gas,
+            "latency": latency,
+            "max_hops": kwargs.get("max_hops", MAX_HOPS),
+        }
         try:
-            func = getattr(_routeffi, "best_route_parallel", None)
-            if func is None:
-                func = _routeffi.best_route
-            res = func(dict(prices), amount, **kwargs)
+            res = _routeffi.best_route(dict(prices), amount, **ffi_kwargs)
             if res:
                 return res
         except Exception as exc:  # pragma: no cover - optional ffi failures
