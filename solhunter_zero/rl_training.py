@@ -97,6 +97,25 @@ def _calc_num_workers(
     return base
 
 
+def _ensure_mmap_dataset(db_url: str, out_path: Path) -> None:
+    """Create ``out_path`` using ``build_mmap_dataset`` if it doesn't exist."""
+    if out_path.exists():
+        return
+    try:
+        from scripts import build_mmap_dataset
+    except Exception:  # pragma: no cover - missing script
+        return
+    db_path = db_url
+    if db_url.startswith("sqlite:///"):
+        db_path = db_url.replace("sqlite:///", "")
+    try:
+        build_mmap_dataset.main(["--db", db_path, "--out", str(out_path)])
+    except Exception as exc:  # pragma: no cover - generation failure
+        logging.getLogger(__name__).warning(
+            "failed to build mmap dataset: %s", exc
+        )
+
+
 class _TradeDataset(Dataset):
     """Combine offline trades with simulated experiences."""
 
@@ -254,6 +273,10 @@ class TradeDataModule(pl.LightningDataModule):
     ) -> None:
         super().__init__()
         self.db_url = db_url
+        if mmap_path is None:
+            default = Path("datasets/offline_data.npz")
+            if default.exists():
+                mmap_path = str(default)
         self.mmap_path = mmap_path
         self.batch_size = batch_size
         self.sims_per_token = sims_per_token
@@ -502,6 +525,8 @@ class RLTraining:
             dyn_workers = str(env_dyn).lower() in {"1", "true", "yes"}
         if mmap_path is None:
             default_mmap = Path("datasets/offline_data.npz")
+            if not default_mmap.exists():
+                _ensure_mmap_dataset(db_url, default_mmap)
             if default_mmap.exists():
                 mmap_path = str(default_mmap)
         self.data = TradeDataModule(

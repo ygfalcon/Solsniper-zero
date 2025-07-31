@@ -19,6 +19,7 @@ from .base_memory import BaseMemory
 from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
+from .rl_training import _ensure_mmap_dataset
 from .risk import average_correlation
 from .event_bus import subscription, publish, send_heartbeat
 from .schemas import ActionExecuted, RLCheckpoint, RLWeights
@@ -247,6 +248,7 @@ class RLDaemon:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
         self.data = OfflineData(f"sqlite:///{data_path}")
+        _ensure_mmap_dataset(f"sqlite:///{data_path}", Path("datasets/offline_data.npz"))
         self.model_path = Path(model_path)
         self.algo = algo
         self.last_train_time: float | None = None
