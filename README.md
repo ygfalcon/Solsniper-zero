@@ -417,6 +417,12 @@ Running `scripts/startup.py` handles these steps interactively and forwards any 
    python -m solhunter_zero.main
 
    ```
+19. **Autopilot**
+   Automatically selects the only keypair and active configuration,
+   then launches all services and the trading loop:
+   ```bash
+   python scripts/start_all.py autopilot
+   ```
 Use the `--testnet` flag to submit orders to a testnet DEX endpoint,
 `--dry-run` to skip order submission entirely, `--offline` to avoid
 network requests and use a static token list, or `--token-list <file>`
