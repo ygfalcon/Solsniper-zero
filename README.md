@@ -163,8 +163,9 @@ direct transaction submission to the Solana RPC.
     to `0` the scanner uses half the available CPUs.
   - `CPU_USAGE_THRESHOLD` – pause task creation when CPU usage exceeds this
     percentage.
-  - `system_metrics` events are published with current CPU and memory usage
-    collected by a background monitor.
+  - `system_metrics` events are aggregated from the local monitor and the
+    depth service by `metrics_aggregator` which publishes them under
+    `system_metrics_combined`.
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
     updates per second (defaults to `1` and `10`).
   - `--config <path>` – load these options from the given configuration file.
@@ -477,6 +478,8 @@ published by default:
 - `action_executed` whenever the `AgentManager` finishes an order
 - `weights_updated` after agent weights change
 - `rl_weights` when the RL daemon publishes new weights
+- `system_metrics_combined` aggregated CPU and memory usage from
+  `metrics_aggregator`
 - `risk_updated` when the risk multiplier is modified
 - `config_updated` when a configuration file is saved
 - `risk_metrics` whenever portfolio risk metrics are recalculated

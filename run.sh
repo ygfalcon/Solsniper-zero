@@ -52,6 +52,10 @@ if [ "${DEPTH_SERVICE,,}" = "true" ]; then
     cargo build --manifest-path depth_service/Cargo.toml --release
 fi
 
+python -m solhunter_zero.metrics_aggregator &
+AGG_PID=$!
+trap 'kill $AGG_PID 2>/dev/null' EXIT
+
 if [ "$1" = "--daemon" ]; then
     shift
     python -m solhunter_zero.train_cli --daemon "$@"

@@ -137,7 +137,7 @@ def _store_system_metrics(msg: Any) -> None:
     system_metrics["cpu"] = float(cpu)
     system_metrics["memory"] = float(mem)
 
-_sys_metrics_sub = subscription("system_metrics", _store_system_metrics)
+_sys_metrics_sub = subscription("system_metrics_combined", _store_system_metrics)
 _sys_metrics_sub.__enter__()
 
 
@@ -203,7 +203,7 @@ _rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
 _rl_metrics_ws_sub = subscription("rl_metrics", _sub_handler("rl_metrics"))
 _risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
 _config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
-_sys_metrics_ws_sub = subscription("system_metrics", _sub_handler("system_metrics"))
+_sys_metrics_ws_sub = subscription("system_metrics_combined", _sub_handler("system_metrics"))
 
 _action_sub.__enter__()
 _weights_ws_sub.__enter__()
