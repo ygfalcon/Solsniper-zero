@@ -31,6 +31,8 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .mev_sandwich import MEVSandwichAgent
     from .flashloan_sandwich import FlashloanSandwichAgent
 
+    from .atlantean_wave_agent import AtlanteanWaveAgent
+
     from .opportunity_cost import OpportunityCostAgent
 
 
@@ -115,6 +117,7 @@ def _ensure_agents_loaded() -> None:
         "ramanujan": RamanujanAgent,
         "vanta": StrangeAttractorAgent,
         "inferna": FractalAgent,
+        "atlantean_wave": AtlanteanWaveAgent,
 
         "emotion": EmotionAgent,
 
