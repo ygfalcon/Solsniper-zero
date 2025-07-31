@@ -170,7 +170,7 @@ async def _run_iteration(
                     offline=offline, token_file=token_file
                 )
         else:
-            tokens = await scan_tokens_async(**scan_kwargs)
+            tokens = await scan_tokens_async(dynamic_concurrency=True, **scan_kwargs)
     else:
         tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
 
