@@ -12,6 +12,7 @@ except Exception:  # pragma: no cover - optional dependency
     import json  # type: ignore
     _USE_ORJSON = False
 import os
+import zlib
 from contextlib import contextmanager
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
@@ -34,6 +35,20 @@ _PB_MAP = {
     "system_metrics": pb.SystemMetrics,
     "price_update": pb.PriceUpdate,
 }
+
+# compress protobuf messages when broadcasting if enabled
+_COMPRESS_EVENTS = os.getenv("COMPRESS_EVENTS")
+COMPRESS_EVENTS = _COMPRESS_EVENTS not in (None, "", "0")
+
+
+def _maybe_decompress(data: bytes) -> bytes:
+    """Return decompressed ``data`` if it appears to be zlib-compressed."""
+    if len(data) > 2 and data[0] == 0x78:
+        try:
+            return zlib.decompress(data)
+        except Exception:
+            return data
+    return data
 
 
 def _dumps(obj: Any) -> str | bytes:
@@ -122,7 +137,10 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 ts=int(entry.get("ts", 0)),
             )
         event = pb.Event(topic=topic, depth_update=pb.DepthUpdate(entries=entries))
-        return event.SerializeToString()
+        data = event.SerializeToString()
+        if COMPRESS_EVENTS:
+            data = zlib.compress(data)
+        return data
     elif topic == "depth_service_status":
         event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
     elif topic == "heartbeat":
@@ -177,7 +195,10 @@ def _encode_event(topic: str, payload: Any) -> Any:
         )
     else:
         return _dumps({"topic": topic, "payload": to_dict(payload)})
-    return event.SerializeToString()
+    data = event.SerializeToString()
+    if COMPRESS_EVENTS:
+        data = zlib.compress(data)
+    return data
 
 def _decode_payload(ev: pb.Event) -> Any:
     field = ev.WhichOneof("kind")
@@ -328,8 +349,9 @@ async def _receiver(ws) -> None:
         async for msg in ws:
             try:
                 if isinstance(msg, bytes):
+                    data = _maybe_decompress(msg)
                     ev = pb.Event()
-                    ev.ParseFromString(msg)
+                    ev.ParseFromString(data)
                     payload = _decode_payload(ev)
                     publish(ev.topic, payload, _broadcast=False)
                     await broadcast_ws(msg, to_server=False)
@@ -357,8 +379,9 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
             async for msg in ws:
                 try:
                     if isinstance(msg, bytes):
+                        data = _maybe_decompress(msg)
                         ev = pb.Event()
-                        ev.ParseFromString(msg)
+                        ev.ParseFromString(data)
                         publish(ev.topic, _decode_payload(ev), _broadcast=False)
                     else:
                         data = _loads(msg)

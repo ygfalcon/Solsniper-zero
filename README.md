@@ -335,7 +335,13 @@ profit calculation so routes are ranked based on the borrowed size.
    export EVENT_BUS_URL=wss://bus.example.com
    ```
    Alternatively specify `event_bus_url` in the configuration file.
-17. **Full system startup**
+17. **Event compression**
+   Compress protobuf messages sent over the websocket bus by setting:
+   ```bash
+   export COMPRESS_EVENTS=1
+   ```
+   Nodes without the flag still accept compressed messages.
+18. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
    python scripts/start_all.py
