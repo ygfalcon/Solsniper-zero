@@ -228,9 +228,10 @@ Install the Rust toolchain if `cargo` isn't available:
   `use_service_route` is enabled (default). This is roughly ten times faster
   than the Python fallback. A lightweight `route_ffi` library is built
   automatically during installation and copied into the package so no
-  manual steps are required. When the `cargo` command is available `run.sh`
-  builds the library automatically. If you need to rebuild it manually run
-  with the optional parallel feature enabled:
+  manual steps are required. When the library is missing `setup.py` and
+  `run.sh` will compile it with `cargo build --release --features=parallel`
+  (when the `cargo` command is available). If you need to rebuild it manually run
+  the same command:
 
   ```bash
   cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel

@@ -1,6 +1,9 @@
 from .jsonutil import dumps, loads
 import os
 import ctypes
+import logging
+
+logger = logging.getLogger(__name__)
 
 LIB = None
 
@@ -142,3 +145,10 @@ def decode_token_agg(buf: bytes) -> dict | None:
     s = ctypes.string_at(ptr).decode()
     LIB.free_cstring(ptr)
     return loads(s)
+
+
+if LIB is not None and not parallel_enabled():
+    logger.error(
+        "Parallel route search unavailable. "
+        "Rebuild route_ffi with 'cargo build --release --features=parallel'"
+    )
