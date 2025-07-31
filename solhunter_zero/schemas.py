@@ -64,6 +64,21 @@ class TradeLogged:
 
 
 @dataclass
+class MemorySyncRequest:
+    """Request snapshot of trades since ``last_id``."""
+
+    last_id: int = 0
+
+
+@dataclass
+class MemorySyncResponse:
+    """Response carrying new trades and optional index bytes."""
+
+    trades: list[TradeLogged] | None = None
+    index: bytes | None = None
+
+
+@dataclass
 class SystemMetrics:
     """Payload with system CPU and memory usage."""
 
@@ -78,6 +93,8 @@ _EVENT_SCHEMAS: Dict[str, Type] = {
     "rl_checkpoint": RLCheckpoint,
     "portfolio_updated": PortfolioUpdated,
     "trade_logged": TradeLogged,
+    "memory_sync_request": MemorySyncRequest,
+    "memory_sync_response": MemorySyncResponse,
     "heartbeat": Heartbeat,
     "system_metrics": SystemMetrics,
 }

@@ -30,7 +30,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .base_memory import BaseMemory
 from .event_bus import publish, subscription
-from .schemas import TradeLogged
+from .schemas import TradeLogged, MemorySyncRequest, MemorySyncResponse
 
 
 Base = declarative_base()
@@ -99,9 +99,18 @@ class AdvancedMemory(BaseMemory):
             self.index = None
 
         self._replication_sub = None
+        self._sync_req_sub = None
+        self._sync_res_sub = None
+        self._sync_stop = None
+        self._sync_thread = None
         if replicate:
             self._replication_sub = subscription("trade_logged", self._apply_remote)
             self._replication_sub.__enter__()
+            self._sync_req_sub = subscription("memory_sync_request", self._handle_sync_request)
+            self._sync_req_sub.__enter__()
+            self._sync_res_sub = subscription("memory_sync_response", self._handle_sync_response)
+            self._sync_res_sub.__enter__()
+            self._start_sync_task()
 
     # ------------------------------------------------------------------
     def _add_embedding(self, text: str, trade_id: int) -> None:
@@ -257,8 +266,114 @@ class AdvancedMemory(BaseMemory):
             )
 
     # ------------------------------------------------------------------
+    def export_trades(self, since_id: int = 0) -> List[TradeLogged]:
+        return [
+            TradeLogged(
+                token=t.token,
+                direction=t.direction,
+                amount=t.amount,
+                price=t.price,
+                reason=t.reason,
+                context=t.context,
+                emotion=t.emotion,
+                simulation_id=t.simulation_id,
+                uuid=t.uuid,
+                trade_id=t.id,
+            )
+            for t in self.list_trades(since_id=since_id)
+        ]
+
+    # ------------------------------------------------------------------
+    def import_trades(self, trades: List[TradeLogged]) -> None:
+        for t in trades:
+            self._apply_remote(t)
+
+    # ------------------------------------------------------------------
+    def export_index(self) -> bytes | None:
+        if self.index is None:
+            return None
+        faiss.write_index(self.cpu_index or self.index, self.index_path)
+        return open(self.index_path, "rb").read()
+
+    # ------------------------------------------------------------------
+    def import_index(self, data: bytes) -> None:
+        if self.index is None or faiss is None:
+            return
+        tmp = self.index_path + ".sync"
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+        idx = faiss.read_index(tmp)
+        os.remove(tmp)
+        if self.index.ntotal < idx.ntotal:
+            if GPU_MEMORY_INDEX and _HAS_FAISS_GPU:
+                self.cpu_index = idx
+                self.index = faiss.index_cpu_to_all_gpus(idx)
+            else:
+                self.cpu_index = None
+                self.index = idx
+            faiss.write_index(self.cpu_index or self.index, self.index_path)
+
+    # ------------------------------------------------------------------
+    def request_sync(self) -> None:
+        last = 0
+        trades = self.list_trades(limit=1)
+        if trades:
+            last = trades[-1].id
+        publish("memory_sync_request", MemorySyncRequest(last_id=last))
+
+    # ------------------------------------------------------------------
+    def _handle_sync_request(self, msg: Any) -> None:
+        data = msg if isinstance(msg, dict) else msg.__dict__
+        since = int(data.get("last_id", 0))
+        payload = MemorySyncResponse(
+            trades=self.export_trades(since_id=since),
+            index=self.export_index() or b"",
+        )
+        publish("memory_sync_response", payload)
+
+    # ------------------------------------------------------------------
+    def _handle_sync_response(self, msg: Any) -> None:
+        data = msg if isinstance(msg, dict) else msg.__dict__
+        trades = data.get("trades") or []
+        idx = data.get("index")
+        if trades:
+            self.import_trades(
+                [TradeLogged(**t) if isinstance(t, dict) else t for t in trades]
+            )
+        if idx:
+            self.import_index(idx)
+
+    # ------------------------------------------------------------------
+    def _sync_loop(self, interval: float) -> None:
+        while not self._sync_stop.is_set():
+            self._sync_stop.wait(interval)
+            if self._sync_stop.is_set():
+                break
+            try:
+                self.request_sync()
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    def _start_sync_task(self, interval: float = 5.0) -> None:
+        import threading
+
+        self._sync_stop = threading.Event()
+        self._sync_thread = threading.Thread(
+            target=self._sync_loop, args=(interval,), daemon=True
+        )
+        self._sync_thread.start()
+
+    # ------------------------------------------------------------------
     def close(self) -> None:
         if self.index is not None:
             faiss.write_index(self.cpu_index or self.index, self.index_path)
         if self._replication_sub is not None:
             self._replication_sub.__exit__(None, None, None)
+        if self._sync_req_sub is not None:
+            self._sync_req_sub.__exit__(None, None, None)
+        if self._sync_res_sub is not None:
+            self._sync_res_sub.__exit__(None, None, None)
+        if self._sync_thread is not None and self._sync_stop is not None:
+            self._sync_stop.set()
+            self._sync_thread.join(timeout=1)

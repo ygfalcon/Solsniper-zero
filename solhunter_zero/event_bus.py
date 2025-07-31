@@ -71,6 +71,8 @@ _PB_MAP = {
     "risk_updated": pb.RiskUpdated,
     "system_metrics_combined": pb.SystemMetricsCombined,
     "token_discovered": pb.TokenDiscovered,
+    "memory_sync_request": pb.MemorySyncRequest,
+    "memory_sync_response": pb.MemorySyncResponse,
 }
 
 # compress protobuf messages when broadcasting if enabled
@@ -407,6 +409,33 @@ def _encode_event(topic: str, payload: Any) -> Any:
             topic=topic,
             token_discovered=pb.TokenDiscovered(tokens=[str(t) for t in data]),
         )
+    elif topic == "memory_sync_request":
+        data = to_dict(payload)
+        event = pb.Event(
+            topic=topic,
+            memory_sync_request=pb.MemorySyncRequest(last_id=int(data.get("last_id", 0))),
+        )
+    elif topic == "memory_sync_response":
+        data = to_dict(payload)
+        trades = [
+            pb.TradeLogged(
+                token=str(t.get("token", "")),
+                direction=str(t.get("direction", "")),
+                amount=float(t.get("amount", 0.0)),
+                price=float(t.get("price", 0.0)),
+                reason=str(t.get("reason", "")),
+                context=str(t.get("context", "")),
+                emotion=str(t.get("emotion", "")),
+                simulation_id=int(t.get("simulation_id", 0) or 0),
+                uuid=str(t.get("uuid", "")),
+                trade_id=int(t.get("trade_id", 0) or 0),
+            )
+            for t in (data.get("trades") or [])
+        ]
+        event = pb.Event(
+            topic=topic,
+            memory_sync_response=pb.MemorySyncResponse(trades=trades, index=data.get("index") or b""),
+        )
     data = event.SerializeToString()
     return _compress_event(data)
 
@@ -499,6 +528,25 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"cpu": msg.cpu, "memory": msg.memory}
     if field == "token_discovered":
         return list(msg.tokens)
+    if field == "memory_sync_request":
+        return {"last_id": msg.last_id}
+    if field == "memory_sync_response":
+        trades = [
+            {
+                "token": t.token,
+                "direction": t.direction,
+                "amount": t.amount,
+                "price": t.price,
+                "reason": t.reason,
+                "context": t.context,
+                "emotion": t.emotion,
+                "simulation_id": t.simulation_id,
+                "uuid": t.uuid,
+                "trade_id": t.trade_id,
+            }
+            for t in msg.trades
+        ]
+        return {"trades": trades, "index": bytes(msg.index)}
     return None
 
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):

@@ -133,6 +133,15 @@ message TokenDiscovered {
   repeated string tokens = 1;
 }
 
+message MemorySyncRequest {
+  int64 last_id = 1;
+}
+
+message MemorySyncResponse {
+  repeated TradeLogged trades = 1;
+  bytes index = 2;
+}
+
 message Event {
   string topic = 1;
   oneof kind {
@@ -155,5 +164,7 @@ message Event {
     RiskUpdated risk_updated = 18;
     SystemMetricsCombined system_metrics_combined = 19;
     TokenDiscovered token_discovered = 20;
+    MemorySyncRequest memory_sync_request = 21;
+    MemorySyncResponse memory_sync_response = 22;
   }
 }
