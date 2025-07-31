@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet, BinaryHeap};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::TokenInfo;
 
@@ -59,12 +59,14 @@ pub fn build_adjacency_matrix(
     Some(AdjacencyMatrix { venues, matrix })
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, PartialEq)]
 struct IdxNode {
     neg_profit: f64,
     path: Vec<usize>,
     visited: HashSet<usize>,
 }
+
+impl Eq for IdxNode {}
 
 impl Ord for IdxNode {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -224,8 +226,6 @@ pub fn best_route(
     }
     best_path.map(|p| RouteResult { path: p, profit: best_profit, slippage: best_slip })
 }
-
-use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct InputMap(HashMap<String, f64>);

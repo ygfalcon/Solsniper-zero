@@ -21,7 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 prost = "0.12"
 prost-types = "0.12"
 toml = "0.8"
-sysinfo = { version = "0.30", features = ["macros"] }
+sysinfo = { version = "0.30" }
 zstd = "0.13"
 
 [build-dependencies]

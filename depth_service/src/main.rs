@@ -20,7 +20,7 @@ use tokio::{
     sync::{broadcast, mpsc},
 };
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message as WsMessage};
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 use zstd::stream::{decode_all, encode_all};
 
 fn cfg_str(cfg: &TomlTable, key: &str) -> Option<String> {
@@ -1209,6 +1209,7 @@ async fn main() -> Result<()> {
     let (notify_tx, notify_rx) = tokio::sync::watch::channel(());
     let bus_tx = if let Some(url) = event_bus_url(&cfg) {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        let tx_clone = tx.clone();
         tokio::spawn(async move {
             let mut backoff = Duration::from_secs(1);
             loop {
@@ -1232,8 +1233,8 @@ async fn main() -> Result<()> {
                             .await
                             .send(WsMessage::Binary(compress_event(&online.encode_to_vec())))
                             .await;
-                        let tx_metrics = tx.clone();
-                        let tx_hb = tx.clone();
+                        let tx_metrics = tx_clone.clone();
+                        let tx_hb = tx_clone.clone();
                         tokio::spawn(async move {
                             let mut sys = System::new();
                             loop {
