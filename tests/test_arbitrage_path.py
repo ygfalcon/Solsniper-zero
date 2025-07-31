@@ -454,3 +454,15 @@ def test_parallel_route_speed(monkeypatch, ffi_enabled):
     parallel_time = time.perf_counter() - start
 
     assert parallel_time <= serial_time
+
+
+def test_ffi_matches_python_in_arbitrage_module(ffi_enabled):
+    if not ffi_enabled:
+        pytest.skip("requires ffi")
+
+    prices = {"dex1": 1.0, "dex2": 1.2, "dex3": 1.1}
+
+    py_res = arb._best_route_py(prices, 1.0)
+    ffi_res = arb._best_route(prices, 1.0)
+
+    assert ffi_res == py_res
