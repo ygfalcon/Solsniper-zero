@@ -35,9 +35,25 @@ button {
     padding: var(--space-sm) var(--space-md);
     margin: var(--space-xs);
     cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
 }
 button:hover {
     background-color: #444;
+    transform: translateY(-2px);
+}
+
+#start {
+    background-color: #2e7d32;
+}
+#start:hover {
+    background-color: #388e3c;
+}
+
+#stop {
+    background-color: #c62828;
+}
+#stop:hover {
+    background-color: #d32f2f;
 }
 
 pre {
