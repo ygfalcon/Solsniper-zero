@@ -11,7 +11,7 @@ async def main() -> None:
     p.add_argument("--memory", default="sqlite:///memory.db")
     p.add_argument("--data", default="offline_data.db")
     p.add_argument("--model", default="ppo_model.pt")
-    p.add_argument("--algo", default="ppo", choices=["ppo", "dqn"])
+    p.add_argument("--algo", default="ppo", choices=["ppo", "dqn", "a3c", "ddpg"])
     p.add_argument("--interval", type=float, default=3600.0)
     p.add_argument("--num-workers", type=int, default=None, help="Data loader workers")
     p.add_argument("--device", default=None)

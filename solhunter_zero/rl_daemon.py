@@ -20,6 +20,7 @@ from .memory import Memory, Trade
 from .offline_data import OfflineData, MarketSnapshot
 from . import rl_training
 from .rl_training import _ensure_mmap_dataset
+from .rl_algorithms import _A3C, _DDPG
 from .risk import average_correlation
 from .event_bus import subscription, publish, send_heartbeat
 from .schemas import ActionExecuted, RLCheckpoint, RLWeights
@@ -227,6 +228,85 @@ def _train_ppo(
             opt.step()
 
 
+def _train_a3c(
+    model: _A3C,
+    data: Dataset,
+    device: torch.device,
+    *,
+    dynamic_workers: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
+) -> None:
+    num_workers = rl_training._calc_num_workers(
+        len(data), dynamic=dynamic_workers, cpu_callback=cpu_callback
+    )
+    loader = DataLoader(
+        data,
+        batch_size=32,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=num_workers > 0,
+        persistent_workers=num_workers > 0,
+    )
+    opt = torch.optim.Adam(list(model.actor.parameters()) + list(model.critic.parameters()), lr=3e-4)
+    model.train()
+    for _ in range(3):
+        for states, actions, rewards in loader:
+            states = states.to(device)
+            actions = actions.to(device)
+            rewards = rewards.to(device)
+            logits = model.actor(states)
+            log_probs = torch.log_softmax(logits, dim=-1)
+            values = model.critic(states).squeeze()
+            advantage = rewards - values.detach()
+            actor_loss = -(log_probs[range(len(actions)), actions] * advantage).mean()
+            critic_loss = model.loss_fn(values, rewards)
+            loss = actor_loss + 0.5 * critic_loss
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
+
+def _train_ddpg(
+    model: _DDPG,
+    data: Dataset,
+    device: torch.device,
+    *,
+    dynamic_workers: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
+) -> None:
+    num_workers = rl_training._calc_num_workers(
+        len(data), dynamic=dynamic_workers, cpu_callback=cpu_callback
+    )
+    loader = DataLoader(
+        data,
+        batch_size=32,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=num_workers > 0,
+        persistent_workers=num_workers > 0,
+    )
+    actor_opt = torch.optim.Adam(model.actor.parameters(), lr=1e-3)
+    critic_opt = torch.optim.Adam(model.critic.parameters(), lr=1e-3)
+    model.train()
+    for _ in range(3):
+        for states, actions, rewards in loader:
+            states = states.to(device)
+            act = actions.float().unsqueeze(1).to(device)
+            rewards = rewards.to(device)
+            pred_q = model.critic(torch.cat([states, act], dim=1)).squeeze()
+            critic_loss = model.loss_fn(pred_q, rewards)
+            critic_opt.zero_grad()
+            critic_loss.backward()
+            critic_opt.step()
+
+            pred_act = model.actor(states)
+            q_val = model.critic(torch.cat([states, pred_act], dim=1)).squeeze()
+            actor_loss = -q_val.mean()
+            actor_opt.zero_grad()
+            actor_loss.backward()
+            actor_opt.step()
+
+
 class RLDaemon:
     """Background trainer that updates RL models from trade history."""
 
@@ -263,6 +343,10 @@ class RLDaemon:
         self.device = torch.device(device)
         if algo == "dqn":
             self.model: nn.Module = _DQN()
+        elif algo == "a3c":
+            self.model = _A3C()
+        elif algo == "ddpg":
+            self.model = _DDPG()
         else:
             self.model = _PPO()
 
