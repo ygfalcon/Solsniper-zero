@@ -509,7 +509,7 @@ The trading logic is implemented by a swarm of small agents:
   mempool entropy and conviction velocity. Trades when divergence aligns with a
   known profitable manifold.
  - **FractalAgent** — matches ROI fractal patterns using wavelet fingerprints.
- - **ArtifactMathAgent** — evaluates simple math expressions using the dataset in `datasets/artifact_math.json`.
+ - **ArtifactMathAgent** — evaluates simple math expressions using `load_artifact_math` to read `datasets/artifact_math.json`.
  - **PortfolioAgent** — maintains per-token allocation using `max_allocation` and buys small amounts when idle with `buy_risk`.
 - **PortfolioOptimizer** — adjusts positions using mean-variance analysis and risk metrics.
  - **CrossDEXRebalancer** — distributes trades across venues according to order-book depth, measured latency and per‑venue fees. It asks `PortfolioOptimizer` for base actions,
@@ -895,7 +895,7 @@ If it is missing it will be created automatically when `RLTraining` or
 `RLDaemon` starts.  On a small dataset this lowered preparation time from around
 3&nbsp;s to roughly 0.2&nbsp;s thanks to ``numpy.fromiter`` and memory mapping.
 A simple arithmetic dataset located at `datasets/artifact_math.json` powers the
-`ArtifactMathAgent`.
+`ArtifactMathAgent` and can be loaded with `load_artifact_math`.
 
 Offline snapshots can also be used to train a transformer-based price model:
 
