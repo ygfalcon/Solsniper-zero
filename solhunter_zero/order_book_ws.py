@@ -8,7 +8,10 @@ import time
 import threading
 from typing import AsyncGenerator, Dict, Any, Optional, Tuple
 
-from watchfiles import awatch
+try:
+    from watchfiles import awatch
+except Exception:  # pragma: no cover - optional dependency
+    awatch = None
 
 import aiohttp
 from .http import get_session, loads, dumps
@@ -32,6 +35,8 @@ _watch_loop: asyncio.AbstractEventLoop | None = None
 
 async def _watch_mmap(interval: float) -> None:
     """Watch :data:`_MMAP_PATH` and clear :data:`_DEPTH_CACHE` on changes."""
+    if awatch is None:  # pragma: no cover - watchfiles not installed
+        return
     async for _ in awatch(
         _MMAP_PATH, poll_delay_ms=int(interval * 1000), debounce=0
     ):

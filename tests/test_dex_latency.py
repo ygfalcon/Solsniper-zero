@@ -131,3 +131,31 @@ async def test_measure_latency_dynamic_limit(monkeypatch):
         dynamic_concurrency=True,
     )
     assert max_running <= 2
+
+
+@pytest.mark.asyncio
+async def test_measure_latency_cache(monkeypatch):
+    import solhunter_zero.arbitrage as mod
+
+    async def fake_get_session():
+        return object()
+
+    calls = {"pings": 0}
+
+    async def fake_ping(session, url, attempts=1):
+        calls["pings"] += 1
+        return 0.1
+
+    monkeypatch.setattr(mod, "get_session", fake_get_session)
+    monkeypatch.setattr(mod, "_ping_url", fake_ping)
+
+    mod.DEX_LATENCY_CACHE.ttl = 60
+    mod.DEX_LATENCY_CACHE.clear()
+
+    urls = {"d": "u"}
+    res1 = await mod.measure_dex_latency_async(urls, attempts=1)
+    res2 = await mod.measure_dex_latency_async(urls, attempts=1)
+
+    assert res1 == {"d": 0.1}
+    assert res2 == res1
+    assert calls["pings"] == 1

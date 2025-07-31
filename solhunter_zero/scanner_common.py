@@ -158,22 +158,19 @@ def fetch_trending_tokens() -> List[str]:
 
 async def fetch_trending_tokens_async() -> List[str]:
     """Asynchronously fetch trending token addresses from Jupiter."""
-    cached = TREND_CACHE.get("tokens")
-    if cached is not None:
-        return cached
 
-    session = await get_session()
-    try:
-        async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
-    except aiohttp.ClientError as exc:  # pragma: no cover - network errors
-        logger.warning("Failed to fetch trending tokens: %s", exc)
-        return []
+    async def _fetch() -> List[str]:
+        session = await get_session()
+        try:
+            async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except aiohttp.ClientError as exc:  # pragma: no cover - network errors
+            logger.warning("Failed to fetch trending tokens: %s", exc)
+            return []
+        return parse_trending_tokens(data)
 
-    tokens = parse_trending_tokens(data)
-    TREND_CACHE.set("tokens", tokens)
-    return tokens
+    return await TREND_CACHE.get_or_set_async("tokens", _fetch)
 
 
 def parse_listing_tokens(data: dict) -> List[str]:

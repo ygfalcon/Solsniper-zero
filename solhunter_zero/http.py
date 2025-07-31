@@ -38,9 +38,13 @@ async def get_session() -> aiohttp.ClientSession:
     """Return a shared :class:`aiohttp.ClientSession`."""
     global _session
     if _session is None or getattr(_session, "closed", False):
-        connector = aiohttp.TCPConnector(
-            limit=CONNECTOR_LIMIT, limit_per_host=CONNECTOR_LIMIT_PER_HOST
-        )
+        conn_cls = getattr(aiohttp, "TCPConnector", None)
+        if conn_cls is object or conn_cls is None:
+            connector = None
+        else:
+            connector = conn_cls(
+                limit=CONNECTOR_LIMIT, limit_per_host=CONNECTOR_LIMIT_PER_HOST
+            )
         _session = aiohttp.ClientSession(connector=connector)
     return _session
 
