@@ -1,8 +1,0 @@
-# Each entry represents a recovered alien artifact.
-# artifact_id: unique identifier for the item.
-# sequence: list of integers encoding ASCII characters.
-[
-  {"artifact_id": 1, "sequence": [72, 101, 108, 108, 111]},
-  {"artifact_id": 2, "sequence": [83, 111, 108]},
-  {"artifact_id": 3, "sequence": [90, 101, 114, 111]}
-]
