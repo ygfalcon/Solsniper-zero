@@ -32,6 +32,7 @@ if TYPE_CHECKING:  # Imports for type checking only to avoid circular imports
     from .flashloan_sandwich import FlashloanSandwichAgent
 
     from .opportunity_cost import OpportunityCostAgent
+    from .alien_cipher import AlienCipherAgent
 
 
 
@@ -83,6 +84,10 @@ def _ensure_agents_loaded() -> None:
     from .strange_attractor import StrangeAttractorAgent
     from .meta_conviction import MetaConvictionAgent
     from .fractal_agent import FractalAgent
+    try:  # optional dependency
+        from .alien_cipher import AlienCipherAgent
+    except Exception:  # pragma: no cover - optional dependency
+        AlienCipherAgent = None
 
     BUILT_IN_AGENTS.update({
         "simulation": SimulationAgent,
@@ -119,6 +124,9 @@ def _ensure_agents_loaded() -> None:
         "emotion": EmotionAgent,
 
     })
+
+    if AlienCipherAgent is not None:
+        BUILT_IN_AGENTS["alien_cipher"] = AlienCipherAgent
 
     for ep in importlib.metadata.entry_points(group="solhunter_zero.agents"):
         try:
