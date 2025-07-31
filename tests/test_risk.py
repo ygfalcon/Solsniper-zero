@@ -7,6 +7,7 @@ from solhunter_zero.risk import (
     portfolio_cvar,
     portfolio_variance,
     hedge_ratio,
+    recent_value_at_risk,
 )
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import calculate_order_size, Portfolio
@@ -186,6 +187,32 @@ def test_var_reduces_order_size():
     )
     assert params.risk_tolerance < base.risk_tolerance
     assert var_size < base_size
+
+
+def test_recent_var_function():
+    prices = [100, 110, 100, 90, 95, 96, 97]
+    var_full = recent_value_at_risk(prices, window=5, confidence=0.95)
+    assert var_full > 0
+
+
+def test_order_size_scaled_by_var():
+    size = calculate_order_size(
+        100.0,
+        1.0,
+        var=0.1,
+        var_threshold=0.05,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    base = calculate_order_size(
+        100.0,
+        1.0,
+        risk_tolerance=0.1,
+        max_allocation=0.5,
+        max_risk_per_token=0.5,
+    )
+    assert size < base
 
 
 def test_portfolio_covariance_and_variance():

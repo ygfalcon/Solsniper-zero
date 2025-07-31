@@ -373,6 +373,8 @@ def calculate_order_size(
     current_allocation: float = 0.0,
     min_portfolio_value: float = 0.0,
     correlation: float | None = None,
+    var: float | None = None,
+    var_threshold: float | None = None,
 ) -> float:
     """Return trade size based on ``balance`` and expected ROI.
 
@@ -384,7 +386,8 @@ def calculate_order_size(
 
     ``min_portfolio_value`` sets a lower bound on the balance used for sizing,
     preventing portfolios that dip below this value from generating trades that
-    cannot cover network fees.
+    cannot cover network fees.  When ``var`` exceeds ``var_threshold`` the size
+    is reduced proportionally.
     """
 
     if balance <= 0 or expected_roi <= 0:
@@ -409,6 +412,13 @@ def calculate_order_size(
         return 0.0
     effective_balance = max(balance, min_portfolio_value)
     size = min(effective_balance * fraction, balance)
+    if (
+        var is not None
+        and var_threshold is not None
+        and var > var_threshold
+        and var > 0
+    ):
+        size *= var_threshold / var
     if gas_cost is None:
         try:
             from .gas import get_current_fee

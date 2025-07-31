@@ -113,7 +113,7 @@ from .agent_manager import AgentManager
 from .agents.discovery import DiscoveryAgent
 
 from .portfolio import calculate_order_size
-from .risk import RiskManager
+from .risk import RiskManager, recent_value_at_risk
 from . import arbitrage
 from . import depth_client
 from . import event_bus
@@ -261,6 +261,11 @@ async def _run_iteration(
                     portfolio.price_history.get("USDC", []),
                 )
                 lev = leverage_scaling(1.0, 1.0 / (1 + abs(hedge)))
+                var_conf = float(os.getenv("VAR_CONFIDENCE", "0.95"))
+                var_window = int(os.getenv("VAR_WINDOW", "30"))
+                var_threshold = float(os.getenv("VAR_THRESHOLD", "0"))
+                hist = portfolio.price_history.get(token, [])
+                var = recent_value_at_risk(hist, window=var_window, confidence=var_conf)
                 params = rm.adjusted(
                     drawdown,
                     0.0,
@@ -271,6 +276,9 @@ async def _run_iteration(
                     portfolio_metrics=risk_metrics,
                     leverage=lev,
                     correlation=risk_metrics.get("correlation"),
+                    prices=hist,
+                    var_threshold=var_threshold,
+                    var_confidence=var_conf,
                 )
 
                 amount = calculate_order_size(
@@ -286,6 +294,8 @@ async def _run_iteration(
                     current_allocation=alloc,
                     min_portfolio_value=params.min_portfolio_value,
                     correlation=risk_metrics.get("correlation"),
+                    var=var,
+                    var_threshold=var_threshold,
                 )
                 await place_order_async(
                     token,
