@@ -1,0 +1,36 @@
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+button {
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 0.4rem 0.8rem;
+    margin: 0.2rem;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #444;
+}
+
+pre {
+    background-color: #1e1e1e;
+    padding: 0.5rem;
+    overflow: auto;
+}
+
+canvas {
+    background-color: #1e1e1e;
+    margin-bottom: 1rem;
+}

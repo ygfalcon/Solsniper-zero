@@ -16,7 +16,7 @@ from .util import install_uvloop
 
 install_uvloop()
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template_string
 from .event_bus import subscription, publish
 try:
     import websockets
@@ -84,7 +84,9 @@ if get_active_config_name() is None:
         select_config(configs[0])
         set_env_from_config(load_selected_config())
 
-app = Flask(__name__)
+app = Flask(
+    __name__, static_folder=str(Path(__file__).resolve().parent / "static")
+)
 
 # in-memory log storage for UI access
 log_buffer: deque[str] = deque(maxlen=200)
@@ -788,57 +790,82 @@ HTML_PAGE = """
 <html>
 <head>
     <title>SolHunter UI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
+    <div class="container">
     <button id='start'>Start</button>
     <button id='stop'>Stop</button>
     <select id='keypair_select'></select>
     <pre id='status_info'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
     <p>Active Config: <span id='active_config'></span></p>
-    <h3>Strategies</h3>
-    <div id='strategy_controls'></div>
-    <button id='save_strategies'>Save Strategies</button>
+    <div class="section">
+        <h3>Strategies</h3>
+        <div id='strategy_controls'></div>
+        <button id='save_strategies'>Save Strategies</button>
+    </div>
 
-    <h3>ROI: <span id='roi_value'>0</span></h3>
-    <canvas id='roi_chart' width='400' height='100'></canvas>
+    <div class="section">
+        <h3>ROI: <span id='roi_value'>0</span></h3>
+        <canvas id='roi_chart' width='400' height='100'></canvas>
+    </div>
 
-    <h3>Positions</h3>
-    <pre id='positions'></pre>
+    <div class="section">
+        <h3>Positions</h3>
+        <pre id='positions'></pre>
+    </div>
 
-    <h3>Recent Trades</h3>
-    <pre id='trades'></pre>
-    <canvas id='trade_chart' width='400' height='100'></canvas>
+    <div class="section">
+        <h3>Recent Trades</h3>
+        <pre id='trades'></pre>
+        <canvas id='trade_chart' width='400' height='100'></canvas>
+    </div>
 
-    <h3>Agent Weights</h3>
-    <div id='weights_controls'></div>
-    <button id='save_weights'>Save Weights</button>
-    <canvas id='weights_chart' width='400' height='100'></canvas>
+    <div class="section">
+        <h3>Agent Weights</h3>
+        <div id='weights_controls'></div>
+        <button id='save_weights'>Save Weights</button>
+        <canvas id='weights_chart' width='400' height='100'></canvas>
+    </div>
 
-    <h3>Token PnL</h3>
-    <canvas id='pnl_chart' width='400' height='100'></canvas>
+    <div class="section">
+        <h3>Token PnL</h3>
+        <canvas id='pnl_chart' width='400' height='100'></canvas>
+    </div>
 
-    <h3>Token Allocation</h3>
-    <canvas id='allocation_chart' width='400' height='100'></canvas>
+    <div class="section">
+        <h3>Token Allocation</h3>
+        <canvas id='allocation_chart' width='400' height='100'></canvas>
+    </div>
 
-    <h3>VaR History</h3>
-    <pre id='var_values'></pre>
-    <canvas id='var_chart' width='400' height='100'></canvas>
+    <div class="section">
+        <h3>VaR History</h3>
+        <pre id='var_values'></pre>
+        <canvas id='var_chart' width='400' height='100'></canvas>
+    </div>
 
-    <h3>Exposure</h3>
-    <pre id='exposure'></pre>
+    <div class="section">
+        <h3>Exposure</h3>
+        <pre id='exposure'></pre>
+    </div>
 
-    <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
+    <div class="section">
+        <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
 
-    <h3>RL Status</h3>
-    <pre id='rl_status'></pre>
+        <h3>RL Status</h3>
+        <pre id='rl_status'></pre>
+    </div>
 
-    <h3>Risk Parameters</h3>
-    <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
-    <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
-    <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
-    <button id='save_risk'>Save Risk</button>
+    <div class="section">
+        <h3>Risk Parameters</h3>
+        <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
+        <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
+        <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
+        <button id='save_risk'>Save Risk</button>
+    </div>
+    </div>
 
     <script>
     document.getElementById('start').onclick = function() {
@@ -1079,7 +1106,7 @@ HTML_PAGE = """
 
 @app.route("/")
 def index() -> str:
-    return HTML_PAGE
+    return render_template_string(HTML_PAGE)
 
 
 async def _rl_ws_handler(ws):

@@ -784,6 +784,9 @@ Run a simple Flask-based UI with:
 python -m solhunter_zero.ui
 ```
 
+Open `http://localhost:5000` in your browser to view the dashboard. The page
+loads `solhunter_zero/static/styles.css` to provide a dark-themed layout.
+
 The UI provides **Start** and **Stop** buttons to control the trading loop and
 includes a **Full Auto Mode** switch. When enabled the UI posts to the
 `/autostart` endpoint which launches the bot with the active configuration and
