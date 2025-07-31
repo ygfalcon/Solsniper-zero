@@ -835,7 +835,9 @@ very small.
   collected snapshots using `scripts/train_transformer_model.py`,
   `scripts/train_price_model.py` or the offline
   `scripts/train_transformer_agent.py`. Set `PRICE_MODEL_PATH` to the resulting
-  model file and `predict_price_movement()` will load it automatically.
+  model file and `predict_price_movement()` will load it automatically. The path
+  may point to a saved ``TransformerModel``, ``DeepTransformerModel`` or
+  ``XLTransformerModel``.
 - **Early activity detection** — `scripts/train_activity_model.py` builds a
   dataset from `offline_data.db` and trains a classifier on depth change,
   transaction rate, whale activity and average swap size. Set
@@ -897,7 +899,8 @@ python scripts/train_activity_model.py --db offline_data.db --out models/activit
 ```
 
 Set the `PRICE_MODEL_PATH` environment variable to this file so agents and
-`predict_price_movement()` can load it automatically.
+`predict_price_movement()` can load it automatically. Both LSTM and transformer
+models are supported.
 Set `ACTIVITY_MODEL_PATH` to `models/activity.pt` to enable early activity scoring.
 
 You can train a soft actor-critic policy from the same dataset:
@@ -924,7 +927,8 @@ It reloads the latest checkpoints, performs a few gradient steps and writes the
 updated model back to disk so `ConvictionAgent` picks up the new weights.
 
 Set the `PRICE_MODEL_PATH` environment variable to `models/price.pt` so trading
-agents reload each checkpoint automatically.
+agents reload each checkpoint automatically. This can reference a
+`TransformerModel`, `DeepTransformerModel` or `XLTransformerModel`.
 Use `ACTIVITY_MODEL_PATH` in the same way to reload the activity model.
 
 To continuously retrain the RL models on GPU run `scripts/train_rl_gpu.py`:
