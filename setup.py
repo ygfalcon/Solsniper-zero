@@ -5,7 +5,10 @@ from setuptools.command.build_ext import build_ext as _build_ext
 import subprocess
 
 def build_route_ffi(root: Path, out_dir: Path):
-    """Compile the Rust FFI library and copy it to *out_dir*."""
+    """Compile the Rust FFI library and copy it to *out_dir* when missing."""
+    lib_dst = out_dir / "libroute_ffi.so"
+    if lib_dst.exists():
+        return
     subprocess.run(
         [
             "cargo",
@@ -19,7 +22,8 @@ def build_route_ffi(root: Path, out_dir: Path):
     )
     lib_src = root / "route_ffi" / "target" / "release" / "libroute_ffi.so"
     if lib_src.exists():
-        (out_dir / "libroute_ffi.so").write_bytes(lib_src.read_bytes())
+        out_dir.mkdir(parents=True, exist_ok=True)
+        lib_dst.write_bytes(lib_src.read_bytes())
 
 
 class build_py(_build_py):
