@@ -351,3 +351,28 @@ async def test_mmap_generated_when_missing(monkeypatch, tmp_path):
     assert "--db" in called.get("args", [])
 
 
+def test_trade_dataset_prediction_cache(monkeypatch):
+    import types
+    import solhunter_zero.rl_training as rl_training
+
+    calls = []
+
+    def fake_predict(token, model_path=None):
+        calls.append(token)
+        return {"a": 0.1, "b": 0.2}.get(token, 0.0)
+
+    monkeypatch.setattr(rl_training, "predict_price_movement", fake_predict)
+
+    trades = [
+        types.SimpleNamespace(token="a", side="buy", price=1.0, amount=1.0),
+        types.SimpleNamespace(token="a", side="sell", price=1.1, amount=0.5),
+        types.SimpleNamespace(token="b", side="buy", price=2.0, amount=1.2),
+    ]
+
+    ds = rl_training._TradeDataset(trades, [])
+
+    assert sorted(calls) == ["a", "b"]
+    preds = ds.states[:, 7]
+    assert list(preds) == [pytest.approx(0.1), pytest.approx(0.1), pytest.approx(0.2)]
+
+

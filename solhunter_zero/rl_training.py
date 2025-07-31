@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import datetime
+import concurrent.futures
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
 import time
@@ -241,11 +242,25 @@ class _TradeDataset(Dataset):
 
         unique_tokens = np.unique(tokens)
         pred_cache: dict[str, float] = {}
-        for tok in unique_tokens:
-            try:
-                pred_cache[tok] = predict_price_movement(tok, model_path=price_model_path)
-            except Exception:
-                pred_cache[tok] = 0.0
+        max_workers = min(len(unique_tokens), os.cpu_count() or 1)
+        if max_workers > 1:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+                fut_map = {
+                    pool.submit(predict_price_movement, tok, model_path=price_model_path): tok
+                    for tok in unique_tokens
+                }
+                for fut in concurrent.futures.as_completed(fut_map):
+                    tok = fut_map[fut]
+                    try:
+                        pred_cache[tok] = fut.result()
+                    except Exception:
+                        pred_cache[tok] = 0.0
+        else:
+            for tok in unique_tokens:
+                try:
+                    pred_cache[tok] = predict_price_movement(tok, model_path=price_model_path)
+                except Exception:
+                    pred_cache[tok] = 0.0
         preds = np.array([pred_cache.get(tok, 0.0) for tok in tokens], dtype=np.float32)
 
         price_hist: dict[str, List[float]] = {}
