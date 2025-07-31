@@ -460,6 +460,10 @@ class RLTraining:
         env_dyn = os.getenv("RL_DYNAMIC_WORKERS")
         if env_dyn is not None:
             dyn_workers = str(env_dyn).lower() in {"1", "true", "yes"}
+        if mmap_path is None:
+            default_mmap = Path("datasets/offline_data.npz")
+            if default_mmap.exists():
+                mmap_path = str(default_mmap)
         self.data = TradeDataModule(
             db_url,
             batch_size=batch_size,
