@@ -271,6 +271,13 @@ class RLDaemon:
             except Exception:  # pragma: no cover - corrupt file
                 pass
         self.model.to(self.device)
+        self.jit_model: torch.jit.ScriptModule | None = None
+        script_path = self.model_path.with_suffix(".ptc")
+        if script_path.exists():
+            try:
+                self.jit_model = torch.jit.load(script_path).to(self.device)
+            except Exception:
+                self.jit_model = None
         self.agents: List[Any] = list(agents) if agents else []
         self._task: asyncio.Task | None = None
         self._hb_task: asyncio.Task | None = None
@@ -393,6 +400,15 @@ class RLDaemon:
         )
         try:
             self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+            script_path = self.model_path.with_suffix(".ptc")
+            try:
+                scripted = torch.jit.script(self.model.cpu())
+                scripted.save(script_path)
+                self.jit_model = torch.jit.load(script_path).to(self.device)
+            except Exception as exc:  # pragma: no cover - scripting optional
+                logger.error("failed to script model: %s", exc)
+            finally:
+                self.model.to(self.device)
         except Exception as exc:  # pragma: no cover - corrupt file
             logger.error("failed to load updated model: %s", exc)
         for ag in self.agents:
@@ -449,6 +465,15 @@ class RLDaemon:
                 last = mtime
                 try:
                     self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                    script_path = self.model_path.with_suffix(".ptc")
+                    try:
+                        scripted = torch.jit.script(self.model.cpu())
+                        scripted.save(script_path)
+                        self.jit_model = torch.jit.load(script_path).to(self.device)
+                    except Exception as exc:  # pragma: no cover - scripting optional
+                        logger.error("failed to script model: %s", exc)
+                    finally:
+                        self.model.to(self.device)
                 except Exception as exc:  # pragma: no cover - corrupt file
                     logger.error("failed to load updated model: %s", exc)
                     continue

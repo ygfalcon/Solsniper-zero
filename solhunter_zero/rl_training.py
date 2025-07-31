@@ -621,6 +621,16 @@ class RLTraining:
         await self.data.setup()
         self.trainer.fit(self.model, self.data)
         torch.save(self.model.state_dict(), self.model_path)
+        script_path = self.model_path.with_suffix(".ptc")
+        try:
+            scripted = torch.jit.script(self.model.cpu())
+            scripted.save(script_path)
+        except Exception as exc:  # pragma: no cover - scripting optional
+            logging.getLogger(__name__).warning(
+                "failed to script model: %s", exc
+            )
+        finally:
+            self.model.to(self.device)
 
     async def _loop(self, interval: float) -> None:
         while True:
@@ -709,3 +719,13 @@ def fit(
     )
     trainer.fit(model, train_dataloaders=loader)
     torch.save(model.state_dict(), path)
+    script_path = path.with_suffix(".ptc")
+    try:
+        scripted = torch.jit.script(model.cpu())
+        scripted.save(script_path)
+    except Exception as exc:  # pragma: no cover - scripting optional
+        logging.getLogger(__name__).warning(
+            "failed to script model: %s", exc
+        )
+    finally:
+        model.to(device)

@@ -45,3 +45,25 @@ async def test_auto_train_reload(tmp_path, monkeypatch):
     daemon.start(0.01, auto_train=True, tune_interval=0.01)
 
     await asyncio.wait_for(reloaded.wait(), timeout=1.0)
+
+
+def test_jit_inference_speed():
+    import torch
+    import time
+    from solhunter_zero.rl_daemon import _PPO
+
+    model = _PPO()
+    data = torch.randn(1024, 8)
+
+    start = time.time()
+    for _ in range(200):
+        model(data)
+    regular = time.time() - start
+
+    scripted = torch.jit.script(model)
+    start = time.time()
+    for _ in range(200):
+        scripted(data)
+    scripted_time = time.time() - start
+
+    assert scripted_time < regular
