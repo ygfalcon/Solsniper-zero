@@ -8,6 +8,8 @@ import socket
 from collections import deque
 from typing import Any
 import time
+import subprocess
+import sys
 
 from .http import close_session
 from .util import install_uvloop
@@ -242,6 +244,10 @@ trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
 
+# background thread/process for running scripts/start_all.py
+start_all_thread = None
+start_all_proc = None
+
 # currently active portfolio and keypair used by the trading loop
 current_portfolio: Portfolio | None = None
 current_keypair = None
@@ -352,6 +358,37 @@ def stop() -> dict:
     stop_event.set()
     if trading_thread:
         trading_thread.join()
+    return jsonify({"status": "stopped"})
+
+
+def _run_start_all() -> None:
+    """Run scripts/start_all.py in a subprocess and wait for it to exit."""
+    global start_all_proc
+    cmd = [sys.executable, str(Path(__file__).resolve().parent.parent / "scripts" / "start_all.py")]
+    start_all_proc = subprocess.Popen(cmd)
+    start_all_proc.wait()
+
+
+@app.route("/start_all", methods=["POST"])
+def start_all_route() -> dict:
+    global start_all_thread
+    if start_all_thread and start_all_thread.is_alive():
+        return jsonify({"status": "already running"})
+    start_all_thread = threading.Thread(target=_run_start_all, daemon=True)
+    start_all_thread.start()
+    return jsonify({"status": "started"})
+
+
+@app.route("/stop_all", methods=["POST"])
+def stop_all_route() -> dict:
+    if start_all_proc and start_all_proc.poll() is None:
+        start_all_proc.terminate()
+        try:
+            start_all_proc.wait(timeout=5)
+        except Exception:
+            start_all_proc.kill()
+    if start_all_thread:
+        start_all_thread.join(timeout=5)
     return jsonify({"status": "stopped"})
 
 
@@ -746,10 +783,10 @@ HTML_PAGE = """
 
     <script>
     document.getElementById('start').onclick = function() {
-        fetch('/start', {method: 'POST'}).then(r => r.json()).then(console.log);
+        fetch('/start_all', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
     document.getElementById('stop').onclick = function() {
-        fetch('/stop', {method: 'POST'}).then(r => r.json()).then(console.log);
+        fetch('/stop_all', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
