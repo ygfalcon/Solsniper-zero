@@ -222,7 +222,8 @@ from .event_bus import subscribe
 from .prices import get_cached_price, update_price_cache
 
 ROUTE_CACHE = LRUCache(maxsize=128)
-_EDGE_CACHE = LRUCache(maxsize=1024)
+EDGE_CACHE_TTL = float(os.getenv("EDGE_CACHE_TTL", "60") or 60)
+_EDGE_CACHE = TTLCache(maxsize=1024, ttl=EDGE_CACHE_TTL)
 _LAST_DEPTH: dict[str, float] = {}
 
 # shared HTTP session and price cache
@@ -258,7 +259,7 @@ def invalidate_edges(token: str | None = None) -> None:
     if token is None:
         _EDGE_CACHE.clear()
         return
-    _EDGE_CACHE._cache.pop(token, None)
+    _EDGE_CACHE.pop(token, None)
 
 
 def _on_depth_update(payload: Mapping[str, Mapping[str, float]]) -> None:
