@@ -296,7 +296,9 @@ async def offline_or_onchain_async(
     if method == "onchain":
         return await scan_tokens_onchain(SOLANA_RPC_URL)
     if method == "pools":
-        return await asyncio.to_thread(scan_tokens_from_pools)
+        from . import dex_scanner
+
+        return await dex_scanner.scan_new_pools(SOLANA_RPC_URL)
     if method == "file":
         return await asyncio.to_thread(scan_tokens_from_file)
     if method == "mempool":
@@ -328,7 +330,9 @@ async def offline_or_onchain_async(
             return [token]
 
         if method == "pools":
-            return await asyncio.to_thread(scan_tokens_from_pools)
+            from . import dex_scanner
+
+            return await dex_scanner.scan_new_pools(SOLANA_RPC_URL)
         if method == "file":
             return await asyncio.to_thread(scan_tokens_from_file)
         return await scan_tokens_onchain(SOLANA_RPC_URL)
@@ -343,7 +347,7 @@ def scan_tokens_from_pools() -> List[str]:
     logger.info("Scanning pools for tokens")
     from . import dex_scanner
 
-    return dex_scanner.scan_new_pools(SOLANA_RPC_URL)
+    return dex_scanner.scan_new_pools_sync(SOLANA_RPC_URL)
 
 
 def scan_tokens_from_file(path: str = "tokens.txt") -> List[str]:

@@ -3,11 +3,17 @@ from solhunter_zero import dex_scanner, token_scanner as scanner, scanner_common
 from solhunter_zero.event_bus import subscribe
 
 
-class FakeClient:
+class FakeAsyncClient:
     def __init__(self, url):
         self.url = url
 
-    def get_program_accounts(self, program_id, encoding="jsonParsed"):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def get_program_accounts(self, program_id, encoding="jsonParsed"):
         assert encoding == "jsonParsed"
         assert program_id == dex_scanner.DEX_PROGRAM_ID
         return {
@@ -23,16 +29,16 @@ def test_scan_new_pools(monkeypatch):
 
     def fake_client(url):
         captured["url"] = url
-        return FakeClient(url)
+        return FakeAsyncClient(url)
 
-    monkeypatch.setattr(dex_scanner, "Client", fake_client)
-    tokens = dex_scanner.scan_new_pools("http://node")
+    monkeypatch.setattr(dex_scanner, "AsyncClient", fake_client)
+    tokens = asyncio.run(dex_scanner.scan_new_pools("http://node"))
     assert captured["url"] == "http://node"
     assert tokens == ["abcbonk", "zzzBONK"]
 
 
 def test_scanner_method_pools(monkeypatch):
-    monkeypatch.setattr(dex_scanner, "scan_new_pools", lambda url: ["tokbonk"])
+    monkeypatch.setattr(dex_scanner, "scan_new_pools_sync", lambda url: ["tokbonk"])
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
     async def fake_trend():
         return []
@@ -53,7 +59,10 @@ def test_scanner_method_pools(monkeypatch):
 
 
 def test_scanner_async_method_pools(monkeypatch):
-    monkeypatch.setattr(dex_scanner, "scan_new_pools", lambda url: ["tokbonk"])
+    async def fake_scan(url):
+        return ["tokbonk"]
+
+    monkeypatch.setattr(dex_scanner, "scan_new_pools", fake_scan)
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: (_ for _ in ()).throw(AssertionError("birdeye")))
     async def fake_trend():
         return []

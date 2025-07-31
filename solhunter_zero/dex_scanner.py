@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 from typing import List
 
 try:
@@ -15,7 +16,7 @@ except Exception:  # pragma: no cover - fallback when solana not installed
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
 
-from solana.rpc.api import Client
+from solana.rpc.async_api import AsyncClient
 from .scanner_common import token_matches
 
 logger = logging.getLogger(__name__)
@@ -23,17 +24,19 @@ logger = logging.getLogger(__name__)
 DEX_PROGRAM_ID = PublicKey("9xQeWvG816bUx9EPB8YVJprFLaDpbZc81FNtdVUL5J7")
 
 
-def scan_new_pools(rpc_url: str) -> List[str]:
+async def scan_new_pools(rpc_url: str) -> List[str]:
     """Return token mints from recently created pools passing filters."""
     if not rpc_url:
         raise ValueError("rpc_url is required")
 
-    client = Client(rpc_url)
-    try:
-        resp = client.get_program_accounts(DEX_PROGRAM_ID, encoding="jsonParsed")
-    except Exception as exc:  # pragma: no cover - network errors
-        logger.error("Pool scan failed: %s", exc)
-        return []
+    async with AsyncClient(rpc_url) as client:
+        try:
+            resp = await client.get_program_accounts(
+                DEX_PROGRAM_ID, encoding="jsonParsed"
+            )
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.error("Pool scan failed: %s", exc)
+            return []
 
     tokens: List[str] = []
     for acc in resp.get("result", []):
@@ -50,3 +53,8 @@ def scan_new_pools(rpc_url: str) -> List[str]:
                 tokens.append(mint)
     logger.info("Found %d tokens from pools", len(tokens))
     return tokens
+
+
+def scan_new_pools_sync(rpc_url: str) -> List[str]:
+    """Synchronous wrapper for :func:`scan_new_pools`."""
+    return asyncio.run(scan_new_pools(rpc_url))

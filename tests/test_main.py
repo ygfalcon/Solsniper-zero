@@ -220,7 +220,7 @@ def test_run_iteration_take_profit(monkeypatch):
         ("onchain", "solhunter_zero.scanner_onchain.scan_tokens_onchain"),
         ("websocket", "solhunter_zero.websocket_scanner.stream_new_tokens"),
         ("mempool", "solhunter_zero.mempool_scanner.stream_mempool_tokens"),
-        ("pools", "solhunter_zero.scanner_common.scan_tokens_from_pools"),
+        ("pools", "solhunter_zero.dex_scanner.scan_new_pools"),
         ("file", "solhunter_zero.scanner_common.scan_tokens_from_file"),
     ],
 )
@@ -246,7 +246,7 @@ def test_discovery_methods(monkeypatch, method, target):
 
     if target.endswith("stream_new_tokens") or target.endswith("stream_mempool_tokens"):
         monkeypatch.setattr(target, fake_gen)
-    elif "async" in target or target.endswith("scan_tokens_onchain"):
+    elif "async" in target or target.endswith("scan_tokens_onchain") or target.endswith("scan_new_pools"):
         monkeypatch.setattr(target, fake_async)
     else:
         monkeypatch.setattr(target, fake_sync)
