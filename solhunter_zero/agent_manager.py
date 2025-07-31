@@ -13,6 +13,7 @@ from .advanced_memory import AdvancedMemory
 import logging
 import tomllib
 from .trade_analyzer import TradeAnalyzer
+import numpy as np
 
 from .agents import BaseAgent, load_agent
 from .agents.execution import ExecutionAgent
@@ -22,6 +23,7 @@ from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
+from .agents.attention_swarm import AttentionSwarm, load_model
 from .regime import detect_regime
 from . import mutation
 from .event_bus import publish, subscription
@@ -123,6 +125,8 @@ class AgentManager:
         mutation_threshold: float = 0.0,
         weight_config_paths: list[str] | None = None,
         strategy_rotation_interval: int = 0,
+        use_attention_swarm: bool = False,
+        attention_model_path: str | None = None,
     ):
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
@@ -156,6 +160,15 @@ class AgentManager:
         self.weight_configs = self._load_weight_configs(self.weight_config_paths)
         self.strategy_rotation_interval = int(strategy_rotation_interval)
         self.active_weight_config: str | None = None
+
+        self.use_attention_swarm = bool(use_attention_swarm)
+        self.attention_swarm: AttentionSwarm | None = None
+        self._attn_history: list[list[float]] = []
+        if self.use_attention_swarm and attention_model_path:
+            try:
+                self.attention_swarm = load_model(attention_model_path)
+            except Exception:
+                self.attention_swarm = None
 
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
@@ -229,6 +242,17 @@ class AgentManager:
         weights = self.coordinator.compute_weights(agents, regime=regime)
         if self.selector:
             agents, weights = self.selector.weight_agents(agents, weights)
+        if self.use_attention_swarm and self.attention_swarm:
+            rois = self.coordinator._roi_by_agent([a.name for a in agents])
+            prices = portfolio.price_history.get(token, [])
+            vol = float(np.std(prices) / (np.mean(prices) or 1.0)) if len(prices) > 1 else 0.0
+            reg_val = 1.0 if regime == "bull" else -1.0 if regime == "bear" else 0.0
+            self._attn_history.append([rois.get(a.name, 0.0) for a in agents] + [reg_val, vol])
+            if len(self._attn_history) >= self.attention_swarm.seq_len:
+                seq = self._attn_history[-self.attention_swarm.seq_len:]
+                pred = self.attention_swarm.predict(seq)
+                weights = {a.name: float(pred[i]) for i, a in enumerate(agents)}
+                publish("weights_updated", WeightsUpdated(weights=dict(weights)))
         swarm = AgentSwarm(agents)
         return await swarm.propose(token, portfolio, weights=weights)
 
@@ -303,6 +327,17 @@ class AgentManager:
                 w_paths = []
             self.weight_config_paths = list(w_paths)
             self.weight_configs = self._load_weight_configs(self.weight_config_paths)
+
+        attn = cfg.get("use_attention_swarm")
+        if attn is not None:
+            self.use_attention_swarm = bool(attn)
+
+        attn_path = cfg.get("attention_swarm_model")
+        if attn_path is not None:
+            try:
+                self.attention_swarm = load_model(str(attn_path))
+            except Exception:
+                self.attention_swarm = None
 
         reg_w = cfg.get("regime_weights")
         if reg_w is not None:
@@ -679,6 +714,9 @@ class AgentManager:
             ]
         strategy_rotation_interval = int(cfg.get("strategy_rotation_interval", 0))
 
+        use_attention_swarm = bool(cfg.get("use_attention_swarm", False))
+        attention_swarm_model = cfg.get("attention_swarm_model")
+
         jito_rpc_url = cfg.get("jito_rpc_url")
         jito_auth = cfg.get("jito_auth")
         jito_ws_url = cfg.get("jito_ws_url")
@@ -709,6 +747,8 @@ class AgentManager:
             mutation_threshold=mutation_threshold,
             weight_config_paths=weight_config_paths,
             strategy_rotation_interval=strategy_rotation_interval,
+            use_attention_swarm=use_attention_swarm,
+            attention_model_path=attention_swarm_model,
         )
 
     def close(self) -> None:

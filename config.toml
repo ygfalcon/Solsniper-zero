@@ -41,6 +41,8 @@ take_profit = 0.2
 dynamic_weights = true
 # Amount to add or subtract from an agent's weight after each cycle
 weight_step = 0.05
+use_attention_swarm = false
+attention_swarm_model = "attention_swarm.pt"
 strategy_selection = true
 vote_threshold = 0.1
 risk_tolerance = 0.1
