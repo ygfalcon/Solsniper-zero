@@ -116,6 +116,8 @@ from solhunter_zero.event_bus import (
     connect_ws,
     disconnect_ws,
     broadcast_ws,
+    _unpack_batch,
+    _maybe_decompress,
 )
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.memory import MemoryAgent
@@ -433,4 +435,25 @@ async def test_zstd_round_trip(monkeypatch):
         ev_msg.ParseFromString(ev._maybe_decompress(raw))
         assert ev_msg.depth_service_status.status == "ok"
     await ev.stop_ws_server()
+
+
+@pytest.mark.asyncio
+async def test_websocket_batching():
+    import solhunter_zero.event_bus as ev
+    port = 8793
+    await start_ws_server("localhost", port)
+    from solhunter_zero import event_pb2
+    async with websockets.connect(f"ws://localhost:{port}") as ws:
+        ev.publish("weights_updated", {"weights": {"x": 1}})
+        ev.publish("weights_updated", {"weights": {"x": 2}})
+        raw = await asyncio.wait_for(ws.recv(), timeout=1)
+        msgs = _unpack_batch(raw)
+        assert msgs is not None and len(msgs) == 2
+        values = []
+        for m in msgs:
+            ev_msg = event_pb2.Event()
+            ev_msg.ParseFromString(_maybe_decompress(m))
+            values.append(dict(ev_msg.weights_updated.weights)["x"])
+        assert set(values) == {1.0, 2.0}
+    await stop_ws_server()
 
