@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
 try:
-    from torch_geometric.nn import GCNConv, global_mean_pool
+    from torch_geometric.nn import GCNConv, GATConv, global_mean_pool
     HAS_PYG = True
 except Exception:  # pragma: no cover - optional dependency
     HAS_PYG = False
@@ -99,6 +99,42 @@ class RouteGNN(nn.Module):
         return out
 
 
+class GATRouteGNN(nn.Module):
+    """Graph attention network for ranking arbitrage routes."""
+
+    def __init__(self, num_venues: int, embed_dim: int = 8, heads: int = 2) -> None:
+        super().__init__()
+        self.embed = nn.Embedding(num_venues, embed_dim)
+        self.heads = heads
+        if HAS_PYG:
+            self.conv1 = GATConv(embed_dim, embed_dim, heads=heads, concat=False)
+            self.conv2 = GATConv(embed_dim, embed_dim, heads=heads, concat=False)
+        else:
+            self.fc1 = nn.Linear(embed_dim, embed_dim)
+        self.out = nn.Linear(embed_dim, 1)
+        self.venue_map: Dict[str, int] = {}
+
+    def forward(self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
+        x = self.embed(nodes)
+        if HAS_PYG:
+            x = torch.relu(self.conv1(x, edge_index))
+            x = torch.relu(self.conv2(x, edge_index))
+            x = global_mean_pool(x, batch)
+        else:
+            bsz = int(batch.max().item() + 1) if batch.numel() > 0 else 1
+            agg = []
+            for i in range(bsz):
+                mask = batch == i
+                if mask.any():
+                    agg.append(x[mask].mean(0))
+                else:
+                    agg.append(torch.zeros(x.size(-1), device=x.device))
+            x = torch.stack(agg, dim=0)
+            x = torch.relu(self.fc1(x))
+        out = self.out(x).squeeze(-1)
+        return out
+
+
 def train_route_gnn(
     routes: Sequence[Sequence[str]],
     profits: Sequence[float],
@@ -106,12 +142,15 @@ def train_route_gnn(
     epochs: int = 20,
     lr: float = 1e-3,
     embed_dim: int = 8,
+    gat: bool = False,
+    heads: int = 2,
 ) -> RouteGNN:
     """Train :class:`RouteGNN` on historical routes."""
 
     dataset = RouteDataset(routes, profits)
     loader = DataLoader(dataset, batch_size=min(32, len(dataset)), shuffle=True, collate_fn=_collate)
-    model = RouteGNN(len(dataset.venue_map), embed_dim=embed_dim)
+    model_cls = GATRouteGNN if gat else RouteGNN
+    model = model_cls(len(dataset.venue_map), embed_dim=embed_dim, **({"heads": heads} if gat else {}))
     model.venue_map = dataset.venue_map
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
@@ -127,7 +166,14 @@ def train_route_gnn(
 
 
 def save_route_gnn(model: RouteGNN, path: str) -> None:
-    torch.save({"state": model.state_dict(), "venue_map": model.venue_map}, path)
+    torch.save(
+        {
+            "state": model.state_dict(),
+            "venue_map": model.venue_map,
+            "gat": isinstance(model, GATRouteGNN),
+        },
+        path,
+    )
 
 
 def load_route_gnn(path: str | None) -> RouteGNN | None:
@@ -135,14 +181,17 @@ def load_route_gnn(path: str | None) -> RouteGNN | None:
         return None
     obj = torch.load(path, map_location="cpu")
     venue_map = obj.get("venue_map", {})
-    model = RouteGNN(len(venue_map))
+    if obj.get("gat"):
+        model = GATRouteGNN(len(venue_map))
+    else:
+        model = RouteGNN(len(venue_map))
     model.load_state_dict(obj["state"])
     model.venue_map = venue_map
     model.eval()
     return model
 
 
-def rank_routes(model: RouteGNN, routes: Sequence[Sequence[str]]) -> int:
+def rank_routes(model: RouteGNN | GATRouteGNN, routes: Sequence[Sequence[str]]) -> int:
     """Return index of the route with highest predicted profit."""
     dataset = RouteDataset(routes, [0.0] * len(routes), venue_map=model.venue_map)
     nodes, edges, batch, _ = _collate([dataset[i] for i in range(len(dataset))])

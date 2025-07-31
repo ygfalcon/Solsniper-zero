@@ -8,6 +8,7 @@ from .token_activity_model import ActivityModel
 from .graph_price_model import GraphPriceModel, load_graph_model
 from .gnn import (
     RouteGNN,
+    GATRouteGNN,
     train_route_gnn,
     save_route_gnn,
     load_route_gnn,

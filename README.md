@@ -885,6 +885,8 @@ very small.
   config and `use_attention_swarm = true` to enable this model at run time.
 - **RL-based weighting** — set `use_rl_weights = true` so `RLWeightAgent`
   combines a reinforcement learning policy with ROI-based weights.
+- **Route ranking** — `scripts/train_gat_route_gnn.py` trains a graph neural
+  network on past trades. Add `--gat` to enable the attention-based variant.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
   `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
