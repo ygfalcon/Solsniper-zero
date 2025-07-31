@@ -28,8 +28,6 @@ __all__ = [
     "RLTraining",
     "RLDaemon",
     "RLWeightAgent",
-    "decode_glyph_series",
-    "pyramid_transform",
 ]
 
 
@@ -106,12 +104,4 @@ def __getattr__(name: str):
         from .agents.rl_weight_agent import RLWeightAgent as cls
 
         return cls
-    if name == "decode_glyph_series":
-        from .ancient_math import decode_glyph_series as func
-
-        return func
-    if name == "pyramid_transform":
-        from .ancient_math import pyramid_transform as func
-
-        return func
     raise AttributeError(name)
