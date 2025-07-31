@@ -13,6 +13,7 @@ from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 import psutil
 
 from .event_bus import subscription
+from .dynamic_limit import _target_concurrency, _step_limit
 
 try:
     from solana.publickey import PublicKey
@@ -59,7 +60,6 @@ _CPU_SMOOTHED: float = 0.0
 _CPU_LAST: float = 0.0
 _DYN_INTERVAL: float = 2.0
 _SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
-_KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
 
 def _on_system_metrics(msg: Any) -> None:
     """Update :data:`_CPU_PERCENT` from a ``system_metrics`` event."""
@@ -83,23 +83,6 @@ _resource_sub = subscription("system_metrics_combined", _on_system_metrics)
 _resource_sub.__enter__()
 
 
-def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
-    if cpu <= low:
-        return base
-    if cpu >= high:
-        return 1
-    frac = (cpu - low) / (high - low)
-    return max(1, int(round(base * (1.0 - frac))))
-
-
-def _step_limit(current: int, target: int, max_val: int) -> int:
-    new_val = current + _KP * (target - current)
-    new_val = int(round(new_val))
-    if new_val > max_val:
-        return max_val
-    if new_val < 1:
-        return 1
-    return new_val
 
 
 def _current_cpu() -> float:

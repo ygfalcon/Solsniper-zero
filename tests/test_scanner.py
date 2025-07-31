@@ -1,5 +1,6 @@
 import asyncio
 from solhunter_zero import token_scanner as scanner
+from solhunter_zero import dynamic_limit
 from solhunter_zero import scanner_common
 from solhunter_zero.event_bus import subscribe
 from solhunter_zero import event_bus
@@ -325,11 +326,11 @@ def test_cpu_fallback(monkeypatch):
 
 
 def test_scanner_concurrency_controller(monkeypatch):
-    monkeypatch.setattr(scanner, "_KP", 0.5)
-    tgt = scanner._target_concurrency(90.0, 4, 40.0, 80.0)
-    cur = scanner._step_limit(4, tgt, 4)
+    monkeypatch.setattr(dynamic_limit, "_KP", 0.5)
+    tgt = dynamic_limit._target_concurrency(90.0, 4, 40.0, 80.0)
+    cur = dynamic_limit._step_limit(4, tgt, 4)
     assert tgt == 1
     assert cur == 2
-    tgt = scanner._target_concurrency(0.0, 4, 40.0, 80.0)
-    cur = scanner._step_limit(cur, tgt, 4)
+    tgt = dynamic_limit._target_concurrency(0.0, 4, 40.0, 80.0)
+    cur = dynamic_limit._step_limit(cur, tgt, 4)
     assert cur == 3
