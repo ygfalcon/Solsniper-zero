@@ -5,6 +5,7 @@ from typing import Iterable, Dict
 from .agents import BaseAgent
 from .agents.memory import MemoryAgent
 from .agents.rl_weight_agent import RLWeightAgent
+from .agents.hierarchical_rl_agent import HierarchicalRLAgent
 
 
 class SwarmCoordinator:
@@ -45,7 +46,8 @@ class SwarmCoordinator:
         self, agents: Iterable[BaseAgent], *, regime: str | None = None
     ) -> Dict[str, float]:
         rl_agent = next((a for a in agents if isinstance(a, RLWeightAgent)), None)
-        agents = [a for a in agents if not isinstance(a, RLWeightAgent)]
+        hier_agent = next((a for a in agents if isinstance(a, HierarchicalRLAgent)), None)
+        agents = [a for a in agents if not isinstance(a, (RLWeightAgent, HierarchicalRLAgent))]
         names = [a.name for a in agents]
         rois = self._roi_by_agent(names)
         base = dict(self.base_weights)
@@ -57,6 +59,14 @@ class SwarmCoordinator:
                 try:
                     rl_weights = rl_agent.train(names)
                     for n, w in rl_weights.items():
+                        if n in weights:
+                            weights[n] *= float(w)
+                except Exception:
+                    pass
+            if hier_agent:
+                try:
+                    h_weights = hier_agent.train(names)
+                    for n, w in h_weights.items():
                         if n in weights:
                             weights[n] *= float(w)
                 except Exception:
@@ -74,6 +84,14 @@ class SwarmCoordinator:
                             weights[n] *= float(w)
                 except Exception:
                     pass
+            if hier_agent:
+                try:
+                    h_weights = hier_agent.train(names)
+                    for n, w in h_weights.items():
+                        if n in weights:
+                            weights[n] *= float(w)
+                except Exception:
+                    pass
             return weights
         weights = {}
         for name in names:
@@ -85,6 +103,14 @@ class SwarmCoordinator:
             try:
                 rl_weights = rl_agent.train(names)
                 for n, w in rl_weights.items():
+                    if n in weights:
+                        weights[n] *= float(w)
+            except Exception:
+                pass
+        if hier_agent:
+            try:
+                h_weights = hier_agent.train(names)
+                for n, w in h_weights.items():
                     if n in weights:
                         weights[n] *= float(w)
             except Exception:
