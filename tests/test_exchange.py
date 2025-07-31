@@ -194,3 +194,38 @@ def test_place_order_async_deducts_gas(monkeypatch):
 
     asyncio.run(place_order_async("tok", "buy", 2.0, 0.0, keypair=kp))
     assert sent["payload"]["amount"] == pytest.approx(1.0)
+
+
+def test_place_order_reuses_loop(monkeypatch):
+    kp = Keypair()
+    loops: list[asyncio.AbstractEventLoop] = []
+
+    orig_new_event_loop = asyncio.new_event_loop
+
+    def fake_new_event_loop():
+        loop = orig_new_event_loop()
+        loops.append(loop)
+        return loop
+
+    def fake_post(url, json, timeout=10):
+        return FakeResponse({"swapTransaction": _dummy_tx(kp)})
+
+    class FakeClient:
+        def __init__(self, url):
+            pass
+
+        def send_raw_transaction(self, data, opts=None):
+            class Resp:
+                value = "sig"
+
+            return Resp()
+
+    monkeypatch.setattr(asyncio, "new_event_loop", fake_new_event_loop)
+    monkeypatch.setattr("solhunter_zero.exchange.requests.post", fake_post)
+    monkeypatch.setattr("solhunter_zero.exchange.Client", FakeClient)
+    monkeypatch.setattr("solhunter_zero.exchange._order_loop", None, raising=False)
+
+    place_order("tok", "buy", 1.0, 0.0, keypair=kp)
+    place_order("tok", "buy", 1.0, 0.0, keypair=kp)
+
+    assert len(loops) == 1
