@@ -522,8 +522,6 @@ The trading logic is implemented by a swarm of small agents:
    splits them between venues with the best liquidity and fastest response, then forwards the resulting
    orders to `ExecutionAgent` (or `MEVExecutor` bundles when enabled) so other
    strategy agents can coordinate around the final execution.
-- **AlienGlyphAgent** — decodes extraterrestrial chart patterns from the tick dataset.
-- **AtlanteanWaveAgent** — mines deep-sea liquidity waves to predict sudden surges.
 
 Agents can be enabled or disabled in the configuration and their impact
 controlled via the `agent_weights` table.  When dynamic weighting is enabled,
