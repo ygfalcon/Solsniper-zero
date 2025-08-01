@@ -5,7 +5,10 @@ import os
 from typing import List, Dict, Any
 
 from .scanner_common import fetch_trending_tokens_async
-from .mempool_scanner import stream_ranked_mempool_tokens
+from .mempool_scanner import (
+    stream_ranked_mempool_tokens,
+    stream_ranked_mempool_tokens_with_depth,
+)
 from .scanner_onchain import scan_tokens_onchain
 from . import onchain_metrics
 
