@@ -118,3 +118,20 @@ async def test_start_writer_env(monkeypatch):
     mem.start_writer()
     assert mem._batch_size == 3
     assert mem._interval == 0.5
+
+
+@pytest.mark.asyncio
+async def test_memory_persistence(tmp_path):
+    """Trades persist when using a file-backed SQLite database."""
+    db = tmp_path / "mem.db"
+
+    mem1 = Memory(f"sqlite:///{db}")
+    await mem1.log_trade(token="TOK", direction="buy", amount=1.0, price=1.0)
+    await mem1.log_trade(token="TOK", direction="sell", amount=2.0, price=2.0)
+    await mem1.close()
+
+    mem2 = Memory(f"sqlite:///{db}")
+    trades = await mem2.list_trades()
+    assert len(trades) == 2
+    assert trades[0].direction == "buy"
+    assert trades[1].direction == "sell"
