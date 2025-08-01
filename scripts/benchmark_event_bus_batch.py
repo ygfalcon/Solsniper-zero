@@ -21,8 +21,9 @@ async def _run(batch_ms: int, n: int, host: str, port: int) -> tuple[float, floa
             ev.publish("heartbeat", {"service": "bench"})
         recv = 0
         while recv < n:
-            await ws.recv()
-            recv += 1
+            raw = await ws.recv()
+            msgs = ev._unpack_batch(raw) or [raw]
+            recv += len(msgs)
         duration = time.perf_counter() - start
         cpu = proc.cpu_percent(interval=None)
     await ev.stop_ws_server()
