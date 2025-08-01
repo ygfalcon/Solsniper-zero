@@ -35,7 +35,7 @@ def install_uvloop() -> None:
 T = TypeVar("T")
 
 
-def run_coro(coro: Coroutine[Any, Any, T]) -> T | asyncio.Task:
+def run_coro(coro: Coroutine[Any, Any, T] | T) -> T | asyncio.Task:
     """Run ``coro`` using the active loop if present.
 
     When called with no running event loop this function falls back to
@@ -45,6 +45,8 @@ def run_coro(coro: Coroutine[Any, Any, T]) -> T | asyncio.Task:
     is returned for awaiting by the caller.
     """
 
+    if not asyncio.iscoroutine(coro):
+        return coro
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
