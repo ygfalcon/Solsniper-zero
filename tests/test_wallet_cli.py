@@ -3,8 +3,11 @@ import json
 import subprocess
 import sys
 import pytest
-pytest.importorskip("solders")
-from solders.keypair import Keypair
+
+try:
+    from solders.keypair import Keypair
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    pytest.skip("solders is required", allow_module_level=True)
 
 
 def run_cli(args, env):

@@ -38,8 +38,28 @@ class FakeConnect:
 
 def test_stream_new_tokens(monkeypatch):
     msgs = [
-        {"result": {"value": {"logs": ["InitializeMint", "name: coolbonk", "mint: tok1"]}}},
-        {"result": {"value": {"logs": ["InitializeMint", "name: other", "mint: tok2"]}}},
+        {
+            "result": {
+                "value": {
+                    "logs": [
+                        "InitializeMint",
+                        "name: coolbonk",
+                        "mint: tok1",
+                    ]
+                }
+            }
+        },
+        {
+            "result": {
+                "value": {
+                    "logs": [
+                        "InitializeMint",
+                        "name: other",
+                        "mint: tok2",
+                    ]
+                }
+            }
+        },
     ]
 
     def fake_connect(url):
@@ -57,11 +77,30 @@ def test_stream_new_tokens(monkeypatch):
     assert token == "tok1"
 
 
-
 def test_stream_new_tokens_keyword(monkeypatch):
     msgs = [
-        {"result": {"value": {"logs": ["InitializeMint", "name: verycool", "mint: tok3"]}}},
-        {"result": {"value": {"logs": ["InitializeMint", "name: other", "mint: tok4"]}}},
+        {
+            "result": {
+                "value": {
+                    "logs": [
+                        "InitializeMint",
+                        "name: verycool",
+                        "mint: tok3",
+                    ]
+                }
+            }
+        },
+        {
+            "result": {
+                "value": {
+                    "logs": [
+                        "InitializeMint",
+                        "name: other",
+                        "mint: tok4",
+                    ]
+                }
+            }
+        },
     ]
 
     def fake_connect(url):
@@ -82,15 +121,23 @@ def test_stream_new_tokens_keyword(monkeypatch):
     assert token == "tok3"
 
 
-
 def test_offline_or_onchain_async_websocket(monkeypatch):
     async def fake_stream_new_tokens(url, *, suffix=None, keywords=None):
         yield "tokws"
 
-    monkeypatch.setattr(ws_scanner, "stream_new_tokens", fake_stream_new_tokens)
+    monkeypatch.setattr(
+        ws_scanner,
+        "stream_new_tokens",
+        fake_stream_new_tokens,
+    )
 
     scanner_common.BIRDEYE_API_KEY = None
     scanner_common.SOLANA_RPC_URL = "ws://node"
 
-    tokens = asyncio.run(scanner_common.offline_or_onchain_async(False, method="websocket"))
+    tokens = asyncio.run(
+        scanner_common.offline_or_onchain_async(
+            False,
+            method="websocket",
+        )
+    )
     assert tokens == ["tokws"]
