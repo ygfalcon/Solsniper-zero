@@ -706,6 +706,56 @@ export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
 Set `BROKER_URL` to a Redis or NATS server so multiple bots share market
 metrics, agent weights and trade intents. Launch each instance with the same
 URL and they will automatically exchange events.
+
+## Multi-Node Deployment
+
+Running multiple nodes lets you scale scanning and trading across machines.
+Each instance connects to the same broker and event bus so they share trades,
+metrics and RL updates.
+
+Configure the external event bus and broker URLs via environment variables or
+the configuration file:
+
+```bash
+export EVENT_BUS_URL=wss://bus.example.com
+export EVENT_BUS_PEERS=wss://peer1.example.com,wss://peer2.example.com
+export BROKER_URLS=redis://localhost:6379,nats://localhost:4222
+export MEMORY_SYNC_INTERVAL=5
+```
+
+Enable trade replication and distributed reinforcement learning in
+`config.toml` or via environment variables:
+
+```toml
+replicate_trades = true
+distributed_rl = true
+```
+
+Start multiple instances with the same settings so they discover each other and
+cooperate:
+
+```bash
+./run.sh --auto &  # instance 1
+./run.sh --auto &  # instance 2
+```
+
+Redis or NATS brokers are supported. For a quick test you can launch a local
+Redis server:
+
+```bash
+redis-server &
+export BROKER_URLS=redis://localhost:6379
+```
+
+Or use NATS:
+
+```bash
+nats-server &
+export BROKER_URLS=nats://localhost:4222
+```
+
+All nodes will synchronise memory every `MEMORY_SYNC_INTERVAL` seconds and send
+updates over `EVENT_BUS_URL` and `EVENT_BUS_PEERS`.
 ## Requirements
 - Python 3.11+
 - [Poetry](https://python-poetry.org/) (optional but recommended)
