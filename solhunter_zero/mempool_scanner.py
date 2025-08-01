@@ -58,9 +58,6 @@ _DYN_INTERVAL: float = 2.0
 _METRICS_TIMEOUT: float = 5.0
 
 
-
-
-
 NAME_RE = re.compile(r"name:\s*(\S+)", re.IGNORECASE)
 MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
 POOL_TOKEN_RE = re.compile(r"token[AB]:\s*([A-Za-z0-9]{32,44})", re.IGNORECASE)
@@ -257,8 +254,14 @@ async def stream_ranked_mempool_tokens(
 
     _metrics_sub = subscription("system_metrics_combined", _update_metrics)
     _metrics_sub.__enter__()
-    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
-    smoothing = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+    _dyn_interval = float(
+        os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL
+    )
+    ewm = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+    kp = float(
+        os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5")) or 0.5
+    )
+    ki = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
     adjust_task: asyncio.Task | None = None
@@ -275,6 +278,7 @@ async def stream_ranked_mempool_tokens(
         current_limit = new_limit
 
     if dynamic_concurrency:
+
         async def _adjust() -> None:
             try:
                 while True:
@@ -284,10 +288,14 @@ async def stream_ranked_mempool_tokens(
                     else:
                         cpu = cpu_val["v"]
                     target = _target_concurrency(
-                        cpu, max_concurrency, low, high, smoothing=smoothing
+                        cpu, max_concurrency, low, high, smoothing=ewm
                     )
                     new_limit = _step_limit(
-                        current_limit, target, max_concurrency, smoothing=smoothing
+                        current_limit,
+                        target,
+                        max_concurrency,
+                        smoothing=kp,
+                        ki=ki,
                     )
                     if new_limit != current_limit:
                         await _set_limit(new_limit)

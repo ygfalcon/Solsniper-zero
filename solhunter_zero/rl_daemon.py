@@ -16,6 +16,7 @@ try:
     from torch import nn
     from torch.utils.data import Dataset, DataLoader
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -62,6 +63,7 @@ from .hierarchical_rl import (
     train_policy,
 )
 from .resource_monitor import get_cpu_usage
+from .dynamic_limit import _step_limit
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +71,9 @@ logger = logging.getLogger(__name__)
 class _TradeDataset(Dataset):
     """Dataset wrapping trade history with risk and market metrics."""
 
-    def __init__(self, trades: Iterable, snaps: Iterable, metrics: Tuple[float, float, float]) -> None:
+    def __init__(
+        self, trades: Iterable, snaps: Iterable, metrics: Tuple[float, float, float]
+    ) -> None:
         self.samples: List[Tuple[List[float], int, float]] = []
         snap_map: dict[str, List[Any]] = {}
         for s in snaps:
@@ -144,7 +148,7 @@ def portfolio_state(
         recent = seq[-30:]
         mean = sum(recent) / len(recent)
         var = sum((p - mean) ** 2 for p in recent) / len(recent)
-        volatility = (var ** 0.5) / (mean + 1e-8)
+        volatility = (var**0.5) / (mean + 1e-8)
         prev = seq[-2]
         trend = (seq[-1] - prev) / prev if prev else 0.0
     else:
@@ -179,7 +183,9 @@ class _DQN(nn.Module):
 
 
 class _PPO(nn.Module):
-    def __init__(self, input_size: int = 9, hidden_size: int = 32, clip_epsilon: float = 0.2) -> None:
+    def __init__(
+        self, input_size: int = 9, hidden_size: int = 32, clip_epsilon: float = 0.2
+    ) -> None:
         super().__init__()
         self.actor = nn.Sequential(
             nn.Linear(input_size, hidden_size),
@@ -281,7 +287,9 @@ def _train_ppo(
         pin_memory=num_workers > 0,
         persistent_workers=num_workers > 0,
     )
-    opt = torch.optim.Adam(list(model.actor.parameters()) + list(model.critic.parameters()), lr=3e-4)
+    opt = torch.optim.Adam(
+        list(model.actor.parameters()) + list(model.critic.parameters()), lr=3e-4
+    )
     model.train()
     for _ in range(3):
         for states, actions, rewards in loader:
@@ -296,7 +304,10 @@ def _train_ppo(
                 returns = rewards
             ratio = torch.exp(log_probs - log_probs.detach())
             s1 = ratio * advantages
-            s2 = torch.clamp(ratio, 1 - model.clip_epsilon, 1 + model.clip_epsilon) * advantages
+            s2 = (
+                torch.clamp(ratio, 1 - model.clip_epsilon, 1 + model.clip_epsilon)
+                * advantages
+            )
             actor_loss = -torch.min(s1, s2).mean()
             critic_loss = model.loss_fn(values, returns)
             loss = actor_loss + 0.5 * critic_loss
@@ -324,7 +335,9 @@ def _train_a3c(
         pin_memory=num_workers > 0,
         persistent_workers=num_workers > 0,
     )
-    opt = torch.optim.Adam(list(model.actor.parameters()) + list(model.critic.parameters()), lr=3e-4)
+    opt = torch.optim.Adam(
+        list(model.actor.parameters()) + list(model.critic.parameters()), lr=3e-4
+    )
     model.train()
     for _ in range(3):
         for states, actions, rewards in loader:
@@ -413,14 +426,18 @@ class RLDaemon:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
         self.data = OfflineData(f"sqlite:///{data_path}")
-        _ensure_mmap_dataset(f"sqlite:///{data_path}", Path("datasets/offline_data.npz"))
+        _ensure_mmap_dataset(
+            f"sqlite:///{data_path}", Path("datasets/offline_data.npz")
+        )
         self.model_path = Path(model_path)
         self.algo = algo
         self.policy = policy
         self.multi_rl = bool(multi_rl)
         self.live = bool(live)
         self.distributed_rl = bool(distributed_rl)
-        self.hierarchical_rl = True if hierarchical_rl is None else bool(hierarchical_rl)
+        self.hierarchical_rl = (
+            True if hierarchical_rl is None else bool(hierarchical_rl)
+        )
         self.hierarchical_model_path = Path(hierarchical_model_path)
         self.distributed_backend = distributed_backend
         self.hier_policy = None
@@ -441,6 +458,7 @@ class RLDaemon:
         if self.distributed_backend == "ray":
             try:
                 from .ray_training import RayTraining
+
                 self.ray_trainer = RayTraining(
                     db_url=f"sqlite:///{data_path}",
                     model_path=self.model_path,
@@ -465,6 +483,7 @@ class RLDaemon:
             )
         if self.multi_rl:
             from .rl_training import MultiAgentRL
+
             self.population = MultiAgentRL(
                 db_url=f"sqlite:///{data_path}",
                 algos=[algo],
@@ -476,26 +495,40 @@ class RLDaemon:
             if algo == "dqn":
                 self.model = _DQN()
             elif algo == "a3c":
-                self.model = TransformerPolicy() if self.policy == "transformer" else _A3C()
+                self.model = (
+                    TransformerPolicy() if self.policy == "transformer" else _A3C()
+                )
             elif algo == "ddpg":
                 self.model = _DDPG()
             else:
-                self.model = TransformerPolicy() if self.policy == "transformer" else _PPO()
+                self.model = (
+                    TransformerPolicy() if self.policy == "transformer" else _PPO()
+                )
 
-        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {
+            "0",
+            "false",
+            "no",
+        }
         if use_compile:
             try:
-                if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:
+                if (
+                    getattr(torch, "compile", None)
+                    and int(torch.__version__.split(".")[0]) >= 2
+                ):
                     self.model = torch.compile(self.model)
             except Exception:
                 pass
         if self.model_path.exists():
             try:
-                self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                self.model.load_state_dict(
+                    torch.load(self.model_path, map_location=self.device)
+                )
             except Exception:  # pragma: no cover - corrupt file
                 pass
         self.model.to(self.device)
         from .models import load_compiled_model
+
         self.jit_model = load_compiled_model(str(self.model_path), self.device)
         self.agents: List[Any] = list(agents) if agents else []
         if self.hierarchical_rl:
@@ -526,6 +559,7 @@ class RLDaemon:
         self.current_risk = float(os.getenv("RISK_MULTIPLIER", "1.0"))
         self._subscriptions: list[Any] = []
         if queue is not None:
+
             async def _enqueue(payload):
                 if isinstance(payload, ActionExecuted):
                     await queue.put(payload.action)
@@ -545,6 +579,7 @@ class RLDaemon:
         risk_sub.__enter__()
         self._subscriptions.append(risk_sub)
         if self.dynamic_workers and cpu_callback is None:
+
             def _update_cpu(payload):
                 try:
                     self._cpu_usage = float(
@@ -558,11 +593,15 @@ class RLDaemon:
             self._cpu_sub = cpu_sub
             self._subscriptions.append(cpu_sub)
         from .metrics_client import start_metrics_exporter
+
         sub = start_metrics_exporter(metrics_url)
-        self._subscriptions.append(types.SimpleNamespace(__exit__=lambda *a, **k: sub()))
+        self._subscriptions.append(
+            types.SimpleNamespace(__exit__=lambda *a, **k: sub())
+        )
 
         self._peer_weights: dict[str, float] = {}
         if self.distributed_rl:
+
             def _apply_weights(msg: Any) -> None:
                 w = getattr(msg, "weights", None)
                 if w is None and isinstance(msg, dict):
@@ -609,12 +648,15 @@ class RLDaemon:
             if trades:
                 self._last_trade_id = trades[-1].id
         with self.data.Session() as session:
-            q = session.query(MarketSnapshot).filter(MarketSnapshot.id > self._last_snap_id)
+            q = session.query(MarketSnapshot).filter(
+                MarketSnapshot.id > self._last_snap_id
+            )
             snaps = list(q.order_by(MarketSnapshot.id))
             if snaps:
                 self._last_snap_id = snaps[-1].id
         if self.queue is not None:
             from types import SimpleNamespace
+
             while True:
                 try:
                     item = self.queue.get_nowait()
@@ -692,10 +734,15 @@ class RLDaemon:
                     cpu_callback=self._cpu,
                 )
             try:
-                self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                self.model.load_state_dict(
+                    torch.load(self.model_path, map_location=self.device)
+                )
                 from .models import export_torchscript, load_compiled_model
+
                 try:
-                    export_torchscript(self.model.cpu(), self.model_path.with_suffix(".ptc"))
+                    export_torchscript(
+                        self.model.cpu(), self.model_path.with_suffix(".ptc")
+                    )
                 except Exception as exc:  # pragma: no cover - optional
                     logger.error("failed to export torchscript: %s", exc)
                 finally:
@@ -730,8 +777,12 @@ class RLDaemon:
         )
         if self.hierarchical_rl:
             names = [getattr(a, "name", str(i)) for i, a in enumerate(self.agents)]
-            if self.hier_policy is None or len(getattr(self.hier_policy, "weights", [])) != len(names):
-                self.hier_policy = load_policy(str(self.hierarchical_model_path), len(names))
+            if self.hier_policy is None or len(
+                getattr(self.hier_policy, "weights", [])
+            ) != len(names):
+                self.hier_policy = load_policy(
+                    str(self.hierarchical_model_path), len(names)
+                )
             try:
                 self.hier_weights = train_policy(self.hier_policy, trades, names)
                 save_policy(self.hier_policy, str(self.hierarchical_model_path))
@@ -760,7 +811,15 @@ class RLDaemon:
     async def _loop(self, interval: float) -> None:
         high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
         low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
-        min_i = float(os.getenv("RL_MIN_INTERVAL", str(max(0.01, interval / 2))) or max(0.01, interval / 2))
+        kp = float(
+            os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5"))
+            or 0.5
+        )
+        ki = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
+        min_i = float(
+            os.getenv("RL_MIN_INTERVAL", str(max(0.01, interval / 2)))
+            or max(0.01, interval / 2)
+        )
         max_i = float(os.getenv("RL_MAX_INTERVAL", str(interval * 2)) or (interval * 2))
         delay = max(min_i, min(max_i, interval))
         while True:
@@ -770,15 +829,29 @@ class RLDaemon:
                 logger.error("daemon training failed: %s", exc)
             cpu = get_cpu_usage()
             if cpu > high:
-                delay = min(max_i, delay * 2)
+                target = min(max_i, delay * 2)
             elif cpu < low:
-                delay = max(min_i, delay / 2)
+                target = max(min_i, delay / 2)
+            else:
+                target = delay
+            delay = float(
+                _step_limit(int(delay), int(target), int(max_i), smoothing=kp, ki=ki)
+            )
+            delay = max(min_i, min(max_i, delay))
             await asyncio.sleep(delay)
 
     async def _watch_external(self, interval: float) -> None:
         high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
         low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
-        min_i = float(os.getenv("RL_MIN_INTERVAL", str(max(0.01, interval / 2))) or max(0.01, interval / 2))
+        kp = float(
+            os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5"))
+            or 0.5
+        )
+        ki = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
+        min_i = float(
+            os.getenv("RL_MIN_INTERVAL", str(max(0.01, interval / 2)))
+            or max(0.01, interval / 2)
+        )
         max_i = float(os.getenv("RL_MAX_INTERVAL", str(interval * 2)) or (interval * 2))
         delay = max(min_i, min(max_i, interval))
         last = self.model_path.stat().st_mtime if self.model_path.exists() else 0.0
@@ -791,15 +864,22 @@ class RLDaemon:
             if mtime > last:
                 last = mtime
                 try:
-                    self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                    self.model.load_state_dict(
+                        torch.load(self.model_path, map_location=self.device)
+                    )
                     from .models import export_torchscript, load_compiled_model
+
                     try:
-                        export_torchscript(self.model.cpu(), self.model_path.with_suffix(".ptc"))
+                        export_torchscript(
+                            self.model.cpu(), self.model_path.with_suffix(".ptc")
+                        )
                     except Exception as exc:  # pragma: no cover - optional
                         logger.error("failed to export torchscript: %s", exc)
                     finally:
                         self.model.to(self.device)
-                    self.jit_model = load_compiled_model(str(self.model_path), self.device)
+                    self.jit_model = load_compiled_model(
+                        str(self.model_path), self.device
+                    )
                 except Exception as exc:  # pragma: no cover - corrupt file
                     logger.error("failed to load updated model: %s", exc)
                     continue
@@ -816,9 +896,15 @@ class RLDaemon:
                 logger.info("reloaded checkpoint from %s", self.model_path)
             cpu = get_cpu_usage()
             if cpu > high:
-                delay = min(max_i, delay * 2)
+                target = min(max_i, delay * 2)
             elif cpu < low:
-                delay = max(min_i, delay / 2)
+                target = max(min_i, delay / 2)
+            else:
+                target = delay
+            delay = float(
+                _step_limit(int(delay), int(target), int(max_i), smoothing=kp, ki=ki)
+            )
+            delay = max(min_i, min(max_i, delay))
 
     def start(
         self,
@@ -856,9 +942,20 @@ class RLDaemon:
         if auto_train:
             if tune_interval is None:
                 tune_interval = interval
-            script = Path(__file__).resolve().parent.parent / "scripts" / "auto_train_rl.py"
+            script = (
+                Path(__file__).resolve().parent.parent / "scripts" / "auto_train_rl.py"
+            )
             self._proc = subprocess.Popen(
-                [sys.executable, str(script), "--db", self.data_path, "--model", str(self.model_path), "--interval", str(tune_interval)],
+                [
+                    sys.executable,
+                    str(script),
+                    "--db",
+                    self.data_path,
+                    "--model",
+                    str(self.model_path),
+                    "--interval",
+                    str(tune_interval),
+                ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -914,4 +1011,3 @@ def parameter_server() -> Any:
     sub = subscription("rl_metrics", _on_metrics)
     sub.__enter__()
     return sub
-

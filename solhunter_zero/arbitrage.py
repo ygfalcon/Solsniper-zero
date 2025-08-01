@@ -239,6 +239,7 @@ async def measure_dex_latency_async(
     class _Noop:
         async def __aenter__(self):
             return None
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
 
@@ -249,8 +250,14 @@ async def measure_dex_latency_async(
     else:
         sem = _Noop()
     current_limit = max_concurrency
-    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
-    smoothing = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+    _dyn_interval = float(
+        os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL
+    )
+    ewm = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+    kp = float(
+        os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5")) or 0.5
+    )
+    ki = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
     adjust_task: asyncio.Task | None = None
@@ -267,16 +274,21 @@ async def measure_dex_latency_async(
         current_limit = new_limit
 
     if dynamic_concurrency:
+
         async def _adjust() -> None:
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
                     cpu = resource_monitor.get_cpu_usage()
                     target = _target_concurrency(
-                        cpu, max_concurrency, low, high, smoothing=smoothing
+                        cpu, max_concurrency, low, high, smoothing=ewm
                     )
                     new_limit = _step_limit(
-                        current_limit, target, max_concurrency, smoothing=smoothing
+                        current_limit,
+                        target,
+                        max_concurrency,
+                        smoothing=kp,
+                        ki=ki,
                     )
                     if new_limit != current_limit:
                         await _set_limit(new_limit)
@@ -342,9 +354,7 @@ async def _latency_loop(interval: float) -> None:
     """Background latency measurement loop."""
     try:
         while True:
-            res = await measure_dex_latency_async(
-                VENUE_URLS, dynamic_concurrency=True
-            )
+            res = await measure_dex_latency_async(VENUE_URLS, dynamic_concurrency=True)
             if res:
                 DEX_LATENCY.update(res)
                 publish("dex_latency_update", res)
@@ -370,6 +380,7 @@ def stop_latency_refresh() -> None:
     if _LATENCY_TASK is not None:
         _LATENCY_TASK.cancel()
         _LATENCY_TASK = None
+
 
 # Flash loan configuration
 USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
@@ -1167,7 +1178,9 @@ def _best_route(
             routes: list[list[str]] | None = None
             if generator is not None:
                 try:
-                    routes = generator.generate(max_hops=kwargs.get("max_hops", MAX_HOPS))
+                    routes = generator.generate(
+                        max_hops=kwargs.get("max_hops", MAX_HOPS)
+                    )
                 except Exception:
                     routes = None
             cand: list[tuple[list[str], float]]
@@ -1180,7 +1193,9 @@ def _best_route(
                 use_flash_loans = kwargs.get("use_flash_loans")
                 max_flash_amount = kwargs.get("max_flash_amount")
                 trade_amount = (
-                    min(max_flash_amount or amount, amount) if (use_flash_loans or USE_FLASH_LOANS) else amount
+                    min(max_flash_amount or amount, amount)
+                    if (use_flash_loans or USE_FLASH_LOANS)
+                    else amount
                 )
                 venues, adjacency = _build_adjacency(
                     prices,
@@ -1873,6 +1888,7 @@ async def detect_and_execute_arbitrage(
         path_algorithm=path_algorithm,
         **kwargs,
     )
+
 
 try:  # pragma: no cover - best effort
     loop = asyncio.get_running_loop()

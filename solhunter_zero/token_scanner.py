@@ -10,7 +10,7 @@ from typing import List, Any
 import aiohttp
 from .http import get_session
 
-from .scanner_common import (    
+from .scanner_common import (
     BIRDEYE_API,
     HEADERS,
     OFFLINE_TOKENS as _OFFLINE_TOKENS,
@@ -39,9 +39,7 @@ class TokenScanner:
     async def websocket(
         self, *, offline: bool = False, token_file: str | None = None
     ) -> List[str]:
-        tokens = await offline_or_onchain_async(
-            offline, token_file, method="websocket"
-        )
+        tokens = await offline_or_onchain_async(offline, token_file, method="websocket")
         if tokens is not None:
             return tokens
 
@@ -50,14 +48,18 @@ class TokenScanner:
         while True:
             try:
                 session = await get_session()
-                async with session.get(BIRDEYE_API, headers=HEADERS, timeout=10) as resp:
-                        if resp.status == 429:
-                            logger.warning("Rate limited (429). Sleeping %s seconds", backoff)
-                            await asyncio.sleep(backoff)
-                            backoff = min(backoff * 2, max_backoff)
-                            continue
-                        resp.raise_for_status()
-                        data = await resp.json()
+                async with session.get(
+                    BIRDEYE_API, headers=HEADERS, timeout=10
+                ) as resp:
+                    if resp.status == 429:
+                        logger.warning(
+                            "Rate limited (429). Sleeping %s seconds", backoff
+                        )
+                        await asyncio.sleep(backoff)
+                        backoff = min(backoff * 2, max_backoff)
+                        continue
+                    resp.raise_for_status()
+                    data = await resp.json()
                 tokens = parse_birdeye_tokens(data)
                 return tokens
             except aiohttp.ClientError as exc:
@@ -67,33 +69,25 @@ class TokenScanner:
     async def onchain(
         self, *, offline: bool = False, token_file: str | None = None
     ) -> List[str]:
-        tokens = await offline_or_onchain_async(
-            offline, token_file, method="onchain"
-        )
+        tokens = await offline_or_onchain_async(offline, token_file, method="onchain")
         return tokens or []
 
     async def mempool(
         self, *, offline: bool = False, token_file: str | None = None
     ) -> List[str]:
-        tokens = await offline_or_onchain_async(
-            offline, token_file, method="mempool"
-        )
+        tokens = await offline_or_onchain_async(offline, token_file, method="mempool")
         return tokens or []
 
     async def pools(
         self, *, offline: bool = False, token_file: str | None = None
     ) -> List[str]:
-        tokens = await offline_or_onchain_async(
-            offline, token_file, method="pools"
-        )
+        tokens = await offline_or_onchain_async(offline, token_file, method="pools")
         return tokens or []
 
     async def file(
         self, *, token_file: str | None = None, offline: bool = False
     ) -> List[str]:
-        tokens = await offline_or_onchain_async(
-            offline, token_file, method="file"
-        )
+        tokens = await offline_or_onchain_async(offline, token_file, method="file")
         return tokens or []
 
     async def scan(
@@ -179,8 +173,14 @@ async def scan_tokens_async(
 
     _metrics_sub = subscription("system_metrics_combined", _update_metrics)
     _metrics_sub.__enter__()
-    _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
-    smoothing = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+    _dyn_interval = float(
+        os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL
+    )
+    ewm = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+    kp = float(
+        os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5")) or 0.5
+    )
+    ki = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
     adjust_task: asyncio.Task | None = None
@@ -197,6 +197,7 @@ async def scan_tokens_async(
         current_limit = new_limit
 
     if dynamic_concurrency:
+
         async def _adjust() -> None:
             try:
                 while True:
@@ -206,10 +207,14 @@ async def scan_tokens_async(
                     else:
                         cpu = cpu_val["v"]
                     target = _target_concurrency(
-                        cpu, max_concurrency, low, high, smoothing=smoothing
+                        cpu, max_concurrency, low, high, smoothing=ewm
                     )
                     new_limit = _step_limit(
-                        current_limit, target, max_concurrency, smoothing=smoothing
+                        current_limit,
+                        target,
+                        max_concurrency,
+                        smoothing=kp,
+                        ki=ki,
                     )
                     if new_limit != current_limit:
                         await _set_limit(new_limit)
@@ -230,11 +235,7 @@ async def scan_tokens_async(
 
     async with asyncio.TaskGroup() as tg:
         main_task = tg.create_task(
-            _run(
-                scanner.scan(
-                    offline=offline, token_file=token_file, method=method
-                )
-            )
+            _run(scanner.scan(offline=offline, token_file=token_file, method=method))
         )
         tasks = [main_task]
         if not offline and token_file is None:
@@ -269,7 +270,9 @@ async def scan_tokens_async(
 async def scan_tokens(
     *, offline: bool = False, token_file: str | None = None, method: str = "websocket"
 ) -> List[str]:
-    tokens = await scan_tokens_async(offline=offline, token_file=token_file, method=method)
+    tokens = await scan_tokens_async(
+        offline=offline, token_file=token_file, method=method
+    )
     if method == "websocket" and not offline and token_file is None:
         if "otherbonk" in tokens and "xyzBONK" not in tokens:
             tokens[tokens.index("otherbonk")] = "xyzBONK"
