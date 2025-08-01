@@ -669,6 +669,31 @@ ws.onmessage = (ev) => {
   console.log(msg.topic, msg.payload);
 };
 ```
+
+Memory databases automatically synchronise so replicated nodes share the same
+trade history. The default delay between sync requests is five seconds. Adjust
+this with ``MEMORY_SYNC_INTERVAL`` or the ``memory_sync_interval`` config
+option:
+
+```bash
+export MEMORY_SYNC_INTERVAL=10
+```
+
+WebSocket connections stay alive through periodic pings. Change the interval and
+timeout with ``WS_PING_INTERVAL`` and ``WS_PING_TIMEOUT``:
+
+```bash
+export WS_PING_INTERVAL=20
+export WS_PING_TIMEOUT=8
+```
+
+To send transactions via multiple nodes, specify a comma‑separated list of RPC
+endpoints using ``priority_rpc`` (or the ``PRIORITY_RPC`` environment
+variable):
+
+```bash
+export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+```
 ### Running in a Cluster
 
 Set `BROKER_URL` to a Redis or NATS server so multiple bots share market
