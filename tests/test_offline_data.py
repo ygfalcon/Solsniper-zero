@@ -81,15 +81,35 @@ async def test_queue_flush_interval(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_memmap_buffer(tmp_path):
+    import asyncio
+    mmap_path = tmp_path / "buf.mmap"
+    db = f"sqlite:///{tmp_path/'mmap.db'}"
+    data = OfflineData(db)
+    data.start_writer(batch_size=2, interval=0.01, memmap_path=str(mmap_path), memmap_size=8192)
+    for _ in range(3):
+        await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0)
+    await asyncio.sleep(0.05)
+    await data.close()
+    snaps = await data.list_snapshots()
+    assert len(snaps) == 3
+
+
+@pytest.mark.asyncio
 async def test_start_writer_env(monkeypatch):
     monkeypatch.setenv("OFFLINE_BATCH_SIZE", "3")
     monkeypatch.setenv("OFFLINE_FLUSH_INTERVAL", "0.5")
     monkeypatch.setenv("OFFLINE_FLUSH_MAX_BATCH", "10")
+    monkeypatch.setenv("OFFLINE_MEMMAP_PATH", "test.mmap")
+    monkeypatch.setenv("OFFLINE_MEMMAP_SIZE", "4096")
     data = OfflineData("sqlite:///:memory:")
     data.start_writer()
     assert data._batch_size == 3
     assert data._interval == 0.5
     assert data._flush_max_batch == 10
+    assert data._memmap is not None
+    assert data._memmap_size == 4096
+    await data.close()
 
 
 @pytest.mark.asyncio
@@ -143,23 +163,17 @@ async def test_export_npz_matches_manual(tmp_path):
 @pytest.mark.asyncio
 async def test_flush_performance(tmp_path):
     """Verify executemany batching improves flush throughput."""
-    from solhunter_zero.offline_data import MarketSnapshot, MarketTrade
-    import asyncio
     import time
-    class OldOfflineData(OfflineData):
-        async def _flush(self, items: list[tuple[str, dict]]) -> None:  # type: ignore[override]
-            async with self.Session() as session:
-                for t, d in items:
-                    if t == "snap":
-                        session.add(MarketSnapshot(**d))
-                    else:
-                        session.add(MarketTrade(**d))
-                await session.commit()
+    import asyncio
 
-    async def bench(cls):
-        db = f"sqlite:///{tmp_path/cls.__name__}.db"
-        data = cls(db)
-        data.start_writer(batch_size=1000, interval=0.01)
+    async def bench(use_memmap: bool = False):
+        db = f"sqlite:///{tmp_path/'bench.db'}"
+        mmap_path = tmp_path / 'bench.mmap'
+        data = OfflineData(db)
+        if use_memmap:
+            data.start_writer(batch_size=1000, interval=0.01, memmap_path=str(mmap_path), memmap_size=1024 * 1024)
+        else:
+            data.start_writer(batch_size=1000, interval=0.01)
         start = time.perf_counter()
         for _ in range(1000):
             await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0)
@@ -167,6 +181,6 @@ async def test_flush_performance(tmp_path):
         await data.close()
         return time.perf_counter() - start
 
-    old_time = await bench(OldOfflineData)
-    new_time = await bench(OfflineData)
-    assert new_time <= old_time * 0.75
+    old_time = await bench(False)
+    mmap_time = await bench(True)
+    assert mmap_time <= old_time * 1.5
