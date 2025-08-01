@@ -153,6 +153,7 @@ from solhunter_zero.event_bus import (
     connect_ws,
     disconnect_ws,
     broadcast_ws,
+    subscribe_ws_topics,
     _unpack_batch,
     _maybe_decompress,
 )
@@ -691,4 +692,58 @@ async def test_websocket_ping_settings(monkeypatch):
     await ev.disconnect_ws()
     await ev.stop_ws_server()
     importlib.reload(ev)
+
+
+@pytest.mark.asyncio
+async def test_websocket_topic_filtering():
+    port = 8795
+    import importlib, sys
+    if 'websockets' in sys.modules:
+        del sys.modules['websockets']
+    real_ws = importlib.import_module('websockets')
+    import solhunter_zero.event_bus as ev
+    ev.websockets = real_ws
+    globals()['websockets'] = real_ws
+    await start_ws_server("localhost", port)
+
+    from solhunter_zero import event_pb2
+
+    ws_all = await websockets.connect(f"ws://localhost:{port}")
+    ws_filtered = await websockets.connect(
+        f"ws://localhost:{port}?topics=weights_updated"
+    )
+    ev_ws_filtered = None
+    for c in ev._ws_clients:
+        if getattr(getattr(c, "request", None), "path", "").endswith("weights_updated"):
+            ev_ws_filtered = c
+            break
+
+    publish("weights_updated", {"weights": {"x": 10}})
+    publish("action_executed", {"action": {}, "result": {}})
+    await asyncio.sleep(0.1)
+
+    raw1 = await asyncio.wait_for(ws_filtered.recv(), timeout=1)
+    raw2 = await asyncio.wait_for(ws_all.recv(), timeout=1)
+
+    ev1 = event_pb2.Event()
+    ev1.ParseFromString(raw1)
+    assert ev1.topic == "weights_updated"
+
+    msgs = _unpack_batch(raw2)
+    assert msgs and len(msgs) == 2
+    ev2a = event_pb2.Event(); ev2a.ParseFromString(msgs[0])
+    ev2b = event_pb2.Event(); ev2b.ParseFromString(msgs[1])
+    assert {ev2a.topic, ev2b.topic} == {"weights_updated", "action_executed"}
+
+    assert ev_ws_filtered is not None
+    subscribe_ws_topics(ev_ws_filtered, {"action_executed"})
+    publish("action_executed", {"action": {}, "result": {}})
+    await asyncio.sleep(0.1)
+    raw3 = await asyncio.wait_for(ws_filtered.recv(), timeout=1)
+    ev3 = event_pb2.Event(); ev3.ParseFromString(raw3)
+    assert ev3.topic == "action_executed"
+
+    await ws_all.close()
+    await ws_filtered.close()
+    await stop_ws_server()
 

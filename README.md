@@ -667,15 +667,17 @@ Set `MEMORY_SYNC_INTERVAL` to control how often these sync requests are sent
 
 When the Web UI is running, these events are also forwarded over a simple
 WebSocket endpoint at `ws://localhost:8766/ws`. Clients can subscribe and react
-to updates directly in the browser:
+to updates directly in the browser. Use the `topics` query parameter to limit
+events to a subset:
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8766/ws');
+const ws = new WebSocket('ws://localhost:8766/ws?topics=weights_updated');
 ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   console.log(msg.topic, msg.payload);
 };
 ```
+Subscriptions can be changed later by calling `subscribe_ws_topics(ws, topics)`.
 
 Memory databases automatically synchronise so replicated nodes share the same
 trade history. The default delay between sync requests is five seconds. Adjust
