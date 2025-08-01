@@ -132,7 +132,16 @@ def _calc_num_workers(
             pass
     base = min(os.cpu_count() or 1, max(1, size // 100))
     if dynamic:
-        usage = _get_cpu_usage(cpu_callback)
+        cluster_env = os.getenv("RL_CLUSTER_WORKERS", "1").lower()
+        use_cluster = cluster_env not in {"0", "false", "no"}
+        if cpu_callback is None:
+            usage_fn = _get_cpu_usage if use_cluster else lambda: psutil.cpu_percent(interval=None)
+        else:
+            usage_fn = cpu_callback
+        try:
+            usage = float(usage_fn())
+        except Exception:
+            usage = 0.0
         try:
             frac = 1.0 - float(usage) / 100.0
         except Exception:
