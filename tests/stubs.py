@@ -369,9 +369,17 @@ def stub_sqlalchemy() -> None:
             return Session(bind)
         return factory
 
+    def async_sessionmaker(bind=None, expire_on_commit=False):
+        def factory(**kw):
+            return AsyncSession(bind)
+        return factory
+
     class Session(AsyncSession):
         def query(self, model):
             return Query(model, session=self)
+
+        def commit(self):
+            pass
 
     def declarative_base():
         class Base:
@@ -415,7 +423,7 @@ def stub_sqlalchemy() -> None:
         return Engine()
 
     async_mod.create_async_engine = create_async_engine
-    async_mod.async_sessionmaker = sessionmaker
+    async_mod.async_sessionmaker = async_sessionmaker
     async_mod.AsyncSession = AsyncSession
     ext.asyncio = async_mod
     sa.ext = ext
