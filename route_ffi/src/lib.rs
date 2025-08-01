@@ -40,9 +40,6 @@ use libc::c_char;
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 
-#[derive(Deserialize)]
-struct InputMap(HashMap<String, f64>);
-
 fn parse_map(ptr: *const c_char) -> Option<HashMap<String, f64>> {
     if ptr.is_null() {
         return Some(HashMap::new());
