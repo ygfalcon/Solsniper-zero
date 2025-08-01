@@ -6,7 +6,7 @@ pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 import numpy as np, faiss
 if getattr(np, "_STUB", False) or getattr(faiss, "_STUB", False):
-    pytest.skip("requires real numpy/faiss")
+    pytest.skip("requires real numpy/faiss", allow_module_level=True)
 
 from solhunter_zero.agents.simulation import SimulationAgent
 from solhunter_zero.agents.conviction import ConvictionAgent
