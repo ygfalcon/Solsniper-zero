@@ -23,3 +23,10 @@ Then run the tests from the project root:
 ```bash
 pytest
 ```
+
+To run the static analysis checks used in CI, execute:
+
+```bash
+python -m compileall .
+flake8
+```
