@@ -252,6 +252,10 @@ def _get_event_serialization(cfg=None) -> str | None:
     from .config import get_event_serialization
     return get_event_serialization(cfg)
 
+def _get_event_batch_ms(cfg=None) -> int:
+    from .config import get_event_batch_ms
+    return get_event_batch_ms(cfg)
+
 try:
     import websockets  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -769,11 +773,11 @@ async def _flush_outgoing() -> None:
     if q is None:
         return
     loop = asyncio.get_running_loop()
-    delay = _EVENT_BATCH_MS / 1000.0
     while True:
         # wait for at least one message
         msg = await q.get()
         msgs: list[Any] = [msg]
+        delay = _EVENT_BATCH_MS / 1000.0
         if delay > 0:
             end = loop.time() + delay
             while True:
@@ -1170,6 +1174,23 @@ def _reload_serialization(cfg) -> None:
 
 
 subscription("config_updated", _reload_serialization).__enter__()
+
+
+# ---------------------------------------------------------------------------
+#  Batch interval configuration
+# ---------------------------------------------------------------------------
+
+
+def _reload_batch(cfg) -> None:
+    global _EVENT_BATCH_MS
+    try:
+        val = int(_get_event_batch_ms(cfg) or 0)
+    except Exception:
+        val = 0
+    _EVENT_BATCH_MS = val
+
+
+subscription("config_updated", _reload_batch).__enter__()
 
 
 # ---------------------------------------------------------------------------

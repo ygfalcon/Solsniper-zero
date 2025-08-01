@@ -79,6 +79,7 @@ ENV_VARS = {
     "broker_urls": "BROKER_URLS",
     "compress_events": "COMPRESS_EVENTS",
     "event_serialization": "EVENT_SERIALIZATION",
+    "event_batch_ms": "EVENT_BATCH_MS",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
     "use_depth_stream": "USE_DEPTH_STREAM",
@@ -368,6 +369,15 @@ def get_event_serialization(cfg: Mapping[str, Any] | None = None) -> str | None:
     cfg = cfg or _ACTIVE_CONFIG
     val = os.getenv("EVENT_SERIALIZATION") or str(cfg.get("event_serialization", ""))
     return val or None
+
+
+def get_event_batch_ms(cfg: Mapping[str, Any] | None = None) -> int:
+    """Return event batching interval in milliseconds."""
+    cfg = cfg or _ACTIVE_CONFIG
+    val = os.getenv("EVENT_BATCH_MS")
+    if val is None or val == "":
+        val = cfg.get("event_batch_ms", 0)
+    return int(val or 0)
 
 
 def get_depth_ws_addr(cfg: Mapping[str, Any] | None = None) -> tuple[str, int]:
