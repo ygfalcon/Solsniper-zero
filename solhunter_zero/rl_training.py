@@ -88,7 +88,7 @@ from .config import get_broker_url
 
 
 _CPU_USAGE = 0.0
-_CPU_SUB = None
+_CPU_SUB: tuple | None = None
 
 
 def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
@@ -104,13 +104,17 @@ def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
         def _update(payload: Any) -> None:
             global _CPU_USAGE
             try:
-                _CPU_USAGE = float(payload.get("cpu", payload.get("usage", payload)))
+                _CPU_USAGE = float(
+                    payload.get("cpu", payload.get("usage", payload))
+                )
             except Exception:
                 pass
 
-        sub = subscription("system_metrics", _update)
-        sub.__enter__()
-        _CPU_SUB = sub
+        sub1 = subscription("system_metrics_combined", _update)
+        sub1.__enter__()
+        sub2 = subscription("system_metrics", _update)
+        sub2.__enter__()
+        _CPU_SUB = (sub1, sub2)
     return _CPU_USAGE
 
 

@@ -45,6 +45,13 @@ def start() -> None:
         ]
         for sub in _def_subs:
             sub.__enter__()
+        if _HISTORY:
+            avg_cpu = sum(c for c, _ in _HISTORY) / len(_HISTORY)
+            avg_mem = sum(m for _, m in _HISTORY) / len(_HISTORY)
+            publish(
+                "system_metrics_combined",
+                {"cpu": avg_cpu, "memory": avg_mem},
+            )
 
 
 async def _run_forever() -> None:
