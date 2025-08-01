@@ -328,11 +328,31 @@ def _unpack_batch(data: Any) -> List[Any] | None:
             return obj
     return None
 
+
+def _extract_topic(msg: Any) -> str | None:
+    """Return the event topic encoded in ``msg`` if possible."""
+    if isinstance(msg, (bytes, bytearray)):
+        try:
+            data = _maybe_decompress(msg)
+            ev = pb.Event()
+            ev.ParseFromString(data)
+            return ev.topic
+        except Exception:
+            return None
+    try:
+        obj = _loads(msg)
+    except Exception:
+        return None
+    if isinstance(obj, dict):
+        return obj.get("topic")
+    return None
+
 # mapping of topic -> list of handlers
 _subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(list)
 
 # websocket related globals
 _ws_clients: Set[Any] = set()  # clients connected to our server
+_ws_client_topics: Dict[Any, Set[str] | None] = {}  # allowed topics per client
 _peer_clients: Dict[str, Any] = {}  # outbound connections to peers
 _peer_urls: Set[str] = set()
 _watch_tasks: Dict[str, Any] = {}
@@ -747,19 +767,38 @@ async def broadcast_ws(
     to_clients: bool = True,
     to_server: bool = True,
 ) -> None:
-    """Send ``message`` to websocket peers."""
+    """Send ``message`` to websocket peers respecting topic subscriptions."""
     if isinstance(message, list):
-        message = _pack_batch(message)
+        msgs = list(message)
+    else:
+        msgs = _unpack_batch(message) or [message]
+    frame_all = _pack_batch(msgs) if len(msgs) > 1 else msgs[0]
     if to_clients:
         clients = list(_ws_clients)
-        coros = [ws.send(message) for ws in clients]
-        results = await asyncio.gather(*coros, return_exceptions=True)
-        for ws, res in zip(clients, results):
-            if isinstance(res, Exception):  # pragma: no cover - network errors
-                _ws_clients.discard(ws)
+        coros = []
+        for ws in clients:
+            allowed = _ws_client_topics.get(ws)
+            out_msgs = []
+            if allowed is None:
+                frame = frame_all
+            else:
+                for m in msgs:
+                    topic = _extract_topic(m)
+                    if topic is None or topic in allowed:
+                        out_msgs.append(m)
+                if not out_msgs:
+                    continue
+                frame = _pack_batch(out_msgs) if len(out_msgs) > 1 else out_msgs[0]
+            coros.append(ws.send(frame))
+        if coros:
+            results = await asyncio.gather(*coros, return_exceptions=True)
+            for ws, res in zip([c for c in clients if c in _ws_clients], results):
+                if isinstance(res, Exception):  # pragma: no cover - network errors
+                    _ws_clients.discard(ws)
+                    _ws_client_topics.pop(ws, None)
     if to_server and _peer_clients:
         peers = list(_peer_clients.items())
-        coros = [ws.send(message) for _, ws in peers]
+        coros = [ws.send(frame_all) for _, ws in peers]
         results = await asyncio.gather(*coros, return_exceptions=True)
         for (url, ws), res in zip(peers, results):
             if isinstance(res, Exception):  # pragma: no cover - connection issues
@@ -934,7 +973,21 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
         raise RuntimeError("websockets library required")
 
     async def handler(ws):
+        allowed: Set[str] | None = None
+        try:
+            import urllib.parse as _urlparse
+            path = getattr(ws, "request", None)
+            if path is not None:
+                p = getattr(path, "path", "")
+                if "?" in p:
+                    qs = _urlparse.parse_qs(p.split("?", 1)[1])
+                    topics = qs.get("topics")
+                    if topics:
+                        allowed = {t for t in topics[0].split(",") if t}
+        except Exception:
+            allowed = None
         _ws_clients.add(ws)
+        _ws_client_topics[ws] = allowed
         try:
             async for msg in ws:
                 try:
@@ -952,6 +1005,7 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
                     continue
         finally:
             _ws_clients.discard(ws)
+            _ws_client_topics.pop(ws, None)
 
     global _ws_server, _flush_task, _outgoing_queue
     if _outgoing_queue is None:
@@ -971,6 +1025,14 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
     return _ws_server
 
 
+def subscribe_ws_topics(ws: Any, topics: Sequence[str] | None) -> None:
+    """Update allowed websocket topics for ``ws``."""
+    if topics is None:
+        _ws_client_topics[ws] = None
+    else:
+        _ws_client_topics[ws] = {t for t in topics if t}
+
+
 async def stop_ws_server() -> None:
     """Stop the running websocket server and close client connections."""
     global _ws_server, _flush_task, _outgoing_queue
@@ -988,6 +1050,7 @@ async def stop_ws_server() -> None:
         except Exception:
             pass
     _ws_clients.clear()
+    _ws_client_topics.clear()
 
 
 async def connect_ws(url: str):
