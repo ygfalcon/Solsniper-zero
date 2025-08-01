@@ -58,46 +58,29 @@ async def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_depth_snapshot_listener(tmp_path, monkeypatch):
-    msg = {"tok": {"price": 1.0, "depth": 2.0, "total_depth": 2.0, "imbalance": 0.1}}
+    msg = {
+        "tok": {
+            "price": 1.0,
+            "depth": 2.0,
+            "total_depth": 2.5,
+            "imbalance": 0.1,
+            "slippage": 0.2,
+            "volume": 3.0,
+            "tx_rate": 4.0,
+            "whale_share": 0.3,
+            "spread": 0.4,
+            "sentiment": 0.5,
+        }
+    }
 
-    class FakeMsg:
-        def __init__(self, data):
-            self.type = aiohttp.WSMsgType.TEXT
-            self.data = json.dumps(data)
+    async def fake_listener(*_a, **_k):
+        from solhunter_zero.event_bus import publish
 
-    class FakeWS:
-        def __init__(self, messages):
-            self.messages = list(messages)
+        publish("depth_service_status", {"status": "connected"}, _broadcast=False)
+        publish("depth_update", msg, _broadcast=False)
+        publish("depth_service_status", {"status": "disconnected"}, _broadcast=False)
 
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
-        def __aiter__(self):
-            return self
-
-        async def __anext__(self):
-            if self.messages:
-                return FakeMsg(self.messages.pop(0))
-            raise StopAsyncIteration
-
-    class FakeSession:
-        def __init__(self, messages):
-            self.messages = messages
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
-        def ws_connect(self, url):
-            self.url = url
-            return FakeWS(self.messages)
-
-    monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession([msg]))
+    monkeypatch.setattr(depth_client, "listen_depth_ws", fake_listener)
 
     db = tmp_path / "data.db"
     data = OfflineData(f"sqlite:///{db}")
@@ -108,7 +91,10 @@ async def test_depth_snapshot_listener(tmp_path, monkeypatch):
     unsub()
 
     snaps = await data.list_snapshots("tok")
-    assert snaps and snaps[0].price == 1.0
+    assert snaps
+    snap = snaps[0]
+    for field, value in msg["tok"].items():
+        assert pytest.approx(getattr(snap, field)) == value
 
 
 def test_sync_concurrency(tmp_path, monkeypatch):
