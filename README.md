@@ -469,7 +469,16 @@ profit calculation so routes are ranked based on the borrowed size.
    Then verify compression is active by running
    `python scripts/compression_demo.py`, which prints the message size and
    latency with and without zstd compression.
-19. **Full system startup**
+19. **Shared memory event bus**
+   Export `EVENT_BUS_MMAP` so protobuf events are written to a local ring buffer
+   instead of a socket. Increase `EVENT_BUS_MMAP_SIZE` if the default 1&nbsp;MB
+   buffer is too small:
+   ```bash
+   export EVENT_BUS_MMAP=/tmp/events.mmap
+   export EVENT_BUS_MMAP_SIZE=$((1<<20))
+   ```
+   Start all producers and consumers with these variables for lower latency.
+20. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash
    python scripts/start_all.py
@@ -490,7 +499,7 @@ Running `scripts/startup.py` handles these steps interactively and forwards any 
    python -m solhunter_zero.main
 
    ```
-20. **Autopilot**
+21. **Autopilot**
    Automatically selects the only keypair and active configuration,
    then launches all services and the trading loop:
    ```bash
