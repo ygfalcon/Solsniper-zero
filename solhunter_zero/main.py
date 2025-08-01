@@ -25,6 +25,7 @@ from .config import (
 )
 from .http import close_session
 from . import wallet
+from . import metrics_aggregator
 
 _SERVICE_MANIFEST = (
     Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
@@ -566,6 +567,7 @@ def main(
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
+    metrics_aggregator.start()
 
     use_bundles = str(
         cfg.get("use_mev_bundles") or os.getenv("USE_MEV_BUNDLES", "false")
