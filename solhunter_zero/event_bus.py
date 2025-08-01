@@ -91,7 +91,10 @@ _PB_MAP = {
 
 # compress protobuf messages when broadcasting if enabled
 _COMPRESS_EVENTS = os.getenv("COMPRESS_EVENTS")
-COMPRESS_EVENTS = _COMPRESS_EVENTS not in (None, "", "0")
+if _COMPRESS_EVENTS is None:
+    COMPRESS_EVENTS = _HAS_ZSTD or _HAS_LZ4
+else:
+    COMPRESS_EVENTS = _COMPRESS_EVENTS not in ("", "0")
 
 # chosen compression algorithm for protobuf events
 _EVENT_COMPRESSION = os.getenv("EVENT_COMPRESSION")
@@ -273,7 +276,7 @@ _WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
 _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 
 # how long to buffer outgoing events before flushing (ms)
-_EVENT_BATCH_MS = int(os.getenv("EVENT_BATCH_MS", "0") or 0)
+_EVENT_BATCH_MS = int(os.getenv("EVENT_BATCH_MS", "10") or 10)
 
 # magic header for batched binary websocket messages
 _BATCH_MAGIC = b"EBAT"

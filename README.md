@@ -196,7 +196,9 @@ Install the Rust toolchain if `cargo` isn't available:
     `nats://localhost:4222`.
   - `EVENT_BUS_COMPRESSION` – websocket compression algorithm (defaults to
     `deflate`). Set to `none` to disable compression.
-  - `COMPRESS_EVENTS` – enable protobuf event compression when `1` (default).
+  - `COMPRESS_EVENTS` – enable protobuf event compression when `1` (defaults to
+    `1` when `zstandard` or `lz4` is installed). Set `COMPRESS_EVENTS=0` to
+    disable compression.
   - `EVENT_COMPRESSION` – compression algorithm for protobuf events. Defaults
     to `zstd` when available, falling back to `zlib`. Set `EVENT_COMPRESSION`
     to `lz4`, `zlib` or `none` to override.
@@ -206,7 +208,7 @@ Install the Rust toolchain if `cargo` isn't available:
   - `WS_PING_TIMEOUT` – wait this many seconds for a pong (defaults to `20`).
   - `LOG_LEVEL` – controls logging verbosity. Set to `error` to hide warnings.
   - `EVENT_BATCH_MS` – messages are batched for the given milliseconds before
-    broadcast (defaults to `0`). Run
+    broadcast (defaults to `10`). Set `EVENT_BATCH_MS=0` to disable batching. Run
     `scripts/benchmark_event_bus_batch.py` to tune this value.
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
     new snapshot (defaults to `0`).
@@ -459,8 +461,9 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
    A typical `depth_update` event (~2.2&nbsp;KB) becomes ~1.8&nbsp;KB with zlib
    (~0.27&nbsp;ms), ~1.9&nbsp;KB with lz4 (~0.004&nbsp;ms) and ~1.7&nbsp;KB with
-   zstd (~0.012&nbsp;ms). With the optional `zstandard` package installed,
-   `COMPRESS_EVENTS=1` and `EVENT_COMPRESSION=zstd` are used automatically. Set `COMPRESS_EVENTS=0` to
+   zstd (~0.012&nbsp;ms). When either `zstandard` or `lz4` is installed,
+   compression is enabled automatically with `COMPRESS_EVENTS=1` and
+   `EVENT_COMPRESSION=zstd` when available. Set `COMPRESS_EVENTS=0` to
    disable compression or `USE_ZLIB_EVENTS=1` if older nodes expect zlib
    compressed messages.
    Install the optional compression libraries with:
