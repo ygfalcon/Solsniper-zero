@@ -451,6 +451,7 @@ def stub_websockets() -> None:
     async def connect(*a, **k):
         return DummyConn()
 
+
     async def serve(handler, host, port):
         class Server:
             sockets = [types.SimpleNamespace(getsockname=lambda: (host, port))]
@@ -467,7 +468,24 @@ def stub_websockets() -> None:
 
     mod.connect = connect
     mod.serve = serve
+
+    # create websockets.legacy.client submodules for compatibility
+    legacy = types.ModuleType('websockets.legacy')
+    legacy.__spec__ = importlib.machinery.ModuleSpec('websockets.legacy', None)
+    client = types.ModuleType('websockets.legacy.client')
+    client.__spec__ = importlib.machinery.ModuleSpec('websockets.legacy.client', None)
+
+    class WebSocketClientProtocol(DummyConn):
+        pass
+
+    client.WebSocketClientProtocol = WebSocketClientProtocol
+    client.connect = connect
+    legacy.client = client
+    mod.legacy = legacy
+
     sys.modules.setdefault('websockets', mod)
+    sys.modules.setdefault('websockets.legacy', legacy)
+    sys.modules.setdefault('websockets.legacy.client', client)
 
 
 def stub_aiofiles() -> None:
