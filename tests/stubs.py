@@ -133,7 +133,11 @@ def stub_sqlalchemy() -> None:
         def __get__(self, obj, objtype=None):
             if obj is None:
                 return self
-            return obj.__dict__.get(self.name, self.default)
+            val = obj.__dict__.get(self.name)
+            if val is None:
+                val = self.default() if callable(self.default) else self.default
+                obj.__dict__[self.name] = val
+            return val
 
         def __set__(self, obj, value):
             obj.__dict__[self.name] = value
@@ -443,6 +447,14 @@ def stub_psutil() -> None:
     mod.__spec__ = importlib.machinery.ModuleSpec('psutil', None)
     mod.cpu_percent = lambda *a, **k: 0.0
     mod.virtual_memory = lambda: types.SimpleNamespace(percent=0.0)
+    class Process:
+        def __init__(self, *a, **k):
+            pass
+
+        def cpu_times(self):
+            return types.SimpleNamespace(user=0.0)
+
+    mod.Process = Process
     sys.modules.setdefault('psutil', mod)
 
 
