@@ -1,6 +1,9 @@
 import importlib
 import sys
 import types
+import pytest
+
+pytest.importorskip("google.protobuf")
 
 if importlib.util.find_spec("solana") is None:
     sys.modules.setdefault("solana", types.ModuleType("solana"))
