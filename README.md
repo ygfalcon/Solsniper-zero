@@ -247,7 +247,9 @@ Install the Rust toolchain if `cargo` isn't available:
   directly, improving route calculation speed by roughly a factor of two
   compared to the pure Python implementation.
   Set `RAYON_NUM_THREADS` to configure the number of threads used by
-  the parallel route search.
+  the parallel route search. If the variable is not set, `arbitrage.py`
+  and `depth_client.py` default it to the value returned by
+  `os.cpu_count()` so you can override the thread count as needed.
 
 ## Flash-Loan Arbitrage
 
