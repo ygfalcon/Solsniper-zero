@@ -6,7 +6,6 @@ import logging
 import os
 from typing import List, Dict
 
-import aiohttp
 import asyncio
 
 try:
@@ -16,7 +15,8 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
         def __new__(cls, value: str):
             return str.__new__(cls, value)
 
-    import types, sys
+    import types
+    import sys
 
     mod = types.ModuleType("solana.publickey")
     mod.PublicKey = PublicKey
@@ -62,10 +62,20 @@ def _tx_volume(entries: List[dict]) -> float:
     """Return the total volume represented by ``entries``.
 
     Each entry is expected to contain an ``amount`` field.  Entries missing the
-    field contribute ``0.0`` to the total.
+    field contribute ``0.0`` to the total. String values are converted to
+    ``float`` and non-numeric values are ignored.
     """
 
-    return float(sum(e.get("amount", 0.0) for e in entries))
+    total = 0.0
+    for e in entries:
+        amount = e.get("amount")
+        if amount is None:
+            continue
+        try:
+            total += float(amount)
+        except Exception:
+            continue
+    return total
 
 
 def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
@@ -387,4 +397,3 @@ async def collect_onchain_insights_async(
         "whale_activity": float(whale_activity),
         "avg_swap_size": float(avg_swap),
     }
-

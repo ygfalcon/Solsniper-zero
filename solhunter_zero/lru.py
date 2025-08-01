@@ -6,7 +6,7 @@ import asyncio
 import heapq
 import time
 from collections import OrderedDict
-from typing import Any, Hashable, Iterable
+from typing import Any, Hashable
 
 try:  # cachetools is optional when running tests
     from cachetools import LRUCache as _LRUCache
@@ -15,9 +15,9 @@ except Exception:  # pragma: no cover - fallback when cachetools missing
         def __init__(self, maxsize: int = 128, *args: Any, **kwargs: Any) -> None:
             self.maxsize = maxsize
             super().__init__(*args, **kwargs)
+
         def __setitem__(self, key: Hashable, value: Any) -> None:
             if len(self) >= self.maxsize:
-                next(iter(self))
                 self.pop(next(iter(self)), None)
             super().__setitem__(key, value)
 
@@ -146,5 +146,3 @@ class TTLCache(_BaseTTL):
             return val
         finally:
             self._pending.pop(key, None)
-
-

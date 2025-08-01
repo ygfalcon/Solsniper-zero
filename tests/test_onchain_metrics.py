@@ -1,8 +1,7 @@
 import pytest
-import requests
 import aiohttp
 import asyncio
-from solhunter_zero import scanner_onchain, http
+from solhunter_zero import http
 
 from solhunter_zero import onchain_metrics
 
@@ -34,9 +33,6 @@ class FakeAsyncClient:
 
     async def get_signatures_for_address(self, addr):
         return {"result": self._data.get(str(addr), [])}
-
-
-
 
 
 def test_top_volume_tokens(monkeypatch):
@@ -212,8 +208,10 @@ def test_fetch_dex_metrics(monkeypatch):
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=5):
             return FakeResp(url)
 
@@ -280,10 +278,13 @@ def test_fetch_dex_metrics_error(monkeypatch):
         class S:
             def get(self, url, timeout=5):
                 raise aiohttp.ClientError("boom")
+
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, exc_type, exc, tb):
                 pass
+
         return S()
 
     monkeypatch.setattr("aiohttp.ClientSession", fake_session)
@@ -457,3 +458,14 @@ def test_top_volume_tokens_concurrent(monkeypatch):
     assert set(calls) == set(tokens)
     assert result == tokens  # volumes equal so order preserved
     assert elapsed < 0.12
+
+
+def test_tx_volume_str_values():
+    entries = [
+        {"amount": "1.5"},
+        {"amount": "2"},
+        {"amount": "bad"},
+        {},
+    ]
+
+    assert onchain_metrics._tx_volume(entries) == pytest.approx(3.5)
