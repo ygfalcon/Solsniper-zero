@@ -151,6 +151,7 @@ regime_weight = 1.0
 rl_dynamic_workers = true
 rl_prioritized_replay = false
 rl_build_mmap_dataset = true
+rl_prefetch_buffer = 0
 multi_rl = false
 rl_population_size = 2
 rl_live = false

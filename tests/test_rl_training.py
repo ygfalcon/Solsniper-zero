@@ -171,6 +171,7 @@ for name in [
 sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
 
 from solhunter_zero.rl_training import RLTraining
+import solhunter_zero.rl_training as rl_training
 from solhunter_zero.offline_data import OfflineData
 from scripts import build_mmap_dataset
 
@@ -455,6 +456,27 @@ async def test_mmap_generation_disabled(monkeypatch, tmp_path):
     assert not called
     assert trainer.data.mmap_path is None
     assert not mmap_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_trade_data_prefetch(monkeypatch, tmp_path):
+    import numpy as np
+    import sys
+    monkeypatch.setitem(sys.modules, "numpy", np)
+    import importlib
+    import solhunter_zero.rl_training as rl_training
+    rl_training = importlib.reload(rl_training)
+    db_url = f"sqlite:///{tmp_path/'data.db'}"
+    data = OfflineData(db_url)
+    await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_trade("tok", "buy", 1.0, 1.0)
+
+    monkeypatch.setenv("RL_BUILD_MMAP_DATASET", "0")
+    dm = rl_training.TradeDataModule(db_url, mmap_path=None, prefetch_buffer=2)
+    task = dm.start_prefetch()
+    assert task is not None
+    await dm.setup()
+    assert dm.dataset is not None
 
 
 def test_prioritized_sampler(monkeypatch):
