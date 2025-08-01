@@ -83,8 +83,8 @@ from .offline_data import OfflineData
 from .simulation import predict_price_movement
 from .news import fetch_sentiment
 from .event_bus import publish, subscription, connect_broker
-from .event_bus import _BROKER_URL  # type: ignore
-from .config import get_broker_url
+from .event_bus import _BROKER_URLS  # type: ignore
+from .config import get_broker_urls
 
 
 _CPU_USAGE = 0.0
@@ -270,16 +270,16 @@ class LiveTradeDataset:
         self._depth_sub = subscription("depth_update", _add_depth)
         self._depth_sub.__enter__()
 
-        url = broker_url or get_broker_url()
-        if url and _BROKER_URL is None:
+        urls = [broker_url] if broker_url else get_broker_urls()
+        if urls and not _BROKER_URLS:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = None
             if loop:
-                loop.create_task(connect_broker(url))
+                loop.create_task(connect_broker(urls))
             else:
-                asyncio.run(connect_broker(url))
+                asyncio.run(connect_broker(urls))
 
     def close(self) -> None:
         self._trade_sub.__exit__(None, None, None)

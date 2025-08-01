@@ -45,7 +45,7 @@ def test_dynamic_workers_auto(monkeypatch):
     event_mod.publish = lambda *_a, **_k: None
     event_mod.connect_broker = lambda *_a, **_k: None
     event_mod.subscribe = lambda *_a, **_k: lambda: None
-    event_mod._BROKER_URL = None
+    event_mod._BROKER_URLS = []
     monkeypatch.setitem(sys.modules, "solhunter_zero.event_bus", event_mod)
     rl_daemon_mod = types.ModuleType("solhunter_zero.rl_daemon")
     rl_daemon_mod.RLDaemon = DummyDaemon
@@ -78,7 +78,7 @@ def test_dynamic_workers_single_core(monkeypatch):
     event_mod.publish = lambda *_a, **_k: None
     event_mod.connect_broker = lambda *_a, **_k: None
     event_mod.subscribe = lambda *_a, **_k: lambda: None
-    event_mod._BROKER_URL = None
+    event_mod._BROKER_URLS = []
     monkeypatch.setitem(sys.modules, "solhunter_zero.event_bus", event_mod)
     rl_daemon_mod = types.ModuleType("solhunter_zero.rl_daemon")
     rl_daemon_mod.RLDaemon = DummyDaemon

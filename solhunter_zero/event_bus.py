@@ -34,7 +34,7 @@ except Exception:  # pragma: no cover - optional dependency
     _ZSTD_DECOMPRESSOR = None
 from contextlib import contextmanager
 from collections import defaultdict
-from typing import Any, Awaitable, Callable, Dict, Generator, List, Set
+from typing import Any, Awaitable, Callable, Dict, Generator, List, Set, Sequence
 
 try:
     import msgpack
@@ -335,10 +335,10 @@ _flush_task = None
 _outgoing_queue: Queue | None = None
 
 # message broker globals
-_BROKER_URL: str | None = None
-_BROKER_TYPE: str | None = None
-_BROKER_CONN: Any | None = None
-_BROKER_TASK: Any | None = None
+_BROKER_URLS: list[str] = []
+_BROKER_TYPES: list[str] = []
+_BROKER_CONNS: list[Any] = []
+_BROKER_TASKS: list[Any] = []
 _BROKER_CHANNEL: str = os.getenv("BROKER_CHANNEL", "solhunter-events")
 
 
@@ -712,7 +712,7 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
             h(payload)
 
     msg: Any | None = None
-    if (websockets or _BROKER_TYPE or _EVENT_BUS_MMAP) and _broadcast:
+    if (websockets or _BROKER_CONNS or _EVENT_BUS_MMAP) and _broadcast:
         msg = _encode_event(topic, payload)
     if _EVENT_BUS_MMAP and _broadcast and isinstance(msg, (bytes, bytearray)):
         _mmap_write(bytes(msg))
@@ -725,7 +725,7 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
                 loop.create_task(broadcast_ws(msg))
         else:
             asyncio.run(broadcast_ws(msg))
-    if _BROKER_TYPE and _broadcast:
+    if _BROKER_CONNS and _broadcast:
         assert msg is not None
         if loop:
             loop.create_task(_broker_send(msg))
@@ -794,17 +794,18 @@ async def _flush_outgoing() -> None:
 
 
 async def _broker_send(message: bytes) -> None:
-    """Publish ``message`` to the configured message broker."""
-    if _BROKER_TYPE == "redis" and _BROKER_CONN is not None:
-        try:
-            await _BROKER_CONN.publish(_BROKER_CHANNEL, message)
-        except Exception:  # pragma: no cover - connection issues
-            pass
-    elif _BROKER_TYPE == "nats" and _BROKER_CONN is not None:
-        try:
-            await _BROKER_CONN.publish(_BROKER_CHANNEL, message)
-        except Exception:  # pragma: no cover - connection issues
-            pass
+    """Publish ``message`` to all configured message brokers."""
+    for typ, conn in zip(_BROKER_TYPES, _BROKER_CONNS):
+        if typ == "redis" and conn is not None:
+            try:
+                await conn.publish(_BROKER_CHANNEL, message)
+            except Exception:  # pragma: no cover - connection issues
+                pass
+        elif typ == "nats" and conn is not None:
+            try:
+                await conn.publish(_BROKER_CHANNEL, message)
+            except Exception:  # pragma: no cover - connection issues
+                pass
 
 
 async def _receiver(ws) -> None:
@@ -864,49 +865,59 @@ async def _connect_nats(url: str):
     return nc
 
 
-async def connect_broker(url: str) -> None:
-    """Connect to a Redis or NATS message broker."""
-    global _BROKER_URL, _BROKER_CONN, _BROKER_TASK, _BROKER_TYPE
-    if url.startswith("redis://") or url.startswith("rediss://"):
-        if aioredis is None:
-            raise RuntimeError("redis package required for redis broker")
-        conn = aioredis.from_url(url)
-        pubsub = conn.pubsub()
-        await pubsub.subscribe(_BROKER_CHANNEL)
-        _BROKER_TASK = asyncio.create_task(_redis_listener(pubsub))
-        _BROKER_TYPE = "redis"
-        _BROKER_CONN = conn
-    elif url.startswith("nats://"):
-        if nats is None:
-            raise RuntimeError("nats-py package required for nats broker")
-        _BROKER_CONN = await _connect_nats(url)
-        _BROKER_TYPE = "nats"
-        _BROKER_TASK = None
-    else:
-        raise ValueError(f"unsupported broker url: {url}")
-    _BROKER_URL = url
+async def connect_broker(urls: Sequence[str] | str) -> None:
+    """Connect to one or more Redis or NATS message brokers."""
+    global _BROKER_URLS, _BROKER_CONNS, _BROKER_TASKS, _BROKER_TYPES
+    if isinstance(urls, str):
+        urls = [urls]
+    for url in urls:
+        if url.startswith("redis://") or url.startswith("rediss://"):
+            if aioredis is None:
+                raise RuntimeError("redis package required for redis broker")
+            conn = aioredis.from_url(url)
+            pubsub = conn.pubsub()
+            await pubsub.subscribe(_BROKER_CHANNEL)
+            task = asyncio.create_task(_redis_listener(pubsub))
+            _BROKER_TYPES.append("redis")
+            _BROKER_CONNS.append(conn)
+            _BROKER_TASKS.append(task)
+            _BROKER_URLS.append(url)
+        elif url.startswith("nats://"):
+            if nats is None:
+                raise RuntimeError("nats-py package required for nats broker")
+            conn = await _connect_nats(url)
+            _BROKER_TYPES.append("nats")
+            _BROKER_CONNS.append(conn)
+            _BROKER_TASKS.append(None)
+            _BROKER_URLS.append(url)
+        else:
+            raise ValueError(f"unsupported broker url: {url}")
 
 
 async def disconnect_broker() -> None:
-    """Disconnect from the active message broker."""
-    global _BROKER_URL, _BROKER_CONN, _BROKER_TASK, _BROKER_TYPE
-    task = _BROKER_TASK
-    if task is not None:
-        task.cancel()
-        _BROKER_TASK = None
-    if _BROKER_TYPE == "redis" and _BROKER_CONN is not None:
-        try:
-            await _BROKER_CONN.close()
-        except Exception:
-            pass
-    elif _BROKER_TYPE == "nats" and _BROKER_CONN is not None:
-        try:
-            await _BROKER_CONN.close()
-        except Exception:
-            pass
-    _BROKER_URL = None
-    _BROKER_CONN = None
-    _BROKER_TYPE = None
+    """Disconnect from all active message brokers."""
+    global _BROKER_URLS, _BROKER_CONNS, _BROKER_TASKS, _BROKER_TYPES
+    tasks = list(_BROKER_TASKS)
+    conns = list(_BROKER_CONNS)
+    types = list(_BROKER_TYPES)
+    _BROKER_TASKS.clear()
+    _BROKER_CONNS.clear()
+    _BROKER_TYPES.clear()
+    _BROKER_URLS.clear()
+    for t in tasks:
+        if t is not None:
+            t.cancel()
+    for typ, conn in zip(types, conns):
+        if typ == "redis" and conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass
+        elif typ == "nats" and conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 
 
 async def start_ws_server(host: str = "localhost", port: int = 8765):
@@ -1138,24 +1149,24 @@ subscription("config_updated", _reload_serialization).__enter__()
 #  Message broker integration
 # ---------------------------------------------------------------------------
 
-_ENV_BROKER: str | None = None
+_ENV_BROKER: Set[str] = set()
 
 
-def _get_broker_url(cfg=None):
-    from .config import get_broker_url
-    return get_broker_url(cfg)
+def _get_broker_urls(cfg=None):
+    from .config import get_broker_urls
+    return get_broker_urls(cfg)
 
 
 def _reload_broker(cfg) -> None:
     global _ENV_BROKER
-    url = _get_broker_url(cfg)
-    if url == _ENV_BROKER:
+    urls = set(_get_broker_urls(cfg))
+    if urls == _ENV_BROKER:
         return
 
     async def _reconnect() -> None:
         await disconnect_broker()
-        if url:
-            await connect_broker(url)
+        if urls:
+            await connect_broker(list(urls))
 
     try:
         loop = asyncio.get_running_loop()
@@ -1165,7 +1176,7 @@ def _reload_broker(cfg) -> None:
         loop.create_task(_reconnect())
     else:
         asyncio.run(_reconnect())
-    _ENV_BROKER = url
+    _ENV_BROKER = urls
 
 
 subscription("config_updated", _reload_broker).__enter__()

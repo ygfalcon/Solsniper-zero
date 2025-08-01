@@ -352,6 +352,63 @@ async def test_event_bus_url_connect(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_multiple_broker_publish(monkeypatch):
+    import importlib
+    sent = []
+
+    class FakePubSub:
+        async def subscribe(self, _):
+            pass
+
+    class FakeRedis:
+        def __init__(self, url):
+            self.url = url
+
+        def pubsub(self):
+            return FakePubSub()
+
+        async def publish(self, ch, msg):
+            sent.append((self.url, msg))
+
+        async def close(self):
+            pass
+
+    class FakeNATS:
+        async def connect(self, servers):
+            self.url = servers[0]
+
+        async def subscribe(self, ch, cb):
+            pass
+
+        async def publish(self, ch, msg):
+            sent.append((self.url, msg))
+
+        async def close(self):
+            pass
+
+    redis_pkg = types.ModuleType("redis")
+    redis_pkg.__path__ = []
+    fake_redis_mod = types.ModuleType("redis.asyncio")
+    fake_redis_mod.from_url = lambda u: FakeRedis(u)
+    redis_pkg.asyncio = fake_redis_mod
+    monkeypatch.setitem(sys.modules, "redis", redis_pkg)
+    monkeypatch.setitem(sys.modules, "redis.asyncio", fake_redis_mod)
+    monkeypatch.setitem(sys.modules, "nats", types.SimpleNamespace(NATS=lambda: FakeNATS()))
+    import importlib
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+    async def _fake_listener(_):
+        pass
+    monkeypatch.setattr(ev, "_redis_listener", _fake_listener)
+    monkeypatch.setattr(ev, "_encode_event", lambda *_a, **_k: b"x")
+    await ev.connect_broker(["redis://r1", "nats://n1"])
+    ev.publish("dummy", {"a": 1})
+    await asyncio.sleep(0)
+    await ev.disconnect_broker()
+    assert len(sent) == 2
+
+
+@pytest.mark.asyncio
 async def test_multiple_peer_connections():
     port1 = 8791
     port2 = 8792

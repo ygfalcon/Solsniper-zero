@@ -440,11 +440,11 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
    Alternatively specify `event_bus_url` in the configuration file.
 17. **Message broker**
-   Set `BROKER_URL` so multiple instances share events:
+   Connect to one or more brokers so multiple instances share events:
    ```bash
-   export BROKER_URL=redis://localhost:6379
+   export BROKER_URLS=redis://localhost:6379,nats://localhost:4222
    ```
-   Use `broker_url` in the configuration file for persistent settings.
+   Use `broker_urls` (or legacy `broker_url`) in the configuration file for persistent settings.
 18. **Event compression**
    Choose a compression algorithm for protobuf messages with
    `EVENT_COMPRESSION`:
