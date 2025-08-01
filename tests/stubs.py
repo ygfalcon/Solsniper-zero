@@ -599,6 +599,216 @@ def stub_faiss() -> None:
     sys.modules.setdefault('faiss', mod)
 
 
+def stub_torch() -> None:
+    if 'torch' in sys.modules:
+        return
+
+    import contextlib
+
+    mod = types.ModuleType('torch')
+    mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
+    mod.__path__ = []
+
+    mod.Tensor = object
+    mod.float32 = object()
+    mod.cuda = types.SimpleNamespace(is_available=lambda: False)
+    mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+
+    mod.no_grad = contextlib.nullcontext
+
+    def device(name: str = 'cpu'):
+        return types.SimpleNamespace(type=name)
+
+    mod.device = device
+
+    def tensor(*a, **k):
+        return a[0] if a else None
+
+    mod.tensor = tensor
+    mod.zeros = lambda *a, **k: [0 for _ in range(a[0])] if a else []
+    mod.load = lambda *a, **k: {}
+
+    def _save(obj, path, *a, **k):
+        with open(path, 'wb') as fh:
+            import pickle
+            pickle.dump(obj, fh)
+
+    mod.save = _save
+
+    nn = types.ModuleType('torch.nn')
+    nn.__spec__ = importlib.machinery.ModuleSpec('torch.nn', None)
+    nn.__path__ = []
+
+    class Module:
+        def __init__(self, *a, **k):
+            pass
+
+        def to(self, *a, **k):
+            return self
+
+        def load_state_dict(self, *a, **k):
+            pass
+
+        def state_dict(self):
+            return {}
+
+        def eval(self):
+            return self
+
+    nn.Module = Module
+    nn.Sequential = lambda *a, **k: Module()
+    nn.Linear = lambda *a, **k: Module()
+    nn.ReLU = lambda *a, **k: Module()
+    nn.MSELoss = lambda *a, **k: Module()
+    nn.Softmax = lambda *a, **k: Module()
+    nn.TransformerEncoderLayer = lambda *a, **k: Module()
+    nn.TransformerEncoder = lambda *a, **k: Module()
+
+    optim = types.ModuleType('torch.optim')
+    optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
+    optim.__path__ = []
+    optim.Adam = lambda *a, **k: object()
+
+    utils = types.ModuleType('torch.utils')
+    utils.__spec__ = importlib.machinery.ModuleSpec('torch.utils', None)
+    utils.__path__ = []
+
+    data = types.ModuleType('torch.utils.data')
+    data.__spec__ = importlib.machinery.ModuleSpec('torch.utils.data', None)
+
+    class Dataset:
+        pass
+
+    class DataLoader:
+        def __init__(self, dataset, *a, **k):
+            self.dataset = dataset
+
+    data.Dataset = Dataset
+    data.DataLoader = DataLoader
+    utils.data = data
+
+    mod.nn = nn
+    mod.optim = optim
+    mod.utils = utils
+
+    sys.modules.setdefault('torch', mod)
+    sys.modules.setdefault('torch.nn', nn)
+    sys.modules.setdefault('torch.optim', optim)
+    sys.modules.setdefault('torch.utils', utils)
+    sys.modules.setdefault('torch.utils.data', data)
+
+
+def stub_sklearn() -> None:
+    if 'sklearn' in sys.modules:
+        return
+
+    sk = types.ModuleType('sklearn')
+    sk.__spec__ = importlib.machinery.ModuleSpec('sklearn', None)
+
+    lm = types.ModuleType('sklearn.linear_model')
+    lm.__spec__ = importlib.machinery.ModuleSpec('sklearn.linear_model', None)
+
+    class LinearRegression:
+        def fit(self, *a, **k):
+            return self
+
+        def predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    lm.LinearRegression = LinearRegression
+
+    ensemble = types.ModuleType('sklearn.ensemble')
+    ensemble.__spec__ = importlib.machinery.ModuleSpec('sklearn.ensemble', None)
+
+    class GradientBoostingRegressor:
+        def fit(self, *a, **k):
+            return self
+
+        def predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    class RandomForestRegressor:
+        def __init__(self, *a, **k):
+            pass
+
+        def fit(self, *a, **k):
+            return self
+
+        def predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    ensemble.GradientBoostingRegressor = GradientBoostingRegressor
+    ensemble.RandomForestRegressor = RandomForestRegressor
+
+    cluster = types.ModuleType('sklearn.cluster')
+    cluster.__spec__ = importlib.machinery.ModuleSpec('sklearn.cluster', None)
+
+    class KMeans:
+        def __init__(self, *a, **k):
+            pass
+
+        def fit(self, *a, **k):
+            return self
+
+        def predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    class DBSCAN:
+        def fit(self, *a, **k):
+            return self
+
+    cluster.KMeans = KMeans
+    cluster.DBSCAN = DBSCAN
+
+    gp = types.ModuleType('sklearn.gaussian_process')
+    gp.__spec__ = importlib.machinery.ModuleSpec('sklearn.gaussian_process', None)
+
+    class GaussianProcessRegressor:
+        def __init__(self, kernel=None, *a, **k):
+            self.kernel = kernel
+
+        def fit(self, *a, **k):
+            return self
+
+        def predict(self, X):
+            return [0 for _ in range(len(X))]
+
+    gp.GaussianProcessRegressor = GaussianProcessRegressor
+
+    kernels = types.ModuleType('sklearn.gaussian_process.kernels')
+    kernels.__spec__ = importlib.machinery.ModuleSpec('sklearn.gaussian_process.kernels', None)
+
+    class RBF:
+        def __init__(self, *a, **k):
+            pass
+
+    class ConstantKernel:
+        def __init__(self, *a, **k):
+            pass
+
+    class Matern:
+        def __init__(self, *a, **k):
+            pass
+
+    kernels.RBF = RBF
+    kernels.ConstantKernel = ConstantKernel
+    kernels.C = ConstantKernel
+    kernels.Matern = Matern
+
+    sk.linear_model = lm
+    sk.ensemble = ensemble
+    sk.cluster = cluster
+    sk.gaussian_process = gp
+    gp.kernels = kernels
+
+    sys.modules.setdefault('sklearn', sk)
+    sys.modules.setdefault('sklearn.linear_model', lm)
+    sys.modules.setdefault('sklearn.ensemble', ensemble)
+    sys.modules.setdefault('sklearn.cluster', cluster)
+    sys.modules.setdefault('sklearn.gaussian_process', gp)
+    sys.modules.setdefault('sklearn.gaussian_process.kernels', kernels)
+
+
 def stub_transformers() -> None:
     """Provide lightweight stubs for the ``transformers`` package."""
     try:
@@ -642,6 +852,8 @@ def install_stubs() -> None:
     stub_requests()
     stub_aiofiles()
     stub_websockets()
+    stub_torch()
+    stub_sklearn()
     stub_transformers()
     stub_bip_utils()
     stub_faiss()
