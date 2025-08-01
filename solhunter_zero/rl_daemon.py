@@ -479,7 +479,7 @@ class RLDaemon:
 
         if self.live:
             self.live_dataset = rl_training.LiveTradeDataset(
-                broker_url=broker_url if self.distributed_rl else None
+                broker_url=urls[0] if self.distributed_rl and urls else None
             )
         if self.multi_rl:
             from .rl_training import MultiAgentRL
