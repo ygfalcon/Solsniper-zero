@@ -146,6 +146,9 @@ def test_cluster_trades_groups(tmp_path, monkeypatch):
     cid = mem.top_cluster("bear crash soon")
     assert cid == clusters[c]
 
+    cids = mem.top_cluster_many(["bear crash soon", "bull run again"])
+    assert cids == [clusters[c], clusters[a]]
+
     stats = mem.export_cluster_stats()
     by_cluster = {s["cluster"]: s for s in stats}
     assert by_cluster[clusters[a]]["common_emotion"] == "greedy"

@@ -508,6 +508,9 @@ def test_trade_dataset_cluster_feature(monkeypatch):
         def top_cluster(self, _ctx):
             return 2
 
+        def top_cluster_many(self, ctxs):
+            return [2 for _ in ctxs]
+
     trades = [
         types.SimpleNamespace(
             token="t",
