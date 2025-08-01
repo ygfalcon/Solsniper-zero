@@ -4,18 +4,21 @@ pytest.importorskip("torch.nn.utils.rnn")
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.conviction import ConvictionAgent
 from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
+from solhunter_zero.advanced_memory import AdvancedMemory
 
 
 def test_mutations_spawn_and_prune(tmp_path):
-    mem = Memory('sqlite:///:memory:')
+    db = tmp_path / "mem.db"
+    idx = tmp_path / "idx"
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
     mem_agent = MemoryAgent(mem)
     base = ConvictionAgent(threshold=0.1)
     path = tmp_path / 'state.json'
     mgr = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
 
     mgr.spawn_mutations(1)
-    mutated = [a for a in mgr.agents if a.name != base.name and a.name in mgr.mutation_state['active']]
+    active_names = [e["name"] for e in mgr.mutation_state.get("active", [])]
+    mutated = [a for a in mgr.agents if a.name != base.name and a.name in active_names]
     assert mutated
     m = mutated[0]
 
@@ -27,11 +30,14 @@ def test_mutations_spawn_and_prune(tmp_path):
 
     mgr.save_mutation_state()
     data = json.loads(path.read_text())
-    assert m.name not in data.get('active', [])
+    names = [e.get("name") for e in data.get('active', [])]
+    assert m.name not in names
 
 
 def test_mutation_state_persists(tmp_path):
-    mem = Memory('sqlite:///:memory:')
+    db = tmp_path / "mem.db"
+    idx = tmp_path / "idx"
+    mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
     mem_agent = MemoryAgent(mem)
     base = ConvictionAgent(threshold=0.1)
     path = tmp_path / 'state.json'
@@ -45,4 +51,4 @@ def test_mutation_state_persists(tmp_path):
     del mgr
 
     mgr2 = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
-    assert mut_name in mgr2.mutation_state.get('active', [])
+    assert any(a.name == mut_name for a in mgr2.agents)
