@@ -616,16 +616,18 @@ def stub_torch() -> None:
 
     mod.no_grad = contextlib.nullcontext
 
-    def device(name: str = 'cpu'):
-        return types.SimpleNamespace(type=name)
+    class Device:
+        def __init__(self, name: str = 'cpu') -> None:
+            self.type = name
 
-    mod.device = device
+    mod.device = Device
 
     def tensor(*a, **k):
         return a[0] if a else None
 
     mod.tensor = tensor
     mod.zeros = lambda *a, **k: [0 for _ in range(a[0])] if a else []
+    mod.ones = lambda *a, **k: [1 for _ in range(a[0])] if a else []
     mod.load = lambda *a, **k: {}
 
     def _save(obj, path, *a, **k):
@@ -663,6 +665,21 @@ def stub_torch() -> None:
     nn.Softmax = lambda *a, **k: Module()
     nn.TransformerEncoderLayer = lambda *a, **k: Module()
     nn.TransformerEncoder = lambda *a, **k: Module()
+    class Parameter(Module):
+        def __init__(self, data=None):
+            super().__init__()
+            self.data = data
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def tolist(self):
+            return list(self.data) if isinstance(self.data, list) else []
+
+    nn.Parameter = Parameter
 
     optim = types.ModuleType('torch.optim')
     optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
@@ -687,9 +704,19 @@ def stub_torch() -> None:
     data.DataLoader = DataLoader
     utils.data = data
 
+    nn_utils = types.ModuleType('torch.nn.utils')
+    nn_utils.__spec__ = importlib.machinery.ModuleSpec('torch.nn.utils', None)
+    rnn_mod = types.ModuleType('torch.nn.utils.rnn')
+    rnn_mod.__spec__ = importlib.machinery.ModuleSpec('torch.nn.utils.rnn', None)
+    rnn_mod.pad_sequence = lambda *a, **k: []
+    nn_utils.rnn = rnn_mod
+
     mod.nn = nn
     mod.optim = optim
     mod.utils = utils
+
+    sys.modules.setdefault('torch.nn.utils', nn_utils)
+    sys.modules.setdefault('torch.nn.utils.rnn', rnn_mod)
 
     sys.modules.setdefault('torch', mod)
     sys.modules.setdefault('torch.nn', nn)
@@ -840,6 +867,8 @@ def stub_transformers() -> None:
         mod.AutoTokenizer = AutoTokenizer
     if not hasattr(mod, 'AutoModelForCausalLM'):
         mod.AutoModelForCausalLM = AutoModelForCausalLM
+    if not hasattr(mod, 'pipeline'):
+        mod.pipeline = lambda *a, **k: lambda *aa, **kw: None
 
 
 def install_stubs() -> None:

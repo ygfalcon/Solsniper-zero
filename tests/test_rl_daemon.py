@@ -499,3 +499,31 @@ def test_predict_action_returns_vector(tmp_path, monkeypatch):
     assert isinstance(out, list) and len(out) == 2
 
 
+
+def test_daemon_loads_hierarchical_policy(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    # avoid dataset generation during init
+    monkeypatch.setenv("RL_BUILD_MMAP_DATASET", "0")
+    OfflineData(f"sqlite:///{data_path}")
+    Memory(mem_db)
+
+    policy = tmp_path / 'hp.json'
+    policy.write_text('[0.0, 2.0]')
+
+    class DummyAgent:
+        def __init__(self, name):
+            self.name = name
+
+    agents = [DummyAgent("a1"), DummyAgent("a2")]
+    daemon = RLDaemon(
+        memory_path=mem_db,
+        data_path=str(data_path),
+        model_path=tmp_path/'m.pt',
+        agents=agents,
+        hierarchical_rl=True,
+        hierarchical_model_path=policy,
+    )
+    assert daemon.hier_policy is not None
+    assert daemon.hier_weights.get("a1") == 0.0
+    assert daemon.hier_weights.get("a2") == 2.0
