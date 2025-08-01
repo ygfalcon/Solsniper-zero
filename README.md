@@ -706,6 +706,32 @@ export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
 Set `BROKER_URL` to a Redis or NATS server so multiple bots share market
 metrics, agent weights and trade intents. Launch each instance with the same
 URL and they will automatically exchange events.
+
+The helper script `scripts/cluster_setup.py` reads a TOML file describing your
+nodes and launches `scripts/start_all.py` for each entry. A minimal
+configuration might look like:
+
+```toml
+event_bus_url = "ws://0.0.0.0:8787"
+broker_url = "redis://localhost:6379"
+
+[[nodes]]
+solana_rpc_url = "https://rpc1.example.com"
+solana_keypair = "keypairs/node1.json"
+
+[[nodes]]
+solana_rpc_url = "https://rpc2.example.com"
+solana_keypair = "keypairs/node2.json"
+```
+
+Run the script with:
+
+```bash
+python scripts/cluster_setup.py cluster.toml
+```
+
+This starts a local process for each node using the shared broker and event bus
+settings.
 ## Requirements
 - Python 3.11+
 - [Poetry](https://python-poetry.org/) (optional but recommended)
