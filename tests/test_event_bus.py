@@ -318,7 +318,7 @@ async def test_event_bus_url_connect(monkeypatch):
 
     called = {}
 
-    async def fake_connect(url):
+    async def fake_connect(url, **_kw):
         called["url"] = url
 
         class Dummy:
@@ -346,6 +346,47 @@ async def test_event_bus_url_connect(monkeypatch):
     await asyncio.sleep(0)
 
     assert called.get("url") == "ws://bus"
+
+    await ev.disconnect_ws()
+    importlib.reload(ev)
+
+
+@pytest.mark.asyncio
+async def test_event_bus_peers(monkeypatch):
+    import importlib
+    import solhunter_zero.event_bus as ev
+
+    called = []
+
+    async def fake_connect(url, **_kw):
+        called.append(url)
+
+        class Dummy:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise StopAsyncIteration
+
+            async def send(self, _):
+                pass
+
+            async def close(self):
+                pass
+
+        return Dummy()
+
+    monkeypatch.setattr(websockets, "connect", fake_connect)
+    monkeypatch.setattr(
+        "solhunter_zero.config.get_event_bus_peers", lambda *_: ["ws://a", "ws://b"]
+    )
+    monkeypatch.setattr("solhunter_zero.config.get_event_bus_url", lambda *_: "")
+
+    ev = importlib.reload(ev)
+    ev._reload_bus(None)
+    await asyncio.sleep(0)
+
+    assert set(called) == {"ws://a", "ws://b"}
 
     await ev.disconnect_ws()
     importlib.reload(ev)

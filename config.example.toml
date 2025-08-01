@@ -104,6 +104,7 @@ jito_auth = ""  # authentication token for Jito
 jito_ws_url = ""  # Jito searcher websocket
 jito_ws_auth = ""  # websocket auth token
 event_bus_url = ""  # external event bus websocket
+event_bus_peers = []  # additional event bus peer URLs
 ws_ping_interval = 20  # websocket ping interval in seconds
 ws_ping_timeout = 20  # seconds to wait for pong before closing
 broker_url = ""  # optional Redis or NATS endpoint
