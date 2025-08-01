@@ -216,6 +216,20 @@ def stub_sqlalchemy() -> None:
     def select(model):
         return Query(model)
 
+    class Insert:
+        def __init__(self, model):
+            self.model = model
+
+    def insert(model):
+        return Insert(model)
+
+    class TextClause:
+        def __init__(self, sql: str):
+            self.sql = sql
+
+    def text(sql: str):
+        return TextClause(sql)
+
     class Engine:
         def __init__(self):
             self.storage = {}
@@ -270,13 +284,68 @@ def stub_sqlalchemy() -> None:
         async def run_sync(self, func):
             func(self)
 
-        async def execute(self, query: Query):
-            data = query.with_session(self)._execute()
-            return Result(data)
+        async def execute(self, query, params=None):
+            if isinstance(query, Query):
+                data = query.with_session(self)._execute()
+                return Result(data, rowcount=len(data))
+            if isinstance(query, Insert):
+                objs_params = params if isinstance(params, list) else [params or {}]
+                objs = [query.model(**p) for p in objs_params]
+                self.bulk_save_objects(objs)
+                return Result([], rowcount=len(objs))
+            if isinstance(query, TextClause):
+                return self._execute_text(query.sql, params or {})
+            raise TypeError("unsupported query type")
+
+        def _execute_text(self, sql: str, params: dict):
+            import re
+            from types import SimpleNamespace
+            try:
+                from solhunter_zero.memory import Trade
+            except Exception:  # pragma: no cover - fallback
+                Trade = None
+            low = sql.strip().lower()
+            if low.startswith("insert into trades") and Trade is not None:
+                m = re.search(r"insert\s+into\s+trades\s*\(([^)]*)\)\s*values\s*\(([^)]*)\)", low)
+                if m:
+                    cols = [c.strip() for c in m.group(1).split(',')]
+                    keys = [k.strip().lstrip(':') for k in m.group(2).split(',')]
+                    objs = []
+                    params_list = params if isinstance(params, list) else [params]
+                    for p in params_list:
+                        data = {c: p.get(k) for c, k in zip(cols, keys)}
+                        objs.append(Trade(**data))
+                    self.bulk_save_objects(objs)
+                    return Result([], rowcount=len(objs))
+            if low.startswith("update trades") and Trade is not None:
+                m = re.search(r"update\s+trades\s+set\s+(\w+)\s*=\s*:([a-z_]+)\s+where\s+(\w+)\s*=\s*:([a-z_]+)", low)
+                rowcount = 0
+                if m:
+                    set_col, set_key, cond_col, cond_key = m.groups()
+                    for obj in self.engine.storage.get(Trade, []):
+                        if getattr(obj, cond_col) == params.get(cond_key):
+                            setattr(obj, set_col, params.get(set_key))
+                            rowcount += 1
+                return Result([], rowcount=rowcount)
+            if low.startswith("select") and "from trades" in low and Trade is not None:
+                m = re.search(r"select\s+([^\s]+(?:\s*,\s*[^\s]+)*)\s+from\s+trades(?:\s+where\s+(\w+)\s*=\s*:([a-z_]+))?", low)
+                if m:
+                    cols = [c.strip() for c in m.group(1).split(',')]
+                    cond_col = m.group(2)
+                    cond_key = m.group(3)
+                    rows = []
+                    for obj in self.engine.storage.get(Trade, []):
+                        if cond_col is not None and getattr(obj, cond_col) != params.get(cond_key):
+                            continue
+                        row_data = {c: getattr(obj, c) for c in cols}
+                        rows.append(SimpleNamespace(_mapping=row_data))
+                    return Result(rows, rowcount=len(rows))
+            return Result([], rowcount=0)
 
     class Result:
-        def __init__(self, data):
+        def __init__(self, data, rowcount: int = 0):
             self._data = data
+            self.rowcount = rowcount
 
         def scalars(self):
             class _Scalars:
@@ -287,6 +356,9 @@ def stub_sqlalchemy() -> None:
                     return self._data
 
             return _Scalars(self._data)
+
+        def __iter__(self):
+            return iter(self._data)
 
     def sessionmaker(bind=None, expire_on_commit=False):
         def factory(**kw):
@@ -319,6 +391,10 @@ def stub_sqlalchemy() -> None:
     sa.MetaData = MetaData
     sa.Table = Table
     sa.select = select
+    sa.insert = insert
+    sa.text = text
+    sa.Insert = Insert
+    sa.TextClause = TextClause
 
     orm = types.ModuleType('sqlalchemy.orm')
     orm.__spec__ = importlib.machinery.ModuleSpec('sqlalchemy.orm', None)
