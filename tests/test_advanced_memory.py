@@ -98,7 +98,11 @@ def test_cluster_trades_groups(tmp_path, monkeypatch):
     monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     import numpy as np
     import faiss
+    import importlib
+    sys.modules["numpy"] = np
+    sys.modules["faiss"] = faiss
     import solhunter_zero.advanced_memory as am
+    am = importlib.reload(am)
     am.faiss = faiss
 
     class DummyModel:
@@ -143,4 +147,36 @@ def test_cluster_trades_groups(tmp_path, monkeypatch):
     assert by_cluster[clusters[c]]["common_emotion"] == "fear"
     assert by_cluster[clusters[a]]["average_roi"] > 0
     assert by_cluster[clusters[c]]["average_roi"] < 0
+
+
+def test_close_and_reopen(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
+    import sys, importlib
+    for m in ["numpy", "faiss", "requests", "requests.exceptions", "sentence_transformers"]:
+        sys.modules.pop(m, None)
+    import numpy as np
+    import faiss
+    import solhunter_zero.advanced_memory as am
+    am = importlib.reload(am)
+
+    class DummyModel:
+        def get_sentence_embedding_dimension(self):
+            return 3
+
+        def encode(self, texts):
+            return np.zeros((len(texts), 3), dtype="float32")
+
+    am.faiss = faiss
+    monkeypatch.setattr(am, "SentenceTransformer", lambda *a, **k: DummyModel())
+
+    db = tmp_path / "persist.db"
+    idx = tmp_path / "persist.index"
+    mem = am.AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
+    mem.log_trade(token="X", direction="buy", amount=1.0, price=1.0, context="test")
+    mem.close()
+
+    mem2 = am.AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
+    trades = mem2.list_trades()
+    assert len(trades) == 1
+    assert mem2.index is not None and mem2.index.ntotal == 1
 
