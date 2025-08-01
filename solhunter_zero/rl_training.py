@@ -6,6 +6,7 @@ import os
 import datetime
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
+from contextlib import suppress
 import time
 import psutil
 from collections import deque
@@ -508,6 +509,7 @@ class TradeDataModule(pl.LightningDataModule):
         dynamic_workers: bool = False,
         prioritized_replay: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
+        prefetch_buffer: int = 0,
     ) -> None:
         super().__init__()
         self.db_url = db_url
@@ -537,6 +539,16 @@ class TradeDataModule(pl.LightningDataModule):
         else:
             self.prioritized_replay = bool(prioritized_replay)
         self.cpu_callback = cpu_callback
+        env_buf = os.getenv("RL_PREFETCH_BUFFER")
+        if env_buf is not None:
+            try:
+                self.prefetch_buffer = int(env_buf)
+            except Exception:
+                self.prefetch_buffer = int(prefetch_buffer)
+        else:
+            self.prefetch_buffer = int(prefetch_buffer)
+        self._prefetch_task: asyncio.Task | None = None
+        self._prefetch_queue: asyncio.Queue | None = None
         self.dataset: _TradeDataset | None = None
 
     def recompute_workers(self, loader: DataLoader | None = None) -> None:
@@ -556,6 +568,30 @@ class TradeDataModule(pl.LightningDataModule):
             loader.num_workers = new_val
             loader.pin_memory = self.pin_memory and new_val > 0
             loader.persistent_workers = self.persistent_workers and new_val > 0
+
+    def start_prefetch(self) -> asyncio.Task | None:
+        """Begin asynchronous loading of trades and snapshots."""
+        if self._prefetch_task is not None:
+            return self._prefetch_task
+        if self.mmap_path and Path(self.mmap_path).exists():
+            return None
+        if os.getenv("RL_BUILD_MMAP_DATASET", "1").lower() not in {"0", "false", "no"}:
+            return None
+        self._prefetch_queue = asyncio.Queue(maxsize=max(1, self.prefetch_buffer))
+
+        async def _worker() -> None:
+            data = OfflineData(self.db_url)
+            trades = await data.list_trades()
+            snaps = await data.list_snapshots()
+            for t in trades:
+                await self._prefetch_queue.put(("t", t))
+            for s in snaps:
+                await self._prefetch_queue.put(("s", s))
+            await self._prefetch_queue.put((None, None))
+            await data.close()
+
+        self._prefetch_task = asyncio.create_task(_worker())
+        return self._prefetch_task
 
     async def setup(
         self, stage: str | None = None
@@ -602,9 +638,25 @@ class TradeDataModule(pl.LightningDataModule):
                 for r in snaps_arr
             ]
         else:
-            data = OfflineData(self.db_url)
-            trades = await data.list_trades()
-            snaps = await data.list_snapshots()
+            trades: list[Any] = []
+            snaps: list[Any] = []
+            if self._prefetch_task is not None and self._prefetch_queue is not None:
+                while True:
+                    kind, item = await self._prefetch_queue.get()
+                    if kind is None:
+                        break
+                    if kind == "t":
+                        trades.append(item)
+                    else:
+                        snaps.append(item)
+                with suppress(Exception):
+                    await self._prefetch_task
+                self._prefetch_task = None
+                self._prefetch_queue = None
+            else:
+                data = OfflineData(self.db_url)
+                trades = await data.list_trades()
+                snaps = await data.list_snapshots()
         self.dataset = _TradeDataset(
             trades,
             snaps,
@@ -891,6 +943,7 @@ class RLTraining:
         prioritized_replay: bool | None = None,
         cpu_callback: Callable[[], float] | None = None,
         worker_update_interval: float | None = None,
+        prefetch_buffer: int | None = None,
     ) -> None:
         self.model_path = Path(model_path)
         dyn_workers = dynamic_workers
@@ -906,6 +959,14 @@ class RLTraining:
                 _ensure_mmap_dataset(db_url, default_mmap)
             if default_mmap.exists():
                 mmap_path = str(default_mmap)
+        env_buf = os.getenv("RL_PREFETCH_BUFFER")
+        buf_val = prefetch_buffer if prefetch_buffer is not None else 0
+        if env_buf is not None:
+            try:
+                buf_val = int(env_buf)
+            except Exception:
+                pass
+
         self.data = TradeDataModule(
             db_url,
             batch_size=batch_size,
@@ -921,6 +982,7 @@ class RLTraining:
             dynamic_workers=dyn_workers,
             prioritized_replay=prioritized_replay,
             cpu_callback=cpu_callback,
+            prefetch_buffer=buf_val,
         )
         self.worker_update_interval = (
             worker_update_interval if worker_update_interval is not None else 10.0
@@ -976,6 +1038,7 @@ class RLTraining:
 
     async def train(self) -> None:
         """Run one training cycle and persist weights."""
+        self.data.start_prefetch()
         await self.data.setup()
         self.trainer.fit(self.model, self.data)
         torch.save(self.model.state_dict(), self.model_path)
