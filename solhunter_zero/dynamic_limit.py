@@ -1,8 +1,17 @@
 import os
 import psutil
 
+# Module level parameters read once on import.
 _KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
+_SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
 _CPU_EMA: float = 0.0
+
+
+def refresh_params() -> None:
+    """Reload concurrency parameters from environment variables."""
+    global _KP, _SMOOTHING
+    _KP = float(os.getenv("CONCURRENCY_KP", str(_KP)) or _KP)
+    _SMOOTHING = float(os.getenv("CONCURRENCY_SMOOTHING", str(_SMOOTHING)) or _SMOOTHING)
 
 
 def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
@@ -14,7 +23,7 @@ def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
 
     global _CPU_EMA
 
-    smoothing = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
+    smoothing = _SMOOTHING
     if _CPU_EMA:
         _CPU_EMA = smoothing * cpu + (1.0 - smoothing) * _CPU_EMA
     else:
@@ -38,7 +47,7 @@ def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
 def _step_limit(current: int, target: int, max_val: int) -> int:
     """Move ``current`` towards ``target`` using :data:`_KP`."""
 
-    kp = float(os.getenv("CONCURRENCY_KP", str(_KP)) or _KP)
+    kp = _KP
     new_val = current + kp * (target - current)
     new_val = int(round(new_val))
     if new_val > max_val:

@@ -376,6 +376,7 @@ def test_mempool_concurrency_functions(monkeypatch):
 
     monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=0.0))
     monkeypatch.setenv("CONCURRENCY_KP", "0.5")
+    dynamic_limit.refresh_params()
     dynamic_limit._CPU_EMA = 0.0
 
     tgt = dynamic_limit._target_concurrency(90.0, 4, 40.0, 80.0)
