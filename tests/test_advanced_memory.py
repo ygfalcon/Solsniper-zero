@@ -1,3 +1,7 @@
+import pytest
+pytest.importorskip("numpy")
+pytest.importorskip("faiss")
+
 from solhunter_zero.advanced_memory import AdvancedMemory
 import sys
 
