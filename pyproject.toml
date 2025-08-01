@@ -36,6 +36,7 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "flake8",
+    "grpcio-tools",
 ]
 numba = ["numba"]
 fastjson = ["orjson"]
@@ -50,7 +51,7 @@ solhunter-backtest = "solhunter_zero.backtest_cli:main"
 solhunter-train = "solhunter_zero.train_cli:main"
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
