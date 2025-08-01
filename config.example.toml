@@ -104,6 +104,7 @@ jito_auth = ""  # authentication token for Jito
 jito_ws_url = ""  # Jito searcher websocket
 jito_ws_auth = ""  # websocket auth token
 event_bus_url = ""  # external event bus websocket
+event_bus_peers = ""  # comma-separated WebSocket URLs of peer event buses
 broker_url = ""  # optional Redis or NATS endpoint
 replicate_trades = false  # subscribe to trade_logged events when true
 weights_path = "weights.json"

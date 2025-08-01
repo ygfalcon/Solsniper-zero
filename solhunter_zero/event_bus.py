@@ -1086,11 +1086,9 @@ _ENV_PEERS: Set[str] = set()
 
 def _reload_bus(cfg) -> None:
     global _ENV_PEERS
-    urls = set(
-        u.strip()
-        for u in os.getenv("EVENT_BUS_PEERS", "").split(",")
-        if u.strip()
-    )
+    from .config import get_event_bus_peers
+
+    urls = set(get_event_bus_peers(cfg))
     single = _get_bus_url(cfg)
     if single:
         urls.add(single)

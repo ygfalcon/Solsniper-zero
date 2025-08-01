@@ -674,6 +674,10 @@ ws.onmessage = (ev) => {
 Set `BROKER_URL` to a Redis or NATS server so multiple bots share market
 metrics, agent weights and trade intents. Launch each instance with the same
 URL and they will automatically exchange events.
+
+When running multiple event-bus nodes, list their websocket URLs in
+`EVENT_BUS_PEERS` or the `event_bus_peers` config option. Each bus connects to
+all peers on reload so events propagate across the cluster.
 ## Requirements
 - Python 3.11+
 - [Poetry](https://python-poetry.org/) (optional but recommended)

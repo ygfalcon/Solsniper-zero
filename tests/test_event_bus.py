@@ -352,6 +352,48 @@ async def test_event_bus_url_connect(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_event_bus_peers_connect(monkeypatch):
+    import importlib
+    import solhunter_zero.event_bus as ev
+
+    called = []
+
+    async def fake_connect(url):
+        called.append(url)
+
+        class Dummy:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise StopAsyncIteration
+
+            async def send(self, _):
+                pass
+
+            async def close(self):
+                pass
+
+        return Dummy()
+
+    monkeypatch.setattr(websockets, "connect", fake_connect)
+    monkeypatch.setattr(
+        "solhunter_zero.config.get_event_bus_peers",
+        lambda *_: ["ws://bus1", "ws://bus2"],
+    )
+    monkeypatch.setattr("solhunter_zero.config.get_event_bus_url", lambda *_: None)
+
+    ev = importlib.reload(ev)
+    ev._reload_bus(None)
+    await asyncio.sleep(0)
+
+    assert set(called) == {"ws://bus1", "ws://bus2"}
+
+    await ev.disconnect_ws()
+    importlib.reload(ev)
+
+
+@pytest.mark.asyncio
 async def test_multiple_peer_connections():
     port1 = 8791
     port2 = 8792
