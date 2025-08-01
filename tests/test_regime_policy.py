@@ -1,3 +1,5 @@
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
 from solhunter_zero.swarm_coordinator import SwarmCoordinator
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory

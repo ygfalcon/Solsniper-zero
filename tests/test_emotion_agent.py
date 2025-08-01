@@ -1,6 +1,11 @@
 import asyncio
 import types
 
+import pytest
+trans = pytest.importorskip("transformers")
+if not hasattr(trans, "pipeline"):
+    trans.pipeline = lambda *a, **k: lambda x: []
+
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent

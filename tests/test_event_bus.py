@@ -12,6 +12,7 @@ import importlib.machinery
 dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
 if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
+sys.modules["transformers"].pipeline = dummy_trans.pipeline
 if importlib.util.find_spec("sentence_transformers") is None:
     st_mod = types.ModuleType("sentence_transformers")
     st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)

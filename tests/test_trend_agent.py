@@ -2,6 +2,11 @@ import asyncio
 import sys
 import types
 
+import pytest
+trans = pytest.importorskip("transformers")
+if not hasattr(trans, "pipeline"):
+    trans.pipeline = lambda *a, **k: lambda x: []
+
 dummy_torch = types.ModuleType("torch")
 dummy_nn = types.ModuleType("torch.nn")
 class DummyModule:  # minimal stand-in for torch.nn.Module

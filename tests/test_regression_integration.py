@@ -1,6 +1,7 @@
 import asyncio
 import types
 import pytest
+pytest.importorskip("torch.nn.utils.rnn")
 
 from solhunter_zero import simulation
 from solhunter_zero.simulation import SimulationResult, predict_price_movement

@@ -5,6 +5,7 @@ import types
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: [{"label": "POSITIVE", "score": 0.5}]
 sys.modules.setdefault("transformers", dummy_trans)
+sys.modules["transformers"].pipeline = dummy_trans.pipeline
 
 from solhunter_zero.agents.momentum import MomentumAgent
 from solhunter_zero.portfolio import Portfolio, Position

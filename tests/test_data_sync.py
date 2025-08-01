@@ -7,6 +7,7 @@ import sys
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 sys.modules.setdefault("transformers", dummy_trans)
+sys.modules["transformers"].pipeline = dummy_trans.pipeline
 dummy_solana = types.ModuleType("solana")
 dummy_rpc = types.ModuleType("solana.rpc")
 dummy_api = types.ModuleType("solana.rpc.api")

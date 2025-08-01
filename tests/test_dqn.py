@@ -6,7 +6,7 @@ from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio, Position
 from solhunter_zero.replay import ReplayBuffer
 import pytest
-pytest.importorskip("torch")
+pytest.importorskip("torch.nn.utils.rnn")
 import torch
 import random
 

@@ -3,6 +3,9 @@ import sys
 import types
 import numpy as np
 import importlib.machinery
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
+pytest.importorskip("transformers")
 
 _faiss_mod = types.ModuleType('faiss')
 _faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)

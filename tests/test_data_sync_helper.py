@@ -5,6 +5,9 @@ import aiohttp
 import time
 import pytest
 
+transformers = pytest.importorskip("transformers")
+if not hasattr(transformers, "pipeline"):
+    transformers.pipeline = lambda *a, **k: lambda x: []
 pytest.importorskip("sklearn")
 
 from solhunter_zero import depth_client

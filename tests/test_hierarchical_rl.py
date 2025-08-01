@@ -53,6 +53,7 @@ dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
+sys.modules["transformers"].pipeline = dummy_trans.pipeline
 if importlib.util.find_spec("sentence_transformers") is None:
     sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
 import types

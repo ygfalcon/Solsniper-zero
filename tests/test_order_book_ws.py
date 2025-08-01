@@ -2,6 +2,8 @@ import asyncio
 import json
 import aiohttp
 import pytest
+pytest.importorskip("torch.nn.utils.rnn")
+pytest.importorskip("transformers")
 import time
 
 from solhunter_zero import order_book_ws

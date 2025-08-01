@@ -2,7 +2,8 @@ import json
 import asyncio
 import pytest
 
-pytest.importorskip("torch")
+pytest.importorskip("torch.nn.utils.rnn")
+pytest.importorskip("transformers")
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.memory import MemoryAgent

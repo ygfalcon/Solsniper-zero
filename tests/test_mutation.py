@@ -1,4 +1,6 @@
 import json
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.conviction import ConvictionAgent
 from solhunter_zero.agents.memory import MemoryAgent
