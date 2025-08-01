@@ -952,6 +952,15 @@ very small.
 
 ## Backtesting and Datasets
 
+### Offline Data Collection
+
+`data_sync.start_scheduler()` runs a background task that periodically calls
+`sync_recent()`. This helper downloads order‑book snapshots from the configured
+`metrics_base_url` and keeps `offline_data.db` under the
+`OFFLINE_DATA_LIMIT_GB` limit by pruning old rows. When running live the
+`start_depth_snapshot_listener()` helper subscribes to `depth_update` events and
+logs each update automatically.
+
 The repository includes a simple backtesting framework. Tick level depth
 data can be exported from `offline_data.db` using `scripts/build_tick_dataset.py`:
 
