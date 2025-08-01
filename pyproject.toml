@@ -40,6 +40,8 @@ dev = [
 numba = ["numba"]
 fastjson = ["orjson"]
 fastcompress = ["lz4", "zstandard"]
+orjson = ["orjson"]
+zstandard = ["zstandard"]
 ray = ["ray[rllib]"]
 
 [project.scripts]
