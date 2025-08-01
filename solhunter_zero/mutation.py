@@ -52,17 +52,33 @@ def mutate_agent(
 # ----------------------------------------------------------------------
 
 def load_state(path: str) -> dict:
+    """Return mutation tracking data stored at ``path``.
+
+    The returned mapping always contains ``active``, ``roi`` and ``mutations``
+    keys.  Older files without the ``mutations`` field are upgraded on load for
+    backward compatibility.
+    """
+
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         if isinstance(data, dict):
+            data.setdefault("active", [])
+            data.setdefault("roi", {})
+            data.setdefault("mutations", {})
             return data
     except Exception:
         pass
-    return {"active": [], "roi": {}}
+    return {"active": [], "roi": {}, "mutations": {}}
 
 
 def save_state(state: dict, path: str) -> None:
+    """Persist ``state`` to ``path`` atomically."""
+
+    state.setdefault("active", [])
+    state.setdefault("roi", {})
+    state.setdefault("mutations", {})
+
     tmp = os.path.join(os.path.dirname(path), ".tmp_state")
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(state, fh)

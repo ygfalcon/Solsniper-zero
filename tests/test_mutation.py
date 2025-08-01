@@ -13,16 +13,27 @@ def test_mutations_spawn_and_prune(tmp_path):
     mgr = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
 
     mgr.spawn_mutations(1)
-    mutated = [a for a in mgr.agents if a.name != base.name and a.name in mgr.mutation_state['active']]
+    mutated = [
+        a
+        for a in mgr.agents
+        if a.name != base.name and a.name in mgr.mutation_state["active"]
+    ]
     assert mutated
     m = mutated[0]
+    meta = mgr.mutation_state["mutations"].get(m.name)
+    assert meta and meta["base"] == base.__class__.__name__
+
+    mgr.save_mutation_state()
+    mgr2 = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
+    assert any(a.name == m.name for a in mgr2.agents)
 
     mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason=m.name)
     mem.log_trade(token='tok', direction='sell', amount=1, price=0.5, reason=m.name)
 
-    mgr.prune_underperforming(0.0)
-    assert m.name not in [a.name for a in mgr.agents]
+    mgr2.prune_underperforming(0.0)
+    assert m.name not in [a.name for a in mgr2.agents]
 
-    mgr.save_mutation_state()
+    mgr2.save_mutation_state()
     data = json.loads(path.read_text())
     assert m.name not in data.get('active', [])
+    assert m.name not in data.get('mutations', {})

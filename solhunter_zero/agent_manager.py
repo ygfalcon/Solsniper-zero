@@ -220,6 +220,24 @@ class AgentManager:
         )
         self.mutation_state = mutation.load_state(self.mutation_path)
 
+        # recreate mutated agents from saved state
+        for name, meta in self.mutation_state.get("mutations", {}).items():
+            if any(a.name == name for a in self.agents):
+                continue
+            base_cls = meta.get("base")
+            params = meta.get("params", {}) if isinstance(meta, dict) else {}
+            base = next(
+                (a for a in self.agents if a.__class__.__name__ == base_cls),
+                None,
+            )
+            if base is None:
+                continue
+            try:
+                mutated = mutation.mutate_agent(base, name=name, **params)
+            except Exception:
+                continue
+            self.agents.append(mutated)
+
         self.strategy_selection = strategy_selection
         self.vote_threshold = float(vote_threshold)
         self.selector: StrategySelector | None = None
@@ -606,6 +624,10 @@ class AgentManager:
                 f"{len(self.mutation_state.get('active', [])) + 1}"
             )
             mutated = mutation.mutate_agent(base, name=name)
+            self.mutation_state.setdefault("mutations", {})[mutated.name] = {
+                "base": base.__class__.__name__,
+                "params": {},
+            }
             self.agents.append(mutated)
             self.mutation_state.setdefault("active", []).append(mutated.name)
             spawned.append(mutated)
@@ -628,6 +650,11 @@ class AgentManager:
         self.agents = remaining_agents
         self.mutation_state["active"] = keep
         self.mutation_state.setdefault("roi", {}).update(rois)
+        # drop metadata for any removed mutations
+        meta = self.mutation_state.setdefault("mutations", {})
+        for name in list(meta):
+            if name not in keep:
+                meta.pop(name, None)
 
     def save_mutation_state(
         self, path: str | os.PathLike | None = None

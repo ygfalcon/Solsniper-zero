@@ -558,6 +558,10 @@ while decreasing the weight of those with losses.
 Every ``evolve_interval`` iterations the manager also calls ``evolve()`` to
 spawn new agent mutations and prune those with an ROI below
 ``mutation_threshold``.
+Details about each mutation are written to ``mutation_state.json`` including the
+base agent class and any parameters passed to ``mutate_agent``.  When the
+manager starts up it recreates these mutated agents from the saved metadata so
+evolution continues across runs.
 If multiple weight presets are provided via ``weight_config_paths`` the manager
 evaluates them every ``strategy_rotation_interval`` iterations and activates the
 best performing set.
