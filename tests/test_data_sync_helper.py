@@ -5,43 +5,9 @@ import aiohttp
 import time
 import pytest
 
+pytest.importorskip("sklearn")
+
 from solhunter_zero import depth_client
-
-import types
-import sys
-
-dummy_trans = types.ModuleType("transformers")
-dummy_trans.pipeline = lambda *a, **k: lambda x: []
-sys.modules.setdefault("transformers", dummy_trans)
-dummy_solana = types.ModuleType("solana")
-dummy_rpc = types.ModuleType("solana.rpc")
-dummy_api = types.ModuleType("solana.rpc.api")
-dummy_api.Client = object
-dummy_async_api = types.ModuleType("solana.rpc.async_api")
-dummy_async_api.AsyncClient = object
-sys.modules.setdefault("solana", dummy_solana)
-sys.modules.setdefault("solana.rpc", dummy_rpc)
-sys.modules.setdefault("solana.rpc.api", dummy_api)
-sys.modules.setdefault("solana.rpc.async_api", dummy_async_api)
-sys.modules.setdefault("sklearn", types.ModuleType("sklearn"))
-dummy_sk_linear = types.ModuleType("sklearn.linear_model")
-dummy_sk_linear.LinearRegression = object
-sys.modules.setdefault("sklearn.linear_model", dummy_sk_linear)
-dummy_sk_ensemble = types.ModuleType("sklearn.ensemble")
-dummy_sk_ensemble.GradientBoostingRegressor = object
-dummy_sk_ensemble.RandomForestRegressor = object
-sys.modules.setdefault("sklearn.ensemble", dummy_sk_ensemble)
-sys.modules.setdefault("numpy", types.ModuleType("numpy"))
-sys.modules.setdefault("xgboost", types.ModuleType("xgboost"))
-sys.modules.setdefault("solders", types.ModuleType("solders"))
-sys.modules.setdefault("solders.keypair", types.ModuleType("solders.keypair"))
-sys.modules["solders.keypair"].Keypair = object
-sys.modules.setdefault("solders.transaction", types.ModuleType("solders.transaction"))
-sys.modules["solders.transaction"].VersionedTransaction = object
-sys.modules.setdefault("torch", types.ModuleType("torch"))
-sys.modules["torch"].Tensor = object
-sys.modules.setdefault("torch.nn", types.ModuleType("torch.nn"))
-sys.modules["torch.nn"].Module = object
 
 import solhunter_zero.data_sync as data_sync
 from solhunter_zero.offline_data import OfflineData
