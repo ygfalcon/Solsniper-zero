@@ -21,6 +21,23 @@ class Snapshot:
         self.tx_rate = tx_rate
 
 
+def map_snapshot(entry: Mapping[str, float]) -> dict:
+    """Return a ``dict`` suitable for :class:`MarketSnapshot` columns."""
+
+    return {
+        "price": float(entry.get("price", 0.0)),
+        "depth": float(entry.get("depth", 0.0)),
+        "total_depth": float(entry.get("total_depth", 0.0)),
+        "slippage": float(entry.get("slippage", 0.0)),
+        "volume": float(entry.get("volume", 0.0)),
+        "imbalance": float(entry.get("imbalance", 0.0)),
+        "tx_rate": float(entry.get("tx_rate", 0.0)),
+        "whale_share": float(entry.get("whale_share", 0.0)),
+        "spread": float(entry.get("spread", 0.0)),
+        "sentiment": float(entry.get("sentiment", 0.0)),
+    }
+
+
 def load_high_freq_snapshots(
     db_url: str = "sqlite:///offline_data.db", dataset_dir: str | Path = "datasets"
 ) -> List[Any]:
@@ -67,19 +84,7 @@ def start_depth_snapshot_listener(
 
     async def _handler(payload: Mapping[str, Mapping[str, float]]) -> None:
         for token, entry in payload.items():
-            await offline.log_snapshot(
-                token=token,
-                price=float(entry.get("price", 0.0)),
-                depth=float(entry.get("depth", 0.0)),
-                total_depth=float(entry.get("total_depth", 0.0)),
-                slippage=float(entry.get("slippage", 0.0)),
-                volume=float(entry.get("volume", 0.0)),
-                imbalance=float(entry.get("imbalance", 0.0)),
-                tx_rate=float(entry.get("tx_rate", 0.0)),
-                whale_share=float(entry.get("whale_share", 0.0)),
-                spread=float(entry.get("spread", 0.0)),
-                sentiment=float(entry.get("sentiment", 0.0)),
-            )
+            await offline.log_snapshot(token=token, **map_snapshot(entry))
 
     return subscribe("depth_update", _handler)
 
