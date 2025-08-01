@@ -1,14 +1,22 @@
 import json
 import os
 import pytest
-pytest.importorskip("solders")
+
+try:
+    from solders.keypair import Keypair
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    pytest.skip("solders is required", allow_module_level=True)
+
 from solhunter_zero import wallet
-from solders.keypair import Keypair
 
 
 def setup_wallet(tmp_path, monkeypatch):
     monkeypatch.setattr(wallet, "KEYPAIR_DIR", str(tmp_path))
-    monkeypatch.setattr(wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active"))
+    monkeypatch.setattr(
+        wallet,
+        "ACTIVE_KEYPAIR_FILE",
+        str(tmp_path / "active"),
+    )
     os.makedirs(wallet.KEYPAIR_DIR, exist_ok=True)
 
 
@@ -52,7 +60,10 @@ def test_select_keypair_missing(tmp_path, monkeypatch):
         wallet.select_keypair("missing")
 
 
-MNEMONIC = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+MNEMONIC = (
+    "abandon abandon abandon abandon abandon abandon abandon "
+    "abandon abandon abandon abandon about"
+)
 EXPECTED_HEX = (
     "286b4b30f808ed46e986e5536939c4177b61588ac4a3080d228cb47edd798164"
     "96da9c08f0703f749fd14e630a2b81d9109a9a8f17b7ade18952e82eb2b5e431"

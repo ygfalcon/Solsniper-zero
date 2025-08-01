@@ -1,16 +1,17 @@
 import asyncio
 import base64
 import json
-import asyncio
 import pytest
-pytest.importorskip("solders")
 
-from solders.keypair import Keypair
-from solders.pubkey import Pubkey
-from solders.hash import Hash
-from solders.instruction import Instruction, AccountMeta
-from solders.message import MessageV0
-from solders.transaction import VersionedTransaction
+try:
+    from solders.keypair import Keypair
+    from solders.pubkey import Pubkey
+    from solders.hash import Hash
+    from solders.instruction import Instruction, AccountMeta
+    from solders.message import MessageV0
+    from solders.transaction import VersionedTransaction
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    pytest.skip("solders is required", allow_module_level=True)
 
 from solhunter_zero import depth_client
 

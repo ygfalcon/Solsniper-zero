@@ -7,7 +7,14 @@ from solhunter_zero.offline_data import OfflineData
 from solhunter_zero import models
 
 
-def train_once(data: OfflineData, token: str, out: Path, *, epochs: int = 10, seq_len: int = 30) -> bool:
+def train_once(
+    data: OfflineData,
+    token: str,
+    out: Path,
+    *,
+    epochs: int = 10,
+    seq_len: int = 30,
+) -> bool:
     snaps = data.list_snapshots(token)
     if len(snaps) <= seq_len:
         return False
@@ -18,11 +25,26 @@ def train_once(data: OfflineData, token: str, out: Path, *, epochs: int = 10, se
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Continuously train price models from offline data")
+    parser = argparse.ArgumentParser(
+        description="Continuously train price models from offline data"
+    )
     parser.add_argument("token", help="Token symbol to train on")
-    parser.add_argument("--db", default="sqlite:///offline_data.db", help="Offline data database URL")
-    parser.add_argument("--model", default="price_model.pt", help="Path to save the model")
-    parser.add_argument("--interval", type=float, default=3600.0, help="Training interval in seconds")
+    parser.add_argument(
+        "--db",
+        default="sqlite:///offline_data.db",
+        help="Offline data database URL",
+    )
+    parser.add_argument(
+        "--model",
+        default="price_model.pt",
+        help="Path to save the model",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=3600.0,
+        help="Training interval in seconds",
+    )
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seq-len", type=int, default=30)
     args = parser.parse_args()
@@ -31,7 +53,13 @@ def main() -> None:
     out = Path(args.model)
 
     while True:
-        ok = train_once(data, args.token, out, epochs=args.epochs, seq_len=args.seq_len)
+        ok = train_once(
+            data,
+            args.token,
+            out,
+            epochs=args.epochs,
+            seq_len=args.seq_len,
+        )
         ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         if ok:
             print(f"[{ts}] Model updated at {out}")
