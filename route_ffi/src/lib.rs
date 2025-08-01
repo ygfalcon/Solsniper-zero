@@ -45,6 +45,15 @@ use url::Url;
 use tungstenite::connect;
 use ureq;
 
+fn parse_map_bin(ptr: *const u8, len: usize) -> Option<HashMap<String, f64>> {
+    if ptr.is_null() || len == 0 {
+        return Some(HashMap::new());
+    }
+    let buf = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let opts = bincode::options().with_fixint_encoding();
+    opts.deserialize(buf).ok()
+}
+
 fn parse_map(ptr: *const c_char) -> Option<HashMap<String, f64>> {
     if ptr.is_null() {
         return Some(HashMap::new());
@@ -434,4 +443,129 @@ pub extern "C" fn measure_latency_json(urls_json: *const c_char, attempts: u32) 
     }
     let s = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
     CString::new(s).unwrap().into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn free_buffer(ptr: *mut u8, len: usize) {
+    if ptr.is_null() || len == 0 {
+        return;
+    }
+    unsafe {
+        Vec::from_raw_parts(ptr, len, len);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn best_route_bin(
+    prices_ptr: *const u8,
+    prices_len: usize,
+    fees_ptr: *const u8,
+    fees_len: usize,
+    gas_ptr: *const u8,
+    gas_len: usize,
+    latency_ptr: *const u8,
+    latency_len: usize,
+    amount: f64,
+    max_hops: u32,
+    out_profit: *mut f64,
+    out_len: *mut usize,
+) -> *mut u8 {
+    let prices = match parse_map_bin(prices_ptr, prices_len) {
+        Some(m) => m,
+        None => return std::ptr::null_mut(),
+    };
+    let fees = parse_map_bin(fees_ptr, fees_len).unwrap_or_default();
+    let gas = parse_map_bin(gas_ptr, gas_len).unwrap_or_default();
+    let latency = parse_map_bin(latency_ptr, latency_len).unwrap_or_default();
+    match best_route_internal(&prices, amount, &fees, &gas, &latency, max_hops as usize) {
+        Some((path, profit)) => unsafe {
+            *out_profit = profit;
+            let opts = bincode::options().with_fixint_encoding();
+            let mut buf = opts.serialize(&path).unwrap_or_default();
+            let len = buf.len();
+            let ptr = buf.as_mut_ptr();
+            std::mem::forget(buf);
+            if !out_len.is_null() {
+                *out_len = len;
+            }
+            ptr
+        },
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn search_route_bin(
+    prices_ptr: *const u8,
+    prices_len: usize,
+    fees_ptr: *const u8,
+    fees_len: usize,
+    gas_ptr: *const u8,
+    gas_len: usize,
+    latency_ptr: *const u8,
+    latency_len: usize,
+    amount: f64,
+    max_hops: u32,
+    out_profit: *mut f64,
+    out_len: *mut usize,
+) -> *mut u8 {
+    best_route_bin(
+        prices_ptr,
+        prices_len,
+        fees_ptr,
+        fees_len,
+        gas_ptr,
+        gas_len,
+        latency_ptr,
+        latency_len,
+        amount,
+        max_hops,
+        out_profit,
+        out_len,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn best_route_parallel_bin(
+    prices_ptr: *const u8,
+    prices_len: usize,
+    fees_ptr: *const u8,
+    fees_len: usize,
+    gas_ptr: *const u8,
+    gas_len: usize,
+    latency_ptr: *const u8,
+    latency_len: usize,
+    amount: f64,
+    max_hops: u32,
+    out_profit: *mut f64,
+    out_len: *mut usize,
+) -> *mut u8 {
+    #[cfg(feature = "parallel")]
+    init_thread_pool();
+    let prices = match parse_map_bin(prices_ptr, prices_len) {
+        Some(m) => m,
+        None => return std::ptr::null_mut(),
+    };
+    let fees = parse_map_bin(fees_ptr, fees_len).unwrap_or_default();
+    let gas = parse_map_bin(gas_ptr, gas_len).unwrap_or_default();
+    let latency = parse_map_bin(latency_ptr, latency_len).unwrap_or_default();
+    #[cfg(feature = "parallel")]
+    let result = best_route_parallel(&prices, amount, &fees, &gas, &latency, max_hops as usize);
+    #[cfg(not(feature = "parallel"))]
+    let result = best_route_internal(&prices, amount, &fees, &gas, &latency, max_hops as usize);
+    match result {
+        Some((path, profit)) => unsafe {
+            *out_profit = profit;
+            let opts = bincode::options().with_fixint_encoding();
+            let mut buf = opts.serialize(&path).unwrap_or_default();
+            let len = buf.len();
+            let ptr = buf.as_mut_ptr();
+            std::mem::forget(buf);
+            if !out_len.is_null() {
+                *out_len = len;
+            }
+            ptr
+        },
+        None => std::ptr::null_mut(),
+    }
 }
