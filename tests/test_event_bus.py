@@ -142,6 +142,7 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 
 import pytest
+pytest.importorskip("google.protobuf")
 
 from solhunter_zero.event_bus import (
     subscribe,

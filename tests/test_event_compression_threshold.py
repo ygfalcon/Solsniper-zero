@@ -1,6 +1,9 @@
 import importlib
 import time
 
+import pytest
+pytest.importorskip("google.protobuf")
+
 from solhunter_zero import event_pb2
 import solhunter_zero.event_bus as ev
 

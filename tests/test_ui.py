@@ -8,6 +8,7 @@ import contextlib
 import importlib.machinery
 import sys
 import pytest
+pytest.importorskip("google.protobuf")
 from solders.keypair import Keypair
 
 torch_mod = types.ModuleType("torch")
