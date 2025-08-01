@@ -4,7 +4,11 @@ import logging
 from contextlib import suppress
 from typing import Mapping, Iterable, Dict, Any
 
+import os
 import websockets
+
+_WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
+_WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 from .event_bus import publish
 
 logger = logging.getLogger(__name__)
@@ -38,7 +42,11 @@ class PriceStreamManager:
         backoff = 1.0
         while self._running:
             try:
-                async with websockets.connect(url) as ws:
+                async with websockets.connect(
+                    url,
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                ) as ws:
                     for tok in self.tokens:
                         try:
                             await ws.send(json.dumps({"token": tok}))

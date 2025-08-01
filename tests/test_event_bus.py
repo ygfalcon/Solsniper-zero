@@ -591,3 +591,63 @@ async def test_websocket_compressed_batch(monkeypatch):
     await ev.stop_ws_server()
     importlib.reload(ev)
 
+
+@pytest.mark.asyncio
+async def test_websocket_ping_settings(monkeypatch):
+    import importlib
+
+    monkeypatch.setenv("WS_PING_INTERVAL", "11")
+    monkeypatch.setenv("WS_PING_TIMEOUT", "22")
+
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+
+    seen = {}
+
+    async def fake_connect(url, **kw):
+        seen["connect_interval"] = kw.get("ping_interval")
+        seen["connect_timeout"] = kw.get("ping_timeout")
+
+        class Dummy:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise StopAsyncIteration
+
+            async def send(self, _):
+                pass
+
+            async def close(self):
+                pass
+
+        return Dummy()
+
+    async def fake_serve(handler, host, port, **kw):
+        seen["serve_interval"] = kw.get("ping_interval")
+        seen["serve_timeout"] = kw.get("ping_timeout")
+
+        class DummyServer:
+            def close(self):
+                pass
+
+            async def wait_closed(self):
+                pass
+
+        return DummyServer()
+
+    monkeypatch.setattr(ev.websockets, "connect", fake_connect)
+    monkeypatch.setattr(ev.websockets, "serve", fake_serve)
+
+    await ev.start_ws_server("localhost", 0)
+    await ev.connect_ws("ws://bus")
+
+    assert seen["serve_interval"] == 11.0
+    assert seen["serve_timeout"] == 22.0
+    assert seen["connect_interval"] == 11.0
+    assert seen["connect_timeout"] == 22.0
+
+    await ev.disconnect_ws()
+    await ev.stop_ws_server()
+    importlib.reload(ev)
+

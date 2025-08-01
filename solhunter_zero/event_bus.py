@@ -264,6 +264,10 @@ if _WS_COMPRESSION:
     if comp in {"", "none", "0"}:
         _WS_COMPRESSION = None
 
+# ping interval and timeout for websocket connections
+_WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
+_WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
+
 # how long to buffer outgoing events before flushing (ms)
 _EVENT_BATCH_MS = int(os.getenv("EVENT_BATCH_MS", "0") or 0)
 
@@ -953,7 +957,12 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
         _flush_task = loop.create_task(_flush_outgoing())
 
     _ws_server = await websockets.serve(
-        handler, host, port, compression=_WS_COMPRESSION
+        handler,
+        host,
+        port,
+        compression=_WS_COMPRESSION,
+        ping_interval=_WS_PING_INTERVAL,
+        ping_timeout=_WS_PING_TIMEOUT,
     )
     return _ws_server
 
@@ -983,9 +992,18 @@ async def connect_ws(url: str):
         raise RuntimeError("websockets library required")
 
     if _WS_COMPRESSION is None:
-        ws = await websockets.connect(url)
+        ws = await websockets.connect(
+            url,
+            ping_interval=_WS_PING_INTERVAL,
+            ping_timeout=_WS_PING_TIMEOUT,
+        )
     else:
-        ws = await websockets.connect(url, compression=_WS_COMPRESSION)
+        ws = await websockets.connect(
+            url,
+            compression=_WS_COMPRESSION,
+            ping_interval=_WS_PING_INTERVAL,
+            ping_timeout=_WS_PING_TIMEOUT,
+        )
     try:
         from . import resource_monitor
 
@@ -1052,9 +1070,18 @@ async def reconnect_ws(url: str | None = None) -> None:
                     except Exception:
                         pass
                 if _WS_COMPRESSION is None:
-                    ws = await websockets.connect(u)
+                    ws = await websockets.connect(
+                        u,
+                        ping_interval=_WS_PING_INTERVAL,
+                        ping_timeout=_WS_PING_TIMEOUT,
+                    )
                 else:
-                    ws = await websockets.connect(u, compression=_WS_COMPRESSION)
+                    ws = await websockets.connect(
+                        u,
+                        compression=_WS_COMPRESSION,
+                        ping_interval=_WS_PING_INTERVAL,
+                        ping_timeout=_WS_PING_TIMEOUT,
+                    )
                 try:
                     from . import resource_monitor
 
