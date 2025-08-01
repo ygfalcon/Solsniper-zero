@@ -13,7 +13,11 @@ async def _run(batch_ms: int, n: int, host: str, port: int) -> tuple[float, floa
 
     ev = importlib.reload(ev)
     await ev.start_ws_server(host, port)
-    async with websockets.connect(f"ws://{host}:{port}") as ws:
+    async with websockets.connect(
+        f"ws://{host}:{port}",
+        ping_interval=float(os.getenv("WS_PING_INTERVAL", "20") or 20),
+        ping_timeout=float(os.getenv("WS_PING_TIMEOUT", "20") or 20),
+    ) as ws:
         proc = psutil.Process(os.getpid())
         proc.cpu_percent(interval=None)
         start = time.perf_counter()

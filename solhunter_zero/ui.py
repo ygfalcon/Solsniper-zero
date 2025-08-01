@@ -22,6 +22,10 @@ try:
     import websockets
 except Exception:  # pragma: no cover - optional
     websockets = None
+
+# websocket ping configuration
+_WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
+_WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 import sqlalchemy as sa
 from .config import (
     load_config,
@@ -722,7 +726,11 @@ def status() -> dict:
     if url and websockets is not None:
         async def _check():
             try:
-                async with websockets.connect(url):
+                async with websockets.connect(
+                    url,
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                ):
                     return True
             except Exception:
                 return False
@@ -1156,7 +1164,13 @@ if __name__ == "__main__":
             global rl_ws_loop
             rl_ws_loop = asyncio.new_event_loop()
             rl_ws_loop.run_until_complete(
-                websockets.serve(_rl_ws_handler, "localhost", 8767)
+                websockets.serve(
+                    _rl_ws_handler,
+                    "localhost",
+                    8767,
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                )
             )
             rl_ws_loop.run_forever()
 
@@ -1164,7 +1178,14 @@ if __name__ == "__main__":
             global event_ws_loop
             event_ws_loop = asyncio.new_event_loop()
             event_ws_loop.run_until_complete(
-                websockets.serve(_event_ws_handler, "localhost", 8766, path="/ws")
+                websockets.serve(
+                    _event_ws_handler,
+                    "localhost",
+                    8766,
+                    path="/ws",
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                )
             )
             event_ws_loop.run_forever()
 

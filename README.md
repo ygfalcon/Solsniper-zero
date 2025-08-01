@@ -202,6 +202,8 @@ Install the Rust toolchain if `cargo` isn't available:
     to `lz4`, `zlib` or `none` to override.
   - `EVENT_COMPRESSION_THRESHOLD` – skip compression for events smaller than
     this size in bytes (defaults to `512`).
+  - `WS_PING_INTERVAL` – seconds between websocket pings (defaults to `20`).
+  - `WS_PING_TIMEOUT` – wait this many seconds for a pong (defaults to `20`).
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
     new snapshot (defaults to `0`).
   - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between

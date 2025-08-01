@@ -19,7 +19,11 @@ async def measure(compress: bool) -> tuple[int, float]:
     importlib.reload(ev)
     port = 8799 if compress else 8798
     await ev.start_ws_server("localhost", port)
-    async with websockets.connect(f"ws://localhost:{port}") as ws:
+    async with websockets.connect(
+        f"ws://localhost:{port}",
+        ping_interval=float(os.getenv("WS_PING_INTERVAL", "20") or 20),
+        ping_timeout=float(os.getenv("WS_PING_TIMEOUT", "20") or 20),
+    ) as ws:
         start = time.perf_counter()
         ev.publish("depth_service_status", {"status": "ok"})
         raw = await ws.recv()
