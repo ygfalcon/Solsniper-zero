@@ -409,6 +409,19 @@ def test_event_bus_fallback_json(monkeypatch):
     assert seen == [{"a": 1}]
     assert not ev._USE_ORJSON
 
+
+def test_event_bus_msgpack(monkeypatch):
+    pytest.importorskip("msgpack")
+    import importlib
+    monkeypatch.setenv("EVENT_SERIALIZATION", "msgpack")
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+    seen = []
+    ev.subscribe("x", lambda p: seen.append(p))
+    ev.publish("x", {"a": 2})
+    assert seen == [{"a": 2}]
+    assert ev._USE_MSGPACK
+
     importlib.reload(ev)
 
 

@@ -41,6 +41,13 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     msgpack = None
 
+# default serialization format for JSON events
+_EVENT_SERIALIZATION = os.getenv("EVENT_SERIALIZATION")
+if not _EVENT_SERIALIZATION:
+    _EVENT_SERIALIZATION = "msgpack" if msgpack is not None else "json"
+_EVENT_SERIALIZATION = _EVENT_SERIALIZATION.lower()
+_USE_MSGPACK = msgpack is not None and _EVENT_SERIALIZATION == "msgpack"
+
 try:  # optional redis / nats support
     import redis.asyncio as aioredis  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -149,14 +156,20 @@ def _compress_event(data: bytes) -> bytes:
 
 
 def _dumps(obj: Any) -> bytes:
-    """Serialize ``obj`` to JSON bytes using ``orjson`` when available."""
+    """Serialize ``obj`` to bytes using ``msgpack`` if enabled."""
+    if _USE_MSGPACK:
+        return msgpack.dumps(obj, use_bin_type=True)
     if _USE_ORJSON:
         return json.dumps(obj)
     return json.dumps(obj).encode()
 
 
 def _loads(data: Any) -> Any:
-    """Deserialize JSON ``data`` using ``orjson`` when available."""
+    """Deserialize ``data`` using the configured serialization format."""
+    if _USE_MSGPACK:
+        if isinstance(data, str):
+            data = data.encode()
+        return msgpack.loads(data, raw=False)
     if _USE_ORJSON:
         if isinstance(data, str):
             data = data.encode()
@@ -234,6 +247,10 @@ def _mmap_write(data: bytes) -> None:
 def _get_bus_url(cfg=None):
     from .config import get_event_bus_url
     return get_event_bus_url(cfg)
+
+def _get_event_serialization(cfg=None) -> str | None:
+    from .config import get_event_serialization
+    return get_event_serialization(cfg)
 
 try:
     import websockets  # type: ignore
@@ -1097,6 +1114,24 @@ def _reload_bus(cfg) -> None:
 
 
 subscription("config_updated", _reload_bus).__enter__()
+
+
+# ---------------------------------------------------------------------------
+#  Serialization configuration
+# ---------------------------------------------------------------------------
+
+
+def _reload_serialization(cfg) -> None:
+    global _EVENT_SERIALIZATION, _USE_MSGPACK
+    val = _get_event_serialization(cfg)
+    if not val:
+        val = "msgpack" if msgpack is not None else "json"
+    val = val.lower()
+    _EVENT_SERIALIZATION = val
+    _USE_MSGPACK = msgpack is not None and val == "msgpack"
+
+
+subscription("config_updated", _reload_serialization).__enter__()
 
 
 # ---------------------------------------------------------------------------
