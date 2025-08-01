@@ -1,4 +1,3 @@
-import time
 import os
 import io
 import json
@@ -8,8 +7,14 @@ import contextlib
 import importlib.machinery
 import sys
 import pytest
-pytest.importorskip("google.protobuf")
 from solders.keypair import Keypair
+from solhunter_zero import ui, config
+from collections import deque
+from solhunter_zero.portfolio import Position
+import logging
+import threading
+
+pytest.importorskip("google.protobuf")
 
 torch_mod = types.ModuleType("torch")
 torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", loader=None)
@@ -42,13 +47,6 @@ sys.modules.setdefault("sklearn.ensemble", dummy_sklearn.ensemble)
 dummy_watchfiles = types.ModuleType("watchfiles")
 dummy_watchfiles.awatch = lambda *a, **k: None
 sys.modules.setdefault("watchfiles", dummy_watchfiles)
-
-from solhunter_zero import ui, config
-import solhunter_zero.data_sync as data_sync
-import logging
-from collections import deque
-from solhunter_zero.portfolio import Position
-import threading
 
 
 def test_start_and_stop(monkeypatch):
@@ -94,7 +92,6 @@ def test_start_and_stop(monkeypatch):
     assert "term" in events
 
 
-
 def test_balances_includes_usd(monkeypatch):
     pf = ui.Portfolio(path=None)
     pf.balances = {"tok": Position("tok", 2, 1.0)}
@@ -102,11 +99,9 @@ def test_balances_includes_usd(monkeypatch):
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: pf)
     monkeypatch.setattr(ui, "fetch_token_prices", lambda tokens: {"tok": 3.0})
 
-
     client = ui.app.test_client()
     resp = client.get("/balances")
     data = resp.get_json()
-
 
     assert data["tok"]["price"] == 3.0
     assert data["tok"]["usd"] == 6.0
@@ -132,7 +127,9 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
 
     ui.stop_event.clear()
 
-    thread = threading.Thread(target=lambda: asyncio.run(ui.trading_loop()), daemon=True)
+    thread = threading.Thread(
+        target=lambda: asyncio.run(ui.trading_loop()), daemon=True
+    )
     thread.start()
     thread.join(timeout=1)
 
@@ -165,7 +162,9 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     monkeypatch.setattr(ui, "loop_delay", 0)
 
     ui.stop_event.clear()
-    thread = threading.Thread(target=lambda: asyncio.run(ui.trading_loop()), daemon=True)
+    thread = threading.Thread(
+        target=lambda: asyncio.run(ui.trading_loop()), daemon=True
+    )
     thread.start()
     thread.join(timeout=1)
 
@@ -186,7 +185,11 @@ def test_get_and_set_risk_params(monkeypatch):
 
     resp = client.post(
         "/risk",
-        json={"risk_tolerance": 0.2, "max_allocation": 0.3, "risk_multiplier": 1.5},
+        json={
+            "risk_tolerance": 0.2,
+            "max_allocation": 0.3,
+            "risk_multiplier": 1.5,
+        },
     )
     assert resp.get_json()["status"] == "ok"
     assert os.getenv("RISK_TOLERANCE") == "0.2"
@@ -229,6 +232,7 @@ def test_get_and_set_discovery_method(monkeypatch):
 def test_start_requires_env(monkeypatch):
     async def noop():
         pass
+
     monkeypatch.setattr(ui, "trading_loop", noop)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
@@ -246,9 +250,13 @@ def test_start_requires_env(monkeypatch):
 
 def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
     monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path / "keys"))
-    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "keys" / "active"))
+    monkeypatch.setattr(
+        ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "keys" / "active")
+    )
     monkeypatch.setattr(config, "CONFIG_DIR", str(tmp_path / "cfgs"))
-    monkeypatch.setattr(config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active"))
+    monkeypatch.setattr(
+        config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active")
+    )
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
     os.makedirs(config.CONFIG_DIR, exist_ok=True)
 
@@ -258,7 +266,10 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
     data = json.dumps(list(kp.to_bytes()))
     resp = client.post(
         "/keypairs/upload",
-        data={"name": "../evil", "file": (io.BytesIO(data.encode()), "kp.json")},
+        data={
+            "name": "../evil",
+            "file": (io.BytesIO(data.encode()), "kp.json"),
+        },
         content_type="multipart/form-data",
     )
     assert resp.status_code == 400
@@ -275,7 +286,9 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
 
 def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path))
-    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active"))
+    monkeypatch.setattr(
+        ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active")
+    )
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
 
     kp = Keypair()
@@ -283,6 +296,7 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
 
     async def noop():
         pass
+
     monkeypatch.setattr(ui, "trading_loop", noop)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
@@ -316,7 +330,10 @@ def test_rl_weights_event_updates_env(monkeypatch):
     from solhunter_zero.event_bus import publish
     from solhunter_zero.schemas import RLWeights
 
-    publish("rl_weights", RLWeights(weights={"x": 1.5}, risk={"risk_multiplier": 2.0}))
+    publish(
+        "rl_weights",
+        RLWeights(weights={"x": 1.5}, risk={"risk_multiplier": 2.0}),
+    )
     asyncio.run(asyncio.sleep(0))
 
     assert json.loads(os.getenv("AGENT_WEIGHTS"))["x"] == 1.5
@@ -335,7 +352,7 @@ def test_logs_endpoint(monkeypatch):
     resp = client.get("/logs")
     logs = resp.get_json()["logs"]
 
-    assert any("alpha" in l for l in logs)
+    assert any("alpha" in log for log in logs)
     assert logs[-1] == "beta"
 
 
@@ -367,18 +384,22 @@ def _setup_memory(monkeypatch):
         class Wrapper:
             def __enter__(self_wr):
                 from solhunter_zero.util import run_coro
+
                 return run_coro(async_session.__aenter__())
 
             def __exit__(self_wr, exc_type, exc, tb):
                 from solhunter_zero.util import run_coro
+
                 return run_coro(async_session.__aexit__(exc_type, exc, tb))
 
             def execute(self_wr, *a, **k):
                 from solhunter_zero.util import run_coro
+
                 return run_coro(async_session.execute(*a, **k))
 
             def commit(self_wr):
                 from solhunter_zero.util import run_coro
+
                 return run_coro(async_session.commit())
 
         return Wrapper()
@@ -386,8 +407,10 @@ def _setup_memory(monkeypatch):
     mem.Session = _sync_session
 
     orig = mem.log_trade
+
     def _sync_log_trade(*a, **k):
         from solhunter_zero.util import run_coro
+
         return run_coro(orig(*a, **k))
 
     mem.log_trade = _sync_log_trade
@@ -400,7 +423,10 @@ def test_memory_insert(monkeypatch):
     resp = client.post(
         "/memory/insert",
         json={
-            "sql": "INSERT INTO trades(token,direction,amount,price) VALUES(:t,:d,:a,:p)",
+            "sql": (
+                "INSERT INTO trades(token,direction,amount,price) "
+                "VALUES(:t,:d,:a,:p)"
+            ),
             "params": {"t": "TOK", "d": "buy", "a": 1.0, "p": 2.0},
         },
     )
@@ -415,7 +441,10 @@ def test_memory_update(monkeypatch):
     client = ui.app.test_client()
     resp = client.post(
         "/memory/update",
-        json={"sql": "UPDATE trades SET price=:p WHERE token=:t", "params": {"p": 3.0, "t": "TOK"}},
+        json={
+            "sql": "UPDATE trades SET price=:p WHERE token=:t",
+            "params": {"p": 3.0, "t": "TOK"},
+        },
     )
     assert resp.get_json()["rows"] == 1
     assert asyncio.run(mem.list_trades())[0].price == 3.0
@@ -427,7 +456,10 @@ def test_memory_query(monkeypatch):
     client = ui.app.test_client()
     resp = client.post(
         "/memory/query",
-        json={"sql": "SELECT token, price FROM trades WHERE token=:t", "params": {"t": "TOK"}},
+        json={
+            "sql": "SELECT token, price FROM trades WHERE token=:t",
+            "params": {"t": "TOK"},
+        },
     )
     data = resp.get_json()
     assert data == [{"token": "TOK", "price": 2.0}]
@@ -444,7 +476,9 @@ def test_vars_endpoint(monkeypatch):
 
 
 def test_rl_status_endpoint(monkeypatch):
-    daemon = type("D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"})()
+    daemon = type(
+        "D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"}
+    )()
     monkeypatch.setattr(ui, "rl_daemon", daemon, raising=False)
     client = ui.app.test_client()
     resp = client.get("/rl/status")
@@ -484,6 +518,7 @@ def test_status_endpoint(monkeypatch):
             def __await__(self_inner):
                 async def _coro():
                     return self_inner
+
                 return _coro().__await__()
 
         return Conn()
@@ -521,4 +556,3 @@ def test_autostart(monkeypatch):
     assert "run" in events
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "already running"
-

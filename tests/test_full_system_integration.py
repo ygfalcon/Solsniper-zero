@@ -1,16 +1,21 @@
 import sys
 import types
 import contextlib
-import pytest
-pytest.importorskip("torch.nn.utils.rnn")
 from pathlib import Path
 import importlib.machinery
 import importlib.util
+import pytest
+from solhunter_zero import main as main_module
+from solhunter_zero.simulation import SimulationResult
+
+pytest.importorskip("torch.nn.utils.rnn")
+
 
 if importlib.util.find_spec("solders") is None:
     s_mod = types.ModuleType("solders")
     s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
     sys.modules.setdefault("solders", s_mod)
+
     class _KP:
         def __init__(self, b=None):
             self._b = b or b""
@@ -27,8 +32,12 @@ if importlib.util.find_spec("solders") is None:
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
-    sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
-    sys.modules["solders.instruction"] = types.SimpleNamespace(Instruction=object, AccountMeta=object)
+    sys.modules["solders.transaction"] = types.SimpleNamespace(
+        VersionedTransaction=object
+    )
+    sys.modules["solders.instruction"] = types.SimpleNamespace(
+        Instruction=object, AccountMeta=object
+    )
     sys.modules["solders.signature"] = types.SimpleNamespace(Signature=object)
 
 if importlib.util.find_spec("psutil") is None:
@@ -66,11 +75,14 @@ sys.modules["solhunter_zero.event_pb2"] = pb_stub
 if importlib.util.find_spec("aiofiles") is None:
     aiofiles_mod = types.ModuleType("aiofiles")
     aiofiles_mod.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
+
     class _FakeFile:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         async def write(self, data):
             pass
 
@@ -87,6 +99,7 @@ if importlib.util.find_spec("bip_utils") is None:
 
 if importlib.util.find_spec("cachetools") is None:
     cache_mod = types.ModuleType("cachetools")
+
     class _DummyCache(dict):
         def __init__(self, *a, **k):
             pass
@@ -99,6 +112,7 @@ if importlib.util.find_spec("solana") is None:
     sol_mod = types.ModuleType("solana")
     sol_mod.__spec__ = importlib.machinery.ModuleSpec("solana", None)
     rpc_mod = types.ModuleType("rpc")
+
     class _AsyncClient:
         def __init__(self, *a, **k):
             pass
@@ -108,13 +122,19 @@ if importlib.util.find_spec("solana") is None:
 
         async def __aexit__(self, exc_type, exc, tb):
             return False
+
         async def get_fees(self):
             return {}
+
         async def get_program_accounts(self, *a, **k):
             return {}
 
-    rpc_mod.api = types.SimpleNamespace(Client=object, AsyncClient=_AsyncClient)
-    rpc_mod.websocket_api = types.SimpleNamespace(connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object)
+    rpc_mod.api = types.SimpleNamespace(
+        Client=object, AsyncClient=_AsyncClient
+    )
+    rpc_mod.websocket_api = types.SimpleNamespace(
+        connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object
+    )
     sys.modules["solana"] = sol_mod
     sys.modules["solana.rpc"] = rpc_mod
     sys.modules["solana.rpc.api"] = rpc_mod.api
@@ -146,11 +166,15 @@ if importlib.util.find_spec("sqlalchemy") is None:
     sa_mod.Index = lambda *a, **k: None
     sa_mod.engine = types.SimpleNamespace(create_engine=lambda *a, **k: None)
     orm = types.ModuleType("orm")
-    orm.sessionmaker = lambda *a, **k: lambda **kw: types.SimpleNamespace(commit=lambda: None, add=lambda *a, **k: None, query=lambda *a, **k: [])
+    orm.sessionmaker = lambda *a, **k: lambda **kw: types.SimpleNamespace(
+        commit=lambda: None, add=lambda *a, **k: None, query=lambda *a, **k: []
+    )
     orm.declarative_base = lambda *a, **k: type("Base", (), {})
     sa_mod.orm = orm
     ext = types.ModuleType("ext")
-    ext.asyncio = types.SimpleNamespace(create_async_engine=lambda *a, **k: None)
+    ext.asyncio = types.SimpleNamespace(
+        create_async_engine=lambda *a, **k: None
+    )
     ext.asyncio.async_sessionmaker = lambda *a, **k: None
     ext.asyncio.AsyncSession = type("AsyncSession", (), {})
     sa_mod.ext = ext
@@ -164,48 +188,64 @@ if importlib.util.find_spec("watchfiles") is None:
     wf_mod.awatch = lambda *a, **k: None
     sys.modules["watchfiles"] = wf_mod
 
-from solders.keypair import Keypair
 
 # Stub heavy optional dependencies
-_faiss_mod = types.ModuleType('faiss')
-_faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
-sys.modules.setdefault('faiss', _faiss_mod)
-_st_mod = types.ModuleType('sentence_transformers')
-_st_mod.__spec__ = importlib.machinery.ModuleSpec('sentence_transformers', None)
-sys.modules.setdefault('sentence_transformers', _st_mod)
-sys.modules['sentence_transformers'].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(get_sentence_embedding_dimension=lambda:1, encode=lambda x: [])
+_faiss_mod = types.ModuleType("faiss")
+_faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
+sys.modules.setdefault("faiss", _faiss_mod)
+_st_mod = types.ModuleType("sentence_transformers")
+_st_mod.__spec__ = importlib.machinery.ModuleSpec(
+    "sentence_transformers", None
+)
+sys.modules.setdefault("sentence_transformers", _st_mod)
+sys.modules["sentence_transformers"].SentenceTransformer = (
+    lambda *a, **k: types.SimpleNamespace(
+        get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
+    )
+)
 
-sklearn = types.ModuleType('sklearn')
-sklearn.__spec__ = importlib.machinery.ModuleSpec('sklearn', None)
-sys.modules.setdefault('sklearn', sklearn)
-sys.modules['sklearn.linear_model'] = types.SimpleNamespace(LinearRegression=object)
-sys.modules['sklearn.ensemble'] = types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object)
-sys.modules['sklearn.cluster'] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
-_xgb_mod = types.ModuleType('xgboost')
-_xgb_mod.__spec__ = importlib.machinery.ModuleSpec('xgboost', None)
+sklearn = types.ModuleType("sklearn")
+sklearn.__spec__ = importlib.machinery.ModuleSpec("sklearn", None)
+sys.modules.setdefault("sklearn", sklearn)
+sys.modules["sklearn.linear_model"] = types.SimpleNamespace(
+    LinearRegression=object
+)
+sys.modules["sklearn.ensemble"] = types.SimpleNamespace(
+    GradientBoostingRegressor=object, RandomForestRegressor=object
+)
+sys.modules["sklearn.cluster"] = types.SimpleNamespace(
+    KMeans=object, DBSCAN=object
+)
+_xgb_mod = types.ModuleType("xgboost")
+_xgb_mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
 _xgb_mod.XGBRegressor = object
-sys.modules['xgboost'] = _xgb_mod
+sys.modules["xgboost"] = _xgb_mod
 
-torch_mod = types.ModuleType('torch')
-torch_mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
+torch_mod = types.ModuleType("torch")
+torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
 torch_mod.no_grad = contextlib.nullcontext
 torch_mod.tensor = lambda *a, **k: None
-torch_mod.nn = types.SimpleNamespace(Module=object, LSTM=object, Linear=object, TransformerEncoder=object, TransformerEncoderLayer=object)
-torch_mod.optim = types.ModuleType('optim')
-torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
-sys.modules['torch'] = torch_mod
-sys.modules['torch.nn'] = torch_mod.nn
-sys.modules['torch.optim'] = torch_mod.optim
+torch_mod.nn = types.SimpleNamespace(
+    Module=object,
+    LSTM=object,
+    Linear=object,
+    TransformerEncoder=object,
+    TransformerEncoderLayer=object,
+)
+torch_mod.optim = types.ModuleType("optim")
+torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+sys.modules["torch"] = torch_mod
+sys.modules["torch.nn"] = torch_mod.nn
+sys.modules["torch.optim"] = torch_mod.optim
 
-sys.modules['solhunter_zero.models'] = types.SimpleNamespace(get_model=lambda *a, **k: None)
-_trans_mod = types.ModuleType('transformers')
-_trans_mod.__spec__ = importlib.machinery.ModuleSpec('transformers', None)
+sys.modules["solhunter_zero.models"] = types.SimpleNamespace(
+    get_model=lambda *a, **k: None
+)
+_trans_mod = types.ModuleType("transformers")
+_trans_mod.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
 _trans_mod.pipeline = lambda *a, **k: lambda *x, **y: None
-sys.modules.setdefault('transformers', _trans_mod)
-sys.modules['transformers'].pipeline = _trans_mod.pipeline
-
-from solhunter_zero import main as main_module
-from solhunter_zero.simulation import SimulationResult
+sys.modules.setdefault("transformers", _trans_mod)
+sys.modules["transformers"].pipeline = _trans_mod.pipeline
 
 
 def test_full_system_integration(monkeypatch, tmp_path):
@@ -220,7 +260,9 @@ def test_full_system_integration(monkeypatch, tmp_path):
     async def fake_discover(self, **_):
         return ["TOK"]
 
-    monkeypatch.setattr(main_module.DiscoveryAgent, "discover_tokens", fake_discover)
+    monkeypatch.setattr(
+        main_module.DiscoveryAgent, "discover_tokens", fake_discover
+    )
 
     class DummySM:
         def __init__(self, *a, **k):
@@ -233,7 +275,9 @@ def test_full_system_integration(monkeypatch, tmp_path):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)],
+        lambda token, count=100: [
+            SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)
+        ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
@@ -243,10 +287,12 @@ def test_full_system_integration(monkeypatch, tmp_path):
 
     monkeypatch.setattr(main_module, "fetch_dex_metrics_async", fake_fetch)
     monkeypatch.setattr(main_module, "_start_depth_service", lambda cfg: None)
+
     async def _ar(_a=None, **_k):
         return None
 
     monkeypatch.setattr(main_module, "_init_rl_training", _ar)
+
     async def _noop(*_a, **_k):
         return None
 
@@ -254,13 +300,20 @@ def test_full_system_integration(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
     monkeypatch.setenv("USE_DEPTH_STREAM", "0")
     import solhunter_zero.gas as gas_mod
+
     monkeypatch.setattr(gas_mod, "get_current_fee_async", lambda *a, **k: 0.0)
+
     async def _fake_scan(*_a, **_k):
         return ["TOK"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", _fake_scan)
     monkeypatch.setattr(main_module.depth_client, "listen_depth_ws", _noop)
-    monkeypatch.setattr(main_module.order_book_ws, "stream_order_book", lambda *a, **k: iter([]))
+    monkeypatch.setattr(
+        main_module.order_book_ws,
+        "stream_order_book",
+        lambda *a, **k: iter([]),
+    )
+
     async def _fake_place_order(*_a, **_k):
         return {"order_id": "1"}
 
