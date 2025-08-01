@@ -965,3 +965,29 @@ class AgentManager:
                 sub.__exit__(None, None, None)
             except Exception:
                 pass
+
+        if getattr(self, "weights_path", None):
+            try:
+                self.save_weights()
+            except Exception:
+                pass
+
+        if getattr(self, "mutation_path", None):
+            try:
+                self.save_mutation_state()
+            except Exception:
+                pass
+
+        mem_agent = getattr(self, "memory_agent", None)
+        if mem_agent is not None:
+            close_fn = getattr(getattr(mem_agent, "memory", None), "close", None)
+            if close_fn:
+                try:
+                    if inspect.iscoroutinefunction(close_fn):
+                        from .util import run_coro
+
+                        run_coro(close_fn())
+                    else:
+                        close_fn()
+                except Exception:
+                    pass
