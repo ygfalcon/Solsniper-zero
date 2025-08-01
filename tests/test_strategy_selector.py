@@ -1,4 +1,7 @@
 import types
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
+pytest.importorskip("transformers")
 from solhunter_zero.agent_manager import StrategySelector, AgentManager
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory

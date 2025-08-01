@@ -1,3 +1,5 @@
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
 from solhunter_zero.decision import should_buy, should_sell
 from solhunter_zero.simulation import SimulationResult
 

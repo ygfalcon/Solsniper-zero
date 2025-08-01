@@ -1,5 +1,9 @@
 import asyncio
 
+import pytest
+pytest.importorskip("transformers")
+pytest.importorskip("torch.nn.utils.rnn")
+
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent

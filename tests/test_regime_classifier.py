@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
 from solhunter_zero.models.regime_classifier import train_regime_classifier
 
 

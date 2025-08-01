@@ -1,6 +1,11 @@
 import asyncio
 import types
 import sys
+import pytest
+trans = pytest.importorskip("transformers")
+pytest.importorskip("sklearn")
+if not hasattr(trans, "pipeline"):
+    trans.pipeline = lambda *a, **k: lambda x: []
 
 # provide minimal solana.publickey stub
 mod = types.ModuleType("solana.publickey")

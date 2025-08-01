@@ -2,6 +2,8 @@ import asyncio
 import types
 
 import pytest
+pytest.importorskip("torch.nn.utils.rnn")
+pytest.importorskip("transformers")
 
 from solhunter_zero.agents.simulation import SimulationAgent
 from solhunter_zero.agents.conviction import ConvictionAgent

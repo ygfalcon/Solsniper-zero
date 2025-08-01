@@ -1,4 +1,6 @@
 import pytest
+pytest.importorskip("torch.nn.utils.rnn")
+pytest.importorskip("transformers")
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 import asyncio

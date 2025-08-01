@@ -1,6 +1,8 @@
 import sys
 import types
 import contextlib
+import pytest
+pytest.importorskip("torch.nn.utils.rnn")
 from pathlib import Path
 import importlib.machinery
 import importlib.util
@@ -200,6 +202,7 @@ _trans_mod = types.ModuleType('transformers')
 _trans_mod.__spec__ = importlib.machinery.ModuleSpec('transformers', None)
 _trans_mod.pipeline = lambda *a, **k: lambda *x, **y: None
 sys.modules.setdefault('transformers', _trans_mod)
+sys.modules['transformers'].pipeline = _trans_mod.pipeline
 
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult

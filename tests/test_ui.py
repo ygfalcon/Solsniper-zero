@@ -28,6 +28,7 @@ sys.modules.setdefault("torch.nn", torch_mod.nn)
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 sys.modules.setdefault("transformers", dummy_trans)
+sys.modules["transformers"].pipeline = dummy_trans.pipeline
 dummy_sklearn = types.ModuleType("sklearn")
 dummy_sklearn.linear_model = types.SimpleNamespace(LinearRegression=object)
 dummy_sklearn.ensemble = types.SimpleNamespace(

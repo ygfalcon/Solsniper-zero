@@ -11,6 +11,7 @@ if importlib.util.find_spec("transformers") is None:
     trans_mod = types.ModuleType("transformers")
     trans_mod.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
     sys.modules.setdefault("transformers", trans_mod)
+sys.modules["transformers"].pipeline = lambda *a, **k: lambda x: []
 if importlib.util.find_spec("sentence_transformers") is None:
     st_mod = types.ModuleType("sentence_transformers")
     st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)

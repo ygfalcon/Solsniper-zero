@@ -3,6 +3,9 @@ import pytest
 import types
 import sys
 import importlib.util
+trans = pytest.importorskip("transformers")
+if not hasattr(trans, "pipeline"):
+    trans.pipeline = lambda *a, **k: lambda x: []
 
 if importlib.util.find_spec("solana.publickey") is None:
     class _PK:
