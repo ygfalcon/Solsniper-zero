@@ -475,6 +475,16 @@ class RLDaemon:
         from .models import load_compiled_model
         self.jit_model = load_compiled_model(str(self.model_path), self.device)
         self.agents: List[Any] = list(agents) if agents else []
+        if self.hierarchical_rl:
+            try:
+                self.hier_policy = load_policy(
+                    str(self.hierarchical_model_path), len(self.agents)
+                )
+                names = [getattr(a, "name", str(i)) for i, a in enumerate(self.agents)]
+                self.hier_weights = self.hier_policy.predict(names)
+            except Exception:  # pragma: no cover - bad file
+                self.hier_policy = HighLevelPolicyNetwork(len(self.agents))
+                self.hier_weights = {}
         self._task: asyncio.Task | None = None
         self._hb_task: asyncio.Task | None = None
         self._proc: subprocess.Popen | None = None

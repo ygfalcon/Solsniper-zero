@@ -104,6 +104,9 @@ class Message:
         for k, v in kw.items():
             setattr(self, k, v)
 
+    def SerializeToString(self):
+        return b""
+
 
 for name in [
     "ActionExecuted",

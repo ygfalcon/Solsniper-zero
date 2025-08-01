@@ -616,8 +616,9 @@ def stub_torch() -> None:
 
     mod.no_grad = contextlib.nullcontext
 
-    def device(name: str = 'cpu'):
-        return types.SimpleNamespace(type=name)
+    class device:
+        def __init__(self, name: str = 'cpu'):
+            self.type = name
 
     mod.device = device
 
@@ -627,6 +628,7 @@ def stub_torch() -> None:
     mod.tensor = tensor
     mod.zeros = lambda *a, **k: [0 for _ in range(a[0])] if a else []
     mod.load = lambda *a, **k: {}
+    mod.manual_seed = lambda *a, **k: None
 
     def _save(obj, path, *a, **k):
         with open(path, 'wb') as fh:
@@ -658,11 +660,21 @@ def stub_torch() -> None:
     nn.Module = Module
     nn.Sequential = lambda *a, **k: Module()
     nn.Linear = lambda *a, **k: Module()
+    nn.Parameter = lambda *a, **k: Module()
     nn.ReLU = lambda *a, **k: Module()
     nn.MSELoss = lambda *a, **k: Module()
     nn.Softmax = lambda *a, **k: Module()
     nn.TransformerEncoderLayer = lambda *a, **k: Module()
     nn.TransformerEncoder = lambda *a, **k: Module()
+    nn_functional = types.ModuleType('torch.nn.functional')
+    nn_functional.__spec__ = importlib.machinery.ModuleSpec('torch.nn.functional', None)
+    nn.functional = nn_functional
+    nn_utils = types.ModuleType('torch.nn.utils')
+    nn_utils.__spec__ = importlib.machinery.ModuleSpec('torch.nn.utils', None)
+    rnn = types.ModuleType('torch.nn.utils.rnn')
+    rnn.__spec__ = importlib.machinery.ModuleSpec('torch.nn.utils.rnn', None)
+    rnn.pad_sequence = lambda *a, **k: []
+    nn_utils.rnn = rnn
 
     optim = types.ModuleType('torch.optim')
     optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
@@ -693,6 +705,9 @@ def stub_torch() -> None:
 
     sys.modules.setdefault('torch', mod)
     sys.modules.setdefault('torch.nn', nn)
+    sys.modules.setdefault('torch.nn.utils', nn_utils)
+    sys.modules.setdefault('torch.nn.utils.rnn', rnn)
+    sys.modules.setdefault('torch.nn.functional', nn_functional)
     sys.modules.setdefault('torch.optim', optim)
     sys.modules.setdefault('torch.utils', utils)
     sys.modules.setdefault('torch.utils.data', data)
@@ -840,6 +855,8 @@ def stub_transformers() -> None:
         mod.AutoTokenizer = AutoTokenizer
     if not hasattr(mod, 'AutoModelForCausalLM'):
         mod.AutoModelForCausalLM = AutoModelForCausalLM
+    if not hasattr(mod, 'pipeline'):
+        mod.pipeline = lambda *a, **k: lambda *a2, **k2: None
 
 
 def install_stubs() -> None:

@@ -69,6 +69,8 @@ class _DummyRL:
         w = cfg.get("weights", {})
         return {n: float(w.get(n, 1.0)) for n in names}
 dummy_rl_mod.MultiAgentRL = _DummyRL
+dummy_rl_mod._ensure_mmap_dataset = lambda *a, **k: None
+dummy_rl_mod.fit = lambda *a, **k: None
 sys.modules.setdefault("solhunter_zero.rl_training", dummy_rl_mod)
 from solhunter_zero.swarm_coordinator import SwarmCoordinator
 
@@ -235,3 +237,48 @@ def test_from_config_creates_hierarchical_agent(monkeypatch, tmp_path):
     assert mgr is not None
     assert mgr.hierarchical_rl is dummy_rl
     assert any(isinstance(a, am.HierarchicalRLAgent) for a in mgr.agents)
+
+
+def test_daemon_persists_hierarchical_weights(tmp_path, monkeypatch):
+    import solhunter_zero.rl_daemon as rl_d
+    from solhunter_zero.rl_daemon import RLDaemon
+    from types import SimpleNamespace
+    import solhunter_zero.rl_training as rl_training
+    from pathlib import Path
+
+    model_path = tmp_path / "model.pt"
+    hier_path = tmp_path / "hier.json"
+
+    monkeypatch.setattr(rl_training, "fit", lambda *a, **k: Path(k.get("model_path")).write_text("x"))
+    monkeypatch.setattr(rl_training, "_ensure_mmap_dataset", lambda *a, **k: None)
+    monkeypatch.setattr(rl_d, "OfflineData", lambda *a, **k: SimpleNamespace())
+    monkeypatch.setattr(rl_d, "publish", lambda *a, **k: None)
+    import solhunter_zero.models as models
+    monkeypatch.setattr(models, "load_compiled_model", lambda *a, **k: None)
+    monkeypatch.setattr(models, "export_torchscript", lambda *a, **k: None)
+    import solhunter_zero.hierarchical_rl as hr
+    monkeypatch.setattr(hr, "torch", None)
+    monkeypatch.setattr(hr, "nn", None)
+    import torch
+    monkeypatch.setattr(torch, "ones", lambda *a, **k: [1.0 for _ in range(a[0])], raising=False)
+    monkeypatch.setattr(torch, "load", lambda *a, **k: {}, raising=False)
+
+    trades = [
+        SimpleNamespace(reason="a1", direction="buy", amount=1, price=1),
+        SimpleNamespace(reason="a1", direction="sell", amount=1, price=2),
+        SimpleNamespace(reason="a2", direction="buy", amount=1, price=2),
+        SimpleNamespace(reason="a2", direction="sell", amount=1, price=1),
+    ]
+
+    monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: (trades, []))
+    a1 = SimpleNamespace(name="a1")
+    a2 = SimpleNamespace(name="a2")
+    d1 = RLDaemon(memory=object(), data_path=str(tmp_path / "d1.db"), model_path=model_path, agents=[a1, a2], hierarchical_model_path=hier_path)
+    monkeypatch.setattr(d1.model, "load_state_dict", lambda *_: None)
+    d1.train()
+    w1 = dict(d1.hier_weights)
+
+    monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: ([], []))
+    d2 = RLDaemon(memory=object(), data_path=str(tmp_path / "d2.db"), model_path=model_path, agents=[a1, a2], hierarchical_model_path=hier_path)
+    monkeypatch.setattr(d2.model, "load_state_dict", lambda *_: None)
+    assert d2.hier_weights == w1
