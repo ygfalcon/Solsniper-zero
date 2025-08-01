@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import pytest
+pytest.importorskip("google.protobuf")
 import websockets
 from aiohttp import web
 
