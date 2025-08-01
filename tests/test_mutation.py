@@ -26,3 +26,21 @@ def test_mutations_spawn_and_prune(tmp_path):
     mgr.save_mutation_state()
     data = json.loads(path.read_text())
     assert m.name not in data.get('active', [])
+
+
+def test_mutation_state_persists(tmp_path):
+    mem = Memory('sqlite:///:memory:')
+    mem_agent = MemoryAgent(mem)
+    base = ConvictionAgent(threshold=0.1)
+    path = tmp_path / 'state.json'
+
+    mgr = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
+    spawned = mgr.spawn_mutations(1)
+    assert spawned
+    mut_name = spawned[0].name
+    mgr.save_mutation_state()
+
+    del mgr
+
+    mgr2 = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
+    assert mut_name in mgr2.mutation_state.get('active', [])
