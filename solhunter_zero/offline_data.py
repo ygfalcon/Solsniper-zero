@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     DateTime,
     select,
+    insert,
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.ext.asyncio import (
@@ -66,6 +67,7 @@ class OfflineData:
         self._writer_task: asyncio.Task | None = None
         self._batch_size = 100
         self._interval = 1.0
+        self._flush_max_batch: int | None = None
         import asyncio
         async def _init_models():
             async with self.engine.begin() as conn:
@@ -78,16 +80,25 @@ class OfflineData:
             self._init_task = loop.create_future()
             self._init_task.set_result(None)
 
-    def start_writer(self, batch_size: int = 100, interval: float = 1.0) -> None:
+    def start_writer(
+        self,
+        batch_size: int = 100,
+        interval: float = 1.0,
+        max_batch: int | None = None,
+    ) -> None:
         """Start background writer flushing queued entries."""
         env_batch = os.getenv("OFFLINE_BATCH_SIZE")
         env_interval = os.getenv("OFFLINE_FLUSH_INTERVAL")
+        env_max = os.getenv("OFFLINE_FLUSH_MAX_BATCH")
         if env_batch is not None:
             batch_size = int(env_batch)
         if env_interval is not None:
             interval = float(env_interval)
+        if env_max is not None:
+            max_batch = int(env_max)
         self._batch_size = batch_size
         self._interval = interval
+        self._flush_max_batch = max_batch
         self._queue = asyncio.Queue()
         loop = asyncio.get_event_loop()
         self._writer_task = loop.create_task(self._writer())
@@ -122,13 +133,16 @@ class OfflineData:
                 await self._flush(pending)
 
     async def _flush(self, items: list[tuple[str, dict]]) -> None:
+        max_batch = self._flush_max_batch or len(items)
         async with self.Session() as session:
-            snaps = [MarketSnapshot(**d) for t, d in items if t == "snap"]
-            trades = [MarketTrade(**d) for t, d in items if t != "snap"]
-            if snaps:
-                await session.run_sync(lambda s: s.bulk_save_objects(snaps))
-            if trades:
-                await session.run_sync(lambda s: s.bulk_save_objects(trades))
+            for i in range(0, len(items), max_batch):
+                batch = items[i : i + max_batch]
+                snaps = [d for t, d in batch if t == "snap"]
+                trades = [d for t, d in batch if t != "snap"]
+                if snaps:
+                    await session.execute(insert(MarketSnapshot), snaps)
+                if trades:
+                    await session.execute(insert(MarketTrade), trades)
             await session.commit()
 
     async def log_snapshot(

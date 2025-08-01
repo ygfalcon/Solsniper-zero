@@ -84,10 +84,12 @@ async def test_queue_flush_interval(tmp_path, monkeypatch):
 async def test_start_writer_env(monkeypatch):
     monkeypatch.setenv("OFFLINE_BATCH_SIZE", "3")
     monkeypatch.setenv("OFFLINE_FLUSH_INTERVAL", "0.5")
+    monkeypatch.setenv("OFFLINE_FLUSH_MAX_BATCH", "10")
     data = OfflineData("sqlite:///:memory:")
     data.start_writer()
     assert data._batch_size == 3
     assert data._interval == 0.5
+    assert data._flush_max_batch == 10
 
 
 @pytest.mark.asyncio
@@ -136,3 +138,35 @@ async def test_export_npz_matches_manual(tmp_path):
 
     assert np.array_equal(npz["snapshots"], exp_snaps)
     assert np.array_equal(npz["trades"], exp_trades)
+
+
+@pytest.mark.asyncio
+async def test_flush_performance(tmp_path):
+    """Verify executemany batching improves flush throughput."""
+    from solhunter_zero.offline_data import MarketSnapshot, MarketTrade
+    import asyncio
+    import time
+    class OldOfflineData(OfflineData):
+        async def _flush(self, items: list[tuple[str, dict]]) -> None:  # type: ignore[override]
+            async with self.Session() as session:
+                for t, d in items:
+                    if t == "snap":
+                        session.add(MarketSnapshot(**d))
+                    else:
+                        session.add(MarketTrade(**d))
+                await session.commit()
+
+    async def bench(cls):
+        db = f"sqlite:///{tmp_path/cls.__name__}.db"
+        data = cls(db)
+        data.start_writer(batch_size=1000, interval=0.01)
+        start = time.perf_counter()
+        for _ in range(1000):
+            await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0)
+        await asyncio.sleep(0.1)
+        await data.close()
+        return time.perf_counter() - start
+
+    old_time = await bench(OldOfflineData)
+    new_time = await bench(OfflineData)
+    assert new_time <= old_time * 0.75
