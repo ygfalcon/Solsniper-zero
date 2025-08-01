@@ -72,7 +72,11 @@ class OfflineData:
         async def _init_models():
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
         if loop.is_running():
             self._init_task = loop.create_task(_init_models())
         else:

@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import Sequence
 
+from sqlalchemy import select
+
 import aiohttp
 from .http import get_session
 
@@ -22,20 +24,22 @@ logger = logging.getLogger(__name__)
 DEFAULT_LIMIT_GB = 50.0
 
 
-def _prune_db(data: OfflineData, db_path: str, limit_gb: float) -> None:
+async def _prune_db(data: OfflineData, db_path: str, limit_gb: float) -> None:
+    """Remove the oldest ``MarketSnapshot`` rows until ``db_path`` drops below
+    ``limit_gb`` in size."""
+
     path = Path(db_path)
     limit_bytes = limit_gb * 1024 ** 3
     while path.exists() and path.stat().st_size > limit_bytes:
-        with data.Session() as session:
-            snap = (
-                session.query(MarketSnapshot)
-                .order_by(MarketSnapshot.timestamp)
-                .first()
+        async with data.Session() as session:
+            result = await session.execute(
+                select(MarketSnapshot).order_by(MarketSnapshot.timestamp).limit(1)
             )
+            snap = result.scalars().first()
             if snap is None:
                 break
-            session.delete(snap)
-            session.commit()
+            await session.delete(snap)
+            await session.commit()
 
 
 async def sync_snapshots(
@@ -95,7 +99,7 @@ async def sync_snapshots(
 
     await asyncio.gather(*(fetch_and_log(t) for t in tokens))
 
-    _prune_db(data, db_path, limit_gb)
+    await _prune_db(data, db_path, limit_gb)
 
 
 async def sync_recent(days: int = 3, db_path: str = "offline_data.db") -> None:
@@ -116,7 +120,7 @@ async def _schedule_loop(interval: float, days: int, db_path: str, limit_gb: flo
             logger.warning("periodic sync failed: %s", exc)
         try:
             data = OfflineData(f"sqlite:///{db_path}")
-            _prune_db(data, db_path, limit_gb)
+            await _prune_db(data, db_path, limit_gb)
         except Exception as exc:
             logger.warning("pruning failed: %s", exc)
         await asyncio.sleep(interval)
