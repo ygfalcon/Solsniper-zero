@@ -213,6 +213,8 @@ Install the Rust toolchain if `cargo` isn't available:
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
     `system_metrics_combined`.
+  - The token and mempool scanners subscribe to this topic and use the
+    aggregated CPU value for dynamic concurrency adjustments.
   - When no metrics arrive for several seconds the scanners fall back to
     `psutil.cpu_percent(interval=None)` to keep scaling active.
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in

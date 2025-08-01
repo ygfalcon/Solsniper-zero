@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import contextlib
+import time
 from typing import List, Any
 
 import aiohttp
@@ -22,13 +23,14 @@ from .scanner_common import (
     parse_birdeye_tokens,
 )
 from . import dex_ws
-from .event_bus import publish
+from .event_bus import publish, subscription
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
 
 logger = logging.getLogger(__name__)
 
 _DYN_INTERVAL: float = 2.0
+_METRICS_TIMEOUT: float = 5.0
 
 
 class TokenScanner:
@@ -160,6 +162,23 @@ async def scan_tokens_async(
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency
+    cpu_val = {"v": resource_monitor.get_cpu_usage()}
+    cpu_ts = {"t": 0.0}
+
+    def _update_metrics(payload: Any) -> None:
+        cpu = getattr(payload, "cpu", None)
+        if isinstance(payload, dict):
+            cpu = payload.get("cpu", cpu)
+        if cpu is None:
+            return
+        try:
+            cpu_val["v"] = float(cpu)
+            cpu_ts["t"] = time.monotonic()
+        except Exception:
+            return
+
+    _metrics_sub = subscription("system_metrics_combined", _update_metrics)
+    _metrics_sub.__enter__()
     _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
@@ -181,7 +200,10 @@ async def scan_tokens_async(
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
-                    cpu = resource_monitor.get_cpu_usage()
+                    if time.monotonic() - cpu_ts["t"] > _METRICS_TIMEOUT:
+                        cpu = resource_monitor.get_cpu_usage()
+                    else:
+                        cpu = cpu_val["v"]
                     target = _target_concurrency(cpu, max_concurrency, low, high)
                     new_limit = _step_limit(current_limit, target, max_concurrency)
                     if new_limit != current_limit:
@@ -230,7 +252,13 @@ async def scan_tokens_async(
         adjust_task.cancel()
         with contextlib.suppress(Exception):
             await adjust_task
-    return tokens
+    try:
+        return tokens
+    finally:
+        try:
+            _metrics_sub.__exit__(None, None, None)
+        except Exception:
+            pass
 
 
 async def scan_tokens(
