@@ -1,4 +1,5 @@
 import asyncio
+import time
 import pytest
 pytest.importorskip("solders")
 from solders.keypair import Keypair
@@ -548,3 +549,29 @@ def test_price_cache(monkeypatch):
     assert result2 == 1.1
     assert calls["sessions"] == 1
     assert calls["gets"] == 1
+
+
+def test_latency_measurement_parallel(monkeypatch):
+    async def fake_get_session():
+        return object()
+
+    async def fake_ping(session, url, attempts=1):
+        await asyncio.sleep(0.05)
+        return 0.05
+
+    monkeypatch.setattr(arb, "get_session", fake_get_session)
+    monkeypatch.setattr(arb, "_ping_url", fake_ping)
+
+    start = time.perf_counter()
+    asyncio.run(arb.measure_dex_latency_async({"d1": "u1"}, attempts=1))
+    single = time.perf_counter() - start
+
+    start = time.perf_counter()
+    asyncio.run(
+        arb.measure_dex_latency_async(
+            {"d1": "u1", "d2": "u2", "d3": "u3"}, attempts=1
+        )
+    )
+    multi = time.perf_counter() - start
+
+    assert multi <= single * 1.5
