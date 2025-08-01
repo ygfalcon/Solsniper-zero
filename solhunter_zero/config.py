@@ -77,6 +77,7 @@ ENV_VARS = {
     "event_bus_url": "EVENT_BUS_URL",
     "broker_url": "BROKER_URL",
     "compress_events": "COMPRESS_EVENTS",
+    "event_serialization": "EVENT_SERIALIZATION",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
     "use_depth_stream": "USE_DEPTH_STREAM",
@@ -321,6 +322,7 @@ _sub.__enter__()
 try:
     _event_bus._reload_bus(None)
     _event_bus._reload_broker(None)
+    _event_bus._reload_serialization(None)
 except Exception:
     pass
 
@@ -337,6 +339,13 @@ def get_broker_url(cfg: Mapping[str, Any] | None = None) -> str | None:
     cfg = cfg or _ACTIVE_CONFIG
     url = os.getenv("BROKER_URL") or str(cfg.get("broker_url", ""))
     return url or None
+
+
+def get_event_serialization(cfg: Mapping[str, Any] | None = None) -> str | None:
+    """Return configured event serialization format."""
+    cfg = cfg or _ACTIVE_CONFIG
+    val = os.getenv("EVENT_SERIALIZATION") or str(cfg.get("event_serialization", ""))
+    return val or None
 
 
 def get_depth_ws_addr(cfg: Mapping[str, Any] | None = None) -> tuple[str, int]:
