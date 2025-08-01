@@ -12,7 +12,11 @@ def test_listen_and_trade_triggers_buy(monkeypatch):
         return {t: 1.0 for t in tokens}
 
     monkeypatch.setattr(mws, "fetch_token_prices_async", fake_prices)
-    monkeypatch.setattr(mws.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(mws.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(mws.Portfolio, "update", lambda *a, **k: None)
 
     monkeypatch.setattr(

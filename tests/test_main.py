@@ -45,7 +45,11 @@ def test_main_invokes_place_order(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
     monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
 
@@ -88,7 +92,11 @@ def test_main_offline(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     async def fake_sleep(_):
@@ -131,7 +139,11 @@ def test_run_iteration_sells(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     asyncio.run(main_module._run_iteration(mem, pf, dry_run=True))
@@ -169,7 +181,11 @@ def test_run_iteration_stop_loss(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     asyncio.run(main_module._run_iteration(mem, pf, dry_run=True, stop_loss=0.1))
@@ -207,7 +223,11 @@ def test_run_iteration_take_profit(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     asyncio.run(main_module._run_iteration(mem, pf, dry_run=True, take_profit=0.1))
@@ -282,7 +302,11 @@ def test_discovery_methods(monkeypatch, method, target):
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
     monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
     monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
 
@@ -307,7 +331,10 @@ def test_run_iteration_arbitrage(monkeypatch):
     monkeypatch.setattr(
         main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
     )
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     called = {}
@@ -362,7 +389,11 @@ def test_trade_size_scales_with_portfolio_value(monkeypatch):
         return {t: 1.0 for t in tokens}
 
     monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     called = []
@@ -408,7 +439,11 @@ def test_trade_size_scales_with_risk(monkeypatch):
         return {t: 1.0 for t in tokens}
 
     monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     called = []
@@ -442,7 +477,10 @@ def test_flashloan_amount_scales_with_portfolio(monkeypatch):
     monkeypatch.setattr(
         main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
     )
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
     borrowed = []
@@ -603,7 +641,11 @@ def test_main_uses_agent_manager(monkeypatch, tmp_path):
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan)
     monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
-    monkeypatch.setattr(main_module.Memory, "log_trade", lambda *a, **k: None)
+
+    async def fake_log_trade(*a, **k):
+        pass
+
+    monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
     monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
 
