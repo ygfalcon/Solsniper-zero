@@ -446,8 +446,7 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
 def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
-    OfflineData(f"sqlite:///{data_path}")
-    Memory(mem_db)
+    # avoid initializing heavy database layers
 
     called = {}
 
@@ -467,8 +466,6 @@ def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
 def test_predict_action_returns_vector(tmp_path, monkeypatch):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
-    OfflineData(f"sqlite:///{data_path}")
-    Memory(mem_db)
 
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m.pt')
 
@@ -505,8 +502,7 @@ def test_daemon_loads_hierarchical_policy(tmp_path, monkeypatch):
     data_path = tmp_path / 'data.db'
     # avoid dataset generation during init
     monkeypatch.setenv("RL_BUILD_MMAP_DATASET", "0")
-    OfflineData(f"sqlite:///{data_path}")
-    Memory(mem_db)
+
 
     policy = tmp_path / 'hp.json'
     policy.write_text('[0.0, 2.0]')
@@ -527,3 +523,75 @@ def test_daemon_loads_hierarchical_policy(tmp_path, monkeypatch):
     assert daemon.hier_policy is not None
     assert daemon.hier_weights.get("a1") == 0.0
     assert daemon.hier_weights.get("a2") == 2.0
+
+
+def test_hierarchical_policy_persists_weights(tmp_path, monkeypatch):
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    monkeypatch.setenv("RL_BUILD_MMAP_DATASET", "0")
+
+    policy = tmp_path / 'hp.json'
+    policy.write_text('[0.0, 2.0]')
+
+    class DummyAgent:
+        def __init__(self, name):
+            self.name = name
+
+    agents = [DummyAgent("a1"), DummyAgent("a2")]
+
+    import solhunter_zero.rl_training as rl_training
+    from pathlib import Path
+    monkeypatch.setattr(
+        rl_training,
+        "fit",
+        lambda *a, **k: (Path(k.get("model_path")).write_text("x")),
+    )
+
+    import solhunter_zero.event_bus as event_bus
+    import solhunter_zero.rl_daemon as rl_d
+    monkeypatch.setattr(event_bus, "publish", lambda *a, **k: None)
+    monkeypatch.setattr(rl_d, "publish", lambda *a, **k: None)
+    class DummyData:
+        def __init__(self, *a, **k):
+            pass
+    monkeypatch.setattr(rl_d, "OfflineData", DummyData)
+
+    import solhunter_zero.hierarchical_rl as hrl
+    monkeypatch.setattr(hrl, "torch", None)
+    monkeypatch.setattr(hrl, "nn", None)
+
+    from types import SimpleNamespace
+    trades = [
+        SimpleNamespace(reason="a1", direction="buy", amount=1, price=1),
+        SimpleNamespace(reason="a1", direction="sell", amount=1, price=2),
+        SimpleNamespace(reason="a2", direction="buy", amount=1, price=1),
+        SimpleNamespace(reason="a2", direction="sell", amount=1, price=1.5),
+    ]
+    snaps = [SimpleNamespace(token="tok", price=1.0, depth=1.0, timestamp=0)]
+    monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: (trades, snaps))
+
+    import torch
+    daemon = RLDaemon(
+        memory_path=mem_db,
+        data_path=str(data_path),
+        model_path=tmp_path/'m.pt',
+        agents=agents,
+        hierarchical_rl=True,
+        hierarchical_model_path=policy,
+    )
+    monkeypatch.setattr(torch, "load", lambda *a, **k: {})
+    monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
+
+    daemon.train()
+    saved = dict(daemon.hier_weights)
+    daemon.close()
+
+    daemon2 = RLDaemon(
+        memory_path=mem_db,
+        data_path=str(data_path),
+        model_path=tmp_path/'m.pt',
+        agents=agents,
+        hierarchical_rl=True,
+        hierarchical_model_path=policy,
+    )
+    assert daemon2.hier_weights == saved
