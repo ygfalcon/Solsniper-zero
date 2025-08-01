@@ -19,11 +19,18 @@ class AgentSwarm:
         self.memory = memory
         self._last_outcomes: Dict[str, bool | None] = {a.name: None for a in self.agents}
         self._last_actions: List[Dict[str, Any]] = []
+        # cache propose_trade parameter names for each agent to avoid repeated
+        # inspect.signature calls during execution
+        self._param_cache: Dict[str, set[str]] = {}
         for a in self.agents:
             if memory is not None:
                 setattr(a, "memory", memory)
             setattr(a, "swarm", self)
             setattr(a, "last_outcome", None)
+            try:
+                self._param_cache[a.name] = set(inspect.signature(a.propose_trade).parameters)
+            except Exception:
+                self._param_cache[a.name] = set()
 
     # ------------------------------------------------------------------
     def success_rate(self, token: str) -> float:
@@ -88,10 +95,10 @@ class AgentSwarm:
             if hasattr(agent, "last_outcome"):
                 agent.last_outcome = self._last_outcomes.get(agent.name)
             kwargs = dict(depth=depth, imbalance=imbalance)
-            import inspect
-            if "rl_action" in inspect.signature(agent.propose_trade).parameters:
+            params = self._param_cache.get(agent.name, set())
+            if "rl_action" in params:
                 kwargs["rl_action"] = rl_action
-            if summary is not None and "summary" in inspect.signature(agent.propose_trade).parameters:
+            if summary is not None and "summary" in params:
                 kwargs["summary"] = summary
             return await agent.propose_trade(token, portfolio, **kwargs)
 
