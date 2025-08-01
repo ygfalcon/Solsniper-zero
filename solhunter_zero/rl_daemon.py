@@ -529,7 +529,15 @@ class RLDaemon:
         self.model.to(self.device)
         from .models import load_compiled_model
 
-        self.jit_model = load_compiled_model(str(self.model_path), self.device)
+        ptc = self.model_path.with_suffix(".ptc")
+        if ptc.exists():
+            try:
+                self.jit_model = torch.jit.load(os.fspath(ptc)).to(self.device)
+            except Exception as exc:  # pragma: no cover - optional
+                logger.error("failed to load compiled model: %s", exc)
+                self.jit_model = load_compiled_model(str(self.model_path), self.device)
+        else:
+            self.jit_model = load_compiled_model(str(self.model_path), self.device)
         self.agents: List[Any] = list(agents) if agents else []
         if self.hierarchical_rl:
             names = [getattr(a, "name", str(i)) for i, a in enumerate(self.agents)]
