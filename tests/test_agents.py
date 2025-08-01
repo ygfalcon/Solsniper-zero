@@ -285,7 +285,7 @@ def test_agent_swarm_conflict_cancel():
 def test_memory_agent(monkeypatch):
     mem_agent = MemoryAgent()
     asyncio.run(mem_agent.log({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 2.0}))
-    trades = mem_agent.memory.list_trades()
+    trades = asyncio.run(mem_agent.memory.list_trades())
     assert trades and trades[0].token == 'tok'
 
 
@@ -294,10 +294,29 @@ def test_agent_manager_update_weights():
     mem_agent = MemoryAgent(mem)
     mgr = AgentManager([], memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
 
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='a1')
-    mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='a1')
-    mem.log_trade(token='tok', direction='buy', amount=1, price=2, reason='a2')
-    mem.log_trade(token='tok', direction='sell', amount=1, price=1, reason='a2')
+    asyncio.run(
+        mem.log_trade(
+            token='tok', direction='buy', amount=1, price=1, reason='a1'
+        )
+    )
+    asyncio.run(
+        mem.log_trade(
+            token='tok', direction='sell', amount=1, price=2, reason='a1'
+        )
+    )
+    asyncio.run(
+        mem.log_trade(
+            token='tok', direction='buy', amount=1, price=2, reason='a2'
+        )
+    )
+    asyncio.run(
+        mem.log_trade(
+            token='tok', direction='sell', amount=1, price=1, reason='a2'
+        )
+    )
+
+    orig_list_trades = mem.list_trades
+    mem.list_trades = lambda limit=1000: asyncio.run(orig_list_trades(limit=limit))
 
     mgr.update_weights()
 

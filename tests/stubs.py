@@ -245,7 +245,13 @@ def stub_sqlalchemy() -> None:
                 self.add(o)
 
         def commit(self):
-            pass
+            class _Awaitable:
+                def __await__(self_inner):
+                    if False:
+                        yield
+                    return None
+
+            return _Awaitable()
 
         async def run_sync(self, func):
             func(self)
