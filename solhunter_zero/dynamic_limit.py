@@ -2,17 +2,22 @@ import os
 import psutil
 
 # Module level parameters read once on import.
-_KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
-_EWM_SMOOTHING: float = float(
-    os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15
+_KP: float = float(
+    os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5")) or 0.5
 )
+_KI: float = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
+_EWM_SMOOTHING: float = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+_ERR_INT: float = 0.0
 _CPU_EMA: float = 0.0
 
 
 def refresh_params() -> None:
     """Reload concurrency parameters from environment variables."""
-    global _KP, _EWM_SMOOTHING
-    _KP = float(os.getenv("CONCURRENCY_KP", str(_KP)) or _KP)
+    global _KP, _KI, _EWM_SMOOTHING
+    _KP = float(
+        os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", str(_KP))) or _KP
+    )
+    _KI = float(os.getenv("CONCURRENCY_KI", str(_KI)) or _KI)
     _EWM_SMOOTHING = float(
         os.getenv("CONCURRENCY_EWM_SMOOTHING", str(_EWM_SMOOTHING)) or _EWM_SMOOTHING
     )
@@ -58,13 +63,26 @@ def _target_concurrency(
 
 
 def _step_limit(
-    current: int, target: int, max_val: int, *, smoothing: float | None = None
+    current: int,
+    target: int,
+    max_val: int,
+    *,
+    smoothing: float | None = None,
+    ki: float | None = None,
 ) -> int:
-    """Move ``current`` towards ``target`` using an exponential update."""
+    """Move ``current`` towards ``target`` using a PI controller."""
+
+    global _ERR_INT
 
     if smoothing is None:
         smoothing = _KP
-    new_val = current + smoothing * (target - current)
+    if ki is None:
+        ki = _KI
+
+    err = target - current
+    _ERR_INT += ki * err
+    _ERR_INT = max(-max_val, min(max_val, _ERR_INT))
+    new_val = current + smoothing * err + _ERR_INT
     new_val = int(round(new_val))
     if new_val > max_val:
         return max_val

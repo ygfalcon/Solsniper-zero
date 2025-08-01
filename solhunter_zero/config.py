@@ -101,6 +101,7 @@ ENV_VARS = {
     "cpu_usage_threshold": "CPU_USAGE_THRESHOLD",
     "concurrency_smoothing": "CONCURRENCY_SMOOTHING",
     "concurrency_kp": "CONCURRENCY_KP",
+    "concurrency_ki": "CONCURRENCY_KI",
     "min_rate": "MIN_RATE",
     "max_rate": "MAX_RATE",
     "depth_freq_low": "DEPTH_FREQ_LOW",

@@ -115,12 +115,8 @@ def test_stream_mempool_tokens_with_metrics(monkeypatch):
 
     import solhunter_zero.onchain_metrics as om
 
-    monkeypatch.setattr(
-        om, "fetch_volume_onchain", lambda t, u: 1.0
-    )
-    monkeypatch.setattr(
-        om, "fetch_liquidity_onchain", lambda t, u: 2.0
-    )
+    monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
+    monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 2.0)
 
     async def run():
         gen = mp_scanner.stream_mempool_tokens("ws://node", return_metrics=True)
@@ -374,10 +370,16 @@ def test_dynamic_concurrency(monkeypatch):
 def test_mempool_concurrency_functions(monkeypatch):
     import types
 
-    monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=0.0))
-    monkeypatch.setenv("CONCURRENCY_KP", "0.5")
+    monkeypatch.setattr(
+        dynamic_limit.psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(percent=0.0),
+    )
+    monkeypatch.setenv("CONCURRENCY_SMOOTHING", "0.5")
+    monkeypatch.setenv("CONCURRENCY_KI", "0")
     dynamic_limit.refresh_params()
     dynamic_limit._CPU_EMA = 0.0
+    dynamic_limit._ERR_INT = 0.0
 
     tgt = dynamic_limit._target_concurrency(90.0, 4, 40.0, 80.0)
     cur = dynamic_limit._step_limit(4, tgt, 4)
@@ -390,6 +392,10 @@ def test_mempool_concurrency_functions(monkeypatch):
 
     assert cur >= 3
 
-    monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=95.0))
+    monkeypatch.setattr(
+        dynamic_limit.psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(percent=95.0),
+    )
     tgt = dynamic_limit._target_concurrency(10.0, 4, 40.0, 80.0)
     assert tgt == 1
