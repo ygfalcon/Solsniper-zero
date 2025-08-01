@@ -629,6 +629,7 @@ def stub_torch() -> None:
     mod.zeros = lambda *a, **k: [0 for _ in range(a[0])] if a else []
     mod.ones = lambda *a, **k: [1 for _ in range(a[0])] if a else []
     mod.load = lambda *a, **k: {}
+    mod.manual_seed = lambda *a, **k: None
 
     def _save(obj, path, *a, **k):
         with open(path, 'wb') as fh:
