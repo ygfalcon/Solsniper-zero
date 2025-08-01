@@ -1,4 +1,5 @@
 from solhunter_zero.advanced_memory import AdvancedMemory
+import sys
 
 
 def test_insert_search_persist(tmp_path, monkeypatch):
