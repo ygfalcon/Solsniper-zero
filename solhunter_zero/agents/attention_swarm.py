@@ -2,8 +2,17 @@ from __future__ import annotations
 
 from typing import Sequence, Iterable, Dict, Any
 
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for AttentionSwarm"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
 import numpy as np
 
 from ..regime import detect_regime

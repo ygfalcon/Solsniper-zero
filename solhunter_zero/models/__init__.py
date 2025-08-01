@@ -1,8 +1,32 @@
+from __future__ import annotations
+
 import os
 from typing import Iterable, Sequence, Tuple, Any
 
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:  # pragma: no cover - typing placeholder
+            pass
+
+        class device:  # pragma: no cover - typing placeholder
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError(
+                    "torch is required for model operations"
+                )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for model operations"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
 
 from .token_activity_model import ActivityModel
 from .graph_price_model import GraphPriceModel, load_graph_model

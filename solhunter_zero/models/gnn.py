@@ -1,9 +1,32 @@
 import os
 from typing import Sequence, Dict, Tuple
 
-import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
+try:
+    import torch
+    from torch import nn
+    from torch.utils.data import Dataset, DataLoader
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError("torch is required for gnn module")
+
+        def __getattr__(self, name):
+            raise ImportError("torch is required for gnn module")
+
+    class _DatasetStub:
+        def __init__(self, *a, **k) -> None:
+            raise ImportError("torch is required for gnn module")
+
+    torch = nn = _TorchStub()  # type: ignore
+    Dataset = DataLoader = _DatasetStub  # type: ignore
 
 try:
     from torch_geometric.nn import GCNConv, GATConv, global_mean_pool

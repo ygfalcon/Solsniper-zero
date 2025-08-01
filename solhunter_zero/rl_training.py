@@ -33,9 +33,20 @@ try:  # pragma: no cover - optional dependency
     from torch import nn
     from torch.utils.data import Dataset, DataLoader
 except ImportError as exc:  # pragma: no cover - optional
-    raise ImportError(
-        "torch is required for RL training; install it via `pip install torch`"
-    ) from exc
+    class _TorchStub:
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for RL training"
+            )
+
+    class _DatasetStub:
+        def __init__(self, *a, **k) -> None:
+            raise ImportError(
+                "torch is required for RL training"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
+    Dataset = DataLoader = _DatasetStub  # type: ignore
 try:
     from torch.utils.data import WeightedRandomSampler
 except Exception:  # pragma: no cover - optional dependency

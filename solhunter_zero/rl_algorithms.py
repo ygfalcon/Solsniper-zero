@@ -1,7 +1,18 @@
 from __future__ import annotations
 
-import torch
-from torch import nn
+try:
+    import torch
+    from torch import nn
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError("torch is required for rl_algorithms")
+
+        def __getattr__(self, name):
+            raise ImportError("torch is required for rl_algorithms")
+
+    torch = nn = _TorchStub()  # type: ignore
 
 
 class _A3C(nn.Module):

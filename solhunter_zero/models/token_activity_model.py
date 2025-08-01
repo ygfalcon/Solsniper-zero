@@ -2,8 +2,30 @@ from __future__ import annotations
 
 from typing import Sequence, Iterable, Tuple, Any
 
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError(
+                    "torch is required for token_activity_model"
+                )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for token_activity_model"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
 
 
 class ActivityModel(nn.Module):

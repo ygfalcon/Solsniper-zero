@@ -3,10 +3,44 @@ from __future__ import annotations
 import os
 from typing import Sequence, Dict, List
 
-import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
+try:
+    import torch
+    from torch import nn
+    from torch.utils.data import Dataset, DataLoader
+    from torch.nn.utils.rnn import pad_sequence
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:  # pragma: no cover - typing placeholder
+            pass
+
+        class device:  # pragma: no cover - typing placeholder
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError(
+                    "torch is required for route_generator"
+                )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for route_generator"
+            )
+
+    class _DatasetStub:
+        def __init__(self, *a, **k) -> None:
+            raise ImportError(
+                "torch is required for route_generator"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
+    Dataset = DataLoader = _DatasetStub  # type: ignore
+
+    def pad_sequence(*a, **k):  # type: ignore
+        raise ImportError(
+            "torch is required for route_generator"
+        )
 
 
 class RouteDataset(Dataset):

@@ -11,9 +11,32 @@ import os
 import time
 import types
 
-import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
+try:
+    import torch
+    from torch import nn
+    from torch.utils.data import Dataset, DataLoader
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError("torch is required for rl_daemon")
+
+        def __getattr__(self, name):
+            raise ImportError("torch is required for rl_daemon")
+
+    class _DatasetStub:
+        def __init__(self, *a, **k) -> None:
+            raise ImportError("torch is required for rl_daemon")
+
+    torch = nn = _TorchStub()  # type: ignore
+    Dataset = DataLoader = _DatasetStub  # type: ignore
 
 from .base_memory import BaseMemory
 from .memory import Memory, Trade

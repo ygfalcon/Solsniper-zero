@@ -10,8 +10,29 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import torch
-from torch import nn, optim
+try:
+    import torch
+    from torch import nn, optim
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError("torch is required for DQN")
+
+        def manual_seed(self, *a, **k):  # pragma: no cover - stub
+            raise ImportError("torch is required for DQN")
+
+        def __getattr__(self, name):
+            raise ImportError("torch is required for DQN")
+
+    torch = nn = optim = _TorchStub()  # type: ignore
 
 from . import BaseAgent
 from .memory import MemoryAgent

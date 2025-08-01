@@ -10,7 +10,16 @@ from typing import Iterable, Dict, Any, List
 from .backtester import backtest_weighted, DEFAULT_STRATEGIES
 from .backtest_cli import bayesian_optimize_weights
 from .advanced_memory import AdvancedMemory
-import torch
+try:
+    import torch
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for AgentManager features"
+            )
+
+    torch = _TorchStub()  # type: ignore
 
 import logging
 import tomllib
