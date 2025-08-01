@@ -3,8 +3,30 @@ from __future__ import annotations
 import os
 from typing import Sequence, Tuple
 
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError(
+                    "torch is required for regime_classifier"
+                )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for regime_classifier"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
 
 LABELS = ["bear", "sideways", "bull"]
 LABEL_TO_IDX = {lbl: i for i, lbl in enumerate(LABELS)}

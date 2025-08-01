@@ -3,8 +3,30 @@ from __future__ import annotations
 from typing import Sequence, Iterable, Tuple, Any
 
 import os
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError(
+                    "torch is required for onchain_forecaster"
+                )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for onchain_forecaster"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
 
 
 class LSTMForecaster(nn.Module):

@@ -5,9 +5,27 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List
 
-import torch
-from torch import nn, optim
-import torch.nn.functional as F
+try:
+    import torch
+    from torch import nn, optim
+    import torch.nn.functional as F
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError("torch is required for PPOAgent")
+
+        def __getattr__(self, name):
+            raise ImportError("torch is required for PPOAgent")
+
+    torch = nn = optim = F = _TorchStub()  # type: ignore
 
 import asyncio
 import logging

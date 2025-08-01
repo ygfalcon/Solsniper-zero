@@ -2,7 +2,14 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import torch
+try:
+    import torch
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        def __getattr__(self, name):
+            raise ImportError("torch is required for ray_training")
+
+    torch = _TorchStub()  # type: ignore
 
 try:
     import ray

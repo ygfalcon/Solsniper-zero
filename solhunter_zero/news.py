@@ -8,7 +8,13 @@ from typing import Iterable, List
 
 from .http import get_session
 
-from transformers import pipeline
+try:
+    from transformers import pipeline
+except ImportError as exc:  # pragma: no cover - optional dependency
+    def pipeline(*args, **kwargs):  # type: ignore
+        raise ImportError(
+            "transformers is required for sentiment analysis features"
+        )
 
 logger = logging.getLogger(__name__)
 

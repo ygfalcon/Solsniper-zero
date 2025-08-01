@@ -1,6 +1,35 @@
-import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
+try:
+    import torch
+    from torch import nn
+    from torch.utils.data import Dataset, DataLoader
+except ImportError as exc:  # pragma: no cover - optional dependency
+    class _TorchStub:
+        class Tensor:
+            pass
+
+        class device:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        class Module:
+            def __init__(self, *a, **k) -> None:
+                raise ImportError(
+                    "torch is required for graph_price_model"
+                )
+
+        def __getattr__(self, name):
+            raise ImportError(
+                "torch is required for graph_price_model"
+            )
+
+    class _DatasetStub:
+        def __init__(self, *a, **k) -> None:
+            raise ImportError(
+                "torch is required for graph_price_model"
+            )
+
+    torch = nn = _TorchStub()  # type: ignore
+    Dataset = DataLoader = _DatasetStub  # type: ignore
 from collections import defaultdict
 from typing import Sequence, Any
 
