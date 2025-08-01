@@ -4,6 +4,8 @@ import types
 import importlib.util
 import pytest
 
+pytest.importorskip("google.protobuf")
+
 # Stub heavy optional dependencies similar to event_bus tests
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []

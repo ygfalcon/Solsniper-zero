@@ -3,6 +3,9 @@ import types
 import importlib.util
 import importlib.machinery
 from pathlib import Path
+import pytest
+
+pytest.importorskip("google.protobuf")
 
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
@@ -170,7 +173,6 @@ sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
 from solhunter_zero.rl_training import RLTraining
 from solhunter_zero.offline_data import OfflineData
 from scripts import build_mmap_dataset
-import pytest
 
 
 @pytest.mark.asyncio
