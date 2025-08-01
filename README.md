@@ -262,9 +262,10 @@ observed when CPU usage dropped sharply.
   directly, improving route calculation speed by roughly a factor of two
   compared to the pure Python implementation.
   Set `RAYON_NUM_THREADS` to configure the number of threads used by
-  the parallel route search. If the variable is not set, `arbitrage.py`
-  and `depth_client.py` default it to the value returned by
-  `os.cpu_count()` so you can override the thread count as needed.
+  the parallel route search. `run.sh` automatically detects available CPU
+  cores and exports this variable before invoking `cargo`, so the Rust
+  FFI and Python wrappers start with an optimized thread count. Define
+  `RAYON_NUM_THREADS` yourself to override the automatic setting.
 
 ## Flash-Loan Arbitrage
 
