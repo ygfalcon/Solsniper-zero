@@ -8,6 +8,7 @@ import aiohttp
 from .http import get_session
 
 from .offline_data import OfflineData, MarketSnapshot
+from .data_pipeline import map_snapshot
 from .token_scanner import scan_tokens_async
 from .simulation import DEFAULT_METRICS_BASE_URL
 from .news import fetch_sentiment_async
@@ -85,16 +86,9 @@ async def sync_snapshots(
             return
         for snap in resp_data.get("snapshots", []):
             try:
-                data.log_snapshot(
-                    token=token,
-                    price=float(snap.get("price", 0.0)),
-                    depth=float(snap.get("depth", 0.0)),
-                    total_depth=float(snap.get("total_depth", 0.0)),
-                    imbalance=float(snap.get("imbalance", 0.0)),
-                    slippage=float(snap.get("slippage", 0.0)),
-                    volume=float(snap.get("volume", 0.0)),
-                    sentiment=sentiment,
-                )
+                mapped = map_snapshot(snap)
+                mapped["sentiment"] = sentiment
+                data.log_snapshot(token=token, **mapped)
             except Exception as exc:  # pragma: no cover - bad data
                 logger.warning("invalid snapshot for %s: %s", token, exc)
 
