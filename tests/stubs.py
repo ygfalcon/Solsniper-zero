@@ -250,27 +250,15 @@ def stub_sqlalchemy() -> None:
         async def dispose(self):
             pass
 
-    class AsyncSession:
+    class _BaseSession:
         def __init__(self, engine):
             self.engine = engine
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
         def add(self, obj):
             lst = self.engine.storage.setdefault(type(obj), [])
-            if getattr(obj, 'id', None) is None:
+            if getattr(obj, "id", None) is None:
                 idx = self.engine.counters.get(type(obj), 1)
-                setattr(obj, 'id', idx)
+                setattr(obj, "id", idx)
                 self.engine.counters[type(obj)] = idx + 1
             lst.append(obj)
 
@@ -278,13 +266,7 @@ def stub_sqlalchemy() -> None:
             for o in objs:
                 self.add(o)
 
-        async def commit(self):
-            pass
-
-        async def run_sync(self, func):
-            func(self)
-
-        async def execute(self, query, params=None):
+        def _execute_query(self, query, params=None):
             if isinstance(query, Query):
                 data = query.with_session(self)._execute()
                 return Result(data, rowcount=len(data))
@@ -311,7 +293,7 @@ def stub_sqlalchemy() -> None:
                     cols = [c.strip() for c in m.group(1).split(',')]
                     keys = [k.strip().lstrip(':') for k in m.group(2).split(',')]
                     objs = []
-                    params_list = params if isinstance(params, list) else [params]
+                    params_list = params if isinstance(params, list) else [params or {}]
                     for p in params_list:
                         data = {c: p.get(k) for c, k in zip(cols, keys)}
                         objs.append(Trade(**data))
@@ -342,6 +324,44 @@ def stub_sqlalchemy() -> None:
                     return Result(rows, rowcount=len(rows))
             return Result([], rowcount=0)
 
+    class AsyncSession(_BaseSession):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def commit(self):
+            pass
+
+        async def run_sync(self, func):
+            func(self)
+
+        async def execute(self, query, params=None):
+            return self._execute_query(query, params)
+
+    class Session(_BaseSession):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+        def commit(self):
+            pass
+
+        def execute(self, query, params=None):
+            return self._execute_query(query, params)
+
+        def query(self, model):
+            return Query(model, session=self)
+
     class Result:
         def __init__(self, data, rowcount: int = 0):
             self._data = data
@@ -365,9 +385,10 @@ def stub_sqlalchemy() -> None:
             return Session(bind)
         return factory
 
-    class Session(AsyncSession):
-        def query(self, model):
-            return Query(model, session=self)
+    def async_sessionmaker(bind=None, expire_on_commit=False):
+        def factory(**kw):
+            return AsyncSession(bind)
+        return factory
 
     def declarative_base():
         class Base:
@@ -411,7 +432,7 @@ def stub_sqlalchemy() -> None:
         return Engine()
 
     async_mod.create_async_engine = create_async_engine
-    async_mod.async_sessionmaker = sessionmaker
+    async_mod.async_sessionmaker = async_sessionmaker
     async_mod.AsyncSession = AsyncSession
     ext.asyncio = async_mod
     sa.ext = ext
@@ -443,6 +464,14 @@ def stub_psutil() -> None:
     mod.__spec__ = importlib.machinery.ModuleSpec('psutil', None)
     mod.cpu_percent = lambda *a, **k: 0.0
     mod.virtual_memory = lambda: types.SimpleNamespace(percent=0.0)
+    class _Proc:
+        def __init__(self):
+            self._times = types.SimpleNamespace(user=0.0)
+
+        def cpu_times(self):
+            return self._times
+
+    mod.Process = lambda *a, **k: _Proc()
     sys.modules.setdefault('psutil', mod)
 
 
@@ -453,6 +482,11 @@ def stub_flask() -> None:
     flask.__spec__ = importlib.machinery.ModuleSpec('flask', None)
 
     request = types.SimpleNamespace(json=None, files={})
+
+    def get_json():
+        return request.json
+
+    request.get_json = get_json
 
     class Flask:
         def __init__(self, name, static_folder=None):

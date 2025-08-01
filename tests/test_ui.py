@@ -367,11 +367,18 @@ def _setup_memory(monkeypatch):
         class Wrapper:
             def __enter__(self_wr):
                 from solhunter_zero.util import run_coro
-                return run_coro(async_session.__aenter__())
+                run_coro(async_session.__aenter__())
+                return self_wr
 
             def __exit__(self_wr, exc_type, exc, tb):
                 from solhunter_zero.util import run_coro
                 return run_coro(async_session.__aexit__(exc_type, exc, tb))
+
+            async def __aenter__(self_wr):
+                return await async_session.__aenter__()
+
+            async def __aexit__(self_wr, exc_type, exc, tb):
+                await async_session.__aexit__(exc_type, exc, tb)
 
             def execute(self_wr, *a, **k):
                 from solhunter_zero.util import run_coro
