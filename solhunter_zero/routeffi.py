@@ -86,73 +86,6 @@ if os.path.exists(_libname):
     except OSError:
         LIB = None
 
-_BEST_ROUTE_FUNC = None
-
-if LIB is not None:
-    try:
-        if hasattr(LIB, "best_route_bin") and hasattr(LIB, "best_route_json"):
-            prices = {"dex1": 1.0, "dex2": 1.1}
-            fees = {"dex1": 0.0, "dex2": 0.0}
-            pb = _encode_map_bin(prices)
-            fb = _encode_map_bin(fees)
-            json_prices = dumps(prices).encode()
-            json_fees = dumps(fees).encode()
-            prof = ctypes.c_double()
-            out_len = ctypes.c_size_t()
-            start = time.perf_counter()
-            for _ in range(5):
-                ptr = LIB.best_route_json(
-                    json_prices,
-                    json_fees,
-                    json_fees,
-                    json_fees,
-                    1.0,
-                    2,
-                    ctypes.byref(prof),
-                )
-                if ptr:
-                    LIB.free_cstring(ptr)
-            json_time = time.perf_counter() - start
-
-            start = time.perf_counter()
-            for _ in range(5):
-                ptr = LIB.best_route_bin(
-                    pb,
-                    len(pb),
-                    fb,
-                    len(fb),
-                    fb,
-                    len(fb),
-                    fb,
-                    len(fb),
-                    1.0,
-                    2,
-                    ctypes.byref(prof),
-                    ctypes.byref(out_len),
-                )
-                if ptr:
-                    LIB.free_buffer(ptr, out_len.value)
-            bin_time = time.perf_counter() - start
-            _BEST_ROUTE_FUNC = _best_route_bin if bin_time <= json_time else _best_route_json
-        else:
-            _BEST_ROUTE_FUNC = _best_route_json if hasattr(LIB, "best_route_json") else None
-    except Exception:
-        _BEST_ROUTE_FUNC = _best_route_json
-
-
-
-def available() -> bool:
-    return LIB is not None
-
-
-def parallel_enabled() -> bool:
-    if LIB is None:
-        return False
-    flag = getattr(LIB, "route_parallel_enabled", None)
-    if flag is None:
-        return False
-    return bool(flag())
-
 
 def _encode_map_bin(data: dict[str, float]) -> bytes:
     parts = [struct.pack("<Q", len(data))]
@@ -349,6 +282,76 @@ def _best_route_parallel_bin(
         LIB.free_buffer(ptr, out_len.value)
     path = _decode_vec_str(buf)
     return path, prof.value
+
+
+_BEST_ROUTE_FUNC = None
+
+if LIB is not None:
+    try:
+        if hasattr(LIB, "best_route_bin") and hasattr(LIB, "best_route_json"):
+            prices = {"dex1": 1.0, "dex2": 1.1}
+            fees = {"dex1": 0.0, "dex2": 0.0}
+            pb = _encode_map_bin(prices)
+            fb = _encode_map_bin(fees)
+            json_prices = dumps(prices).encode()
+            json_fees = dumps(fees).encode()
+            prof = ctypes.c_double()
+            out_len = ctypes.c_size_t()
+            start = time.perf_counter()
+            for _ in range(5):
+                ptr = LIB.best_route_json(
+                    json_prices,
+                    json_fees,
+                    json_fees,
+                    json_fees,
+                    1.0,
+                    2,
+                    ctypes.byref(prof),
+                )
+                if ptr:
+                    LIB.free_cstring(ptr)
+            json_time = time.perf_counter() - start
+
+            start = time.perf_counter()
+            for _ in range(5):
+                ptr = LIB.best_route_bin(
+                    pb,
+                    len(pb),
+                    fb,
+                    len(fb),
+                    fb,
+                    len(fb),
+                    fb,
+                    len(fb),
+                    1.0,
+                    2,
+                    ctypes.byref(prof),
+                    ctypes.byref(out_len),
+                )
+                if ptr:
+                    LIB.free_buffer(ptr, out_len.value)
+            bin_time = time.perf_counter() - start
+            _BEST_ROUTE_FUNC = _best_route_bin if bin_time <= json_time else _best_route_json
+        else:
+            _BEST_ROUTE_FUNC = _best_route_json if hasattr(LIB, "best_route_json") else None
+    except Exception:
+        _BEST_ROUTE_FUNC = _best_route_json
+
+
+
+def available() -> bool:
+    return LIB is not None
+
+
+def parallel_enabled() -> bool:
+    if LIB is None:
+        return False
+    flag = getattr(LIB, "route_parallel_enabled", None)
+    if flag is None:
+        return False
+    return bool(flag())
+
+
 
 
 def decode_token_agg(buf: bytes) -> dict | None:
