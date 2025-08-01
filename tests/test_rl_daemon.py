@@ -452,8 +452,8 @@ def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
 
     called = {}
 
-    async def fake_connect(url):
-        called['url'] = url
+    async def fake_connect(urls):
+        called['urls'] = urls
 
     monkeypatch.setattr(event_bus, 'connect_broker', fake_connect)
     import solhunter_zero.rl_daemon as rl_d
@@ -462,7 +462,7 @@ def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
 
     RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'m.pt', distributed_rl=True)
 
-    assert called.get('url') == 'redis://localhost'
+    assert called.get('urls') == ['redis://localhost']
 
 
 def test_predict_action_returns_vector(tmp_path, monkeypatch):

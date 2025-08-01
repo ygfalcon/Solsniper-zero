@@ -52,9 +52,9 @@ from .event_bus import (
     publish,
     send_heartbeat,
     connect_broker,
-    _BROKER_URL,  # type: ignore
+    _BROKER_URLS,  # type: ignore
 )
-from .config import get_broker_url
+from .config import get_broker_urls
 from .schemas import ActionExecuted, RLCheckpoint, RLWeights
 from .hierarchical_rl import (
     HighLevelPolicyNetwork,
@@ -466,16 +466,16 @@ class RLDaemon:
                 )
             except Exception as exc:
                 logger.error("failed to initialize RayTraining: %s", exc)
-        broker_url = get_broker_url()
-        if self.distributed_rl and broker_url and _BROKER_URL is None:
+        urls = get_broker_urls()
+        if self.distributed_rl and urls and not _BROKER_URLS:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = None
             if loop:
-                loop.create_task(connect_broker(broker_url))
+                loop.create_task(connect_broker(urls))
             else:
-                asyncio.run(connect_broker(broker_url))
+                asyncio.run(connect_broker(urls))
 
         if self.live:
             self.live_dataset = rl_training.LiveTradeDataset(

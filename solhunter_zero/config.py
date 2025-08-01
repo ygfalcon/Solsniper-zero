@@ -76,6 +76,7 @@ ENV_VARS = {
     "jito_ws_auth": "JITO_WS_AUTH",
     "event_bus_url": "EVENT_BUS_URL",
     "broker_url": "BROKER_URL",
+    "broker_urls": "BROKER_URLS",
     "compress_events": "COMPRESS_EVENTS",
     "event_serialization": "EVENT_SERIALIZATION",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
@@ -335,11 +336,31 @@ def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
 
 
 def get_broker_url(cfg: Mapping[str, Any] | None = None) -> str | None:
-    """Return message broker URL if configured."""
-    cfg = cfg or _ACTIVE_CONFIG
-    url = os.getenv("BROKER_URL") or str(cfg.get("broker_url", ""))
-    return url or None
+    """Return message broker URL if configured (first of :func:`get_broker_urls`)."""
+    urls = get_broker_urls(cfg)
+    return urls[0] if urls else None
 
+
+def get_broker_urls(cfg: Mapping[str, Any] | None = None) -> list[str]:
+    """Return list of message broker URLs."""
+    cfg = cfg or _ACTIVE_CONFIG
+    env_val = os.getenv("BROKER_URLS")
+    if env_val:
+        urls = [u.strip() for u in env_val.split(",") if u.strip()]
+    else:
+        raw = cfg.get("broker_urls")
+        if isinstance(raw, str):
+            urls = [u.strip() for u in raw.split(",") if u.strip()]
+        elif isinstance(raw, (list, tuple, set)):
+            urls = [str(u).strip() for u in raw if str(u).strip()]
+        else:
+            urls = []
+    if not urls:
+        url = os.getenv("BROKER_URL") or str(cfg.get("broker_url", ""))
+        if url:
+            urls = [url]
+    return urls
+    
 
 def get_event_serialization(cfg: Mapping[str, Any] | None = None) -> str | None:
     """Return configured event serialization format."""
