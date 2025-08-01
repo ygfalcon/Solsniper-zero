@@ -227,9 +227,6 @@ pub fn best_route(
     best_path.map(|p| RouteResult { path: p, profit: best_profit, slippage: best_slip })
 }
 
-#[derive(Deserialize)]
-struct InputMap(HashMap<String, f64>);
-
 #[derive(Clone)]
 struct Node {
     neg_profit: f64,
