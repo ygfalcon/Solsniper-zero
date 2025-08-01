@@ -38,6 +38,8 @@ def stub_numpy() -> None:
     np.asarray = asarray
     np.zeros = zeros
     np.ones = ones
+    np.bool_ = bool
+    np.isscalar = lambda x: not isinstance(x, (list, tuple, dict))
     sys.modules.setdefault('numpy', np)
 
 

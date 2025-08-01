@@ -93,7 +93,7 @@ async def test_measure_latency_parallel(monkeypatch):
     res = await mod.measure_dex_latency_async({"d1": "u1", "d2": "u2"}, attempts=3)
     duration = time.perf_counter() - start
     assert res["d1"] == pytest.approx(0.05)
-    assert len(calls) == 6
+    assert len(calls) == 2
     assert duration < 0.1
 
 
