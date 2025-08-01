@@ -144,7 +144,7 @@ def test_run_auto_integration(monkeypatch, tmp_path):
         )
 
         mem = main_module.Memory(f"sqlite:///{mem_path}")
-        trades = mem.list_trades()
+        trades = asyncio.run(mem.list_trades())
         assert len(trades) == 1
         assert trades[0].token == "TOK"
 

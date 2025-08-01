@@ -285,7 +285,7 @@ def test_agent_swarm_conflict_cancel():
 def test_memory_agent(monkeypatch):
     mem_agent = MemoryAgent()
     asyncio.run(mem_agent.log({'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 2.0}))
-    trades = mem_agent.memory.list_trades()
+    trades = asyncio.run(mem_agent.memory.list_trades())
     assert trades and trades[0].token == 'tok'
 
 
