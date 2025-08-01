@@ -33,12 +33,12 @@ async def test_daemon_background_reload(tmp_path, monkeypatch):
     data_db = f"sqlite:///{data_path}"
 
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
-    mem.log_trade(token='tok', direction='sell', amount=1, price=2)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='sell', amount=1, price=2)
 
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, total_depth=1.5, imbalance=0.0)
-    data.log_snapshot('tok', 1.1, 1.0, total_depth=1.6, imbalance=0.0)
+    await data.log_snapshot('tok', 1.0, 1.0, total_depth=1.5, imbalance=0.0)
+    await data.log_snapshot('tok', 1.1, 1.0, total_depth=1.6, imbalance=0.0)
 
     model_path = tmp_path / 'model.pt'
 
@@ -73,10 +73,10 @@ async def test_reload_on_timestamp_change(tmp_path, monkeypatch):
     data_db = f"sqlite:///{data_path}"
 
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
 
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     model_path = tmp_path / 'model.pt'
 
