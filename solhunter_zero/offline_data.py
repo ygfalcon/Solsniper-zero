@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import datetime
 import os
+import json
 import asyncio
+import mmap
 from contextlib import suppress
 from sqlalchemy import (
     Column,
@@ -68,6 +70,12 @@ class OfflineData:
         self._batch_size = 100
         self._interval = 1.0
         self._flush_max_batch: int | None = None
+        self._memmap: mmap.mmap | None = None
+        self._memmap_fd: int | None = None
+        self._memmap_pos = 0
+        self._memmap_size = 0
+        self._memmap_flush_rows = 5000
+        self._memmap_count = 0
         import asyncio
         async def _init_models():
             async with self.engine.begin() as conn:
@@ -89,20 +97,38 @@ class OfflineData:
         batch_size: int = 100,
         interval: float = 1.0,
         max_batch: int | None = None,
+        memmap_path: str | None = None,
+        memmap_size: int = 1_000_000,
     ) -> None:
         """Start background writer flushing queued entries."""
         env_batch = os.getenv("OFFLINE_BATCH_SIZE")
         env_interval = os.getenv("OFFLINE_FLUSH_INTERVAL")
         env_max = os.getenv("OFFLINE_FLUSH_MAX_BATCH")
+        env_mmap_path = os.getenv("OFFLINE_MEMMAP_PATH")
+        env_mmap_size = os.getenv("OFFLINE_MEMMAP_SIZE")
         if env_batch is not None:
             batch_size = int(env_batch)
         if env_interval is not None:
             interval = float(env_interval)
         if env_max is not None:
             max_batch = int(env_max)
+        if env_mmap_path is not None:
+            memmap_path = env_mmap_path
+        if env_mmap_size is not None:
+            memmap_size = int(env_mmap_size)
         self._batch_size = batch_size
         self._interval = interval
         self._flush_max_batch = max_batch
+        self._memmap_pos = 0
+        if memmap_path:
+            self._memmap_size = memmap_size
+            self._memmap_fd = os.open(memmap_path, os.O_RDWR | os.O_CREAT)
+            os.ftruncate(self._memmap_fd, memmap_size)
+            self._memmap = mmap.mmap(self._memmap_fd, memmap_size)
+        else:
+            self._memmap = None
+            self._memmap_fd = None
+            self._memmap_size = 0
         self._queue = asyncio.Queue()
         loop = asyncio.get_event_loop()
         self._writer_task = loop.create_task(self._writer())
@@ -118,23 +144,56 @@ class OfflineData:
                     )
                     pending.append(item)
                     if len(pending) >= self._batch_size:
-                        await self._flush(pending)
+                        await self._handle_batch(pending)
                         pending.clear()
                 except asyncio.TimeoutError:
                     if pending:
-                        await self._flush(pending)
+                        await self._handle_batch(pending)
                         pending.clear()
         except asyncio.CancelledError:
             pass
         finally:
             if pending:
-                await self._flush(pending)
+                await self._handle_batch(pending)
             # drain remaining items
             while self._queue and not self._queue.empty():
                 pending.append(self._queue.get_nowait())
                 self._queue.task_done()
             if pending:
-                await self._flush(pending)
+                await self._handle_batch(pending)
+            if self._memmap is not None and self._memmap_pos:
+                await self._flush_memmap()
+            if self._memmap is not None:
+                self._memmap.close()
+                if self._memmap_fd is not None:
+                    os.close(self._memmap_fd)
+                self._memmap = None
+                self._memmap_fd = None
+
+    async def _handle_batch(self, items: list[tuple[str, dict]]) -> None:
+        if self._memmap is None:
+            await self._flush(items)
+            return
+        for t, d in items:
+            line = json.dumps([t, d]).encode() + b"\n"
+            if self._memmap_pos + len(line) > self._memmap_size:
+                await self._flush_memmap()
+            self._memmap[self._memmap_pos : self._memmap_pos + len(line)] = line
+            self._memmap_pos += len(line)
+            self._memmap_count += 1
+            if self._memmap_count >= self._memmap_flush_rows:
+                await self._flush_memmap()
+
+    async def _flush_memmap(self) -> None:
+        if self._memmap is None or self._memmap_pos == 0:
+            return
+        self._memmap.seek(0)
+        data = self._memmap.read(self._memmap_pos).splitlines()
+        items = [tuple(json.loads(line)) for line in data]
+        self._memmap_pos = 0
+        self._memmap_count = 0
+        self._memmap.seek(0)
+        await self._flush(items)
 
     async def _flush(self, items: list[tuple[str, dict]]) -> None:
         max_batch = self._flush_max_batch or len(items)
@@ -304,5 +363,12 @@ class OfflineData:
                 await self._writer_task
             self._writer_task = None
         if self._queue and not self._queue.empty():
-            await self._flush([self._queue.get_nowait() for _ in range(self._queue.qsize())])
+            await self._handle_batch([self._queue.get_nowait() for _ in range(self._queue.qsize())])
+        if self._memmap is not None and self._memmap_pos:
+            await self._flush_memmap()
+            self._memmap.close()
+            if self._memmap_fd is not None:
+                os.close(self._memmap_fd)
+            self._memmap = None
+            self._memmap_fd = None
         await self.engine.dispose()
