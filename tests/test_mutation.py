@@ -15,19 +15,25 @@ def test_mutations_spawn_and_prune(tmp_path):
     mgr = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
 
     mgr.spawn_mutations(1)
-    mutated = [a for a in mgr.agents if a.name != base.name and a.name in mgr.mutation_state['active']]
+    active_names = [m if isinstance(m, str) else m.get('name') for m in mgr.mutation_state['active']]
+    mutated = [a for a in mgr.agents if a.name != base.name and a.name in active_names]
     assert mutated
     m = mutated[0]
 
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason=m.name)
-    mem.log_trade(token='tok', direction='sell', amount=1, price=0.5, reason=m.name)
+    from types import SimpleNamespace
+    trades = [
+        SimpleNamespace(direction='buy', amount=1, price=1, reason=m.name),
+        SimpleNamespace(direction='sell', amount=1, price=0.5, reason=m.name),
+    ]
+    mem.list_trades = lambda *a, **k: trades
 
     mgr.prune_underperforming(0.0)
     assert m.name not in [a.name for a in mgr.agents]
 
     mgr.save_mutation_state()
     data = json.loads(path.read_text())
-    assert m.name not in data.get('active', [])
+    data_active = [m if isinstance(m, str) else m.get('name') for m in data.get('active', [])]
+    assert m.name not in data_active
 
 
 def test_mutation_state_persists(tmp_path):
@@ -45,4 +51,4 @@ def test_mutation_state_persists(tmp_path):
     del mgr
 
     mgr2 = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(path))
-    assert mut_name in mgr2.mutation_state.get('active', [])
+    assert any(a.name == mut_name for a in mgr2.agents)

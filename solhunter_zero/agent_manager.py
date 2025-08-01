@@ -229,6 +229,30 @@ class AgentManager:
         )
         self.mutation_state = mutation.load_state(self.mutation_path)
 
+        # recreate previously spawned mutations
+        for entry in list(self.mutation_state.get("active", [])):
+            if isinstance(entry, dict):
+                name = entry.get("name")
+                base_name = entry.get("base")
+                params = entry.get("params", {}) or {}
+                if not name or not base_name:
+                    continue
+                if any(a.name == name for a in self.agents):
+                    continue
+                base_agent = next((a for a in self.agents if a.name == base_name), None)
+                if base_agent is None:
+                    try:
+                        base_agent = load_agent(base_name)
+                    except Exception:
+                        continue
+                mutated = mutation.mutate_agent(
+                    base_agent,
+                    name=name,
+                    volatility_weight=params.get("volatility_weight"),
+                    time_horizon=params.get("time_horizon"),
+                )
+                self.agents.append(mutated)
+
         self.strategy_selection = strategy_selection
         self.vote_threshold = float(vote_threshold)
         self.selector: StrategySelector | None = None
@@ -599,10 +623,14 @@ class AgentManager:
         return rois
 
     def spawn_mutations(self, count: int = 1) -> List[BaseAgent]:
+        active = [
+            m if isinstance(m, str) else m.get("name")
+            for m in self.mutation_state.get("active", [])
+        ]
         base_agents = [
             a
             for a in self.agents
-            if a.name not in self.mutation_state.get("active", [])
+            if a.name not in active
             and not isinstance(a, MemoryAgent)
         ]
         spawned: List[BaseAgent] = []
@@ -616,22 +644,29 @@ class AgentManager:
             )
             mutated = mutation.mutate_agent(base, name=name)
             self.agents.append(mutated)
-            self.mutation_state.setdefault("active", []).append(mutated.name)
+            self.mutation_state.setdefault("active", []).append(
+                {"name": mutated.name, "base": base.name, "params": {}}
+            )
             spawned.append(mutated)
         return spawned
 
     def prune_underperforming(self, threshold: float = 0.0) -> None:
-        active = list(self.mutation_state.get("active", []))
-        if not active:
+        active_entries = list(self.mutation_state.get("active", []))
+        active_names = [a if isinstance(a, str) else a.get("name") for a in active_entries]
+        if not active_names:
             return
-        rois = self._roi_by_agent(active)
+        rois = self._roi_by_agent(active_names)
         keep = []
         remaining_agents = []
         for agent in self.agents:
-            if agent.name in active:
+            if agent.name in active_names:
                 if rois.get(agent.name, 0.0) >= threshold:
                     remaining_agents.append(agent)
-                    keep.append(agent.name)
+                    entry = next(
+                        (e for e in active_entries if (e if isinstance(e, str) else e.get("name")) == agent.name),
+                        None,
+                    )
+                    keep.append(entry if entry is not None else agent.name)
             else:
                 remaining_agents.append(agent)
         self.agents = remaining_agents
@@ -677,7 +712,12 @@ class AgentManager:
                 ).roi
                 if roi < baseline:
                     self.agents.remove(agent)
-                    self.mutation_state.get("active", []).remove(agent.name)
+                    active_list = self.mutation_state.get("active", [])
+                    for item in list(active_list):
+                        name = item if isinstance(item, str) else item.get("name")
+                        if name == agent.name:
+                            active_list.remove(item)
+                            break
                 else:
                     if self.memory_agent and isinstance(
                         self.memory_agent.memory, AdvancedMemory
