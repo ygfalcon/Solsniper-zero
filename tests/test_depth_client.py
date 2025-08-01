@@ -1,7 +1,12 @@
 import asyncio
 import json
 import struct
+import os
+import subprocess
+import time
+import base64
 import pytest
+from aiohttp import web
 
 from solhunter_zero import depth_client
 
@@ -460,3 +465,129 @@ def test_connection_pool_reuse(monkeypatch):
     asyncio.run(run())
 
     assert calls == ["sock"]
+
+
+@pytest.mark.asyncio
+async def test_priority_rpc_concurrent(tmp_path):
+    try:
+        subprocess.run(
+            ["cargo", "build", "--manifest-path", "depth_service/Cargo.toml"],
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        pytest.skip("cargo build failed")
+
+    def make_handler(name, delay, times):
+        async def handler(request):
+            data = await request.json()
+            method = data.get("method")
+            if method == "getLatestBlockhash":
+                return web.json_response(
+                    {
+                        "jsonrpc": "2.0",
+                        "result": {
+                            "context": {"slot": 1},
+                            "value": {
+                                "blockhash": "11111111111111111111111111111111",
+                                "lastValidBlockHeight": 1,
+                            },
+                        },
+                        "id": data.get("id"),
+                    }
+                )
+            elif method == "getVersion":
+                return web.json_response(
+                    {
+                        "jsonrpc": "2.0",
+                        "result": {"solana-core": "1.18.0"},
+                        "id": data.get("id"),
+                    }
+                )
+            elif method == "sendTransaction":
+                times[name] = time.monotonic()
+                await asyncio.sleep(delay)
+                return web.json_response(
+                    {"jsonrpc": "2.0", "result": name, "id": data.get("id")}
+                )
+            return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+
+        return handler
+
+    times: dict[str, float] = {}
+
+    async def start_server(handler):
+        app = web.Application()
+        app.router.add_post("/", handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "localhost", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        return runner, port
+
+    default_runner, default_port = await start_server(make_handler("default", 0.0, times))
+    slow_runner, slow_port = await start_server(make_handler("slow", 0.4, times))
+    fast_runner, fast_port = await start_server(make_handler("fast", 0.0, times))
+
+    sock = tmp_path / "svc.sock"
+    env = os.environ.copy()
+    env.update(
+        {
+            "SOLANA_RPC_URL": f"http://localhost:{default_port}",
+            "DEPTH_SERVICE_SOCKET": str(sock),
+            "DEPTH_HEARTBEAT_INTERVAL": "1",
+        }
+    )
+
+    proc = await asyncio.create_subprocess_exec(
+        "depth_service/target/debug/depth_service",
+        env=env,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+
+    for _ in range(50):
+        if sock.exists():
+            break
+        await asyncio.sleep(0.1)
+
+    tx_b64 = (
+        "AYwq8aR+5Py3ToGbLJmYpJXtWdUKgI0sf7fY1Vssmtq7suSGoy+hXKH1kTR0M0RloR49SFhcFpB1GaIO"
+        "+bPuXwSAAQABAp7j7fK3ZSJ7A3dW6xIB71a87kRBNxOHO8FARfwL2zazAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAAAA"
+    )
+
+    start = time.monotonic()
+    try:
+        sig_ret = await asyncio.wait_for(
+            depth_client.submit_raw_tx(
+                tx_b64,
+                socket_path=str(sock),
+                priority_rpc=[
+                    f"http://localhost:{slow_port}",
+                    f"http://localhost:{fast_port}",
+                ],
+            ),
+            5,
+        )
+    except Exception as e:
+        proc.kill()
+        await proc.wait()
+        await default_runner.cleanup()
+        await slow_runner.cleanup()
+        await fast_runner.cleanup()
+        pytest.skip(f"service error: {e}")
+    duration = time.monotonic() - start
+
+    proc.kill()
+    await proc.wait()
+
+    await default_runner.cleanup()
+    await slow_runner.cleanup()
+    await fast_runner.cleanup()
+
+    assert sig_ret == "fast"
+    assert duration < 0.4
+    assert "slow" in times and "fast" in times
+    assert abs(times["slow"] - times["fast"]) < 0.2
+

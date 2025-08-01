@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{stream::FuturesUnordered, SinkExt, StreamExt};
 use memmap2::{MmapMut, MmapOptions};
 use prost::Message;
 use serde::{Deserialize, Serialize};
@@ -246,13 +246,21 @@ impl ExecContext {
             ..RpcSendTransactionConfig::default()
         };
         if let Some(urls) = priority {
+            let mut futs = FuturesUnordered::new();
             for url in urls {
-                let client = RpcClient::new(url);
-                if let Ok(sig) = client
-                    .send_transaction_with_config(&tx, config.clone())
-                    .await
-                {
-                    return Ok(sig.to_string());
+                let tx = tx.clone();
+                let conf = config.clone();
+                futs.push(async move {
+                    let client = RpcClient::new(url);
+                    client
+                        .send_transaction_with_config(&tx, conf)
+                        .await
+                        .map(|sig| sig.to_string())
+                });
+            }
+            while let Some(res) = futs.next().await {
+                if let Ok(sig) = res {
+                    return Ok(sig);
                 }
             }
         }
