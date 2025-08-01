@@ -184,3 +184,15 @@ def test_save_config_emits_event(tmp_path):
         unsub()
     assert events and events[0].get("foo") == "bar"
 
+
+def test_get_event_bus_peers(monkeypatch):
+    from solhunter_zero.config import get_event_bus_peers
+
+    monkeypatch.setenv("EVENT_BUS_PEERS", "ws://a, ws://b")
+    peers = get_event_bus_peers({})
+    assert peers == ["ws://a", "ws://b"]
+
+    monkeypatch.delenv("EVENT_BUS_PEERS", raising=False)
+    peers = get_event_bus_peers({"event_bus_peers": ["ws://c"]})
+    assert peers == ["ws://c"]
+

@@ -75,6 +75,7 @@ ENV_VARS = {
     "jito_ws_url": "JITO_WS_URL",
     "jito_ws_auth": "JITO_WS_AUTH",
     "event_bus_url": "EVENT_BUS_URL",
+    "event_bus_peers": "EVENT_BUS_PEERS",
     "broker_url": "BROKER_URL",
     "broker_urls": "BROKER_URLS",
     "compress_events": "COMPRESS_EVENTS",
@@ -334,6 +335,23 @@ def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
     cfg = cfg or _ACTIVE_CONFIG
     url = os.getenv("EVENT_BUS_URL") or str(cfg.get("event_bus_url", ""))
     return url or None
+
+
+def get_event_bus_peers(cfg: Mapping[str, Any] | None = None) -> list[str]:
+    """Return list of peer URLs for the event bus."""
+    cfg = cfg or _ACTIVE_CONFIG
+    env_val = os.getenv("EVENT_BUS_PEERS")
+    if env_val:
+        peers = [u.strip() for u in env_val.split(",") if u.strip()]
+    else:
+        raw = cfg.get("event_bus_peers")
+        if isinstance(raw, str):
+            peers = [u.strip() for u in raw.split(",") if u.strip()]
+        elif isinstance(raw, (list, tuple, set)):
+            peers = [str(u).strip() for u in raw if str(u).strip()]
+        else:
+            peers = []
+    return peers
 
 
 def get_broker_url(cfg: Mapping[str, Any] | None = None) -> str | None:
