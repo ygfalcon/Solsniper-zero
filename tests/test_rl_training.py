@@ -364,6 +364,38 @@ def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
     assert low > high
 
 
+def test_calc_num_workers_cluster_env(monkeypatch):
+    import types
+    import solhunter_zero.rl_training as rl_training
+
+    monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
+    monkeypatch.setattr(
+        rl_training.psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(percent=0.0),
+    )
+    monkeypatch.setattr(
+        rl_training.psutil, "cpu_percent", lambda interval=None: 20.0
+    )
+
+    calls = {"count": 0}
+
+    def fake_get_cpu_usage(_cb=None):
+        calls["count"] += 1
+        return 80.0
+
+    monkeypatch.setattr(rl_training, "_get_cpu_usage", fake_get_cpu_usage)
+
+    monkeypatch.setenv("RL_CLUSTER_WORKERS", "1")
+    cluster = rl_training._calc_num_workers(400, dynamic=True)
+
+    monkeypatch.setenv("RL_CLUSTER_WORKERS", "0")
+    local = rl_training._calc_num_workers(400, dynamic=True)
+
+    assert calls["count"] == 1
+    assert cluster < local
+
+
 @pytest.mark.asyncio
 async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
     import numpy as np
