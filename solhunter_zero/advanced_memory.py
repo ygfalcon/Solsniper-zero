@@ -4,6 +4,9 @@ import os
 import datetime
 import uuid as uuid_module
 from typing import List, Any
+import asyncio
+import threading
+from contextlib import suppress
 
 import numpy as np
 try:  # optional heavy deps
@@ -141,8 +144,10 @@ class AdvancedMemory(BaseMemory):
         self._replication_sub = None
         self._sync_req_sub = None
         self._sync_res_sub = None
-        self._sync_stop = None
+        self._sync_task = None
+        self._sync_loop_obj = None
         self._sync_thread = None
+        self._sync_stop = None
         interval_env = os.getenv("MEMORY_SYNC_INTERVAL")
         try:
             env_interval = float(interval_env) if interval_env else None
@@ -512,25 +517,37 @@ class AdvancedMemory(BaseMemory):
             self.import_index(idx)
 
     # ------------------------------------------------------------------
-    def _sync_loop(self, interval: float) -> None:
-        while not self._sync_stop.is_set():
-            self._sync_stop.wait(interval)
-            if self._sync_stop.is_set():
-                break
-            try:
-                self.request_sync()
-            except Exception:
-                pass
+    async def _sync_loop(self, interval: float) -> None:
+        try:
+            while not self._sync_stop.is_set():
+                await asyncio.sleep(interval)
+                if self._sync_stop.is_set():
+                    break
+                try:
+                    self.request_sync()
+                except Exception:
+                    pass
+        except asyncio.CancelledError:
+            pass
 
     # ------------------------------------------------------------------
     def _start_sync_task(self, interval: float = 5.0) -> None:
-        import threading
-
-        self._sync_stop = threading.Event()
-        self._sync_thread = threading.Thread(
-            target=self._sync_loop, args=(interval,), daemon=True
-        )
-        self._sync_thread.start()
+        self._sync_stop = asyncio.Event()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._sync_loop_obj = asyncio.new_event_loop()
+            self._sync_task = asyncio.run_coroutine_threadsafe(
+                self._sync_loop(interval), self._sync_loop_obj
+            )
+            self._sync_thread = threading.Thread(
+                target=self._sync_loop_obj.run_forever, daemon=True
+            )
+            self._sync_thread.start()
+        else:
+            self._sync_loop_obj = loop
+            self._sync_task = loop.create_task(self._sync_loop(interval))
+            self._sync_thread = None
 
     # ------------------------------------------------------------------
     def close(self) -> None:
@@ -542,6 +559,14 @@ class AdvancedMemory(BaseMemory):
             self._sync_req_sub.__exit__(None, None, None)
         if self._sync_res_sub is not None:
             self._sync_res_sub.__exit__(None, None, None)
-        if self._sync_thread is not None and self._sync_stop is not None:
+        if self._sync_task is not None and self._sync_stop is not None:
             self._sync_stop.set()
+            self._sync_task.cancel()
+            with suppress(Exception):
+                self._sync_task.result()
+            self._sync_task = None
+        if self._sync_thread is not None and self._sync_loop_obj is not None:
+            self._sync_loop_obj.call_soon_threadsafe(self._sync_loop_obj.stop)
             self._sync_thread.join(timeout=1)
+            self._sync_thread = None
+            self._sync_loop_obj = None
