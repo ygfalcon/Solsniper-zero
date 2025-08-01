@@ -208,6 +208,20 @@ async def measure_dex_latency_async(
     if cached is not None:
         return cached
 
+    if _routeffi.available():
+        func = getattr(_routeffi, "measure_latency", None)
+        if callable(func):
+            try:
+                loop = asyncio.get_running_loop()
+                res = await loop.run_in_executor(
+                    None, lambda: func(dict(urls), attempts)
+                )
+                if res:
+                    DEX_LATENCY_CACHE.set(cache_key, res)
+                    return res
+            except Exception as exc:  # pragma: no cover - optional ffi failures
+                logger.debug("ffi.measure_latency failed: %s", exc)
+
     if max_concurrency is None or max_concurrency <= 0:
         max_concurrency = max(os.cpu_count() or 1, len(urls) * attempts)
 

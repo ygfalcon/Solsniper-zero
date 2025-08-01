@@ -42,6 +42,11 @@ if os.path.exists(_libname):
             _decode.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
             _decode.restype = ctypes.c_void_p
             LIB.decode_token_agg_json = _decode
+        _measure = getattr(LIB, "measure_latency_json", None)
+        if _measure is not None:
+            _measure.argtypes = [ctypes.c_char_p, ctypes.c_uint]
+            _measure.restype = ctypes.c_void_p
+            LIB.measure_latency_json = _measure
         LIB.free_cstring.argtypes = [ctypes.c_void_p]
     except OSError:
         LIB = None
@@ -140,6 +145,21 @@ def decode_token_agg(buf: bytes) -> dict | None:
     if func is None:
         return None
     ptr = func(ctypes.c_char_p(buf), len(buf))
+    if not ptr:
+        return None
+    s = ctypes.string_at(ptr).decode()
+    LIB.free_cstring(ptr)
+    return loads(s)
+
+
+def measure_latency(urls: dict[str, str], attempts: int = 3) -> dict | None:
+    if LIB is None:
+        return None
+    func = getattr(LIB, "measure_latency_json", None)
+    if func is None:
+        return None
+    urls_json = dumps(urls).encode()
+    ptr = func(urls_json, int(attempts))
     if not ptr:
         return None
     s = ctypes.string_at(ptr).decode()
