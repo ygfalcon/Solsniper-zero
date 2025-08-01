@@ -315,7 +315,7 @@ async def _run_iteration(
                 )
 
                 if not dry_run:
-                    memory.log_trade(
+                    await memory.log_trade(
                         token=token, direction="buy", amount=amount, price=0
                     )
                     await portfolio.update_async(token, amount, 0)
@@ -368,7 +368,7 @@ async def _run_iteration(
                 )
 
                 if not dry_run:
-                    memory.log_trade(
+                    await memory.log_trade(
                         token=token, direction="sell", amount=pos.amount, price=0
                     )
                     await portfolio.update_async(token, -pos.amount, 0)
@@ -412,7 +412,7 @@ async def _run_iteration(
                 )
 
                 if not dry_run:
-                    memory.log_trade(
+                    await memory.log_trade(
                         token=token, direction=side, amount=amount, price=price
                     )
                     await portfolio.update_async(
