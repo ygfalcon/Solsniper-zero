@@ -5,14 +5,25 @@ from __future__ import annotations
 import sys
 import types
 import time
+import importlib
 import importlib.machinery
 
 
 def stub_numpy() -> None:
     if 'numpy' in sys.modules:
         return
+    try:
+        spec = importlib.util.find_spec('numpy')
+    except Exception:  # pragma: no cover - safety net
+        spec = None
+    if spec is not None:
+        mod = importlib.import_module('numpy')
+        sys.modules.setdefault('numpy', mod)
+        return
+
     np = types.ModuleType('numpy')
     np.__spec__ = importlib.machinery.ModuleSpec('numpy', None)
+    np._STUB = True
 
     def _make(shape, value):
         if isinstance(shape, int):
@@ -592,8 +603,17 @@ def stub_bip_utils() -> None:
 def stub_faiss() -> None:
     if 'faiss' in sys.modules:
         return
+    try:
+        spec = importlib.util.find_spec('faiss')
+    except Exception:  # pragma: no cover - safety net
+        spec = None
+    if spec is not None:
+        mod = importlib.import_module('faiss')
+        sys.modules.setdefault('faiss', mod)
+        return
     mod = types.ModuleType('faiss')
     mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
+    mod._STUB = True
 
     class IndexFlatL2:
         def __init__(self, dim):
