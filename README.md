@@ -204,6 +204,7 @@ Install the Rust toolchain if `cargo` isn't available:
     this size in bytes (defaults to `512`).
   - `WS_PING_INTERVAL` – seconds between websocket pings (defaults to `20`).
   - `WS_PING_TIMEOUT` – wait this many seconds for a pong (defaults to `20`).
+  - `LOG_LEVEL` – controls logging verbosity. Set to `error` to hide warnings.
   - `EVENT_BATCH_MS` – messages are batched for the given milliseconds before
     broadcast (defaults to `0`). Run
     `scripts/benchmark_event_bus_batch.py` to tune this value.
