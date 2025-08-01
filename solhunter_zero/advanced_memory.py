@@ -109,6 +109,8 @@ class AdvancedMemory(BaseMemory):
         url: str = "sqlite:///memory.db",
         index_path: str = "trade.index",
         replicate: bool = False,
+        *,
+        sync_interval: float | None = None,
     ) -> None:
         self.engine = create_engine(url, echo=False, future=True)
         Base.metadata.create_all(self.engine)
@@ -141,6 +143,14 @@ class AdvancedMemory(BaseMemory):
         self._sync_res_sub = None
         self._sync_stop = None
         self._sync_thread = None
+        interval_env = os.getenv("MEMORY_SYNC_INTERVAL")
+        try:
+            env_interval = float(interval_env) if interval_env else None
+        except Exception:
+            env_interval = None
+        sync_interval = sync_interval if sync_interval is not None else env_interval
+        if sync_interval is None:
+            sync_interval = 5.0
         if replicate:
             self._replication_sub = subscription("trade_logged", self._apply_remote)
             self._replication_sub.__enter__()
@@ -148,7 +158,7 @@ class AdvancedMemory(BaseMemory):
             self._sync_req_sub.__enter__()
             self._sync_res_sub = subscription("memory_sync_response", self._handle_sync_response)
             self._sync_res_sub.__enter__()
-            self._start_sync_task()
+            self._start_sync_task(sync_interval)
 
     # ------------------------------------------------------------------
     def _add_embedding(self, text: str, trade_id: int) -> None:

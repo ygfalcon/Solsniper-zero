@@ -657,6 +657,8 @@ adjust configuration in real time.
 
 When `replicate_trades` is enabled, `AdvancedMemory` also listens for
 `trade_logged` events to mirror trades from other nodes.
+Set `MEMORY_SYNC_INTERVAL` to control how often these sync requests are sent
+(defaults to 5&nbsp;s).
 
 When the Web UI is running, these events are also forwarded over a simple
 WebSocket endpoint at `ws://localhost:8766/ws`. Clients can subscribe and react

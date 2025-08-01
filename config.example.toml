@@ -107,6 +107,7 @@ event_bus_url = ""  # external event bus websocket
 broker_url = ""  # optional Redis or NATS endpoint
 broker_urls = ""  # comma-separated list of broker URLs
 replicate_trades = false  # subscribe to trade_logged events when true
+memory_sync_interval = 5.0  # seconds between trade sync requests
 weights_path = "weights.json"
 evolve_interval = 1
 mutation_threshold = 0.0
