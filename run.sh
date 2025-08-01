@@ -45,7 +45,11 @@ fi
 
 if command -v cargo >/dev/null 2>&1; then
     if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-        cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
+        if [ "${ROUTE_FFI_PARALLEL}" = "1" ]; then
+            cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
+        else
+            cargo build --manifest-path route_ffi/Cargo.toml --release
+        fi
         cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null || true
     fi
 fi

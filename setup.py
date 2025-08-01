@@ -3,6 +3,7 @@ from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.build_ext import build_ext as _build_ext
 import subprocess
+import os
 
 
 
@@ -12,17 +13,16 @@ def build_route_ffi(root: Path, out_dir: Path):
     lib_dst = out_dir / "libroute_ffi.so"
     if lib_dst.exists():
         return
-    subprocess.run(
-        [
-            "cargo",
-            "build",
-            "--manifest-path",
-            str(root / "route_ffi" / "Cargo.toml"),
-            "--release",
-            "--features=parallel",
-        ],
-        check=True,
-    )
+    cmd = [
+        "cargo",
+        "build",
+        "--manifest-path",
+        str(root / "route_ffi" / "Cargo.toml"),
+        "--release",
+    ]
+    if os.getenv("ROUTE_FFI_PARALLEL") == "1":
+        cmd.append("--features=parallel")
+    subprocess.run(cmd, check=True)
     lib_src = root / "route_ffi" / "target" / "release" / "libroute_ffi.so"
     if lib_src.exists():
         out_dir.mkdir(parents=True, exist_ok=True)

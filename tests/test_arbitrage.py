@@ -1,4 +1,5 @@
 import asyncio
+import os
 import pytest
 pytest.importorskip("solders")
 from solders.keypair import Keypair
@@ -548,3 +549,23 @@ def test_price_cache(monkeypatch):
     assert result2 == 1.1
     assert calls["sessions"] == 1
     assert calls["gets"] == 1
+
+
+def test_best_route_parallel_env(monkeypatch):
+    monkeypatch.setenv("ROUTE_FFI_PARALLEL", "1")
+    monkeypatch.setattr(arb._routeffi, "available", lambda: True)
+    monkeypatch.setattr(arb, "USE_FFI_ROUTE", True)
+    monkeypatch.setattr("os.cpu_count", lambda: 4)
+    called = {}
+
+    def fake_parallel(*a, **k):
+        called["used"] = True
+        return ["a", "b"], 0.0
+
+    monkeypatch.setattr(arb._routeffi, "best_route_parallel", fake_parallel)
+    monkeypatch.setattr(arb._routeffi, "best_route", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("serial")))
+    monkeypatch.setattr(arb._routeffi, "parallel_enabled", lambda: False)
+
+    prices = {"a": 1.0, "b": 1.1}
+    arb._best_route(prices, 1.0)
+    assert called.get("used", False)

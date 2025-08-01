@@ -1229,7 +1229,11 @@ def _best_route(
             "max_hops": kwargs.get("max_hops", MAX_HOPS),
         }
         try:
-            if _routeffi.parallel_enabled():
+            par_env = os.getenv("ROUTE_FFI_PARALLEL", "0").lower() in {"1", "true", "yes"}
+            use_parallel = _routeffi.parallel_enabled() or (
+                par_env and (os.cpu_count() or 1) > 1
+            )
+            if use_parallel:
                 func = _routeffi.best_route_parallel
             else:
                 func = _routeffi.best_route
