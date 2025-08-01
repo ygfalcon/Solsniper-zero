@@ -104,6 +104,35 @@ class Message:
         for k, v in kw.items():
             setattr(self, k, v)
 
+    def SerializeToString(self) -> bytes:
+        import json
+
+        def encode(val):
+            if isinstance(val, Message):
+                return {k: encode(v) for k, v in val.__dict__.items()}
+            if isinstance(val, (list, tuple)):
+                return [encode(v) for v in val]
+            return val
+
+        return json.dumps({k: encode(v) for k, v in self.__dict__.items()}).encode()
+
+    def ParseFromString(self, data: bytes) -> None:
+        import json
+
+        def decode(val):
+            if isinstance(val, dict):
+                msg = Message()
+                for kk, vv in val.items():
+                    setattr(msg, kk, decode(vv))
+                return msg
+            if isinstance(val, list):
+                return [decode(v) for v in val]
+            return val
+
+        obj = json.loads(data)
+        for k, v in obj.items():
+            setattr(self, k, decode(v))
+
 
 for name in [
     "ActionExecuted",
