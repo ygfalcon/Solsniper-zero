@@ -6,9 +6,17 @@ _KP: float = float(
     os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5")) or 0.5
 )
 _KI: float = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
-_EWM_SMOOTHING: float = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
+_EWM_SMOOTHING: float = float(
+    os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15
+)
 _ERR_INT: float = 0.0
 _CPU_EMA: float = 0.0
+
+# Share the current parameters via environment variables so child processes
+# started after import see the same values.
+os.environ["CONCURRENCY_SMOOTHING"] = str(_KP)
+os.environ["CONCURRENCY_KI"] = str(_KI)
+os.environ["CONCURRENCY_EWM_SMOOTHING"] = str(_EWM_SMOOTHING)
 
 
 def refresh_params() -> None:
@@ -21,6 +29,9 @@ def refresh_params() -> None:
     _EWM_SMOOTHING = float(
         os.getenv("CONCURRENCY_EWM_SMOOTHING", str(_EWM_SMOOTHING)) or _EWM_SMOOTHING
     )
+    os.environ["CONCURRENCY_SMOOTHING"] = str(_KP)
+    os.environ["CONCURRENCY_KI"] = str(_KI)
+    os.environ["CONCURRENCY_EWM_SMOOTHING"] = str(_EWM_SMOOTHING)
 
 
 def _target_concurrency(

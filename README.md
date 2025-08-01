@@ -243,7 +243,7 @@ Install the Rust toolchain if `cargo` isn't available:
   - `--config <path>` – load these options from the given configuration file.
   - To smooth out CPU spikes while keeping token scans responsive set
     `CPU_LOW_THRESHOLD=30`, `CPU_HIGH_THRESHOLD=70`,
-    `CONCURRENCY_SMOOTHING=0.3` and `CONCURRENCY_KI=0.2` before running the bot.
+    `CONCURRENCY_SMOOTHING=0.3` and `CONCURRENCY_KI=0.5` before running the bot.
 
 **Benchmarks**
 
