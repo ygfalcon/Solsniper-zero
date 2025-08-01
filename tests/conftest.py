@@ -18,6 +18,14 @@ def _safe_find_spec(name, package=None):
 
 
 importlib.util.find_spec = _safe_find_spec
+# Install stubs for optional heavy dependencies before importing project modules
+_stub_path = os.path.join(os.path.dirname(__file__), "stubs.py")
+_spec = importlib.util.spec_from_file_location("stubs", _stub_path)
+_stubs = importlib.util.module_from_spec(_spec)
+assert _spec and _spec.loader
+_spec.loader.exec_module(_stubs)
+_stubs.install_stubs()
+
 
 if importlib.util.find_spec("aiohttp") is None:
     aiohttp_mod = types.ModuleType("aiohttp")
@@ -209,21 +217,6 @@ if importlib.util.find_spec("solana") is None:
     ws_mod.RpcTransactionLogsFilterMentions = object
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 
-# Additional optional dependency stubs
-# Lightweight feature complete stubs for optional dependencies
-import importlib.util
-import os
-
-_stub_path = os.path.join(os.path.dirname(__file__), 'stubs.py')
-_spec = importlib.util.spec_from_file_location('stubs', _stub_path)
-_stubs = importlib.util.module_from_spec(_spec)
-assert _spec and _spec.loader
-try:
-    import numpy  # real module if available
-except ModuleNotFoundError:
-    numpy = None
-_spec.loader.exec_module(_stubs)
-_stubs.install_stubs()
 
 # Ensure project root is in sys.path when running tests directly with 'pytest'
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
