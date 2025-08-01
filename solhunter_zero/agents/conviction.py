@@ -14,9 +14,11 @@ from ..simulation import (
 from ..news import fetch_sentiment
 
 
-def predict_price_movement(token: str, *, model_path: str | None = None) -> float:
+def predict_price_movement(
+    token: str, *, sentiment: float | None = None, model_path: str | None = None
+) -> float:
     """Wrapper around :func:`simulation.predict_price_movement`."""
-    return _predict_price_movement(token, model_path=model_path)
+    return _predict_price_movement(token, sentiment=sentiment, model_path=model_path)
 
 
 def predict_token_activity(token: str, *, model_path: str | None = None) -> float:
