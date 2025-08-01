@@ -103,7 +103,7 @@ use solana_sdk::{
     transaction::{Transaction, VersionedTransaction},
 };
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 struct TokenInfo {
     bids: f64,
     asks: f64,
@@ -136,6 +136,7 @@ type LastAggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 /// Aggregated state of all tokens
 type AggMap = Arc<Mutex<HashMap<String, TokenAgg>>>;
 type AdjMap = Arc<Mutex<HashMap<String, route::AdjacencyMatrix>>>;
+type AdjacencyCache = Arc<Mutex<HashMap<String, (HashMap<String, HashMap<String, TokenInfo>>, route::AdjacencyMatrix)>>>;
 type LastSent = Arc<Mutex<Instant>>;
 
 fn maybe_decompress(data: &[u8]) -> Vec<u8> {
@@ -346,6 +347,7 @@ async fn update_mmap(
     mem: &MempoolMap,
     agg: &AggMap,
     adj: &AdjMap,
+    adj_cache: &AdjacencyCache,
     mmap: &SharedMmap,
     offsets: &OffsetMap,
     next_off: &NextOffset,
@@ -362,9 +364,31 @@ async fn update_mmap(
     notify: Option<&tokio::sync::watch::Sender<()>>,
 ) -> Result<()> {
     let dexes = dex_map.lock().await;
+    let dex_snapshot = dexes.clone();
     let mem_map = mem.lock().await;
 
-    let adj_matrix = route::build_adjacency_matrix(&dexes, token);
+    let adj_matrix = {
+        let mut cache = adj_cache.lock().await;
+        if let Some((prev, mat)) = cache.get(token) {
+            if *prev == dex_snapshot {
+                Some(mat.clone())
+            } else {
+                let res = route::build_adjacency_matrix(&dex_snapshot, token);
+                if let Some(ref m) = res {
+                    cache.insert(token.to_string(), (dex_snapshot.clone(), m.clone()));
+                } else {
+                    cache.remove(token);
+                }
+                res
+            }
+        } else {
+            let res = route::build_adjacency_matrix(&dex_snapshot, token);
+            if let Some(ref m) = res {
+                cache.insert(token.to_string(), (dex_snapshot.clone(), m.clone()));
+            }
+            res
+        }
+    };
 
     let mut entry = TokenAgg::default();
     for (dex_name, dex) in dexes.iter() {
@@ -612,6 +636,7 @@ async fn connect_feed(
     mem: MempoolMap,
     agg: AggMap,
     adj: AdjMap,
+    adj_cache: AdjacencyCache,
     mmap: SharedMmap,
     offsets: OffsetMap,
     next_off: NextOffset,
@@ -657,6 +682,7 @@ async fn connect_feed(
                     &mem,
                     &agg,
                     &adj,
+                    &adj_cache,
                     &mmap,
                     &offsets,
                     &next_off,
@@ -686,6 +712,7 @@ async fn connect_price_feed(
     mem: MempoolMap,
     agg: AggMap,
     adj: AdjMap,
+    adj_cache: AdjacencyCache,
     mmap: SharedMmap,
     offsets: OffsetMap,
     next_off: NextOffset,
@@ -728,6 +755,7 @@ async fn connect_price_feed(
                     &mem,
                     &agg,
                     &adj,
+                    &adj_cache,
                     &mmap,
                     &offsets,
                     &next_off,
@@ -756,6 +784,7 @@ async fn connect_mempool(
     dex_map: DexMap,
     agg: AggMap,
     adj: AdjMap,
+    adj_cache: AdjacencyCache,
     mmap: SharedMmap,
     offsets: OffsetMap,
     next_off: NextOffset,
@@ -790,6 +819,7 @@ async fn connect_mempool(
                     &mem,
                     &agg,
                     &adj,
+                    &adj_cache,
                     &mmap,
                     &offsets,
                     &next_off,
@@ -1196,6 +1226,7 @@ async fn main() -> Result<()> {
     let mem_map: MempoolMap = Arc::new(Mutex::new(HashMap::new()));
     let agg_map: AggMap = Arc::new(Mutex::new(HashMap::new()));
     let adj_map: AdjMap = Arc::new(Mutex::new(HashMap::new()));
+    let adj_cache: AdjacencyCache = Arc::new(Mutex::new(HashMap::new()));
     let (ws_tx, _) = broadcast::channel(16);
     let (ws_bin_tx, _) = broadcast::channel(16);
     let latest: LatestSnap = Arc::new(Mutex::new(String::new()));
@@ -1336,6 +1367,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_feed(
@@ -1345,6 +1377,7 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
@@ -1378,6 +1411,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1387,6 +1421,7 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
@@ -1420,6 +1455,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1429,6 +1465,7 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
@@ -1462,6 +1499,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1471,6 +1509,7 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
@@ -1504,6 +1543,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1513,6 +1553,7 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
@@ -1546,6 +1587,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_price_feed(
@@ -1555,6 +1597,7 @@ async fn main() -> Result<()> {
                 m,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
@@ -1588,6 +1631,7 @@ async fn main() -> Result<()> {
         let last_map_c = last_map.clone();
         let last_sent_c = last_sent.clone();
         let adj_map = adj_map.clone();
+        let cache = adj_cache.clone();
         let notify = notify_tx.clone();
         tokio::spawn(async move {
             let _ = connect_mempool(
@@ -1596,6 +1640,7 @@ async fn main() -> Result<()> {
                 d,
                 a,
                 adj_map.clone(),
+                cache,
                 mm,
                 off,
                 next,
