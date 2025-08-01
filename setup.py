@@ -5,6 +5,8 @@ from setuptools.command.build_ext import build_ext as _build_ext
 import subprocess
 import pkgutil
 import sys
+import shutil
+import importlib.util
 
 
 def _ensure_optional(package: str) -> None:
@@ -18,7 +20,13 @@ def _ensure_optional(package: str) -> None:
             return
     else:
         print(f"Installing missing optional dependency: {package}")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    if importlib.util.find_spec("pip") is None:
+        print("pip not available; skipping installation")
+        return
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    except Exception as exc:
+        print(f"Failed to install optional dependency {package}: {exc}")
 
 # ensure optional acceleration libraries are present
 for _pkg in ("uvloop", "orjson", "zstandard"):
@@ -30,6 +38,18 @@ def build_route_ffi(root: Path, out_dir: Path):
     lib_dst = out_dir / "libroute_ffi.so"
     if lib_dst.exists():
         return
+
+    # Use prebuilt library when available
+    prebuilt = root / "solhunter_zero" / "libroute_ffi.so"
+    if prebuilt.exists():
+        out_dir.mkdir(parents=True, exist_ok=True)
+        lib_dst.write_bytes(prebuilt.read_bytes())
+        return
+
+    if shutil.which("cargo") is None:
+        print("cargo not available, skipping route_ffi build")
+        return
+
     subprocess.run(
         [
             "cargo",
