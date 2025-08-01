@@ -411,6 +411,25 @@ class AdvancedMemory(BaseMemory):
         return int(idx[0][0]) if idx.size else None
 
     # ------------------------------------------------------------------
+    def top_cluster_many(self, contexts: Iterable[str]) -> List[int | None]:
+        """Return nearest cluster ids for multiple ``contexts``."""
+        texts = list(contexts)
+        if not texts:
+            return []
+        if (
+            self.cluster_index is None
+            or self.model is None
+            or self.cluster_index.ntotal == 0
+        ):
+            return [None for _ in texts]
+        vecs = self.model.encode(texts).astype("float32")
+        _, idx = self.cluster_index.search(vecs, 1)
+        out: List[int | None] = []
+        for row in idx:
+            out.append(int(row[0]) if row.size else None)
+        return out
+
+    # ------------------------------------------------------------------
     def export_cluster_stats(self) -> List[dict[str, Any]]:
         """Return summary statistics for each cluster."""
         if not self._trade_clusters or self.cluster_centroids is None:

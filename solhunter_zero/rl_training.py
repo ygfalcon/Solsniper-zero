@@ -318,11 +318,12 @@ class _TradeDataset(Dataset):
                 num_clusters = len(centroids) if centroids is not None else 0
             except Exception:
                 num_clusters = 0
-            for i, t in enumerate(trade_list):
-                try:
-                    cid = memory.top_cluster(getattr(t, "context", ""))
-                except Exception:
-                    cid = None
+            contexts = [getattr(t, "context", "") for t in trade_list]
+            try:
+                cids = memory.top_cluster_many(contexts)
+            except Exception:
+                cids = [None] * len(contexts)
+            for i, cid in enumerate(cids):
                 if cid is not None and num_clusters:
                     clusters[i] = float(cid) / float(num_clusters)
 
