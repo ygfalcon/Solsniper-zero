@@ -57,6 +57,41 @@ async def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_sync_snapshots_stored(tmp_path, monkeypatch):
+    db = tmp_path / "data.db"
+
+    class FakeResp:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def raise_for_status(self):
+            pass
+        async def json(self):
+            return {"snapshots": [
+                {"price": 1.0, "depth": 2.0, "total_depth": 3.0, "imbalance": 0.1},
+                {"price": 1.1, "depth": 2.1, "total_depth": 3.1, "imbalance": 0.2},
+            ]}
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        def get(self, url, timeout=10):
+            return FakeResp()
+
+    monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
+    monkeypatch.setattr(data_sync, "fetch_sentiment_async", lambda *a, **k: 0.0)
+
+    await data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=1.0, base_url="http://api")
+
+    data = OfflineData(f"sqlite:///{db}")
+    snaps = await data.list_snapshots("TOK")
+    assert len(snaps) == 2
+
+
+@pytest.mark.asyncio
 async def test_depth_snapshot_listener(tmp_path, monkeypatch):
     msg = {
         "tok": {
