@@ -233,6 +233,9 @@ Install the Rust toolchain if `cargo` isn't available:
   - `DEPTH_FREQ_LOW` / `DEPTH_FREQ_HIGH` – depth update rate thresholds in
     updates per second (defaults to `1` and `10`).
   - `--config <path>` – load these options from the given configuration file.
+  - To smooth out CPU spikes while keeping token scans responsive set
+    `CPU_LOW_THRESHOLD=30`, `CPU_HIGH_THRESHOLD=70`,
+    `CONCURRENCY_SMOOTHING=0.3` and `CONCURRENCY_KI=0.2` before running the bot.
 
 **Benchmarks**
 
