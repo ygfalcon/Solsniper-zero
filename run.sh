@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+# Ensure FAISS indexes are moved to GPU memory when available
+export GPU_MEMORY_INDEX="1"
+
 # Configure Rayon thread pool if not already set
 if [ -z "$RAYON_NUM_THREADS" ]; then
     if command -v nproc >/dev/null 2>&1; then
