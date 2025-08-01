@@ -144,8 +144,11 @@ def stub_sqlalchemy() -> None:
     class Table:
         pass
 
-    def create_engine(*a, **k):
-        return Engine()
+    _ENGINES: dict[str, Engine] = {}
+
+    def create_engine(url, *a, **k):
+        eng = _ENGINES.setdefault(url, Engine())
+        return eng
 
     class Query:
         def __init__(self, model, session=None):
@@ -176,6 +179,10 @@ def stub_sqlalchemy() -> None:
 
         def all(self):
             return self._execute()
+
+        def first(self):
+            data = self._execute()
+            return data[0] if data else None
 
         def filter(self, func):
             self.filters.append(func)
@@ -244,7 +251,7 @@ def stub_sqlalchemy() -> None:
             for o in objs:
                 self.add(o)
 
-        def commit(self):
+        async def commit(self):
             pass
 
         async def run_sync(self, func):
