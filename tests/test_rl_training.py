@@ -479,6 +479,48 @@ async def test_trade_data_prefetch(monkeypatch, tmp_path):
     assert dm.dataset is not None
 
 
+@pytest.mark.asyncio
+async def test_mmap_created_on_daemon_train(monkeypatch, tmp_path):
+    from solhunter_zero.offline_data import OfflineData
+    from scripts import build_mmap_dataset
+    import psutil
+    monkeypatch.setattr(
+        psutil,
+        "Process",
+        lambda: types.SimpleNamespace(cpu_percent=lambda interval=None: 0.0),
+        raising=False,
+    )
+    from solhunter_zero.rl_daemon import RLDaemon
+
+    db_path = tmp_path / "data.db"
+    db_url = f"sqlite:///{db_path}"
+    data = OfflineData(db_url)
+    await data.log_snapshot("tok", 1.0, 1.0, total_depth=1.0, imbalance=0.0)
+    await data.log_trade("tok", "buy", 1.0, 1.0)
+
+    mmap_path = tmp_path / "datasets" / "offline_data.npz"
+
+    def fake_main(args=None):
+        mmap_path.parent.mkdir(exist_ok=True)
+        mmap_path.write_bytes(b"x")
+        return 0
+
+    monkeypatch.setattr(build_mmap_dataset, "main", fake_main)
+    monkeypatch.chdir(tmp_path)
+
+    daemon = RLDaemon(
+        memory_path=f"sqlite:///{tmp_path/'mem.db'}",
+        data_path=str(db_path),
+        model_path=tmp_path / "model.pt",
+    )
+
+    daemon.train()
+
+    assert mmap_path.exists()
+    daemon.close()
+    mmap_path.unlink()
+
+
 def test_prioritized_sampler(monkeypatch):
     import types
     import datetime as dt
