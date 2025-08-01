@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -e
 
+# Configure Rayon thread pool if not already set
+if [ -z "$RAYON_NUM_THREADS" ]; then
+    if command -v nproc >/dev/null 2>&1; then
+        export RAYON_NUM_THREADS="$(nproc)"
+    elif command -v getconf >/dev/null 2>&1; then
+        export RAYON_NUM_THREADS="$(getconf _NPROCESSORS_ONLN)"
+    else
+        export RAYON_NUM_THREADS="$(python - <<'EOF'
+import os
+print(os.cpu_count() or 1)
+EOF
+)"
+    fi
+fi
+
 check_deps() {
   python - <<'PY'
 import pkgutil, re, sys, tomllib, json
