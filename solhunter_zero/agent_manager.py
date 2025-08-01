@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from .jsonutil import loads, dumps
+from .util import run_coro
 import os
 import random
 import inspect
@@ -503,7 +504,7 @@ class AgentManager:
         if not self.memory_agent:
             return
 
-        trades = self.memory_agent.memory.list_trades(limit=1000)
+        trades = run_coro(self.memory_agent.memory.list_trades(limit=1000))
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             name = t.reason or ""
