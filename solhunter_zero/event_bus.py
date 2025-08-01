@@ -247,6 +247,9 @@ if _WS_COMPRESSION:
     if comp in {"", "none", "0"}:
         _WS_COMPRESSION = None
 
+# how long to buffer outgoing events before flushing (ms)
+_EVENT_BATCH_MS = int(os.getenv("EVENT_BATCH_MS", "0") or 0)
+
 # magic header for batched binary websocket messages
 _BATCH_MAGIC = b"EBAT"
 _MP_BATCH_MAGIC = b"EBMP"
@@ -744,16 +747,29 @@ async def _flush_outgoing() -> None:
     q = _outgoing_queue
     if q is None:
         return
+    loop = asyncio.get_running_loop()
+    delay = _EVENT_BATCH_MS / 1000.0
     while True:
         # wait for at least one message
         msg = await q.get()
         msgs: list[Any] = [msg]
-        # drain the queue until empty so we batch dispatch
-        while True:
-            try:
-                msgs.append(q.get_nowait())
-            except asyncio.QueueEmpty:
-                break
+        if delay > 0:
+            end = loop.time() + delay
+            while True:
+                timeout = end - loop.time()
+                if timeout <= 0:
+                    break
+                try:
+                    nxt = await asyncio.wait_for(q.get(), timeout=timeout)
+                    msgs.append(nxt)
+                except asyncio.TimeoutError:
+                    break
+        else:
+            while True:
+                try:
+                    msgs.append(q.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
         if len(msgs) == 1:
             await broadcast_ws(msgs[0])
         else:
@@ -950,6 +966,12 @@ async def connect_ws(url: str):
         pass
     _peer_clients[url] = ws
     _peer_urls.add(url)
+    global _outgoing_queue, _flush_task
+    if _outgoing_queue is None:
+        _outgoing_queue = Queue()
+    if _flush_task is None or _flush_task.done():
+        loop = asyncio.get_running_loop()
+        _flush_task = loop.create_task(_flush_outgoing())
     asyncio.create_task(_receiver(ws))
     task = _watch_tasks.get(url)
     if task is None or task.done():
@@ -960,7 +982,7 @@ async def connect_ws(url: str):
 
 async def disconnect_ws() -> None:
     """Close websocket connection opened via ``connect_ws``."""
-    global _peer_clients, _peer_urls, _watch_tasks
+    global _peer_clients, _peer_urls, _watch_tasks, _outgoing_queue, _flush_task
     for ws in list(_peer_clients.values()):
         try:
             await ws.close()
@@ -971,6 +993,10 @@ async def disconnect_ws() -> None:
     for t in _watch_tasks.values():
         t.cancel()
     _watch_tasks.clear()
+    if _flush_task is not None:
+        _flush_task.cancel()
+        _flush_task = None
+    _outgoing_queue = None
     try:
         from . import resource_monitor
 
