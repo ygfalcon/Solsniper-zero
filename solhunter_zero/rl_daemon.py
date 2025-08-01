@@ -475,6 +475,16 @@ class RLDaemon:
         from .models import load_compiled_model
         self.jit_model = load_compiled_model(str(self.model_path), self.device)
         self.agents: List[Any] = list(agents) if agents else []
+        if self.hierarchical_rl:
+            names = [getattr(a, "name", str(i)) for i, a in enumerate(self.agents)]
+            try:
+                self.hier_policy = load_policy(
+                    str(self.hierarchical_model_path), len(names)
+                )
+                self.hier_weights = self.hier_policy.predict(names)
+            except Exception as exc:  # pragma: no cover - log errors
+                logger.error("failed to load hierarchical policy: %s", exc)
+                self.hier_weights = {}
         self._task: asyncio.Task | None = None
         self._hb_task: asyncio.Task | None = None
         self._proc: subprocess.Popen | None = None
