@@ -110,7 +110,9 @@ event_bus_peers = []  # additional event bus peer URLs
 ws_ping_interval = 20  # websocket ping interval in seconds
 ws_ping_timeout = 20  # seconds to wait for pong before closing
 broker_url = ""  # optional Redis or NATS endpoint
-broker_urls = ""  # comma-separated list of broker URLs
+# Point to your lowest-latency broker(s). Multiple entries may be comma
+# separated. Redis or NATS are both supported.
+broker_urls = "redis://localhost:6379"  # comma-separated list of broker URLs
 replicate_trades = false  # subscribe to trade_logged events when true
 memory_sync_interval = 5.0  # seconds between trade sync requests
 weights_path = "weights.json"
