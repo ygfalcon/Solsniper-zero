@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import heapq
 import time
 from collections import OrderedDict
 from typing import Any, Hashable, Iterable
@@ -41,17 +42,23 @@ class TTLCache(_BaseTTL):
         self.maxsize = maxsize
         self.ttl = float(ttl)
         self._data: "OrderedDict[Hashable, tuple[Any, float]]" = OrderedDict()
+        self._expiry_heap: list[tuple[float, Hashable]] = []
         self._pending: dict[Hashable, asyncio.Task] = {}
         self._lock = asyncio.Lock()
 
     # internal helpers -----------------------------------------------------
     def _purge(self) -> None:
         now = time.monotonic()
-        keys: Iterable[Hashable] = list(self._data.keys())
-        for k in keys:
-            _, exp = self._data[k]
-            if exp <= now:
-                self._data.pop(k, None)
+        heap = self._expiry_heap
+        data = self._data
+        while heap and heap[0][0] <= now:
+            exp, key = heapq.heappop(heap)
+            item = data.get(key)
+            if item is None:
+                continue
+            _, real_exp = item
+            if real_exp <= now:
+                data.pop(key, None)
 
     def _evict(self) -> None:
         while len(self._data) > self.maxsize:
@@ -83,7 +90,9 @@ class TTLCache(_BaseTTL):
 
     def set(self, key: Hashable, value: Any) -> None:
         self._purge()
-        self._data[key] = (value, time.monotonic() + self.ttl)
+        exp = time.monotonic() + self.ttl
+        self._data[key] = (value, exp)
+        heapq.heappush(self._expiry_heap, (exp, key))
         self._evict()
 
     def pop(self, key: Hashable, default: Any = None) -> Any:
@@ -94,6 +103,7 @@ class TTLCache(_BaseTTL):
 
     def clear(self) -> None:  # pragma: no cover - trivial
         self._data.clear()
+        self._expiry_heap.clear()
 
     def keys(self):  # pragma: no cover - trivial
         self._purge()
