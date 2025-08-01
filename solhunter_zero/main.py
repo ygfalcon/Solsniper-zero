@@ -124,7 +124,8 @@ _LAST_TOKENS: list[str] = []
 
 _HIGH_RISK_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
 
-logging.basicConfig(level=logging.INFO)
+_level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
+logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
 
 
 async def _run_iteration(
