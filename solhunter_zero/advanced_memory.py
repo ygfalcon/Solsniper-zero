@@ -4,6 +4,7 @@ import os
 import datetime
 import uuid as uuid_module
 from typing import List, Any
+from collections.abc import Iterable
 
 import numpy as np
 try:  # optional heavy deps
@@ -73,7 +74,7 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id = Column(Integer, primary_key=True)
-    uuid = Column(String, unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
+    uuid = Column(String, unique=True, nullable=False, default=lambda: str(uuid_module.uuid4()))
     token = Column(String, nullable=False)
     direction = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
