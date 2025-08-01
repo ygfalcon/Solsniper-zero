@@ -3,18 +3,29 @@ import psutil
 
 # Module level parameters read once on import.
 _KP: float = float(os.getenv("CONCURRENCY_KP", "0.5") or 0.5)
-_SMOOTHING: float = float(os.getenv("CONCURRENCY_SMOOTHING", "0.2") or 0.2)
+_EWM_SMOOTHING: float = float(
+    os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15
+)
 _CPU_EMA: float = 0.0
 
 
 def refresh_params() -> None:
     """Reload concurrency parameters from environment variables."""
-    global _KP, _SMOOTHING
+    global _KP, _EWM_SMOOTHING
     _KP = float(os.getenv("CONCURRENCY_KP", str(_KP)) or _KP)
-    _SMOOTHING = float(os.getenv("CONCURRENCY_SMOOTHING", str(_SMOOTHING)) or _SMOOTHING)
+    _EWM_SMOOTHING = float(
+        os.getenv("CONCURRENCY_EWM_SMOOTHING", str(_EWM_SMOOTHING)) or _EWM_SMOOTHING
+    )
 
 
-def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
+def _target_concurrency(
+    cpu: float,
+    base: int,
+    low: float,
+    high: float,
+    *,
+    smoothing: float | None = None,
+) -> int:
     """Return desired concurrency for ``cpu`` usage.
 
     The function smooths CPU usage using an exponential moving average and
@@ -23,7 +34,9 @@ def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
 
     global _CPU_EMA
 
-    smoothing = _SMOOTHING
+    if smoothing is None:
+        smoothing = _EWM_SMOOTHING
+
     if _CPU_EMA:
         _CPU_EMA = smoothing * cpu + (1.0 - smoothing) * _CPU_EMA
     else:
@@ -44,11 +57,14 @@ def _target_concurrency(cpu: float, base: int, low: float, high: float) -> int:
     return max(1, int(round(base * (1.0 - frac))))
 
 
-def _step_limit(current: int, target: int, max_val: int) -> int:
-    """Move ``current`` towards ``target`` using :data:`_KP`."""
+def _step_limit(
+    current: int, target: int, max_val: int, *, smoothing: float | None = None
+) -> int:
+    """Move ``current`` towards ``target`` using an exponential update."""
 
-    kp = _KP
-    new_val = current + kp * (target - current)
+    if smoothing is None:
+        smoothing = _KP
+    new_val = current + smoothing * (target - current)
     new_val = int(round(new_val))
     if new_val > max_val:
         return max_val
