@@ -63,6 +63,7 @@ def load_state(path: str) -> dict:
 
 
 def save_state(state: dict, path: str) -> None:
+    """Persist ``state`` to ``path`` safely."""
     tmp = os.path.join(os.path.dirname(path), ".tmp_state")
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(state, fh)

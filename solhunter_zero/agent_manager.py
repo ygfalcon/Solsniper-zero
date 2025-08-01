@@ -228,6 +228,7 @@ class AgentManager:
             else "mutation_state.json"
         )
         self.mutation_state = mutation.load_state(self.mutation_path)
+        self._restore_mutations()
 
         self.strategy_selection = strategy_selection
         self.vote_threshold = float(vote_threshold)
@@ -598,11 +599,45 @@ class AgentManager:
                 rois[name] = (revenue - spent) / spent
         return rois
 
+    def _active_names(self) -> list[str]:
+        active = self.mutation_state.get("active", [])
+        if active and isinstance(active[0], dict):
+            return [str(a.get("name")) for a in active if isinstance(a, dict)]
+        return [str(a) for a in active]
+
+    def _restore_mutations(self) -> None:
+        active = self.mutation_state.get("active", [])
+        if not active or not isinstance(active[0], dict):
+            return
+        existing = {a.name for a in self.agents}
+        for info in active:
+            if not isinstance(info, dict):
+                continue
+            name = str(info.get("name"))
+            if name in existing:
+                continue
+            base_cls = str(info.get("base"))
+            params = info.get("params", {}) if isinstance(info.get("params", {}), dict) else {}
+            base_agent = next((a for a in self.agents if a.__class__.__name__ == base_cls or a.name == base_cls), None)
+            if base_agent is None:
+                try:
+                    base_agent = load_agent(base_cls)
+                except Exception:
+                    try:
+                        base_agent = load_agent(base_cls.lower())
+                    except Exception:
+                        base_agent = None
+            if base_agent is None:
+                continue
+            cloned = mutation.clone_agent(base_agent, name=name, **params)
+            self.agents.append(cloned)
+            existing.add(name)
+
     def spawn_mutations(self, count: int = 1) -> List[BaseAgent]:
         base_agents = [
             a
             for a in self.agents
-            if a.name not in self.mutation_state.get("active", [])
+            if a.name not in self._active_names()
             and not isinstance(a, MemoryAgent)
         ]
         spawned: List[BaseAgent] = []
@@ -612,30 +647,41 @@ class AgentManager:
             base = random.choice(base_agents)
             name = (
                 f"{base.name}_m"
-                f"{len(self.mutation_state.get('active', [])) + 1}"
+                f"{len(self._active_names()) + 1}"
             )
             mutated = mutation.mutate_agent(base, name=name)
             self.agents.append(mutated)
-            self.mutation_state.setdefault("active", []).append(mutated.name)
+            self.mutation_state.setdefault("active", []).append(
+                {"name": mutated.name, "base": base.__class__.__name__, "params": {}}
+            )
             spawned.append(mutated)
         return spawned
 
     def prune_underperforming(self, threshold: float = 0.0) -> None:
-        active = list(self.mutation_state.get("active", []))
-        if not active:
+        entries = list(self.mutation_state.get("active", []))
+        if not entries:
             return
-        rois = self._roi_by_agent(active)
-        keep = []
+        name_map = {}
+        names = []
+        for e in entries:
+            if isinstance(e, dict):
+                name_map[e.get("name")] = e
+                names.append(str(e.get("name")))
+            else:
+                name_map[e] = e
+                names.append(str(e))
+        rois = self._roi_by_agent(names)
+        keep_entries = []
         remaining_agents = []
         for agent in self.agents:
-            if agent.name in active:
+            if agent.name in names:
                 if rois.get(agent.name, 0.0) >= threshold:
                     remaining_agents.append(agent)
-                    keep.append(agent.name)
+                    keep_entries.append(name_map[agent.name])
             else:
                 remaining_agents.append(agent)
         self.agents = remaining_agents
-        self.mutation_state["active"] = keep
+        self.mutation_state["active"] = keep_entries
         self.mutation_state.setdefault("roi", {}).update(rois)
 
     def save_mutation_state(
@@ -677,7 +723,11 @@ class AgentManager:
                 ).roi
                 if roi < baseline:
                     self.agents.remove(agent)
-                    self.mutation_state.get("active", []).remove(agent.name)
+                    act = self.mutation_state.get("active", [])
+                    for i, info in enumerate(list(act)):
+                        if (isinstance(info, dict) and info.get("name") == agent.name) or info == agent.name:
+                            act.pop(i)
+                            break
                 else:
                     if self.memory_agent and isinstance(
                         self.memory_agent.memory, AdvancedMemory
