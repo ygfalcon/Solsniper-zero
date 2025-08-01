@@ -1,6 +1,10 @@
 import asyncio
 import logging
 import os
+
+# Configure Rayon parallelism for the Rust FFI
+if not os.getenv("RAYON_NUM_THREADS"):
+    os.environ["RAYON_NUM_THREADS"] = str(os.cpu_count() or 1)
 from .http import get_session, loads, dumps
 import heapq
 import time
