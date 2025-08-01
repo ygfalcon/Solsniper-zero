@@ -140,6 +140,12 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.api"] = rpc_mod.api
     sys.modules["solana.rpc.async_api"] = rpc_mod.api
     sys.modules["solana.rpc.websocket_api"] = rpc_mod.websocket_api
+else:
+    import solana.rpc.websocket_api as ws_mod
+
+    ws_mod.connect = lambda *a, **k: None
+    if not hasattr(ws_mod, "RpcTransactionLogsFilterMentions"):
+        ws_mod.RpcTransactionLogsFilterMentions = object
 
 if importlib.util.find_spec("numpy") is None:
     np_mod = types.ModuleType("numpy")

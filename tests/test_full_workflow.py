@@ -39,6 +39,22 @@ _xgb_mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
 _xgb_mod.XGBRegressor = object
 sys.modules["xgboost"] = _xgb_mod
 
+# Ensure websocket RPC API never connects over network
+if importlib.util.find_spec("solana.rpc.websocket_api") is None:
+    ws_mod = types.ModuleType("solana.rpc.websocket_api")
+    ws_mod.__spec__ = importlib.machinery.ModuleSpec(
+        "solana.rpc.websocket_api", None
+    )
+    ws_mod.connect = lambda *a, **k: None
+    ws_mod.RpcTransactionLogsFilterMentions = object
+    sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
+else:
+    import solana.rpc.websocket_api as ws_mod
+
+    ws_mod.connect = lambda *a, **k: None
+    if not hasattr(ws_mod, "RpcTransactionLogsFilterMentions"):
+        ws_mod.RpcTransactionLogsFilterMentions = object
+
 
 def test_full_workflow(monkeypatch):
     mem = main_module.Memory("sqlite:///:memory:")
