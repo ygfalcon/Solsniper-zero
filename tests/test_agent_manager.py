@@ -1,42 +1,8 @@
 import json
 import asyncio
-import sys
-import types
-import importlib.util
-import importlib.machinery
+import pytest
 
-# Stub heavy optional dependencies to keep import lightweight
-dummy_trans = types.ModuleType("transformers")
-dummy_trans.pipeline = lambda *a, **k: lambda x: []
-if importlib.util.find_spec("transformers") is None:
-    dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
-    sys.modules.setdefault("transformers", dummy_trans)
-if importlib.util.find_spec("sentence_transformers") is None:
-    st_mod = types.ModuleType("sentence_transformers")
-    st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
-    sys.modules.setdefault("sentence_transformers", st_mod)
-if importlib.util.find_spec("faiss") is None:
-    faiss_mod = types.ModuleType("faiss")
-    faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
-    sys.modules.setdefault("faiss", faiss_mod)
-if importlib.util.find_spec("torch") is None:
-    tmod = types.ModuleType("torch")
-    tmod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
-    sys.modules.setdefault("torch", tmod)
-    nn_mod = types.ModuleType("torch.nn")
-    nn_mod.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
-    sys.modules.setdefault("torch.nn", nn_mod)
-    opt_mod = types.ModuleType("torch.optim")
-    opt_mod.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
-    sys.modules.setdefault("torch.optim", opt_mod)
-if importlib.util.find_spec("pytorch_lightning") is None:
-    pl = types.ModuleType("pytorch_lightning")
-    pl.__spec__ = importlib.machinery.ModuleSpec("pytorch_lightning", None)
-    pl.callbacks = types.SimpleNamespace(Callback=object)
-    pl.LightningModule = object
-    pl.LightningDataModule = object
-    pl.Trainer = object
-    sys.modules.setdefault("pytorch_lightning", pl)
+pytest.importorskip("torch")
 
 from solhunter_zero.agent_manager import AgentManager
 from solhunter_zero.agents.memory import MemoryAgent
