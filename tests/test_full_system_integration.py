@@ -274,7 +274,7 @@ def test_full_system_integration(monkeypatch, tmp_path):
             self.trades = []
             mem_inst["obj"] = self
 
-        def log_trade(self, **kw):
+        async def log_trade(self, **kw):
             self.trades.append(types.SimpleNamespace(**kw))
 
         def list_trades(self):
