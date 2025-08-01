@@ -202,7 +202,7 @@ def test_paper(monkeypatch):
 
     asyncio.run(main_module._run_iteration(mem, pf, dry_run=False, offline=True))
 
-    trades = mem.list_trades()
+    trades = asyncio.run(mem.list_trades())
     assert len(trades) == 1
     assert trades[0].token == "TOK"
     assert pf.balances["TOK"].amount > 0

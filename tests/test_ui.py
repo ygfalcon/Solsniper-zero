@@ -405,7 +405,7 @@ def test_memory_insert(monkeypatch):
         },
     )
     assert resp.get_json()["status"] == "ok"
-    trades = mem.list_trades()
+    trades = asyncio.run(mem.list_trades())
     assert len(trades) == 1 and trades[0].token == "TOK"
 
 
@@ -418,7 +418,7 @@ def test_memory_update(monkeypatch):
         json={"sql": "UPDATE trades SET price=:p WHERE token=:t", "params": {"p": 3.0, "t": "TOK"}},
     )
     assert resp.get_json()["rows"] == 1
-    assert mem.list_trades()[0].price == 3.0
+    assert asyncio.run(mem.list_trades())[0].price == 3.0
 
 
 def test_memory_query(monkeypatch):
