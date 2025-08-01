@@ -14,6 +14,7 @@ from .advanced_memory import AdvancedMemory
 
 try:
     from numba import njit  # type: ignore
+
     _NUMBA = True
 except Exception:  # pragma: no cover - optional
     _NUMBA = False
@@ -24,18 +25,27 @@ except Exception:  # pragma: no cover - optional
 
         return wrapper
 
+
 import numpy as np
-import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
+
+try:  # pragma: no cover - optional dependency
+    import torch
+    from torch import nn
+    from torch.utils.data import Dataset, DataLoader
+except ImportError as exc:  # pragma: no cover - optional
+    raise ImportError(
+        "torch is required for RL training; install it via `pip install torch`"
+    ) from exc
 try:
     from torch.utils.data import WeightedRandomSampler
 except Exception:  # pragma: no cover - optional dependency
     WeightedRandomSampler = None  # type: ignore
 from typing import Callable
+
 try:
     import pytorch_lightning as pl
 except Exception:  # pragma: no cover - optional dependency
+
     class _Trainer:
         def __init__(self, *a, **k):
             pass
@@ -51,6 +61,9 @@ except Exception:  # pragma: no cover - optional dependency
         LightningModule = _LightningModule
         LightningDataModule = object
         Trainer = _Trainer
+
+        class callbacks:
+            Callback = object
 
     pl = _PL()
 
@@ -75,6 +88,7 @@ def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
         except Exception:
             return 0.0
     if _CPU_SUB is None:
+
         def _update(payload: Any) -> None:
             global _CPU_USAGE
             try:
@@ -134,13 +148,17 @@ def _ensure_mmap_dataset(db_url: str, out_path: Path) -> None:
     try:
         build_mmap_dataset.main(["--db", db_path, "--out", str(out_path)])
     except Exception as exc:  # pragma: no cover - generation failure
-        logging.getLogger(__name__).warning(
-            "failed to build mmap dataset: %s", exc
-        )
+        logging.getLogger(__name__).warning("failed to build mmap dataset: %s", exc)
 
 
 @njit(cache=True)
-def _compute_regimes_nb(prices: np.ndarray, inv: np.ndarray, first_price: np.ndarray, weight: float, thr: float) -> np.ndarray:
+def _compute_regimes_nb(
+    prices: np.ndarray,
+    inv: np.ndarray,
+    first_price: np.ndarray,
+    weight: float,
+    thr: float,
+) -> np.ndarray:
     n = prices.shape[0]
     out = np.zeros(n, dtype=np.float32)
     for i in range(n):
@@ -153,11 +171,19 @@ def _compute_regimes_nb(prices: np.ndarray, inv: np.ndarray, first_price: np.nda
     return out
 
 
-def _compute_regimes(tokens: np.ndarray, prices: np.ndarray, weight: float, thr: float = 0.02) -> np.ndarray:
+def _compute_regimes(
+    tokens: np.ndarray, prices: np.ndarray, weight: float, thr: float = 0.02
+) -> np.ndarray:
     uniq, first_idx, inv = np.unique(tokens, return_index=True, return_inverse=True)
     first_price = prices[first_idx]
     if _NUMBA:
-        return _compute_regimes_nb(prices.astype(np.float32), inv.astype(np.int64), first_price.astype(np.float32), weight, thr)
+        return _compute_regimes_nb(
+            prices.astype(np.float32),
+            inv.astype(np.int64),
+            first_price.astype(np.float32),
+            weight,
+            thr,
+        )
     base = first_price[inv]
     change = prices / base - 1.0
     res = np.where(change > thr, 1.0, np.where(change < -thr, -1.0, 0.0))
@@ -186,7 +212,9 @@ class LiveTradeDataset:
                     token=getattr(payload, "token", None) or payload.get("token"),
                     direction=getattr(payload, "direction", None)
                     or payload.get("direction"),
-                    amount=float(getattr(payload, "amount", payload.get("amount", 0.0))),
+                    amount=float(
+                        getattr(payload, "amount", payload.get("amount", 0.0))
+                    ),
                     price=float(getattr(payload, "price", payload.get("price", 0.0))),
                     timestamp=getattr(payload, "timestamp", datetime.datetime.utcnow()),
                 )
@@ -201,7 +229,9 @@ class LiveTradeDataset:
                 bids = float(getattr(info, "bids", info.get("bids", 0.0)))
                 asks = float(getattr(info, "asks", info.get("asks", 0.0)))
                 tx = float(getattr(info, "tx_rate", info.get("tx_rate", 0.0)))
-                t = datetime.datetime.utcfromtimestamp(float(ts or getattr(info, "ts", time.time())))
+                t = datetime.datetime.utcfromtimestamp(
+                    float(ts or getattr(info, "ts", time.time()))
+                )
                 self.snaps.append(
                     SimpleNamespace(
                         token=tok,
@@ -291,7 +321,10 @@ class _TradeDataset(Dataset):
             [float(getattr(t, "amount", 0.0)) for t in trade_list], dtype=np.float32
         )
         timestamps = np.array(
-            [getattr(t, "timestamp", datetime.datetime.utcnow()).timestamp() for t in trade_list],
+            [
+                getattr(t, "timestamp", datetime.datetime.utcnow()).timestamp()
+                for t in trade_list
+            ],
             dtype=np.float64,
         )
         sides = [getattr(t, "side", getattr(t, "direction", "buy")) for t in trade_list]
@@ -420,7 +453,9 @@ class _TradeDataset(Dataset):
 class PrioritizedReplayDataset(Dataset):
     """Wrap a dataset and expose sampling weights."""
 
-    def __init__(self, dataset: Dataset, priorities: Iterable[float] | None = None) -> None:
+    def __init__(
+        self, dataset: Dataset, priorities: Iterable[float] | None = None
+    ) -> None:
         self.dataset = dataset
         if priorities is None:
             priorities = getattr(dataset, "priorities", None)
@@ -431,7 +466,9 @@ class PrioritizedReplayDataset(Dataset):
             weights[:] = 1.0
         self.weights = weights
         if WeightedRandomSampler is not None:
-            self.sampler = WeightedRandomSampler(self.weights, len(self.weights), replacement=True)
+            self.sampler = WeightedRandomSampler(
+                self.weights, len(self.weights), replacement=True
+            )
         else:  # pragma: no cover - optional dependency
             self.sampler = None  # type: ignore
 
@@ -509,7 +546,9 @@ class TradeDataModule(pl.LightningDataModule):
             loader.pin_memory = self.pin_memory and new_val > 0
             loader.persistent_workers = self.persistent_workers and new_val > 0
 
-    async def setup(self, stage: str | None = None) -> None:  # pragma: no cover - simple
+    async def setup(
+        self, stage: str | None = None
+    ) -> None:  # pragma: no cover - simple
         if self.mmap_path is None:
             default = Path("datasets/offline_data.npz")
             if not default.exists():
@@ -595,7 +634,13 @@ class TradeDataModule(pl.LightningDataModule):
 class LightningPPO(pl.LightningModule):
     """Minimal PPO actor-critic implementation."""
 
-    def __init__(self, hidden_size: int = 32, lr: float = 3e-4, gamma: float = 0.99, clip_epsilon: float = 0.2) -> None:
+    def __init__(
+        self,
+        hidden_size: int = 32,
+        lr: float = 3e-4,
+        gamma: float = 0.99,
+        clip_epsilon: float = 0.2,
+    ) -> None:
         super().__init__()
         self.save_hyperparameters()
         self.actor = nn.Sequential(
@@ -613,7 +658,9 @@ class LightningPPO(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - trivial
         return self.actor(x)
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int):
+    def training_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+    ):
         states, actions, rewards = batch
         dist = torch.distributions.Categorical(logits=self.actor(states))
         log_probs = dist.log_prob(actions)
@@ -623,7 +670,12 @@ class LightningPPO(pl.LightningModule):
             returns = rewards
         ratio = torch.exp(log_probs - log_probs.detach())
         s1 = ratio * advantages
-        s2 = torch.clamp(ratio, 1 - self.hparams.clip_epsilon, 1 + self.hparams.clip_epsilon) * advantages
+        s2 = (
+            torch.clamp(
+                ratio, 1 - self.hparams.clip_epsilon, 1 + self.hparams.clip_epsilon
+            )
+            * advantages
+        )
         actor_loss = -torch.min(s1, s2).mean()
         critic_loss = self.loss_fn(values, returns)
         loss = actor_loss + 0.5 * critic_loss
@@ -654,7 +706,9 @@ class LightningDQN(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - trivial
         return self.model(x)
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int):
+    def training_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+    ):
         states, actions, rewards = batch
         q = self.model(states)
         target = q.detach().clone()
@@ -693,7 +747,9 @@ class LightningA3C(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - trivial
         return self.actor(x)
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int):
+    def training_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int
+    ):
         states, actions, rewards = batch
         logits = self.actor(states)
         log_probs = torch.log_softmax(logits, dim=-1)
@@ -736,7 +792,12 @@ class LightningDDPG(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - trivial
         return self.actor(x)
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], batch_idx: int, optimizer_idx: int = 0):
+    def training_step(
+        self,
+        batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        batch_idx: int,
+        optimizer_idx: int = 0,
+    ):
         states, actions, rewards = batch
         if optimizer_idx == 0:
             actions = self.actor(states)
@@ -781,7 +842,9 @@ class _MetricsCallback(pl.callbacks.Callback):
 class _DynamicWorkersCallback(pl.callbacks.Callback):
     """Callback adjusting ``DataLoader`` worker count before each epoch."""
 
-    def on_train_epoch_start(self, trainer, pl_module) -> None:  # pragma: no cover - simple
+    def on_train_epoch_start(
+        self, trainer, pl_module
+    ) -> None:  # pragma: no cover - simple
         dm = getattr(trainer, "datamodule", None)
         if dm is None or not hasattr(dm, "recompute_workers"):
             return
@@ -841,12 +904,16 @@ class RLTraining:
             mmap_path=mmap_path,
             num_workers=num_workers,
             pin_memory=pin_memory if pin_memory is not None else True,
-            persistent_workers=persistent_workers if persistent_workers is not None else True,
+            persistent_workers=(
+                persistent_workers if persistent_workers is not None else True
+            ),
             dynamic_workers=dyn_workers,
             prioritized_replay=prioritized_replay,
             cpu_callback=cpu_callback,
         )
-        self.worker_update_interval = worker_update_interval if worker_update_interval is not None else 10.0
+        self.worker_update_interval = (
+            worker_update_interval if worker_update_interval is not None else 10.0
+        )
         self._worker_last = 0.0
         self._worker_loaders: list[DataLoader] = []
         self._worker_sub = None
@@ -872,6 +939,7 @@ class RLTraining:
                 device = "cpu"
         self.device = device
         from .models import load_compiled_model
+
         self.jit_model = load_compiled_model(str(self.model_path), device)
         acc = "gpu" if device == "cuda" else device
         kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
@@ -881,6 +949,7 @@ class RLTraining:
         self._task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
         from .metrics_client import start_metrics_exporter
+
         self._metrics_sub = start_metrics_exporter(metrics_url)
 
     def close(self) -> None:
@@ -904,13 +973,13 @@ class RLTraining:
         try:
             export_torchscript(self.model.cpu(), self.model_path.with_suffix(".ptc"))
         except Exception as exc:  # pragma: no cover - scripting optional
-            logging.getLogger(__name__).warning(
-                "failed to export torchscript: %s", exc
-            )
+            logging.getLogger(__name__).warning("failed to export torchscript: %s", exc)
         if os.getenv("EXPORT_ONNX"):
             try:
                 sample = torch.zeros(1, 9, dtype=torch.float32)
-                export_onnx(self.model.cpu(), self.model_path.with_suffix(".onnx"), sample)
+                export_onnx(
+                    self.model.cpu(), self.model_path.with_suffix(".onnx"), sample
+                )
             except Exception as exc:  # pragma: no cover - optional
                 logging.getLogger(__name__).warning("failed to export onnx: %s", exc)
         self.model.to(self.device)
@@ -1017,10 +1086,17 @@ def fit(
     else:
         model = LightningPPO()
 
-    use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+    use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
     if use_compile:
         try:
-            if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:
+            if (
+                getattr(torch, "compile", None)
+                and int(torch.__version__.split(".")[0]) >= 2
+            ):
                 model = torch.compile(model)
         except Exception:
             pass
@@ -1114,9 +1190,7 @@ class MultiAgentRL:
         self._algos_used: list[str] = []
         for i in range(self.population_size):
             algo = self.algos[i % len(self.algos)]
-            path = Path(model_base).with_name(
-                f"{Path(model_base).stem}_{i}_{algo}.pt"
-            )
+            path = Path(model_base).with_name(f"{Path(model_base).stem}_{i}_{algo}.pt")
             self.model_paths.append(path)
             self.trainers.append(
                 RLTraining(
@@ -1130,7 +1204,9 @@ class MultiAgentRL:
             )
             self._algos_used.append(algo)
         self.best_idx: int | None = None
-        self.controller = PopulationRL(None, population_size=self.population_size, weights_path=str(ctrl_path))
+        self.controller = PopulationRL(
+            None, population_size=self.population_size, weights_path=str(ctrl_path)
+        )
 
     def close(self) -> None:
         for t in self.trainers:

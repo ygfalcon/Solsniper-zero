@@ -7,8 +7,18 @@ import aiohttp
 import asyncio
 from typing import List
 
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+try:  # pragma: no cover - optional dependency
+    from sklearn.linear_model import LinearRegression
+    from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+except Exception:  # pragma: no cover - when scikit-learn is missing
+
+    class _MissingSklearn:
+        def __init__(self, *a, **k):
+            raise ImportError(
+                "scikit-learn is required; install it with `pip install scikit-learn`"
+            )
+
+    LinearRegression = GradientBoostingRegressor = RandomForestRegressor = _MissingSklearn  # type: ignore
 
 try:  # pragma: no cover - optional dependency
     from xgboost import XGBRegressor  # type: ignore
@@ -22,13 +32,15 @@ from solhunter_zero.lru import TTLCache
 
 # Optional GPU acceleration for simulations
 _use_gpu_env = os.getenv("USE_GPU_SIM")
-USE_GPU_SIM = (
-    _use_gpu_env is not None
-    and str(_use_gpu_env).lower() in {"1", "true", "yes"}
-)
+USE_GPU_SIM = _use_gpu_env is not None and str(_use_gpu_env).lower() in {
+    "1",
+    "true",
+    "yes",
+}
 _GPU_BACKEND = None
 try:  # pragma: no cover - optional dependency
     import torch  # type: ignore
+
     if torch.cuda.is_available() or (
         hasattr(torch, "backends")
         and hasattr(torch.backends, "mps")
@@ -42,6 +54,7 @@ except Exception:
 if _GPU_BACKEND is None:
     try:  # pragma: no cover - optional dependency
         import cupy as cp  # type: ignore
+
         if cp.cuda.runtime.getDeviceCount() > 0:
             _GPU_BACKEND = "cupy"
             if _use_gpu_env is None:
@@ -126,7 +139,9 @@ def _model_cache_key(token: str, model_type: str, metrics: dict, days: int) -> t
 def get_price_model(model_path: str | None = None):
     """Return cached price model reloading when the file changes."""
     global _PRICE_MODEL, _PRICE_MTIME
-    model_path = model_path or os.getenv("PRICE_MODEL_PATH") or os.getenv("GRAPH_MODEL_PATH")
+    model_path = (
+        model_path or os.getenv("PRICE_MODEL_PATH") or os.getenv("GRAPH_MODEL_PATH")
+    )
     if not model_path or not os.path.exists(model_path):
         _PRICE_MODEL = None
         _PRICE_MTIME = 0.0
@@ -199,7 +214,6 @@ class SimulationResult:
     activity_score: float = 0.0
 
 
-
 async def fetch_token_metrics_async(token: str) -> dict:
     """Asynchronously fetch historical return metrics for ``token``."""
 
@@ -250,7 +264,9 @@ async def fetch_token_metrics_async(token: str) -> dict:
             "tx_count_history": data.get("tx_count_history", []),
         }
 
-    dex_urls = [u.strip() for u in os.getenv("DEX_METRIC_URLS", "").split(",") if u.strip()]
+    dex_urls = [
+        u.strip() for u in os.getenv("DEX_METRIC_URLS", "").split(",") if u.strip()
+    ]
     depth_vals = []
     slip_vals = []
     session = await get_session()
@@ -419,7 +435,9 @@ def predict_price_movement(
             sh = metrics.get("slippage_history") or []
             vh = metrics.get("volume_history") or []
             th = metrics.get("tx_count_history") or []
-            n = min(len(ph), len(lh), len(dh), len(sh or ph), len(vh or ph), len(th or ph))
+            n = min(
+                len(ph), len(lh), len(dh), len(sh or ph), len(vh or ph), len(th or ph)
+            )
             if n >= 30:
                 seq = np.column_stack(
                     [
@@ -525,10 +543,10 @@ async def run_simulations_async(
             metrics["volume"] = await onchain_metrics.fetch_volume_onchain_async(
                 token, rpc_url
             )
-            metrics["slippage"] = onchain_metrics.fetch_slippage_onchain(
+            metrics["slippage"] = onchain_metrics.fetch_slippage_onchain(token, rpc_url)
+            insights = await onchain_metrics.collect_onchain_insights_async(
                 token, rpc_url
             )
-            insights = await onchain_metrics.collect_onchain_insights_async(token, rpc_url)
             depth_change = insights.get("depth_change", 0.0)
             tx_rate = insights.get("tx_rate", 0.0)
             whale_activity = insights.get("whale_activity", 0.0)
@@ -572,7 +590,9 @@ async def run_simulations_async(
     initial_liquidity = metrics.get("initial_liquidity")
     if initial_liquidity is None:
         liq_hist_default = metrics.get("liquidity_history") or []
-        initial_liquidity = float(liq_hist_default[0]) if liq_hist_default else float(liquidity)
+        initial_liquidity = (
+            float(liq_hist_default[0]) if liq_hist_default else float(liquidity)
+        )
     else:
         initial_liquidity = float(initial_liquidity)
 
@@ -581,11 +601,15 @@ async def run_simulations_async(
 
     depth = metrics.get("depth", 0.0)
 
-    sentiment_val = float(sentiment) if sentiment is not None else float(
-        metrics.get("sentiment", 0.0)
+    sentiment_val = (
+        float(sentiment)
+        if sentiment is not None
+        else float(metrics.get("sentiment", 0.0))
     )
-    order_strength = float(order_book_strength) if order_book_strength is not None else float(
-        metrics.get("order_book_strength", 0.0)
+    order_strength = (
+        float(order_book_strength)
+        if order_book_strength is not None
+        else float(metrics.get("order_book_strength", 0.0))
     )
 
     price_hist = metrics.get("price_history")
@@ -766,7 +790,6 @@ async def run_simulations_async(
         )
 
     return results
-
 
 
 def run_simulations(
