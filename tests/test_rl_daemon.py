@@ -220,20 +220,21 @@ def _no_load(self):
     self._last_mtime = os.path.getmtime(self.model_path)
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("algo", ["dqn", "a3c", "ddpg"])
-def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog, algo):
+async def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog, algo):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
     monkeypatch.setattr(Memory, "log_trade", lambda self, **kw: None)
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
-    mem.log_trade(token='tok', direction='sell', amount=1, price=2)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='sell', amount=1, price=2)
 
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, total_depth=1.5, imbalance=0.0)
-    data.log_snapshot('tok', 1.1, 1.0, total_depth=1.6, imbalance=0.0)
+    await data.log_snapshot('tok', 1.0, 1.0, total_depth=1.5, imbalance=0.0)
+    await data.log_snapshot('tok', 1.1, 1.0, total_depth=1.6, imbalance=0.0)
 
     model_path = tmp_path / 'model.pt'
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=model_path, algo=algo)
@@ -248,21 +249,22 @@ def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog, algo
     assert any("checkpoint" in r.message for r in caplog.records)
 
 
-def test_queued_trades_trigger_update(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_queued_trades_trigger_update(tmp_path, monkeypatch):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
     mem = Memory(mem_db)
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     queue: asyncio.Queue = asyncio.Queue()
     mem_agent = MemoryAgent(mem, offline_data=data, queue=queue)
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt', algo='dqn', queue=queue)
 
     action = {'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 1.0}
-    asyncio.run(mem_agent.log(action, skip_db=True))
+    await mem_agent.log(action, skip_db=True)
 
     daemon.train()
     assert (tmp_path / 'model.pt').exists()
@@ -286,16 +288,17 @@ def test_daemon_receives_risk_update(tmp_path):
     assert daemon.current_risk == 3.0
 
 
-def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
 
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     events = []
     from solhunter_zero.event_bus import subscribe
@@ -325,16 +328,17 @@ def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
     assert events[0].path.endswith("model.pt")
 
 
-def test_rl_weights_event_emitted(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_rl_weights_event_emitted(tmp_path, monkeypatch):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
 
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     events = []
     from solhunter_zero.event_bus import subscribe
@@ -360,16 +364,17 @@ def test_rl_weights_event_emitted(tmp_path, monkeypatch):
     assert events[0].weights
 
 
-def test_rl_metrics_event_emitted(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_rl_metrics_event_emitted(tmp_path, monkeypatch):
     mem_db = f"sqlite:///{tmp_path/'mem.db'}"
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
 
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     events = []
     from solhunter_zero.event_bus import subscribe
@@ -404,9 +409,11 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
     mem = Memory(mem_db)
     mem.log_trade(token='tok', direction='buy', amount=1, price=1)
 
-    monkeypatch.setattr(OfflineData, "log_snapshot", lambda *a, **k: None)
+    async def _snap(*a, **k):
+        pass
+    monkeypatch.setattr(OfflineData, "log_snapshot", _snap)
     data = OfflineData(data_db)
-    data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
+    await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     import solhunter_zero.rl_training as rl_training
     from pathlib import Path
