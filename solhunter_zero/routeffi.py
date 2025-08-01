@@ -5,6 +5,9 @@ import struct
 import logging
 import time
 
+if not os.getenv("RAYON_NUM_THREADS"):
+    os.environ["RAYON_NUM_THREADS"] = str(os.cpu_count() or 1)
+
 logger = logging.getLogger(__name__)
 
 LIB = None
@@ -377,6 +380,15 @@ def best_route(
     latency=None,
     max_hops=4,
 ):
+    if parallel_enabled() and hasattr(LIB, "best_route_parallel_bin"):
+        return _best_route_parallel_bin(
+            prices,
+            amount,
+            fees=fees,
+            gas=gas,
+            latency=latency,
+            max_hops=max_hops,
+        )
     if _BEST_ROUTE_FUNC is None:
         return None
     return _BEST_ROUTE_FUNC(

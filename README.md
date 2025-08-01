@@ -275,6 +275,8 @@ observed when CPU usage dropped sharply.
   the library is detected locally the arbitrage path search now calls it
   directly, improving route calculation speed by roughly a factor of two
   compared to the pure Python implementation.
+  The parallel FFI search is faster still, often another 3–4× speed-up
+  when `routeffi` exposes `best_route_parallel_bin`.
   Set `RAYON_NUM_THREADS` to configure the number of threads used by
   the parallel route search. `run.sh` automatically detects available CPU
   cores and exports this variable before invoking `cargo`, so the Rust
