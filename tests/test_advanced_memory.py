@@ -76,6 +76,47 @@ def test_replicated_trade_dedup(tmp_path, monkeypatch):
     assert trades[0].uuid == tid
 
 
+def test_sync_interval_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
+    monkeypatch.setenv("MEMORY_SYNC_INTERVAL", "2.5")
+
+    seen = {}
+
+    def fake_start(self, interval: float = 0.0):
+        seen["interval"] = interval
+
+    monkeypatch.setattr(AdvancedMemory, "_start_sync_task", fake_start)
+
+    AdvancedMemory(
+        url=f"sqlite:///{tmp_path/'env.db'}",
+        index_path=str(tmp_path/'env.index'),
+        replicate=True,
+    )
+
+    assert seen.get("interval") == 2.5
+
+
+def test_sync_interval_param(tmp_path, monkeypatch):
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
+    monkeypatch.setenv("MEMORY_SYNC_INTERVAL", "2.5")
+
+    seen = {}
+
+    def fake_start(self, interval: float = 0.0):
+        seen["interval"] = interval
+
+    monkeypatch.setattr(AdvancedMemory, "_start_sync_task", fake_start)
+
+    AdvancedMemory(
+        url=f"sqlite:///{tmp_path/'param.db'}",
+        index_path=str(tmp_path/'param.index'),
+        replicate=True,
+        sync_interval=1.0,
+    )
+
+    assert seen.get("interval") == 1.0
+
+
 def test_memory_sync_exchange(tmp_path, monkeypatch):
     monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
     db1 = tmp_path / "a.db"

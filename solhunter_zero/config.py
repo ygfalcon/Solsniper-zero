@@ -114,6 +114,7 @@ ENV_VARS = {
     "gnn_model_path": "GNN_MODEL_PATH",
     "offline_data_interval": "OFFLINE_DATA_INTERVAL",
     "gpu_memory_index": "GPU_MEMORY_INDEX",
+    "memory_sync_interval": "MEMORY_SYNC_INTERVAL",
     "use_gpu_sim": "USE_GPU_SIM",
     "rl_build_mmap_dataset": "RL_BUILD_MMAP_DATASET",
     "rl_prefetch_buffer": "RL_PREFETCH_BUFFER",
