@@ -1,6 +1,9 @@
 import pytest
 pytest.importorskip("numpy")
 pytest.importorskip("faiss")
+import numpy as np, faiss
+if getattr(np, "_STUB", False) or getattr(faiss, "_STUB", False):
+    pytest.skip("requires real numpy/faiss")
 
 from solhunter_zero.advanced_memory import AdvancedMemory
 import sys
