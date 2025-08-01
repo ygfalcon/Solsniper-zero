@@ -180,6 +180,7 @@ async def scan_tokens_async(
     _metrics_sub = subscription("system_metrics_combined", _update_metrics)
     _metrics_sub.__enter__()
     _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
+    smoothing = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
     adjust_task: asyncio.Task | None = None
@@ -204,8 +205,12 @@ async def scan_tokens_async(
                         cpu = resource_monitor.get_cpu_usage()
                     else:
                         cpu = cpu_val["v"]
-                    target = _target_concurrency(cpu, max_concurrency, low, high)
-                    new_limit = _step_limit(current_limit, target, max_concurrency)
+                    target = _target_concurrency(
+                        cpu, max_concurrency, low, high, smoothing=smoothing
+                    )
+                    new_limit = _step_limit(
+                        current_limit, target, max_concurrency, smoothing=smoothing
+                    )
                     if new_limit != current_limit:
                         await _set_limit(new_limit)
             except asyncio.CancelledError:

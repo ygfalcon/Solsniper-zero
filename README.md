@@ -210,6 +210,8 @@ Install the Rust toolchain if `cargo` isn't available:
     adjusting task limits (defaults to `2`).
   - `CONCURRENCY_KP` – proportional gain for dynamic concurrency adjustments
     (defaults to `0.5`).
+  - `CONCURRENCY_EWM_SMOOTHING` – smoothing factor for CPU load averaging
+    used by dynamic concurrency (defaults to `0.15`).
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator` which publishes them under
     `system_metrics_combined`.
