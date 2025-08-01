@@ -118,3 +118,20 @@ async def test_start_writer_env(monkeypatch):
     mem.start_writer()
     assert mem._batch_size == 3
     assert mem._interval == 0.5
+
+
+@pytest.mark.asyncio
+async def test_persistent_trades(tmp_path, monkeypatch):
+    """Trades logged to disk should be visible to a new Memory instance."""
+    monkeypatch.chdir(tmp_path)
+
+    mem1 = Memory("sqlite:///tmpfile.db")
+    await mem1.log_trade(token="TOK", direction="buy", amount=1.0, price=2.0)
+    await mem1.close()
+
+    mem2 = Memory("sqlite:///tmpfile.db")
+    trades = await mem2.list_trades()
+    await mem2.close()
+
+    assert len(trades) == 1
+    assert trades[0].token == "TOK"
