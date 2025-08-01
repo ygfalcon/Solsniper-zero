@@ -67,6 +67,8 @@ class StrategySelector:
             if self.memory_agent
             else []
         )
+        if asyncio.iscoroutine(trades):
+            trades = run_coro(trades)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             if t.reason not in rois:
@@ -504,7 +506,9 @@ class AgentManager:
         if not self.memory_agent:
             return
 
-        trades = run_coro(self.memory_agent.memory.list_trades(limit=1000))
+        trades = self.memory_agent.memory.list_trades(limit=1000)
+        if asyncio.iscoroutine(trades):
+            trades = run_coro(trades)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             name = t.reason or ""
@@ -586,6 +590,8 @@ class AgentManager:
         if not self.memory_agent:
             return {n: 0.0 for n in names}
         trades = self.memory_agent.memory.list_trades(limit=1000)
+        if asyncio.iscoroutine(trades):
+            trades = run_coro(trades)
         summary: Dict[str, Dict[str, float]] = {}
         for t in trades:
             if t.reason not in names:
