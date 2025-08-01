@@ -88,7 +88,7 @@ async def sync_snapshots(
             try:
                 mapped = map_snapshot(snap)
                 mapped["sentiment"] = sentiment
-                data.log_snapshot(token=token, **mapped)
+                await data.log_snapshot(token=token, **mapped)
             except Exception as exc:  # pragma: no cover - bad data
                 logger.warning("invalid snapshot for %s: %s", token, exc)
 
