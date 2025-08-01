@@ -60,6 +60,7 @@ cpu_low_threshold = 30.0  # raise concurrency when below this percent
 cpu_high_threshold = 70.0  # reduce concurrency when above this percent
 max_concurrency = 0
 cpu_usage_threshold = 0
+# scanners use CPU from system_metrics_combined when available
 min_rate = 0.01
 max_rate = 1.0
 depth_freq_low = 1.0

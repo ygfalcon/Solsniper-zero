@@ -6,11 +6,13 @@ import re
 import os
 import statistics
 import contextlib
+import time
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
+from .event_bus import subscription
 
 try:
     from solana.publickey import PublicKey
@@ -53,6 +55,7 @@ MEMPOOL_SCORE_THRESHOLD = float(os.getenv("MEMPOOL_SCORE_THRESHOLD", "0") or 0.0
 
 _ROLLING_STATS: Dict[str, Dict[str, Deque[float]]] = {}
 _DYN_INTERVAL: float = 2.0
+_METRICS_TIMEOUT: float = 5.0
 
 
 
@@ -237,6 +240,23 @@ async def stream_ranked_mempool_tokens(
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency
+    cpu_val = {"v": resource_monitor.get_cpu_usage()}
+    cpu_ts = {"t": 0.0}
+
+    def _update_metrics(payload: Any) -> None:
+        cpu = getattr(payload, "cpu", None)
+        if isinstance(payload, dict):
+            cpu = payload.get("cpu", cpu)
+        if cpu is None:
+            return
+        try:
+            cpu_val["v"] = float(cpu)
+            cpu_ts["t"] = time.monotonic()
+        except Exception:
+            return
+
+    _metrics_sub = subscription("system_metrics_combined", _update_metrics)
+    _metrics_sub.__enter__()
     _dyn_interval = float(os.getenv("DYNAMIC_CONCURRENCY_INTERVAL", str(_DYN_INTERVAL)) or _DYN_INTERVAL)
     high = float(os.getenv("CPU_HIGH_THRESHOLD", "80") or 80)
     low = float(os.getenv("CPU_LOW_THRESHOLD", "40") or 40)
@@ -258,7 +278,10 @@ async def stream_ranked_mempool_tokens(
             try:
                 while True:
                     await asyncio.sleep(_dyn_interval)
-                    cpu = resource_monitor.get_cpu_usage()
+                    if time.monotonic() - cpu_ts["t"] > _METRICS_TIMEOUT:
+                        cpu = resource_monitor.get_cpu_usage()
+                    else:
+                        cpu = cpu_val["v"]
                     target = _target_concurrency(cpu, max_concurrency, low, high)
                     new_limit = _step_limit(current_limit, target, max_concurrency)
                     if new_limit != current_limit:
@@ -297,6 +320,10 @@ async def stream_ranked_mempool_tokens(
         adjust_task.cancel()
         with contextlib.suppress(Exception):
             await adjust_task
+    try:
+        _metrics_sub.__exit__(None, None, None)
+    except Exception:
+        pass
 
 
 async def stream_ranked_mempool_tokens_with_depth(
