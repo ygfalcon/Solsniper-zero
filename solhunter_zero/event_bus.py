@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover - optional dependency
     _USE_ORJSON = False
 import os
 import zlib
+import mmap
 
 try:  # optional compression libraries
     import lz4.frame
@@ -108,6 +109,11 @@ else:
     else:
         EVENT_COMPRESSION = comp
 
+# optional mmap ring buffer path for outgoing protobuf frames
+_EVENT_BUS_MMAP = os.getenv("EVENT_BUS_MMAP")
+_EVENT_BUS_MMAP_SIZE = int(os.getenv("EVENT_BUS_MMAP_SIZE", str(1 << 20)) or (1 << 20))
+_MMAP: mmap.mmap | None = None
+
 
 def _maybe_decompress(data: bytes) -> bytes:
     """Return decompressed ``data`` if it appears to be compressed."""
@@ -158,6 +164,71 @@ def _loads(data: Any) -> Any:
     if isinstance(data, bytes):
         data = data.decode()
     return json.loads(data)
+
+
+def open_mmap(path: str | None = None, size: int | None = None) -> mmap.mmap | None:
+    """Open or return the configured event mmap ring buffer."""
+    global _MMAP
+    if _MMAP is not None and not getattr(_MMAP, "closed", False):
+        return _MMAP
+    if path is None:
+        path = _EVENT_BUS_MMAP
+    if not path:
+        return None
+    if size is None:
+        size = _EVENT_BUS_MMAP_SIZE
+    try:
+        dirpath = os.path.dirname(path)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT)
+        try:
+            if os.path.getsize(path) < size:
+                os.ftruncate(fd, size)
+            mm = mmap.mmap(fd, size)
+        finally:
+            os.close(fd)
+        if mm.size() >= 4 and int.from_bytes(mm[:4], "little") == 0:
+            mm[:4] = (4).to_bytes(4, "little")
+        _MMAP = mm
+    except Exception:
+        _MMAP = None
+    return _MMAP
+
+
+def close_mmap() -> None:
+    """Close the event mmap if open."""
+    global _MMAP
+    if _MMAP is not None:
+        try:
+            _MMAP.close()
+        except Exception:
+            pass
+    _MMAP = None
+
+
+def _mmap_write(data: bytes) -> None:
+    mm = open_mmap()
+    if mm is None or len(data) == 0:
+        return
+    size = mm.size()
+    if size < 8:
+        return
+    pos = int.from_bytes(mm[:4], "little") or 4
+    if pos < 4 or pos + 4 + len(data) > size:
+        pos = 4
+    if len(data) > size - 8:
+        data = data[: size - 8]
+    mm[pos:pos+4] = len(data).to_bytes(4, "little")
+    mm[pos+4:pos+4+len(data)] = data
+    pos += 4 + len(data)
+    if pos >= size:
+        pos = 4
+    mm[:4] = pos.to_bytes(4, "little")
+    try:
+        mm.flush()
+    except Exception:
+        pass
 
 
 def _get_bus_url(cfg=None):
@@ -621,8 +692,10 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
             h(payload)
 
     msg: Any | None = None
-    if (websockets or _BROKER_TYPE) and _broadcast:
+    if (websockets or _BROKER_TYPE or _EVENT_BUS_MMAP) and _broadcast:
         msg = _encode_event(topic, payload)
+    if _EVENT_BUS_MMAP and _broadcast and isinstance(msg, (bytes, bytearray)):
+        _mmap_write(bytes(msg))
     if websockets and _broadcast:
         assert msg is not None
         if loop:
@@ -1035,6 +1108,9 @@ def _reload_broker(cfg) -> None:
 
 
 subscription("config_updated", _reload_broker).__enter__()
+
+# initialize mmap on import if configured
+open_mmap()
 
 
 async def send_heartbeat(
