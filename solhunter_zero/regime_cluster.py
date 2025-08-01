@@ -33,7 +33,8 @@ def cluster_regime(
         ``min_samples`` parameter for DBSCAN.
     """
     prices = np.asarray(list(prices), dtype=float)
-    if prices.size <= window:
+    size = getattr(prices, "size", len(prices))
+    if size <= window:
         return None
 
     returns = np.diff(prices) / prices[:-1]
@@ -51,6 +52,8 @@ def cluster_regime(
 
     if method == "dbscan":
         model = DBSCAN(eps=eps, min_samples=min_samples)
+        if not hasattr(model, "fit_predict"):
+            return None
         labels = model.fit_predict(X)
         valid = labels != -1
         if not np.any(valid):
@@ -60,7 +63,11 @@ def cluster_regime(
         }
     else:
         model = KMeans(n_clusters=n_clusters, n_init="auto")
+        if not hasattr(model, "fit_predict"):
+            return None
         labels = model.fit_predict(X)
+        if not hasattr(model, "cluster_centers_"):
+            return None
         centers = {i: c[0] for i, c in enumerate(model.cluster_centers_)}
 
     sorted_labels = sorted(centers.items(), key=lambda kv: kv[1])
