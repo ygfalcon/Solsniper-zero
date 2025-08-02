@@ -1,11 +1,14 @@
 import asyncio
 import time
+
 import pytest
+
 pytest.importorskip("solders")
-from solders.keypair import Keypair
-from solhunter_zero import arbitrage as arb
-from solhunter_zero.arbitrage import detect_and_execute_arbitrage
-from solhunter_zero import prices
+from solders.keypair import Keypair  # noqa: E402
+
+from solhunter_zero import arbitrage as arb  # noqa: E402
+from solhunter_zero import prices  # noqa: E402
+from solhunter_zero.arbitrage import detect_and_execute_arbitrage  # noqa: E402
 
 
 # reset global state before each test

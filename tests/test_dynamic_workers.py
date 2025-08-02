@@ -1,7 +1,7 @@
 import asyncio
 import importlib
-import types
 import sys
+import types
 
 
 def _stub_torch():
@@ -50,7 +50,7 @@ def test_dynamic_workers_auto(monkeypatch):
     rl_daemon_mod = types.ModuleType("solhunter_zero.rl_daemon")
     rl_daemon_mod.RLDaemon = DummyDaemon
     monkeypatch.setitem(sys.modules, "solhunter_zero.rl_daemon", rl_daemon_mod)
-    import solhunter_zero.main as main_module
+    import solhunter_zero.main as main_module  # noqa: E402
     monkeypatch.setattr(main_module.os, "cpu_count", lambda: 4)
 
     asyncio.run(main_module._init_rl_training({"rl_auto_train": True}, rl_daemon=True, rl_interval=0.01))
@@ -83,7 +83,7 @@ def test_dynamic_workers_single_core(monkeypatch):
     rl_daemon_mod = types.ModuleType("solhunter_zero.rl_daemon")
     rl_daemon_mod.RLDaemon = DummyDaemon
     monkeypatch.setitem(sys.modules, "solhunter_zero.rl_daemon", rl_daemon_mod)
-    import solhunter_zero.main as main_module
+    import solhunter_zero.main as main_module  # noqa: E402
     monkeypatch.setattr(main_module.os, "cpu_count", lambda: 1)
 
     asyncio.run(main_module._init_rl_training({"rl_auto_train": True}, rl_daemon=True, rl_interval=0.01))

@@ -1,10 +1,10 @@
 import asyncio
-import types
-import sys
+import importlib.machinery
 import importlib.util
+import sys
+import types
 
 import pytest
-import importlib.machinery
 
 # Stub heavy optional dependencies
 if importlib.util.find_spec("transformers") is None:
@@ -82,10 +82,10 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     pl.Trainer = type("Trainer", (), {"fit": lambda *a, **k: None})
     sys.modules.setdefault("pytorch_lightning", pl)
 
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.llm_reasoner import LLMReasoner
-from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
+from solhunter_zero.agents.llm_reasoner import LLMReasoner  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):

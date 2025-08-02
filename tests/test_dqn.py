@@ -1,14 +1,17 @@
 import asyncio
 
+import pytest
+
 from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio, Position
 from solhunter_zero.replay import ReplayBuffer
-import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-import torch
-import random
+import random  # noqa: E402
+
+import torch  # noqa: E402
 
 torch.manual_seed(0)
 random.seed(0)

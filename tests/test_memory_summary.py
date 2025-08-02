@@ -1,8 +1,11 @@
 import asyncio
+
 import numpy as np
-from solhunter_zero.agents.swarm import AgentSwarm
+
 from solhunter_zero.advanced_memory import AdvancedMemory
+from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.portfolio import Portfolio
+
 
 class DummyModel:
     def __init__(self):

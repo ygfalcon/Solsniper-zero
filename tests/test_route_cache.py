@@ -4,6 +4,7 @@ import time
 import solhunter_zero.arbitrage as arb
 from solhunter_zero.event_bus import publish
 
+
 async def const_price(_):
     return 1.0
 

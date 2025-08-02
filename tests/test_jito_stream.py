@@ -1,8 +1,7 @@
 import asyncio
-import solhunter_zero.jito_stream
 
-from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
 from solhunter_zero.agents.flashloan_sandwich import FlashloanSandwichAgent
+from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
 
 
 async def fake_jito(url, *, auth=None):
@@ -128,7 +127,7 @@ def test_pending_swap_event(monkeypatch):
     )
 
     events = []
-    from solhunter_zero.event_bus import subscribe
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     unsub = subscribe("pending_swap", lambda p: events.append(p))
 
@@ -138,7 +137,7 @@ def test_pending_swap_event(monkeypatch):
         await gen.aclose()
         return data
 
-    import solhunter_zero.jito_stream
+    import solhunter_zero.jito_stream  # noqa: E402
 
     data = asyncio.run(run_once())
     unsub()

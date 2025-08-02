@@ -1,12 +1,9 @@
 import os
-from solhunter_zero.config import (
-    load_config,
-    apply_env_overrides,
-    set_env_from_config,
-    load_dex_config,
-    save_config,
-)
-from solhunter_zero.event_bus import subscribe
+
+from solhunter_zero.config import (apply_env_overrides, load_config,
+                                   load_dex_config, save_config,
+                                   set_env_from_config)
+from solhunter_zero.event_bus import subscribe  # noqa: E402
 
 
 def test_load_config_yaml(tmp_path):
@@ -186,7 +183,7 @@ def test_save_config_emits_event(tmp_path):
 
 
 def test_get_event_bus_peers(monkeypatch):
-    from solhunter_zero.config import get_event_bus_peers
+    from solhunter_zero.config import get_event_bus_peers  # noqa: E402
 
     monkeypatch.setenv("EVENT_BUS_PEERS", "ws://a, ws://b")
     peers = get_event_bus_peers({})
@@ -195,4 +192,3 @@ def test_get_event_bus_peers(monkeypatch):
     monkeypatch.delenv("EVENT_BUS_PEERS", raising=False)
     peers = get_event_bus_peers({"event_bus_peers": ["ws://c"]})
     assert peers == ["ws://c"]
-

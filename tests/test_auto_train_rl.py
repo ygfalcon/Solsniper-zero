@@ -1,15 +1,16 @@
 import asyncio
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 
-from solhunter_zero.rl_daemon import RLDaemon
-from solhunter_zero.agents.ppo_agent import PPOAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
-from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.agents.ppo_agent import PPOAgent  # noqa: E402
+from solhunter_zero.memory import Memory  # noqa: E402
+from solhunter_zero.offline_data import OfflineData  # noqa: E402
+from solhunter_zero.rl_daemon import RLDaemon  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -49,9 +50,11 @@ async def test_auto_train_reload(tmp_path, monkeypatch):
 
 
 def test_jit_inference_speed():
-    import torch
-    import time
-    from solhunter_zero.rl_daemon import _PPO
+    import time  # noqa: E402
+
+    import torch  # noqa: E402
+
+    from solhunter_zero.rl_daemon import _PPO  # noqa: E402
 
     model = _PPO()
     data = torch.randn(1024, 8)

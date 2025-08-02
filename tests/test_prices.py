@@ -1,9 +1,10 @@
 
 import asyncio
-import requests
+
 import aiohttp
-from solhunter_zero import prices
-from solhunter_zero import http
+import requests
+
+from solhunter_zero import http, prices
 
 
 # reset global state before each test
@@ -133,4 +134,3 @@ def test_price_cache_and_session_reuse(monkeypatch):
     assert result2 == {"tok": 1.0}
     assert calls["sessions"] == 1
     assert calls["gets"] == 1
-

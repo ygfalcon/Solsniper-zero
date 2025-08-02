@@ -1,14 +1,15 @@
 import importlib
 import time
+
 import pytest
 
 pytest.importorskip("google.protobuf")
 
-import solhunter_zero.event_bus as ev
+import solhunter_zero.event_bus as ev  # noqa: E402
 
 
 def _measure(mode: str) -> float:
-    import os
+    import os  # noqa: E402
     os.environ["EVENT_SERIALIZATION"] = mode
     importlib.reload(ev)
     data = {"a": 1, "b": [1, 2, 3]}

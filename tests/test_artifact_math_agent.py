@@ -1,7 +1,8 @@
 import asyncio
+import builtins
 import io
 import json
-import builtins
+
 import pytest
 
 artifact_math = pytest.importorskip("solhunter_zero.agents.artifact_math_agent")
@@ -9,7 +10,8 @@ artifact_math = pytest.importorskip("solhunter_zero.agents.artifact_math_agent")
 ArtifactMathAgent = artifact_math.ArtifactMathAgent
 map_glyph_series = artifact_math.map_glyph_series
 aggregate_scores = artifact_math.aggregate_scores
-from solhunter_zero.portfolio import Portfolio, Position
+from solhunter_zero.portfolio import Portfolio, Position  # noqa: E402
+
 
 class DummyPortfolio(Portfolio):
     def __init__(self):

@@ -1,15 +1,17 @@
-import importlib
 import asyncio
+import importlib
 import time
+
 import pytest
+
 import solhunter_zero.arbitrage as arb
 
 
 @pytest.fixture
 def ensure_ffi(monkeypatch):
-    from pathlib import Path
-    import subprocess
-    import importlib
+    import importlib  # noqa: E402
+    import subprocess  # noqa: E402
+    from pathlib import Path  # noqa: E402
 
     lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
     if not lib_path.exists():
@@ -44,7 +46,7 @@ def test_refresh_costs_updates_latency(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ping_url_parallel():
-    import solhunter_zero.arbitrage as mod
+    import solhunter_zero.arbitrage as mod  # noqa: E402
 
     class DummyResp:
         async def __aenter__(self):
@@ -74,7 +76,7 @@ async def test_ping_url_parallel():
 
 @pytest.mark.asyncio
 async def test_measure_latency_parallel(monkeypatch):
-    import solhunter_zero.arbitrage as mod
+    import solhunter_zero.arbitrage as mod  # noqa: E402
 
     async def fake_get_session():
         return object()
@@ -99,7 +101,7 @@ async def test_measure_latency_parallel(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_measure_latency_concurrency_limit(monkeypatch):
-    import solhunter_zero.arbitrage as mod
+    import solhunter_zero.arbitrage as mod  # noqa: E402
 
     async def fake_get_session():
         return object()
@@ -126,7 +128,7 @@ async def test_measure_latency_concurrency_limit(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_measure_latency_dynamic_limit(monkeypatch):
-    import solhunter_zero.arbitrage as mod
+    import solhunter_zero.arbitrage as mod  # noqa: E402
 
     monkeypatch.setattr(mod.os, "cpu_count", lambda: 4)
     monkeypatch.setattr(mod.resource_monitor, "get_cpu_usage", lambda: 90.0)
@@ -159,7 +161,7 @@ async def test_measure_latency_dynamic_limit(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_measure_latency_cache(monkeypatch):
-    import solhunter_zero.arbitrage as mod
+    import solhunter_zero.arbitrage as mod  # noqa: E402
 
     async def fake_get_session():
         return object()
@@ -187,7 +189,7 @@ async def test_measure_latency_cache(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_measure_latency_ffi(monkeypatch, ensure_ffi):
-    import solhunter_zero.arbitrage as mod
+    import solhunter_zero.arbitrage as mod  # noqa: E402
 
     def fake_measure(urls, attempts=1):
         return {k: 0.01 for k in urls}

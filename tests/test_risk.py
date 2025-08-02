@@ -1,18 +1,12 @@
 import pytest
 
-from solhunter_zero.risk import (
-    RiskManager,
-    value_at_risk,
-    conditional_value_at_risk_prices,
-    recent_conditional_value_at_risk,
-    covariance_matrix,
-    portfolio_cvar,
-    portfolio_variance,
-    hedge_ratio,
-    recent_value_at_risk,
-)
 from solhunter_zero.memory import Memory
-from solhunter_zero.portfolio import calculate_order_size, Portfolio
+from solhunter_zero.portfolio import Portfolio, calculate_order_size
+from solhunter_zero.risk import (RiskManager, conditional_value_at_risk_prices,
+                                 covariance_matrix, hedge_ratio,
+                                 portfolio_cvar, portfolio_variance,
+                                 recent_conditional_value_at_risk,
+                                 recent_value_at_risk, value_at_risk)
 
 
 @pytest.fixture(autouse=True)
@@ -289,8 +283,10 @@ def test_hedge_ratio_and_portfolio_metrics():
     assert adj.risk_tolerance < rm.risk_tolerance
 
 def test_var_forecast_adjustment(tmp_path, monkeypatch):
-    from solhunter_zero.models.var_forecaster import VaRForecaster, save_var_model
-    import pytest
+    import pytest  # noqa: E402
+
+    from solhunter_zero.models.var_forecaster import (VaRForecaster,  # noqa: E402
+                                                      save_var_model)
     torch = pytest.importorskip("torch")
     model = VaRForecaster(seq_len=2, hidden_dim=2, num_layers=1)
     with torch.no_grad():
@@ -305,4 +301,3 @@ def test_var_forecast_adjustment(tmp_path, monkeypatch):
     base = rm.adjusted()
     adj = rm.adjusted(prices=prices, var_threshold=0.05)
     assert adj.risk_tolerance < base.risk_tolerance
-

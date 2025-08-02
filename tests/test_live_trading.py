@@ -1,8 +1,8 @@
-from pathlib import Path
-import sys
-import types
 import contextlib
 import importlib.machinery
+import sys
+import types
+from pathlib import Path
 
 
 def test_live_trading(monkeypatch):
@@ -97,8 +97,8 @@ def test_live_trading(monkeypatch):
         stub_models.regime_classifier = sys.modules[
             "solhunter_zero.models.regime_classifier"
         ]
-        from solhunter_zero import main as main_module
-        from solhunter_zero.simulation import SimulationResult
+        from solhunter_zero import main as main_module  # noqa: E402
+        from solhunter_zero.simulation import SimulationResult  # noqa: E402
         repo_root = Path(__file__).resolve().parent.parent
         cfg_path = repo_root / "config.highrisk.toml"
         key_path = repo_root / "keypairs" / "default.json"

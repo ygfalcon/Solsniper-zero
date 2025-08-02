@@ -2,10 +2,10 @@ import asyncio
 import inspect
 import time
 
-from tests.stubs import stub_numpy
+from solhunter_zero import order_book_ws
 from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.portfolio import Portfolio
-from solhunter_zero import order_book_ws
+from tests.stubs import stub_numpy
 
 
 class DummyAgent:
@@ -51,4 +51,3 @@ def test_propose_cached_faster(monkeypatch):
     baseline_time = asyncio.run(measure(baseline))
     cached_time = asyncio.run(measure(cached))
     assert cached_time <= baseline_time
-

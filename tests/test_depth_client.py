@@ -1,12 +1,12 @@
 import asyncio
 import json
-import struct
 import os
+import struct
 import subprocess
 import time
-import base64
-import pytest
+
 import aiohttp
+import pytest
 from aiohttp import web
 
 from solhunter_zero import depth_client
@@ -138,7 +138,7 @@ def test_snapshot_cache(tmp_path, monkeypatch):
     depth_client.SNAPSHOT_CACHE.clear()
     monkeypatch.setattr(depth_client, "DEPTH_CACHE_TTL", 0.5)
 
-    import builtins
+    import builtins  # noqa: E402
 
     calls = []
 
@@ -591,4 +591,3 @@ async def test_priority_rpc_concurrent(tmp_path):
     assert duration < 0.4
     assert "slow" in times and "fast" in times
     assert abs(times["slow"] - times["fast"]) < 0.2
-

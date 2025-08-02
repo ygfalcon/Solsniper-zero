@@ -1,6 +1,5 @@
 import asyncio
 import importlib
-import os
 import sys
 import types
 
@@ -12,7 +11,7 @@ def test_run_rl_daemon_sets_event_bus(monkeypatch):
 
     class DummyDaemon:
         def __init__(self, *a, **k):
-            from solhunter_zero.config import get_event_bus_url
+            from solhunter_zero.config import get_event_bus_url  # noqa: E402
             DummyDaemon.url = get_event_bus_url()
         def start(self, *a, **k):
             pass
@@ -51,7 +50,7 @@ def test_run_rl_daemon_sets_event_bus(monkeypatch):
 
     asyncio.run(run_mod.main())
 
-    from solhunter_zero.config import get_event_bus_url
+    from solhunter_zero.config import get_event_bus_url  # noqa: E402
 
     assert DummyDaemon.url == "ws://bus"
     assert get_event_bus_url() == "ws://bus"
@@ -101,4 +100,3 @@ def test_run_rl_daemon_distributed_flag(monkeypatch):
     asyncio.run(run_mod.main())
 
     assert DummyDaemon.dist is True
-

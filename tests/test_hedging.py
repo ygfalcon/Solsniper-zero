@@ -1,5 +1,4 @@
 import asyncio
-import pytest
 
 from solhunter_zero.agents.hedging_agent import HedgingAgent
 from solhunter_zero.portfolio import Portfolio
@@ -52,4 +51,3 @@ def test_hedging_agent_rebalances(monkeypatch):
     agent = HedgingAgent(threshold=0.0)
     actions = asyncio.run(agent.propose_trade("a", pf))
     assert actions
-

@@ -56,7 +56,7 @@ if importlib.util.find_spec("transformers") is None:
 sys.modules["transformers"].pipeline = dummy_trans.pipeline
 if importlib.util.find_spec("sentence_transformers") is None:
     sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
-import types
+import types  # noqa: E402
 
 # Stub out heavy rl_training dependency
 dummy_rl_mod = types.ModuleType("solhunter_zero.rl_training")
@@ -71,7 +71,7 @@ class _DummyRL:
         return {n: float(w.get(n, 1.0)) for n in names}
 dummy_rl_mod.MultiAgentRL = _DummyRL
 sys.modules.setdefault("solhunter_zero.rl_training", dummy_rl_mod)
-from solhunter_zero.swarm_coordinator import SwarmCoordinator
+from solhunter_zero.swarm_coordinator import SwarmCoordinator  # noqa: E402
 
 
 class HierarchicalRLAgent:
@@ -119,7 +119,7 @@ def test_hierarchical_rl_agent_trains(tmp_path):
 
 def test_swarm_coordinator_filters_hierarchical_agent(tmp_path):
     mem_agent = DummyMemoryAgent()
-    from types import SimpleNamespace
+    from types import SimpleNamespace  # noqa: E402
     mem_agent.memory.trades.extend(
         [
             SimpleNamespace(token="tok", direction="buy", amount=1, price=2, reason="a1"),
@@ -141,8 +141,10 @@ def test_swarm_coordinator_filters_hierarchical_agent(tmp_path):
 
 
 def test_train_policy_updates_weights():
-    from types import SimpleNamespace
-    from solhunter_zero.hierarchical_rl import HighLevelPolicyNetwork, train_policy
+    from types import SimpleNamespace  # noqa: E402
+
+    from solhunter_zero.hierarchical_rl import (HighLevelPolicyNetwork,  # noqa: E402
+                                                train_policy)
 
     trades = [
         SimpleNamespace(reason="a1", direction="buy", amount=1, price=1),
@@ -154,9 +156,9 @@ def test_train_policy_updates_weights():
     w = train_policy(model, trades, ["a1", "a2"], lr=1.0, epochs=1)
     assert w["a1"] > w["a2"]
 
-from solhunter_zero.hierarchical_rl import SupervisorAgent
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.hierarchical_rl import SupervisorAgent  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
 
 
 def test_supervisor_policy_load(tmp_path):
@@ -215,7 +217,7 @@ def test_agent_manager_hierarchical_policy(tmp_path):
 
 
 def test_from_config_creates_hierarchical_agent(monkeypatch, tmp_path):
-    import solhunter_zero.agent_manager as am
+    import solhunter_zero.agent_manager as am  # noqa: E402
 
     class Dummy(am.BaseAgent):
         name = "x"

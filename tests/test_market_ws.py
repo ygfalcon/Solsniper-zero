@@ -1,4 +1,5 @@
 import asyncio
+
 import solhunter_zero.market_ws as mws
 from solhunter_zero.simulation import SimulationResult
 
@@ -50,5 +51,4 @@ def test_listen_and_trade_triggers_buy(monkeypatch):
     )
 
     assert called.get("token") == "tok"
-
 

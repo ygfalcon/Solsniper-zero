@@ -1,7 +1,8 @@
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.decision import should_buy, should_sell
-from solhunter_zero.simulation import SimulationResult
+from solhunter_zero.decision import should_buy, should_sell  # noqa: E402
+from solhunter_zero.simulation import SimulationResult  # noqa: E402
 
 
 def test_should_buy_empty():

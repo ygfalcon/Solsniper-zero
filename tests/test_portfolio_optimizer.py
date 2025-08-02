@@ -1,5 +1,4 @@
 import asyncio
-import pytest
 
 from solhunter_zero.agents.portfolio_optimizer import PortfolioOptimizer
 from solhunter_zero.portfolio import Portfolio, Position

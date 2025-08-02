@@ -1,17 +1,17 @@
 import asyncio
-import types
+
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 
-from solhunter_zero import simulation
-from solhunter_zero.simulation import SimulationResult, predict_price_movement
-from solhunter_zero.agents.conviction import ConvictionAgent
-from solhunter_zero.agents.dqn import DQNAgent
-from solhunter_zero.agents.arbitrage import ArbitrageAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
-from solhunter_zero.portfolio import Position
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero import simulation  # noqa: E402
+from solhunter_zero.agents.arbitrage import ArbitrageAgent  # noqa: E402
+from solhunter_zero.agents.conviction import ConvictionAgent  # noqa: E402
+from solhunter_zero.agents.dqn import DQNAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.memory import Memory  # noqa: E402
+from solhunter_zero.portfolio import Portfolio, Position  # noqa: E402
+from solhunter_zero.simulation import SimulationResult, predict_price_movement  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):

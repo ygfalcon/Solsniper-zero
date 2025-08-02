@@ -1,5 +1,6 @@
-import pytest
 import importlib
+
+import pytest
 
 import solhunter_zero.arbitrage as arb
 
@@ -10,8 +11,8 @@ def _build_prices():
 
 @pytest.fixture
 def ensure_ffi(monkeypatch):
-    from pathlib import Path
-    import subprocess
+    import subprocess  # noqa: E402
+    from pathlib import Path  # noqa: E402
 
     lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
     if not lib_path.exists():
@@ -57,4 +58,3 @@ def test_default_uses_ffi(monkeypatch, ensure_ffi):
     importlib.reload(arb._routeffi)
     importlib.reload(arb)
     assert arb.USE_FFI_ROUTE
-

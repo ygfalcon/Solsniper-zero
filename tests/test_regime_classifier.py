@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.models.regime_classifier import train_regime_classifier
+from solhunter_zero.models.regime_classifier import train_regime_classifier  # noqa: E402
 
 
 def test_train_regime_classifier_predicts_bull():

@@ -1,19 +1,20 @@
 import asyncio
 import base64
 import json
+
 import pytest
 
 try:
-    from solders.keypair import Keypair
-    from solders.pubkey import Pubkey
-    from solders.hash import Hash
-    from solders.instruction import Instruction, AccountMeta
-    from solders.message import MessageV0
-    from solders.transaction import VersionedTransaction
+    from solders.hash import Hash  # noqa: E402
+    from solders.instruction import AccountMeta, Instruction  # noqa: E402
+    from solders.keypair import Keypair  # noqa: E402
+    from solders.message import MessageV0  # noqa: E402
+    from solders.pubkey import Pubkey  # noqa: E402
+    from solders.transaction import VersionedTransaction  # noqa: E402
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     pytest.skip("solders is required", allow_module_level=True)
 
-from solhunter_zero import depth_client
+from solhunter_zero import depth_client  # noqa: E402
 
 
 class FakeReader:

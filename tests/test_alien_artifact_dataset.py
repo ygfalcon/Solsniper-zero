@@ -1,4 +1,5 @@
-from solhunter_zero.datasets.alien_artifact import load_patterns, get_encoding_by_glyphs
+from solhunter_zero.datasets.alien_artifact import (get_encoding_by_glyphs,
+                                                    load_patterns)
 
 
 def test_load_patterns_structure():

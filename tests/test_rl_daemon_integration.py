@@ -2,12 +2,14 @@ import asyncio
 from pathlib import Path
 
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-import torch
-import subprocess
-import importlib.util
-import sys
-import types
+import importlib.util  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import types  # noqa: E402
+
+import torch  # noqa: E402
 
 if importlib.util.find_spec("pytorch_lightning") is None:
     pl = types.ModuleType("pytorch_lightning")
@@ -19,11 +21,11 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     pl.Trainer = type("Trainer", (), {"fit": lambda *a, **k: None})
     sys.modules.setdefault("pytorch_lightning", pl)
 
-from solhunter_zero.rl_daemon import RLDaemon
-from solhunter_zero.agents.dqn import DQNAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
-from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.agents.dqn import DQNAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.memory import Memory  # noqa: E402
+from solhunter_zero.offline_data import OfflineData  # noqa: E402
+from solhunter_zero.rl_daemon import RLDaemon  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -100,7 +102,7 @@ async def test_reload_on_timestamp_change(tmp_path, monkeypatch):
     daemon.start(0.05, auto_train=True, tune_interval=0.05)
 
     await asyncio.sleep(0.1)
-    from solhunter_zero.rl_daemon import _DQN
+    from solhunter_zero.rl_daemon import _DQN  # noqa: E402
     torch.save(_DQN().state_dict(), model_path)
 
     await asyncio.wait_for(reloaded.wait(), timeout=1.0)
@@ -114,7 +116,7 @@ async def test_rl_daemon_heartbeat(tmp_path, monkeypatch):
     Memory(mem_db)
 
     events = []
-    from solhunter_zero.event_bus import subscribe, publish
+    from solhunter_zero.event_bus import publish, subscribe  # noqa: E402
 
     unsub = subscribe("heartbeat", lambda p: events.append(p))
 

@@ -1,4 +1,5 @@
 import asyncio
+
 import numpy as np
 
 from solhunter_zero.agents.strange_attractor import StrangeAttractorAgent
@@ -25,4 +26,3 @@ def test_strange_attractor_trade(monkeypatch):
     actions = asyncio.run(agent.propose_trade("TOK", pf, depth=1.0))
     assert actions and actions[0]["side"] == "buy"
     assert actions[0]["manifold_overlap"] > 0.0
-

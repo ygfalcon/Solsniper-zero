@@ -1,7 +1,7 @@
+import asyncio
+import runpy
 import sys
 import types
-import runpy
-import asyncio
 from pathlib import Path
 
 

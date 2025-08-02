@@ -1,11 +1,12 @@
 import asyncio
-import types
 import sys
+import types
+
 import pytest
 
 sys.modules.setdefault("torch", types.ModuleType("torch"))
 
-from solhunter_zero.agents.execution import ExecutionAgent
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
 
 
 async def fake_place(token, side, amount, price, **_):

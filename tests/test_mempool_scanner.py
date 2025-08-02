@@ -2,7 +2,8 @@ import asyncio
 
 import solhunter_zero.mempool_scanner as mp_scanner
 from solhunter_zero import dynamic_limit
-from solhunter_zero import scanner_common, event_bus, resource_monitor as rm
+from solhunter_zero import resource_monitor as rm
+from solhunter_zero import scanner_common
 
 scanner_common.TOKEN_SUFFIX = ""
 
@@ -113,7 +114,7 @@ def test_stream_mempool_tokens_with_metrics(monkeypatch):
 
     monkeypatch.setattr(mp_scanner, "connect", fake_connect)
 
-    import solhunter_zero.onchain_metrics as om
+    import solhunter_zero.onchain_metrics as om  # noqa: E402
 
     monkeypatch.setattr(om, "fetch_volume_onchain", lambda t, u: 1.0)
     monkeypatch.setattr(om, "fetch_liquidity_onchain", lambda t, u: 2.0)
@@ -139,7 +140,7 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
 
     monkeypatch.setattr(mp_scanner, "connect", fake_connect)
 
-    import solhunter_zero.onchain_metrics as om
+    import solhunter_zero.onchain_metrics as om  # noqa: E402
 
     monkeypatch.setattr(
         om,
@@ -181,7 +182,7 @@ def test_stream_ranked_mempool_tokens(monkeypatch):
 
 def test_rank_token_momentum(monkeypatch):
     mp_scanner._ROLLING_STATS.clear()
-    import solhunter_zero.onchain_metrics as om
+    import solhunter_zero.onchain_metrics as om  # noqa: E402
 
     monkeypatch.setattr(
         om, "fetch_volume_onchain_async", lambda t, u: asyncio.sleep(0, 1.0)
@@ -225,7 +226,7 @@ def test_stream_ranked_with_depth(monkeypatch):
 
     monkeypatch.setattr(mp_scanner, "stream_ranked_mempool_tokens", fake_gen)
 
-    import solhunter_zero.order_book_ws as obws
+    import solhunter_zero.order_book_ws as obws  # noqa: E402
 
     monkeypatch.setattr(
         obws, "snapshot", lambda t: (5.0 if t == "tok1" else 10.0, 0.0, 0.0)
@@ -368,7 +369,7 @@ def test_dynamic_concurrency(monkeypatch):
 
 
 def test_mempool_concurrency_functions(monkeypatch):
-    import types
+    import types  # noqa: E402
 
     monkeypatch.setattr(
         dynamic_limit.psutil,

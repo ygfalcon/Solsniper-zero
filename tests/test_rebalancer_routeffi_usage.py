@@ -1,11 +1,13 @@
-import importlib
 import asyncio
+import importlib
+
 import pytest
 
-from solhunter_zero.agents.crossdex_rebalancer import CrossDEXRebalancer, PortfolioOptimizer
-from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.portfolio import Portfolio
 import solhunter_zero.agents.crossdex_rebalancer as reb
+from solhunter_zero.agents.crossdex_rebalancer import (CrossDEXRebalancer,
+                                                       PortfolioOptimizer)
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
 
 
 class DummyExec(ExecutionAgent):
@@ -20,8 +22,8 @@ class DummyExec(ExecutionAgent):
 
 @pytest.fixture
 def ensure_ffi(monkeypatch):
-    from pathlib import Path
-    import subprocess
+    import subprocess  # noqa: E402
+    from pathlib import Path  # noqa: E402
 
     lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
     if not lib_path.exists():

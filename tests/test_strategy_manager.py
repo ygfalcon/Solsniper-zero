@@ -1,7 +1,9 @@
+import asyncio
 import sys
 import types
-import asyncio
+
 import pytest
+
 from solhunter_zero.strategy_manager import StrategyManager
 
 
@@ -122,4 +124,3 @@ def test_strategy_manager_timeout(monkeypatch):
     assert actions == [
         {"token": "tok", "side": "buy", "amount": 1.0, "price": 1.0}
     ]
-

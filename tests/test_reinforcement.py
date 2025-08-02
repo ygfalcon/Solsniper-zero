@@ -1,7 +1,7 @@
 import asyncio
 
-from solhunter_zero.agents.reinforcement import ReinforcementAgent
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.reinforcement import ReinforcementAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio, Position
 

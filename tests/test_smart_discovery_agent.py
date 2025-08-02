@@ -1,7 +1,9 @@
 import asyncio
-import types
 import sys
+import types
+
 import pytest
+
 trans = pytest.importorskip("transformers")
 pytest.importorskip("sklearn")
 if not hasattr(trans, "pipeline"):
@@ -15,7 +17,7 @@ class _Pub:
 mod.PublicKey = _Pub
 sys.modules.setdefault("solana.publickey", mod)
 
-from solhunter_zero.agents.smart_discovery import SmartDiscoveryAgent
+from solhunter_zero.agents.smart_discovery import SmartDiscoveryAgent  # noqa: E402
 
 
 class DummyGBR:

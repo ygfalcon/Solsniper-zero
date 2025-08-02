@@ -1,18 +1,20 @@
-import os
-import io
-import json
 import asyncio
-import types
 import contextlib
 import importlib.machinery
+import io
+import json
+import logging
+import os
 import sys
+import threading
+import types
+from collections import deque
+
 import pytest
 from solders.keypair import Keypair
-from solhunter_zero import ui, config
-from collections import deque
+
+from solhunter_zero import config, ui
 from solhunter_zero.portfolio import Position
-import logging
-import threading
 
 pytest.importorskip("google.protobuf")
 
@@ -201,7 +203,7 @@ def test_risk_endpoint_emits_event(monkeypatch):
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
     events = []
 
-    from solhunter_zero.event_bus import subscribe
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     async def on_risk(payload):
         events.append(payload)
@@ -327,8 +329,8 @@ def test_rl_weights_event_updates_env(monkeypatch):
     monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
 
-    from solhunter_zero.event_bus import publish
-    from solhunter_zero.schemas import RLWeights
+    from solhunter_zero.event_bus import publish  # noqa: E402
+    from solhunter_zero.schemas import RLWeights  # noqa: E402
 
     publish(
         "rl_weights",
@@ -383,22 +385,22 @@ def _setup_memory(monkeypatch):
 
         class Wrapper:
             def __enter__(self_wr):
-                from solhunter_zero.util import run_coro
+                from solhunter_zero.util import run_coro  # noqa: E402
 
                 return run_coro(async_session.__aenter__())
 
             def __exit__(self_wr, exc_type, exc, tb):
-                from solhunter_zero.util import run_coro
+                from solhunter_zero.util import run_coro  # noqa: E402
 
                 return run_coro(async_session.__aexit__(exc_type, exc, tb))
 
             def execute(self_wr, *a, **k):
-                from solhunter_zero.util import run_coro
+                from solhunter_zero.util import run_coro  # noqa: E402
 
                 return run_coro(async_session.execute(*a, **k))
 
             def commit(self_wr):
-                from solhunter_zero.util import run_coro
+                from solhunter_zero.util import run_coro  # noqa: E402
 
                 return run_coro(async_session.commit())
 
@@ -409,7 +411,7 @@ def _setup_memory(monkeypatch):
     orig = mem.log_trade
 
     def _sync_log_trade(*a, **k):
-        from solhunter_zero.util import run_coro
+        from solhunter_zero.util import run_coro  # noqa: E402
 
         return run_coro(orig(*a, **k))
 

@@ -7,7 +7,7 @@ import pytest
 # Provide dummy aiohttp for imports
 sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
 
-from solhunter_zero.execution import EventExecutor, run_event_loop
+from solhunter_zero.execution import EventExecutor, run_event_loop  # noqa: E402
 
 
 def test_event_executor_run(monkeypatch):
@@ -79,7 +79,7 @@ def test_event_executor_bus(monkeypatch):
     async def runner():
         task = asyncio.create_task(execer.run())
         await execer.enqueue("A")
-        from solhunter_zero.event_bus import publish
+        from solhunter_zero.event_bus import publish  # noqa: E402
 
         publish("depth_update", {"TOK": {"tx_rate": 1.0}})
         await asyncio.sleep(0.05)

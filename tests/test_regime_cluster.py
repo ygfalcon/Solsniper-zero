@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 
-from solhunter_zero.regime import detect_regime
+from solhunter_zero.regime import detect_regime  # noqa: E402
 
 
 def test_cluster_regime_bull():

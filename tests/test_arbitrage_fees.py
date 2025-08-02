@@ -1,4 +1,5 @@
 import asyncio
+
 from solhunter_zero.agents.arbitrage import ArbitrageAgent
 from solhunter_zero.portfolio import Portfolio
 
@@ -39,4 +40,3 @@ def test_gas_multiplier(monkeypatch):
     )
     actions = asyncio.run(agent.propose_trade("tok", DummyPortfolio()))
     assert actions == []
-

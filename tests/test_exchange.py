@@ -1,18 +1,20 @@
-import base64
 import asyncio
+import base64
+
 import pytest
+
 pytest.importorskip("solders")
 
-from solders.keypair import Keypair
-from solders.hash import Hash
-from solders.message import MessageV0
-from solders.pubkey import Pubkey
-from solders.instruction import Instruction
-from solders.signature import Signature
-from solders.transaction import VersionedTransaction
+from solders.hash import Hash  # noqa: E402
+from solders.instruction import Instruction  # noqa: E402
+from solders.keypair import Keypair  # noqa: E402
+from solders.message import MessageV0  # noqa: E402
+from solders.pubkey import Pubkey  # noqa: E402
+from solders.signature import Signature  # noqa: E402
+from solders.transaction import VersionedTransaction  # noqa: E402
 
-from solhunter_zero.exchange import place_order, place_order_async
-import solhunter_zero.exchange as exchange
+import solhunter_zero.exchange as exchange  # noqa: E402
+from solhunter_zero.exchange import place_order, place_order_async  # noqa: E402
 
 
 async def _no_fee_async(*a, **k):

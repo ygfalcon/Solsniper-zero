@@ -1,4 +1,5 @@
 import types
+
 from solhunter_zero import dynamic_limit
 
 

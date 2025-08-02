@@ -1,15 +1,16 @@
-import json
 import asyncio
+import json
+
 import pytest
 
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents.attention_swarm import AttentionSwarm
-from solhunter_zero.advanced_memory import AdvancedMemory
-from solhunter_zero import event_bus
+from solhunter_zero import event_bus  # noqa: E402
+from solhunter_zero.advanced_memory import AdvancedMemory  # noqa: E402
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.attention_swarm import AttentionSwarm  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
 
 event_bus.websockets = None
 event_bus._encode_event = lambda *a, **k: b""
@@ -43,8 +44,8 @@ def test_rl_weights_event_updates_manager(tmp_path):
     mem_agent = MemoryAgent(mem)
     mgr = AgentManager([], memory_agent=mem_agent, weights={}, weights_path=str(path))
 
-    from solhunter_zero.event_bus import publish
-    from solhunter_zero.schemas import RLWeights
+    from solhunter_zero.event_bus import publish  # noqa: E402
+    from solhunter_zero.schemas import RLWeights  # noqa: E402
 
     publish("rl_weights", RLWeights(weights={"b": 2.0}, risk={"risk_multiplier": 1.1}))
     asyncio.run(asyncio.sleep(0))
@@ -81,7 +82,7 @@ def test_rotate_weight_configs_selects_best(tmp_path):
 
 
 def test_attention_swarm_device_env(monkeypatch, tmp_path):
-    from solhunter_zero import agent_manager as am
+    from solhunter_zero import agent_manager as am  # noqa: E402
     called = {}
 
     def fake_load(path, *, device="cpu"):
@@ -98,7 +99,7 @@ def test_attention_swarm_device_env(monkeypatch, tmp_path):
 
 
 def test_close_persists_mutation_state(tmp_path):
-    from solhunter_zero.agents.conviction import ConvictionAgent
+    from solhunter_zero.agents.conviction import ConvictionAgent  # noqa: E402
 
     state_path = tmp_path / "state.json"
     db1 = tmp_path / "mem1.db"
@@ -120,4 +121,3 @@ def test_close_persists_mutation_state(tmp_path):
     mem_agent2 = MemoryAgent(mem2)
     mgr2 = AgentManager([base, mem_agent2], memory_agent=mem_agent2, mutation_path=str(state_path))
     assert any(a.name == mut_name for a in mgr2.agents)
-

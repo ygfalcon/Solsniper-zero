@@ -1,7 +1,8 @@
 import json
 import subprocess
 import sys
-from solhunter_zero.backtester import backtest_configs, DEFAULT_STRATEGIES
+
+from solhunter_zero.backtester import DEFAULT_STRATEGIES, backtest_configs
 
 
 def run_cli(args):

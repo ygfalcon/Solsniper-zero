@@ -1,13 +1,16 @@
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
-from solhunter_zero import main as main_module
-from solhunter_zero.simulation import SimulationResult
-import asyncio
-import os
-import json
+import asyncio  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+
+from solhunter_zero import main as main_module  # noqa: E402
+from solhunter_zero.simulation import SimulationResult  # noqa: E402
+
 pytest.importorskip("solders")
-from solders.keypair import Keypair
+from solders.keypair import Keypair  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -249,7 +252,7 @@ def test_run_iteration_take_profit(monkeypatch):
 def test_discovery_methods(monkeypatch, method, target):
     called = {}
 
-    import solhunter_zero.scanner_common as scanner_common
+    import solhunter_zero.scanner_common as scanner_common  # noqa: E402
     scanner_common.BIRDEYE_API_KEY = None
     scanner_common.HEADERS.clear()
 
@@ -273,7 +276,7 @@ def test_discovery_methods(monkeypatch, method, target):
     else:
         monkeypatch.setattr(target, fake_sync)
 
-    import solhunter_zero.token_scanner as async_scanner_mod
+    import solhunter_zero.token_scanner as async_scanner_mod  # noqa: E402
     async def fake_trend():
         return []
     monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fake_trend)
@@ -526,7 +529,7 @@ def test_flashloan_amount_scales_with_portfolio(monkeypatch):
 
 
 def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
-    import solhunter_zero.config as cfg_mod
+    import solhunter_zero.config as cfg_mod  # noqa: E402
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(tmp_path / "cfg"))
     monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfg" / "active"))
     monkeypatch.setattr(main_module, "CONFIG_DIR", str(tmp_path / "cfg"))
@@ -550,7 +553,8 @@ def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module, "main", fake_main)
     async def fake_sync():
         called["sync"] = True
-    import sys, types
+    import sys  # noqa: E402
+    import types  # noqa: E402
     sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=fake_sync)
     if hasattr(main_module, "data_sync"):
         main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
@@ -564,7 +568,7 @@ def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
 
 def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
     cfg_dir = tmp_path / "cfg"
-    import solhunter_zero.config as cfg_mod
+    import solhunter_zero.config as cfg_mod  # noqa: E402
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(cfg_dir))
     monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(cfg_dir / "active"))
     monkeypatch.setattr(main_module, "CONFIG_DIR", str(cfg_dir))
@@ -581,7 +585,8 @@ def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module, "main", fake_main)
     async def fake_sync():
         called["sync"] = True
-    import sys, types
+    import sys  # noqa: E402
+    import types  # noqa: E402
     sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=fake_sync)
     if hasattr(main_module, "data_sync"):
         main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
@@ -812,4 +817,3 @@ def test_agent_manager_evolves(monkeypatch, tmp_path):
     )
 
     assert len(calls) == 2
-

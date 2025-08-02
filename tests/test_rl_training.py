@@ -1,8 +1,9 @@
+import importlib.machinery
+import importlib.util
 import sys
 import types
-import importlib.util
-import importlib.machinery
 from pathlib import Path
+
 import pytest
 
 pytest.importorskip("google.protobuf")
@@ -71,7 +72,7 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     pl.__spec__ = importlib.machinery.ModuleSpec("pytorch_lightning", None)
     callbacks = types.SimpleNamespace(Callback=object)
     pl.callbacks = callbacks
-    import torch.nn as _nn
+    import torch.nn as _nn  # noqa: E402
     pl.LightningModule = type(
         "LightningModule",
         (_nn.Module,),
@@ -110,7 +111,7 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(connect=lambda *a, **k: None)
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 try:
-    import google
+    import google  # noqa: E402
 except ModuleNotFoundError:
     google = types.ModuleType("google")
     google.__spec__ = importlib.machinery.ModuleSpec("google", None)
@@ -170,10 +171,9 @@ for name in [
     setattr(event_pb2, name, object())
 sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
 
-from solhunter_zero.rl_training import RLTraining
-import solhunter_zero.rl_training as rl_training
-from solhunter_zero.offline_data import OfflineData
-from scripts import build_mmap_dataset
+from scripts import build_mmap_dataset  # noqa: E402
+from solhunter_zero.offline_data import OfflineData  # noqa: E402
+from solhunter_zero.rl_training import RLTraining  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -192,7 +192,7 @@ async def test_rl_training_runs(tmp_path):
 
 
 def test_dynamic_worker_count(monkeypatch, tmp_path):
-    import solhunter_zero.rl_training as rl_training
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     class DummyDataset(rl_training.Dataset):
         def __len__(self):
@@ -236,7 +236,7 @@ def test_dynamic_worker_count(monkeypatch, tmp_path):
 
 
 def test_workers_adjusted_each_epoch(monkeypatch):
-    import solhunter_zero.rl_training as rl_training
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     class DummyDataset(rl_training.Dataset):
         def __len__(self):
@@ -275,7 +275,7 @@ def test_workers_adjusted_each_epoch(monkeypatch):
 
 
 def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
-    import solhunter_zero.rl_training as rl_training
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     class DummyDataset(rl_training.Dataset):
         def __len__(self):
@@ -319,8 +319,8 @@ def test_worker_count_reduced_when_memory_high(monkeypatch, tmp_path):
 
 
 def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
-    import solhunter_zero.rl_training as rl_training
-    from solhunter_zero import event_bus
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
+    from solhunter_zero import event_bus  # noqa: E402
 
     class DummyDataset(rl_training.Dataset):
         def __len__(self):
@@ -365,8 +365,9 @@ def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
 
 
 def test_calc_num_workers_cluster_env(monkeypatch):
-    import types
-    import solhunter_zero.rl_training as rl_training
+    import types  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
     monkeypatch.setattr(
@@ -398,9 +399,11 @@ def test_calc_num_workers_cluster_env(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
-    import numpy as np
-    from pathlib import Path
-    from solhunter_zero.offline_data import OfflineData
+    from pathlib import Path  # noqa: E402
+
+    import numpy as np  # noqa: E402
+
+    from solhunter_zero.offline_data import OfflineData  # noqa: E402
 
     db_url = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db_url)
@@ -492,11 +495,13 @@ async def test_mmap_generation_disabled(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_trade_data_prefetch(monkeypatch, tmp_path):
-    import numpy as np
-    import sys
+    import sys  # noqa: E402
+
+    import numpy as np  # noqa: E402
     monkeypatch.setitem(sys.modules, "numpy", np)
-    import importlib
-    import solhunter_zero.rl_training as rl_training
+    import importlib  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
     rl_training = importlib.reload(rl_training)
     db_url = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db_url)
@@ -513,16 +518,17 @@ async def test_trade_data_prefetch(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_mmap_created_on_daemon_train(monkeypatch, tmp_path):
-    from solhunter_zero.offline_data import OfflineData
-    from scripts import build_mmap_dataset
-    import psutil
+    import psutil  # noqa: E402
+
+    from scripts import build_mmap_dataset  # noqa: E402
+    from solhunter_zero.offline_data import OfflineData  # noqa: E402
     monkeypatch.setattr(
         psutil,
         "Process",
         lambda: types.SimpleNamespace(cpu_percent=lambda interval=None: 0.0),
         raising=False,
     )
-    from solhunter_zero.rl_daemon import RLDaemon
+    from solhunter_zero.rl_daemon import RLDaemon  # noqa: E402
 
     db_path = tmp_path / "data.db"
     db_url = f"sqlite:///{db_path}"
@@ -554,9 +560,10 @@ async def test_mmap_created_on_daemon_train(monkeypatch, tmp_path):
 
 
 def test_prioritized_sampler(monkeypatch):
-    import types
-    import datetime as dt
-    import solhunter_zero.rl_training as rl_training
+    import datetime as dt  # noqa: E402
+    import types  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     class DummySampler:
         def __init__(self, weights, num_samples, replacement=True):
@@ -564,7 +571,7 @@ def test_prioritized_sampler(monkeypatch):
             self.num_samples = num_samples
 
         def __iter__(self):
-            import random
+            import random  # noqa: E402
             total = sum(self.weights)
             probs = [w / total for w in self.weights]
             for _ in range(self.num_samples):
@@ -588,10 +595,12 @@ def test_prioritized_sampler(monkeypatch):
 
 
 def test_trade_dataset_cluster_feature(monkeypatch):
-    import types
-    import datetime as dt
-    import numpy as np
-    import solhunter_zero.rl_training as rl_training
+    import datetime as dt  # noqa: E402
+    import types  # noqa: E402
+
+    import numpy as np  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     calls = {"count": 0}
 
@@ -625,10 +634,11 @@ def test_trade_dataset_cluster_feature(monkeypatch):
 
 
 def test_models_accept_new_feature():
-    import torch
-    import solhunter_zero.rl_training as rl_training
-    import solhunter_zero.rl_daemon as rl_d
-    import solhunter_zero.rl_algorithms as rl_a
+    import torch  # noqa: E402
+
+    import solhunter_zero.rl_algorithms as rl_a  # noqa: E402
+    import solhunter_zero.rl_daemon as rl_d  # noqa: E402
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
 
     x10 = torch.zeros(1, 10)
     assert rl_training.LightningPPO()(x10).shape == (1, 2)
@@ -643,5 +653,4 @@ def test_models_accept_new_feature():
     assert rl_d._PPO()(x9).shape == (1, 2)
     assert rl_a._A3C()(x9).shape == (1, 2)
     assert rl_a._DDPG()(x9).shape == (1, 1)
-
 

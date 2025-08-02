@@ -1,7 +1,8 @@
 import asyncio
+
 from solhunter_zero.agents.crossdex_rebalancer import CrossDEXRebalancer
-from solhunter_zero.agents.portfolio_optimizer import PortfolioOptimizer
 from solhunter_zero.agents.execution import ExecutionAgent
+from solhunter_zero.agents.portfolio_optimizer import PortfolioOptimizer
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -85,7 +86,7 @@ def test_crossdex_feed(monkeypatch):
     exec_agent = DummyExec()
     agent = CrossDEXRebalancer(executor=exec_agent, rebalance_interval=0)
 
-    from solhunter_zero.event_bus import publish
+    from solhunter_zero.event_bus import publish  # noqa: E402
 
     publish(
         "depth_update",
@@ -124,7 +125,7 @@ def test_crossdex_latency_update(monkeypatch):
     exec_agent = DummyExec()
     agent = CrossDEXRebalancer(executor=exec_agent, rebalance_interval=0)
 
-    from solhunter_zero.event_bus import publish
+    from solhunter_zero.event_bus import publish  # noqa: E402
 
     publish("dex_latency_update", {"dexA": 0.01, "dexB": 0.5})
 
@@ -164,7 +165,7 @@ def test_crossdex_depth_window(monkeypatch):
     exec_agent = DummyExec()
     agent = CrossDEXRebalancer(executor=exec_agent, rebalance_interval=0)
 
-    from solhunter_zero.event_bus import publish
+    from solhunter_zero.event_bus import publish  # noqa: E402
 
     publish("depth_update", {"tok": {"dexA": {"bids": 100, "asks": 100}, "dexB": {"bids": 20, "asks": 20}}})
     publish("depth_update", {"tok": {"dexA": {"bids": 10, "asks": 10}, "dexB": {"bids": 20, "asks": 20}}})

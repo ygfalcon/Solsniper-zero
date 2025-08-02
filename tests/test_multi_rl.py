@@ -1,9 +1,10 @@
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.multi_rl import PopulationRL
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.memory import Memory  # noqa: E402
+from solhunter_zero.multi_rl import PopulationRL  # noqa: E402
 
 
 def test_population_rl_evolves_and_persists(tmp_path):

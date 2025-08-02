@@ -1,9 +1,10 @@
-import numpy as np
-import pytest
 import asyncio
 import time
 
-from solhunter_zero import simulation, http
+import numpy as np
+import pytest
+
+from solhunter_zero import http, simulation
 from solhunter_zero.simulation import SimulationResult
 
 
@@ -438,4 +439,3 @@ def test_run_simulations_additional_metrics(monkeypatch):
     assert res.depth_change == pytest.approx(1.0)
     assert res.tx_rate == pytest.approx(2.0)
     assert res.whale_activity == pytest.approx(0.5)
-

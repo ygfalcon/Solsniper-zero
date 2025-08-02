@@ -1,14 +1,16 @@
 import asyncio
+import importlib.util
 import json
 import sys
 import types
-import importlib.util
+
 import websockets
 
 # Stub heavy optional dependencies to keep import lightweight
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
-import importlib.machinery
+import importlib.machinery  # noqa: E402
+
 dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
 if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
@@ -141,26 +143,19 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(connect=lambda *a, **k: None)
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 
-import pytest
+import pytest  # noqa: E402
+
 pytest.importorskip("google.protobuf")
 
-from solhunter_zero.event_bus import (
-    subscribe,
-    publish,
-    subscription,
-    start_ws_server,
-    stop_ws_server,
-    connect_ws,
-    disconnect_ws,
-    broadcast_ws,
-    subscribe_ws_topics,
-    _unpack_batch,
-    _maybe_decompress,
-)
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.event_bus import (_maybe_decompress, _unpack_batch,  # noqa: E402
+                                      broadcast_ws, connect_ws, disconnect_ws,
+                                      publish, start_ws_server, stop_ws_server,
+                                      subscribe, subscribe_ws_topics,
+                                      subscription)
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -213,7 +208,7 @@ async def test_agent_manager_emits_events(monkeypatch):
     await mgr.execute("TOK", Portfolio(path=None))
     await asyncio.sleep(0)
 
-    from solhunter_zero.schemas import ActionExecuted
+    from solhunter_zero.schemas import ActionExecuted  # noqa: E402
 
     assert received and isinstance(received[0], ActionExecuted)
     assert received[0].action["token"] == "TOK"
@@ -241,7 +236,7 @@ async def test_websocket_publish_and_receive():
     port = 8768
     await start_ws_server("localhost", port)
 
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         publish("weights_updated", {"weights": {"x": 1.0}})
         raw = await asyncio.wait_for(ws.recv(), timeout=1)
@@ -262,12 +257,12 @@ async def test_websocket_client_publish(monkeypatch):
     received = []
     subscribe("weights_updated", lambda p: received.append(p))
     await connect_ws(f"ws://localhost:{port}")
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     upd = event_pb2.WeightsUpdated(weights={"x": 5.0})
     ev = event_pb2.Event(topic="weights_updated", weights_updated=upd)
     await broadcast_ws(ev.SerializeToString(), to_clients=False)
     await asyncio.sleep(0.1)
-    from solhunter_zero.schemas import WeightsUpdated
+    from solhunter_zero.schemas import WeightsUpdated  # noqa: E402
     assert received and isinstance(received[0], WeightsUpdated)
     assert received[0].weights["x"] == 5.0
     await disconnect_ws()
@@ -305,7 +300,7 @@ async def test_websocket_reconnect_on_drop():
     server.close()
     await server.wait_closed()
 
-    from solhunter_zero.schemas import WeightsUpdated
+    from solhunter_zero.schemas import WeightsUpdated  # noqa: E402
 
     assert len(connections) >= 2
     assert received and isinstance(received[-1], WeightsUpdated)
@@ -314,8 +309,8 @@ async def test_websocket_reconnect_on_drop():
 
 @pytest.mark.asyncio
 async def test_event_bus_url_connect(monkeypatch):
-    import importlib
-    import solhunter_zero.event_bus as ev
+
+    import solhunter_zero.event_bus as ev  # noqa: E402
 
     called = {}
 
@@ -354,8 +349,9 @@ async def test_event_bus_url_connect(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_event_bus_peers(monkeypatch):
-    import importlib
-    import solhunter_zero.event_bus as ev
+    import importlib  # noqa: E402
+
+    import solhunter_zero.event_bus as ev  # noqa: E402
 
     called = []
 
@@ -395,7 +391,7 @@ async def test_event_bus_peers(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_multiple_broker_publish(monkeypatch):
-    import importlib
+    import importlib  # noqa: E402
     sent = []
 
     class FakePubSub:
@@ -436,8 +432,8 @@ async def test_multiple_broker_publish(monkeypatch):
     monkeypatch.setitem(sys.modules, "redis", redis_pkg)
     monkeypatch.setitem(sys.modules, "redis.asyncio", fake_redis_mod)
     monkeypatch.setitem(sys.modules, "nats", types.SimpleNamespace(NATS=lambda: FakeNATS()))
-    import importlib
-    import solhunter_zero.event_bus as ev
+
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
     async def _fake_listener(_):
         pass
@@ -471,7 +467,7 @@ async def test_multiple_peer_connections():
 
     await connect_ws(f"ws://localhost:{port1}")
     await connect_ws(f"ws://localhost:{port2}")
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     upd = event_pb2.WeightsUpdated(weights={"x": 9.0})
     ev = event_pb2.Event(topic="weights_updated", weights_updated=upd)
     await broadcast_ws(ev.SerializeToString(), to_clients=False)
@@ -487,8 +483,8 @@ async def test_multiple_peer_connections():
 
 
 def test_event_bus_fallback_json(monkeypatch):
-    import builtins
-    import importlib
+    import builtins  # noqa: E402
+    import importlib  # noqa: E402
     orig_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
@@ -498,7 +494,7 @@ def test_event_bus_fallback_json(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
 
     seen = []
@@ -511,9 +507,9 @@ def test_event_bus_fallback_json(monkeypatch):
 
 def test_event_bus_msgpack(monkeypatch):
     pytest.importorskip("msgpack")
-    import importlib
+    import importlib  # noqa: E402
     monkeypatch.setenv("EVENT_SERIALIZATION", "msgpack")
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
     seen = []
     ev.subscribe("x", lambda p: seen.append(p))
@@ -525,15 +521,16 @@ def test_event_bus_msgpack(monkeypatch):
 
 
 def test_publish_invalid_payload():
-    from solhunter_zero.event_bus import publish
+    from solhunter_zero.event_bus import publish  # noqa: E402
     with pytest.raises(ValueError):
         publish("action_executed", {"bad": 1})
 
 
 def test_event_compression_algorithms(monkeypatch):
-    import importlib
-    from solhunter_zero import event_pb2
-    import solhunter_zero.event_bus as ev
+    import importlib  # noqa: E402
+
+    import solhunter_zero.event_bus as ev  # noqa: E402
+    from solhunter_zero import event_pb2  # noqa: E402
 
     monkeypatch.setenv("EVENT_COMPRESSION", "lz4")
     ev = importlib.reload(ev)
@@ -563,18 +560,18 @@ def test_event_compression_algorithms(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_zstd_round_trip(monkeypatch):
-    import importlib
+    import importlib  # noqa: E402
     monkeypatch.setenv("COMPRESS_EVENTS", "1")
     monkeypatch.setenv("EVENT_COMPRESSION_THRESHOLD", "0")
     monkeypatch.delenv("EVENT_COMPRESSION", raising=False)
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
     if not ev._HAS_ZSTD:
         pytest.skip("zstandard not installed")
 
     port = 8780
     await ev.start_ws_server("localhost", port)
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         ev.publish("depth_service_status", {"status": "ok"})
         raw = await asyncio.wait_for(ws.recv(), timeout=1)
@@ -588,10 +585,10 @@ async def test_zstd_round_trip(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_websocket_batching():
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     port = 8793
     await start_ws_server("localhost", port)
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         ev.publish("weights_updated", {"weights": {"x": 1}})
         ev.publish("weights_updated", {"weights": {"x": 2}})
@@ -609,14 +606,14 @@ async def test_websocket_batching():
 
 @pytest.mark.asyncio
 async def test_websocket_compressed_batch(monkeypatch):
-    import importlib
+    import importlib  # noqa: E402
     monkeypatch.setenv("EVENT_BUS_COMPRESSION", "deflate")
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
 
     port = 8794
     await ev.start_ws_server("localhost", port)
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         ev.publish("weights_updated", {"weights": {"x": 3}})
         ev.publish("weights_updated", {"weights": {"x": 4}})
@@ -636,12 +633,12 @@ async def test_websocket_compressed_batch(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_websocket_ping_settings(monkeypatch):
-    import importlib
+    import importlib  # noqa: E402
 
     monkeypatch.setenv("WS_PING_INTERVAL", "11")
     monkeypatch.setenv("WS_PING_TIMEOUT", "22")
 
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
 
     seen = {}
@@ -697,16 +694,17 @@ async def test_websocket_ping_settings(monkeypatch):
 @pytest.mark.asyncio
 async def test_websocket_topic_filtering():
     port = 8795
-    import importlib, sys
+    import importlib  # noqa: E402
+    import sys  # noqa: E402
     if 'websockets' in sys.modules:
         del sys.modules['websockets']
     real_ws = importlib.import_module('websockets')
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev.websockets = real_ws
     globals()['websockets'] = real_ws
     await start_ws_server("localhost", port)
 
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
 
     ws_all = await websockets.connect(f"ws://localhost:{port}")
     ws_filtered = await websockets.connect(
@@ -750,13 +748,13 @@ async def test_websocket_topic_filtering():
 
 @pytest.mark.asyncio
 async def test_mmap_batching(monkeypatch, tmp_path):
-    import importlib
+    import importlib  # noqa: E402
     path = tmp_path / "events.mmap"
     monkeypatch.setenv("EVENT_BUS_MMAP", str(path))
     monkeypatch.setenv("EVENT_BUS_MMAP_SIZE", "4096")
     monkeypatch.setenv("EVENT_MMAP_BATCH_MS", "50")
     monkeypatch.setenv("EVENT_MMAP_BATCH_SIZE", "10")
-    import solhunter_zero.event_bus as ev
+    import solhunter_zero.event_bus as ev  # noqa: E402
     ev = importlib.reload(ev)
     ev.publish("weights_updated", {"weights": {"x": 1}})
     ev.publish("weights_updated", {"weights": {"x": 2}})
@@ -771,4 +769,3 @@ async def test_mmap_batching(monkeypatch, tmp_path):
         off += 4 + ln
     assert len(lengths) == 2 and all(l > 0 for l in lengths)
     ev.close_mmap()
-

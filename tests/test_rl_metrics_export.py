@@ -1,7 +1,7 @@
-import sys
-import types
 import importlib
 import importlib.util
+import sys
+import types
 
 
 def test_metrics_export(monkeypatch):
@@ -49,8 +49,8 @@ def test_metrics_export(monkeypatch):
     bus_mod.publish = publish
     monkeypatch.setitem(sys.modules, 'solhunter_zero.event_bus', bus_mod)
 
-    from solhunter_zero import event_bus as eb
-    import solhunter_zero.metrics_client as mc
+    import solhunter_zero.metrics_client as mc  # noqa: E402
+    from solhunter_zero import event_bus as eb  # noqa: E402
     importlib.reload(mc)
 
     unsub = mc.start_metrics_exporter('http://endpoint')

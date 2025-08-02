@@ -26,7 +26,7 @@ solana_keypair = "kp2"
 """
     )
 
-    import importlib
+    import importlib  # noqa: E402
     mod = importlib.import_module('scripts.cluster_setup')
     config = mod.load_cluster_config(str(cfg))
     cmds = mod.assemble_commands(config)

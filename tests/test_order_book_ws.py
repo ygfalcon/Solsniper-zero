@@ -1,17 +1,19 @@
 import asyncio
 import json
+
 import aiohttp
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
-import time
+import time  # noqa: E402
 
-from solhunter_zero import order_book_ws
-from solhunter_zero.agents.conviction import ConvictionAgent
-from solhunter_zero.agents.arbitrage import ArbitrageAgent
-from solhunter_zero.agents.swarm import AgentSwarm
-from solhunter_zero.simulation import SimulationResult
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero import order_book_ws  # noqa: E402
+from solhunter_zero.agents.arbitrage import ArbitrageAgent  # noqa: E402
+from solhunter_zero.agents.conviction import ConvictionAgent  # noqa: E402
+from solhunter_zero.agents.swarm import AgentSwarm  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
+from solhunter_zero.simulation import SimulationResult  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):
@@ -169,4 +171,3 @@ def test_mmap_watch_invalidate(tmp_path, monkeypatch):
     d2, _, _ = order_book_ws.snapshot("tok")
     assert d2 == 4.0
     order_book_ws.stop_mmap_watch()
-

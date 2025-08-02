@@ -1,5 +1,5 @@
-import time
 import datetime as dt
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -91,4 +91,3 @@ def test_dataset_build_speed():
     old_time = _build_old(trades, snaps)
     new_time = _build_new(trades, snaps)
     assert new_time <= old_time * 1.2
-

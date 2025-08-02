@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
+
 torch = pytest.importorskip("torch")
 
-from solhunter_zero import models
+from solhunter_zero import models  # noqa: E402
 
 
 def test_load_and_predict(tmp_path):

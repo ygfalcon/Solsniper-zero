@@ -1,7 +1,7 @@
 import asyncio
 
-from solhunter_zero.agents.crossdex_arbitrage import CrossDEXArbitrage
 from solhunter_zero import arbitrage as arb
+from solhunter_zero.agents.crossdex_arbitrage import CrossDEXArbitrage
 from solhunter_zero.portfolio import Portfolio
 
 

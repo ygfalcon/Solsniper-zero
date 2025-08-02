@@ -1,7 +1,8 @@
+from solhunter_zero.advanced_memory import AdvancedMemory
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.rl_weight_agent import RLWeightAgent
-from solhunter_zero.advanced_memory import AdvancedMemory
 from solhunter_zero.swarm_coordinator import SwarmCoordinator
+
 
 class DummyAgent:
     def __init__(self, name):

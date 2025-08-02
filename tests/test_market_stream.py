@@ -1,9 +1,10 @@
 import asyncio
+
 from solhunter_zero.market_stream import stream_market_data
 
 
 def test_stream_market_data(monkeypatch):
-    from solhunter_zero import http
+    from solhunter_zero import http  # noqa: E402
     http._session = None
     async def fake_metrics(token):
         return {"volume": 100.0, "slippage": 0.05}

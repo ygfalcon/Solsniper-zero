@@ -1,10 +1,8 @@
 import pytest
-from solhunter_zero.portfolio import (
-    Portfolio,
-    calculate_order_size,
-    dynamic_order_size,
-)
-from solhunter_zero.risk import RiskManager
+
+from solhunter_zero.portfolio import (Portfolio, calculate_order_size,
+                                      dynamic_order_size)
+from solhunter_zero.risk import RiskManager  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -174,8 +172,8 @@ def test_portfolio_updated_event(tmp_path):
     p = Portfolio(path=str(path))
     events = []
 
-    from solhunter_zero.event_bus import subscribe
-    from solhunter_zero.schemas import PortfolioUpdated
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
+    from solhunter_zero.schemas import PortfolioUpdated  # noqa: E402
 
     unsub = subscribe("portfolio_updated", lambda e: events.append(e))
 
@@ -194,7 +192,7 @@ def test_risk_metrics_event(monkeypatch):
     p.record_prices({"tok": 1.1, "oth": 1.2})
 
     events = []
-    from solhunter_zero.event_bus import subscribe
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     unsub = subscribe("risk_metrics", lambda e: events.append(e))
 
@@ -203,7 +201,7 @@ def test_risk_metrics_event(monkeypatch):
 
     assert events
     ev = events[-1]
-    import math
+    import math  # noqa: E402
 
     if math.isnan(p.risk_metrics["covariance"]):
         assert math.isnan(ev["covariance"])
@@ -343,5 +341,4 @@ def test_calculate_order_size_risk_manager_metrics():
         max_risk_per_token=rm.max_risk_per_token,
     )
     assert dynamic < base
-
 

@@ -3,6 +3,7 @@ import sys
 import types
 
 import pytest
+
 trans = pytest.importorskip("transformers")
 if not hasattr(trans, "pipeline"):
     trans.pipeline = lambda *a, **k: lambda x: []
@@ -19,10 +20,10 @@ dummy_torch.Tensor = DummyTensor
 sys.modules.setdefault("torch", dummy_torch)
 sys.modules.setdefault("torch.nn", dummy_nn)
 
-from solhunter_zero.agents.trend import TrendAgent
-from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
+from solhunter_zero.agents.trend import TrendAgent  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):

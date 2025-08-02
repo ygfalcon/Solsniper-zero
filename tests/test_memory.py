@@ -1,4 +1,5 @@
 import pytest
+
 from solhunter_zero.memory import Memory
 
 
@@ -41,9 +42,9 @@ async def test_log_and_list_vars():
 def test_trade_replication_event(tmp_path):
     db = tmp_path / "rep.db"
     idx = tmp_path / "rep.index"
-    from solhunter_zero.advanced_memory import AdvancedMemory
-    from solhunter_zero.event_bus import publish
-    from solhunter_zero.schemas import TradeLogged
+    from solhunter_zero.advanced_memory import AdvancedMemory  # noqa: E402
+    from solhunter_zero.event_bus import publish  # noqa: E402
+    from solhunter_zero.schemas import TradeLogged  # noqa: E402
 
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx), replicate=True)
     publish(
@@ -56,8 +57,9 @@ def test_trade_replication_event(tmp_path):
 
 @pytest.mark.asyncio
 async def test_async_queue_commit(tmp_path, monkeypatch):
-    from sqlalchemy.ext.asyncio import AsyncSession
-    import asyncio
+    import asyncio  # noqa: E402
+
+    from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
     commits = 0
     orig_commit = AsyncSession.commit
@@ -87,8 +89,9 @@ async def test_async_queue_commit(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_queue_flush_interval(tmp_path, monkeypatch):
-    from sqlalchemy.ext.asyncio import AsyncSession
-    import asyncio
+    import asyncio  # noqa: E402
+
+    from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
     commits = 0
     orig_commit = AsyncSession.commit

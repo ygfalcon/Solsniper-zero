@@ -1,10 +1,11 @@
-import types
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
-from solhunter_zero.agent_manager import StrategySelector, AgentManager
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
+from solhunter_zero.agent_manager import AgentManager, StrategySelector  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.memory import Memory  # noqa: E402
+
 
 class DummyAgent:
     def __init__(self, name):

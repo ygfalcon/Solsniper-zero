@@ -1,10 +1,9 @@
-import sys
-import types
-import importlib.metadata
-import importlib.util
-
 # Stub heavy optional dependencies before importing the package
 import importlib.machinery
+import importlib.metadata
+import importlib.util
+import sys
+import types
 
 for mod in [
     "transformers",
@@ -19,8 +18,8 @@ for mod in [
     m.__spec__ = importlib.machinery.ModuleSpec(mod, None)
     sys.modules.setdefault(mod, m)
 
-from solhunter_zero import agents as agent_mod
-from solhunter_zero.agents import BUILT_IN_AGENTS, BaseAgent, load_agent
+from solhunter_zero import agents as agent_mod  # noqa: E402
+from solhunter_zero.agents import BUILT_IN_AGENTS, BaseAgent, load_agent  # noqa: E402
 
 
 class EPAgent(BaseAgent):
@@ -53,5 +52,4 @@ def test_entrypoint_agent_loaded(monkeypatch):
 
     agent = load_agent("ep_dummy")
     assert isinstance(agent, EPAgent)
-
 

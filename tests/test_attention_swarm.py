@@ -1,6 +1,8 @@
 import pytest
+
 torch = pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.agents.attention_swarm import AttentionSwarm, save_model, load_model
+from solhunter_zero.agents.attention_swarm import (AttentionSwarm, load_model,  # noqa: E402
+                                                   save_model)
 
 
 def test_load_model_device_cuda(tmp_path, monkeypatch):
@@ -23,4 +25,3 @@ def test_load_model_device_cuda(tmp_path, monkeypatch):
     loaded = load_model(str(path), device="cuda")
     assert loaded.device.type == "cuda"
     assert getattr(loaded, "_dev").type == "cuda"
-

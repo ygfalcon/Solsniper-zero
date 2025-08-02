@@ -1,7 +1,7 @@
-import sys
-import types
 import contextlib
 import importlib.machinery
+import sys
+import types
 
 import solhunter_zero.config as cfg_mod
 
@@ -83,7 +83,7 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
             "solhunter_zero.models.regime_classifier"
         ]
 
-        from solhunter_zero import main as main_module
+        from solhunter_zero import main as main_module  # noqa: E402
         cfg_dir = tmp_path / "cfg"
         cfg_dir.mkdir()
         cfg_file = cfg_dir / "cfg.toml"

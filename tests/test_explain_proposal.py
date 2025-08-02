@@ -1,14 +1,15 @@
 import asyncio
 
 import pytest
+
 pytest.importorskip("transformers")
 pytest.importorskip("torch.nn.utils.rnn")
 
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.advanced_memory import AdvancedMemory
-from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.advanced_memory import AdvancedMemory  # noqa: E402
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):

@@ -7,8 +7,8 @@ dummy_trans.pipeline = lambda *a, **k: lambda x: [{"label": "POSITIVE", "score":
 sys.modules.setdefault("transformers", dummy_trans)
 sys.modules["transformers"].pipeline = dummy_trans.pipeline
 
-from solhunter_zero.agents.momentum import MomentumAgent
-from solhunter_zero.portfolio import Portfolio, Position
+from solhunter_zero.agents.momentum import MomentumAgent  # noqa: E402
+from solhunter_zero.portfolio import Portfolio, Position  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):

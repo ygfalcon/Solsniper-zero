@@ -1,5 +1,7 @@
 import asyncio
-from solhunter_zero import dex_scanner, token_scanner as scanner, scanner_common
+
+from solhunter_zero import dex_scanner, scanner_common
+from solhunter_zero import token_scanner as scanner
 from solhunter_zero.event_bus import subscribe
 
 

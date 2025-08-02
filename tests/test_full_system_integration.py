@@ -1,10 +1,12 @@
-import sys
-import types
 import contextlib
-from pathlib import Path
 import importlib.machinery
 import importlib.util
+import sys
+import types
+from pathlib import Path
+
 import pytest
+
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 
@@ -141,7 +143,7 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.async_api"] = rpc_mod.api
     sys.modules["solana.rpc.websocket_api"] = rpc_mod.websocket_api
 else:
-    import solana.rpc.websocket_api as ws_mod
+    import solana.rpc.websocket_api as ws_mod  # noqa: E402
 
     ws_mod.connect = lambda *a, **k: None
     if not hasattr(ws_mod, "RpcTransactionLogsFilterMentions"):
@@ -305,7 +307,7 @@ def test_full_system_integration(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop)
     monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
     monkeypatch.setenv("USE_DEPTH_STREAM", "0")
-    import solhunter_zero.gas as gas_mod
+    import solhunter_zero.gas as gas_mod  # noqa: E402
 
     monkeypatch.setattr(gas_mod, "get_current_fee_async", lambda *a, **k: 0.0)
 

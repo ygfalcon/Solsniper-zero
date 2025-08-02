@@ -1,5 +1,6 @@
 import subprocess
 import sys
+
 from solhunter_zero.memory import Memory
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 

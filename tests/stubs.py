@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-import types
-import time
 import importlib
 import importlib.machinery
+import sys
+import time
+import types
 
 
 def stub_numpy() -> None:
@@ -302,10 +302,10 @@ def stub_sqlalchemy() -> None:
             raise TypeError("unsupported query type")
 
         def _execute_text(self, sql: str, params: dict):
-            import re
-            from types import SimpleNamespace
+            import re  # noqa: E402
+            from types import SimpleNamespace  # noqa: E402
             try:
-                from solhunter_zero.memory import Trade
+                from solhunter_zero.memory import Trade  # noqa: E402
             except Exception:  # pragma: no cover - fallback
                 Trade = None
             low = sql.strip().lower()
@@ -586,7 +586,7 @@ def stub_websockets() -> None:
 
         return Server()
 
-    import asyncio
+    import asyncio  # noqa: E402
 
     mod.connect = connect
     mod.serve = serve
@@ -728,7 +728,7 @@ def stub_torch() -> None:
     if 'torch' in sys.modules:
         return
 
-    import contextlib
+    import contextlib  # noqa: E402
 
     mod = types.ModuleType('torch')
     mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
@@ -758,7 +758,7 @@ def stub_torch() -> None:
 
     def _save(obj, path, *a, **k):
         with open(path, 'wb') as fh:
-            import pickle
+            import pickle  # noqa: E402
             pickle.dump(obj, fh)
 
     mod.save = _save
@@ -965,7 +965,7 @@ def stub_sklearn() -> None:
 def stub_transformers() -> None:
     """Provide lightweight stubs for the ``transformers`` package."""
     try:
-        import importlib.util
+        import importlib.util  # noqa: E402
 
         spec = importlib.util.find_spec('transformers')
         if spec is not None and spec.loader is not None:

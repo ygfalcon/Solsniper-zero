@@ -1,7 +1,7 @@
 import pytest
 
-from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero import event_bus
+from solhunter_zero.agents.execution import ExecutionAgent
 
 
 def test_execution_agent_cpu_adjust():

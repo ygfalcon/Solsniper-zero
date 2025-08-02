@@ -1,9 +1,9 @@
-import pytest
-import aiohttp
 import asyncio
-from solhunter_zero import http
 
-from solhunter_zero import onchain_metrics
+import aiohttp
+import pytest
+
+from solhunter_zero import http, onchain_metrics
 
 
 # reset global state before each test
@@ -418,7 +418,7 @@ def test_fetch_dex_metrics_concurrent(monkeypatch):
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
 
-    import time
+    import time  # noqa: E402
 
     start = time.perf_counter()
     metrics = asyncio.run(
@@ -449,7 +449,7 @@ def test_top_volume_tokens_concurrent(monkeypatch):
     monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: SlowClient(url, {}))
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
-    import time
+    import time  # noqa: E402
 
     start = time.perf_counter()
     result = onchain_metrics.top_volume_tokens("node")

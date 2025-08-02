@@ -1,8 +1,8 @@
-import json
-import os
 import asyncio
-import aiohttp
+import json
 import time
+
+import aiohttp
 import pytest
 
 transformers = pytest.importorskip("transformers")
@@ -10,10 +10,9 @@ if not hasattr(transformers, "pipeline"):
     transformers.pipeline = lambda *a, **k: lambda x: []
 pytest.importorskip("sklearn")
 
-from solhunter_zero import depth_client
 
-import solhunter_zero.data_sync as data_sync
-from solhunter_zero.offline_data import OfflineData
+import solhunter_zero.data_sync as data_sync  # noqa: E402
+from solhunter_zero.offline_data import OfflineData  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -149,8 +148,8 @@ async def test_depth_snapshot_listener(tmp_path, monkeypatch):
 
     db = tmp_path / "data.db"
     data = OfflineData(f"sqlite:///{db}")
-    from solhunter_zero.data_pipeline import start_depth_snapshot_listener
-    from solhunter_zero.event_bus import publish
+    from solhunter_zero.data_pipeline import start_depth_snapshot_listener  # noqa: E402
+    from solhunter_zero.event_bus import publish  # noqa: E402
 
     unsub = start_depth_snapshot_listener(data)
     publish("depth_update", msg, _broadcast=False)
@@ -208,4 +207,3 @@ def test_sync_concurrency(tmp_path, monkeypatch):
     t1 = asyncio.run(run(1))
     t2 = asyncio.run(run(2))
     assert t2 < t1
-

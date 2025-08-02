@@ -1,10 +1,10 @@
 import asyncio
-from solhunter_zero import token_scanner as scanner
+
 from solhunter_zero import dynamic_limit
-from solhunter_zero import scanner_common
 from solhunter_zero import resource_monitor as rm
+from solhunter_zero import scanner_common
+from solhunter_zero import token_scanner as scanner
 from solhunter_zero.event_bus import subscribe
-from solhunter_zero import event_bus
 
 data = {"data": [{"address": "abcbonk"}, {"address": "otherbonk"}]}
 
@@ -129,7 +129,7 @@ def test_scan_tokens_onchain(monkeypatch):
     assert events == [tokens]
 
 
-from solhunter_zero.token_scanner import scan_tokens_async as async_scan
+from solhunter_zero.token_scanner import scan_tokens_async as async_scan  # noqa: E402
 
 
 def test_scan_tokens_async(monkeypatch):
@@ -158,7 +158,7 @@ def test_scan_tokens_async(monkeypatch):
     monkeypatch.setattr(scanner, "get_session", fake_session3)
     async def fake_trend():
         return ['trend']
-    import solhunter_zero.token_scanner as async_scanner_mod
+    import solhunter_zero.token_scanner as async_scanner_mod  # noqa: E402
     monkeypatch.setattr(async_scanner_mod, 'fetch_trending_tokens_async', fake_trend)
     scanner_async_module = __import__('solhunter_zero.token_scanner', fromlist=[''])
     scanner_common.BIRDEYE_API_KEY = 'key'
@@ -215,7 +215,7 @@ def test_scan_tokens_async_from_file(monkeypatch, tmp_path):
     monkeypatch.setattr(scanner, "get_session", fake_session5)
     async def fail():
         raise AssertionError("trending")
-    import solhunter_zero.token_scanner as async_scanner_mod
+    import solhunter_zero.token_scanner as async_scanner_mod  # noqa: E402
     monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fail)
 
     events = []
@@ -335,7 +335,7 @@ def test_cpu_fallback(monkeypatch):
 
 
 def test_scanner_concurrency_controller(monkeypatch):
-    import types
+    import types  # noqa: E402
 
     monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=0.0))
     monkeypatch.setattr(dynamic_limit, "_KP", 0.5)
@@ -354,10 +354,9 @@ def test_scanner_concurrency_controller(monkeypatch):
 
 
 def test_concurrency_memory_pressure(monkeypatch):
-    import types
+    import types  # noqa: E402
 
     monkeypatch.setattr(dynamic_limit.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=90.0))
     dynamic_limit._CPU_EMA = 0.0
     tgt = dynamic_limit._target_concurrency(10.0, 4, 40.0, 80.0)
     assert tgt == 1
-

@@ -1,6 +1,7 @@
 import importlib
 import sys
 import types
+
 import pytest
 
 pytest.importorskip("google.protobuf")
@@ -53,7 +54,8 @@ except Exception:
     sys.modules.setdefault("google.protobuf.internal", internal)
     sys.modules.setdefault("google.protobuf.internal.builder", internal.builder)
 
-import solhunter_zero.arbitrage as arb
+import solhunter_zero.arbitrage as arb  # noqa: E402
+
 
 def test_best_route_parallel_called(monkeypatch):
     monkeypatch.setattr(arb._routeffi, "available", lambda: True)
@@ -71,4 +73,3 @@ def test_best_route_parallel_called(monkeypatch):
     prices = {"dex1": 1.0, "dex2": 1.1}
     arb._best_route(prices, 1.0)
     assert called.get("parallel", False)
-

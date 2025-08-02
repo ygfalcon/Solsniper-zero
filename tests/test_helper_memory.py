@@ -1,4 +1,5 @@
 import pytest
+
 from solhunter_zero.memory import Memory
 
 # create memory instances outside any running event loop

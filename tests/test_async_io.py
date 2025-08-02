@@ -1,8 +1,8 @@
 import asyncio
 import json
+
 import pytest
 
-from solhunter_zero.wallet import save_keypair
 from solhunter_zero import wallet
 from solhunter_zero.portfolio import Portfolio
 

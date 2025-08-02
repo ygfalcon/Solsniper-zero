@@ -1,8 +1,10 @@
 import asyncio
-import pytest
-import types
-import sys
 import importlib.util
+import sys
+import types
+
+import pytest
+
 trans = pytest.importorskip("transformers")
 if not hasattr(trans, "pipeline"):
     trans.pipeline = lambda *a, **k: lambda x: []
@@ -15,7 +17,8 @@ if importlib.util.find_spec("solana.publickey") is None:
 if importlib.util.find_spec("solana.rpc.websocket_api") is None:
     sys.modules.setdefault("solana.rpc.websocket_api", types.SimpleNamespace(connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object))
 
-import solhunter_zero.mempool_listener as listener
+import solhunter_zero.mempool_listener as listener  # noqa: E402
+
 
 class DummyAgentManager:
     def __init__(self):
@@ -39,10 +42,10 @@ def test_fetch_token_age(monkeypatch):
     sigs = [{"blockTime": 100}, {"blockTime": 150}]
     def fake_client(url):
         return FakeClient(url, sigs)
-    from solhunter_zero import onchain_metrics as om
+    from solhunter_zero import onchain_metrics as om  # noqa: E402
     monkeypatch.setattr(om, "Client", fake_client)
     monkeypatch.setattr(om, "PublicKey", lambda x: x)
-    import time as _time
+    import time as _time  # noqa: E402
     monkeypatch.setattr(_time, "time", lambda: 200)
     age = om.fetch_token_age("tok", "rpc")
     assert age == pytest.approx(100.0)
@@ -86,7 +89,7 @@ def test_listen_mempool_emits_risk(monkeypatch):
     async def on_risk(payload):
         events.append(payload)
 
-    from solhunter_zero.event_bus import subscribe
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     unsub = subscribe("risk_updated", on_risk)
 

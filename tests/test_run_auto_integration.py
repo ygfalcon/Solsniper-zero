@@ -1,11 +1,9 @@
-import sys
-import types
 import asyncio
 import contextlib
-import json
-import os
-import pytest
 import importlib.machinery
+import json
+import sys
+import types
 
 _faiss_mod = types.ModuleType('faiss')
 _faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
@@ -54,8 +52,9 @@ _pl_mod.Trainer = object
 sys.modules.setdefault('pytorch_lightning', _pl_mod)
 
 
-from solders.keypair import Keypair
-import solhunter_zero.config as cfg_mod
+from solders.keypair import Keypair  # noqa: E402
+
+import solhunter_zero.config as cfg_mod  # noqa: E402
 
 
 def test_run_auto_integration(monkeypatch, tmp_path):
@@ -73,8 +72,8 @@ def test_run_auto_integration(monkeypatch, tmp_path):
         stub_models.regime_classifier = sys.modules[
             "solhunter_zero.models.regime_classifier"
         ]
-        from solhunter_zero import main as main_module
-        from solhunter_zero.simulation import SimulationResult
+        from solhunter_zero import main as main_module  # noqa: E402
+        from solhunter_zero.simulation import SimulationResult  # noqa: E402
 
         cfg_dir = tmp_path / "cfg"
         cfg_dir.mkdir()

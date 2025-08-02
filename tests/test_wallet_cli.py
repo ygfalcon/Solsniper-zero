@@ -1,11 +1,12 @@
-import os
 import json
+import os
 import subprocess
 import sys
+
 import pytest
 
 try:
-    from solders.keypair import Keypair
+    from solders.keypair import Keypair  # noqa: E402
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     pytest.skip("solders is required", allow_module_level=True)
 

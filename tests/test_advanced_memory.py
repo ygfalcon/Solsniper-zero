@@ -1,12 +1,16 @@
 import pytest
+
 pytest.importorskip("numpy")
 pytest.importorskip("faiss")
-import numpy as np, faiss
+import faiss  # noqa: E402
+import numpy as np  # noqa: E402
+
 if getattr(np, "_STUB", False) or getattr(faiss, "_STUB", False):
     pytest.skip("requires real numpy/faiss", allow_module_level=True)
 
-from solhunter_zero.advanced_memory import AdvancedMemory
-import sys
+import sys  # noqa: E402
+
+from solhunter_zero.advanced_memory import AdvancedMemory  # noqa: E402
 
 
 def test_insert_search_persist(tmp_path, monkeypatch):
@@ -62,9 +66,10 @@ def test_replicated_trade_dedup(tmp_path, monkeypatch):
     idx = tmp_path / "rep.index"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx), replicate=True)
 
-    from uuid import uuid4
-    from solhunter_zero.event_bus import publish
-    from solhunter_zero.schemas import TradeLogged
+    from uuid import uuid4  # noqa: E402
+
+    from solhunter_zero.event_bus import publish  # noqa: E402
+    from solhunter_zero.schemas import TradeLogged  # noqa: E402
 
     tid = str(uuid4())
     event = TradeLogged(token="TOK", direction="buy", amount=1.0, price=1.0, uuid=tid)
@@ -129,8 +134,8 @@ def test_memory_sync_exchange(tmp_path, monkeypatch):
 
     mem1.log_trade(token="A", direction="buy", amount=1.0, price=1.0)
 
-    from solhunter_zero.event_bus import publish
-    from solhunter_zero.schemas import MemorySyncRequest
+    from solhunter_zero.event_bus import publish  # noqa: E402
+    from solhunter_zero.schemas import MemorySyncRequest  # noqa: E402
 
     publish("memory_sync_request", MemorySyncRequest(last_id=0))
 
@@ -145,12 +150,13 @@ def test_memory_sync_exchange(tmp_path, monkeypatch):
 
 def test_cluster_trades_groups(tmp_path, monkeypatch):
     monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
-    import numpy as np
-    import faiss
-    import importlib
+    import importlib  # noqa: E402
+
+    import faiss  # noqa: E402
+    import numpy as np  # noqa: E402
     sys.modules["numpy"] = np
     sys.modules["faiss"] = faiss
-    import solhunter_zero.advanced_memory as am
+    import solhunter_zero.advanced_memory as am  # noqa: E402
     am = importlib.reload(am)
     am.faiss = faiss
 
@@ -203,12 +209,14 @@ def test_cluster_trades_groups(tmp_path, monkeypatch):
 
 def test_close_and_reopen(tmp_path, monkeypatch):
     monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
-    import sys, importlib
+    import importlib  # noqa: E402
+    import sys  # noqa: E402
     for m in ["numpy", "faiss", "requests", "requests.exceptions", "sentence_transformers"]:
         sys.modules.pop(m, None)
-    import numpy as np
-    import faiss
-    import solhunter_zero.advanced_memory as am
+    import faiss  # noqa: E402
+    import numpy as np  # noqa: E402
+
+    import solhunter_zero.advanced_memory as am  # noqa: E402
     am = importlib.reload(am)
 
     class DummyModel:
@@ -231,4 +239,3 @@ def test_close_and_reopen(tmp_path, monkeypatch):
     trades = mem2.list_trades()
     assert len(trades) == 1
     assert mem2.index is not None and mem2.index.ntotal == 1
-

@@ -1,8 +1,8 @@
 import asyncio
-import sys
-import types
 import importlib
 import importlib.machinery
+import sys
+import types
 
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 
@@ -171,7 +171,7 @@ def _load_main(monkeypatch):
 
 def test_paper(monkeypatch):
     main_module = _load_main(monkeypatch)
-    from solhunter_zero.simulation import SimulationResult
+    from solhunter_zero.simulation import SimulationResult  # noqa: E402
     mem = main_module.Memory("sqlite:///:memory:")
     pf = main_module.Portfolio(path=None)
 
@@ -191,7 +191,7 @@ def test_paper(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
-    import solhunter_zero.gas as gas_mod
+    import solhunter_zero.gas as gas_mod  # noqa: E402
 
     monkeypatch.setattr(gas_mod, "get_current_fee", lambda testnet=False: 0.0)
 
@@ -210,7 +210,7 @@ def test_paper(monkeypatch):
 
 def test_paper_metrics(monkeypatch):
     main_module = _load_main(monkeypatch)
-    from solhunter_zero.simulation import SimulationResult
+    from solhunter_zero.simulation import SimulationResult  # noqa: E402
     mem = main_module.Memory("sqlite:///:memory:")
     pf = main_module.Portfolio(path=None)
 
@@ -238,7 +238,7 @@ def test_paper_metrics(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
-    import solhunter_zero.gas as gas_mod
+    import solhunter_zero.gas as gas_mod  # noqa: E402
 
     monkeypatch.setattr(gas_mod, "get_current_fee", lambda testnet=False: 0.0)
 

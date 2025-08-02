@@ -1,13 +1,14 @@
 import json
 import os
+
 import pytest
 
 try:
-    from solders.keypair import Keypair
+    from solders.keypair import Keypair  # noqa: E402
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     pytest.skip("solders is required", allow_module_level=True)
 
-from solhunter_zero import wallet
+from solhunter_zero import wallet  # noqa: E402
 
 
 def setup_wallet(tmp_path, monkeypatch):

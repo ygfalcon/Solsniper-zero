@@ -1,10 +1,12 @@
 import json
+
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.conviction import ConvictionAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.advanced_memory import AdvancedMemory
+from solhunter_zero.advanced_memory import AdvancedMemory  # noqa: E402
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.conviction import ConvictionAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
 
 
 def test_mutations_spawn_and_prune(tmp_path):

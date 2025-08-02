@@ -1,7 +1,8 @@
 import asyncio
+import importlib.util
 import sys
 import types
-import importlib.util
+
 import pytest
 
 pytest.importorskip("google.protobuf")
@@ -9,7 +10,8 @@ pytest.importorskip("google.protobuf")
 # Stub heavy optional dependencies similar to event_bus tests
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
-import importlib.machinery
+import importlib.machinery  # noqa: E402
+
 dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
 if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
@@ -91,7 +93,7 @@ if importlib.util.find_spec("sklearn") is None:
         C=object,
     )
 try:
-    import google
+    import google  # noqa: E402
 except ModuleNotFoundError:
     google = types.ModuleType("google")
     google.__spec__ = importlib.machinery.ModuleSpec("google", None)
@@ -197,23 +199,20 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(connect=lambda *a, **k: None)
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 
-from solhunter_zero.rl_daemon import RLDaemon
-from solhunter_zero.agents.dqn import DQNAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
-from solhunter_zero.offline_data import OfflineData
-from solhunter_zero.portfolio import Portfolio
-from solhunter_zero.event_bus import (
-    start_ws_server,
-    stop_ws_server,
-    connect_ws,
-    disconnect_ws,
-)
-import solhunter_zero.event_bus as event_bus
-import websockets
-import json
-import os
-import logging
+import logging  # noqa: E402
+import os  # noqa: E402
+
+import websockets  # noqa: E402
+
+import solhunter_zero.event_bus as event_bus  # noqa: E402
+from solhunter_zero.agents.dqn import DQNAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.event_bus import (connect_ws, disconnect_ws,  # noqa: E402
+                                      start_ws_server, stop_ws_server)
+from solhunter_zero.memory import Memory  # noqa: E402
+from solhunter_zero.offline_data import OfflineData  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
+from solhunter_zero.rl_daemon import RLDaemon  # noqa: E402
 
 
 def _no_load(self):
@@ -280,7 +279,7 @@ def test_daemon_receives_risk_update(tmp_path):
 
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
 
-    from solhunter_zero.event_bus import publish
+    from solhunter_zero.event_bus import publish  # noqa: E402
 
     publish("risk_updated", {"multiplier": 3.0})
     asyncio.run(asyncio.sleep(0))
@@ -301,9 +300,10 @@ async def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
     await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     events = []
-    from solhunter_zero.event_bus import subscribe
-    import solhunter_zero.rl_training as rl_training
-    from pathlib import Path
+    from pathlib import Path  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     unsub = subscribe("rl_checkpoint", lambda p: events.append(p))
 
@@ -311,18 +311,18 @@ async def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
         Path(k.get("model_path")).write_text("x")
 
     monkeypatch.setattr(rl_training, "fit", fake_fit)
-    import torch
+    import torch  # noqa: E402
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
-    from types import SimpleNamespace
+    from types import SimpleNamespace  # noqa: E402
     dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
     dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
     monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: ([dummy_trade], [dummy_snap]))
     daemon.train()
     unsub()
 
-    from solhunter_zero.schemas import RLCheckpoint
+    from solhunter_zero.schemas import RLCheckpoint  # noqa: E402
 
     assert events and isinstance(events[0], RLCheckpoint)
     assert events[0].path.endswith("model.pt")
@@ -341,9 +341,10 @@ async def test_rl_weights_event_emitted(tmp_path, monkeypatch):
     await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     events = []
-    from solhunter_zero.event_bus import subscribe
-    import solhunter_zero.rl_training as rl_training
-    from pathlib import Path
+    from pathlib import Path  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     unsub = subscribe("rl_weights", lambda p: events.append(p))
 
@@ -351,14 +352,14 @@ async def test_rl_weights_event_emitted(tmp_path, monkeypatch):
         Path(k.get("model_path")).write_text("x")
 
     monkeypatch.setattr(rl_training, "fit", fake_fit)
-    import torch
+    import torch  # noqa: E402
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
     daemon.train()
     unsub()
 
-    from solhunter_zero.schemas import RLWeights
+    from solhunter_zero.schemas import RLWeights  # noqa: E402
 
     assert events and isinstance(events[0], RLWeights)
     assert events[0].weights
@@ -377,19 +378,20 @@ async def test_rl_metrics_event_emitted(tmp_path, monkeypatch):
     await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
     events = []
-    from solhunter_zero.event_bus import subscribe
-    import solhunter_zero.rl_training as rl_training
-    from pathlib import Path
+    from pathlib import Path  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
+    from solhunter_zero.event_bus import subscribe  # noqa: E402
 
     unsub = subscribe("rl_metrics", lambda p: events.append(p))
 
     def fake_fit(*a, **k):
         Path(k.get("model_path")).write_text("x")
-        from solhunter_zero.event_bus import publish
+        from solhunter_zero.event_bus import publish  # noqa: E402
         publish("rl_metrics", {"loss": 1.0, "reward": 0.5})
 
     monkeypatch.setattr(rl_training, "fit", fake_fit)
-    import torch
+    import torch  # noqa: E402
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
@@ -415,8 +417,9 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
     data = OfflineData(data_db)
     await data.log_snapshot('tok', 1.0, 1.0, imbalance=0.0, total_depth=1.0)
 
-    import solhunter_zero.rl_training as rl_training
-    from pathlib import Path
+    from pathlib import Path  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
     port = 8771
     await start_ws_server("localhost", port)
     await connect_ws(f"ws://localhost:{port}")
@@ -425,16 +428,16 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
         Path(k.get("model_path")).write_text("x")
 
     monkeypatch.setattr(rl_training, "fit", fake_fit)
-    import torch
+    import torch  # noqa: E402
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
-    from types import SimpleNamespace
+    from types import SimpleNamespace  # noqa: E402
     dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
     dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
     monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: ([dummy_trade], [dummy_snap]))
 
-    from solhunter_zero import event_pb2
+    from solhunter_zero import event_pb2  # noqa: E402
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         daemon.train()
         for _ in range(3):
@@ -463,7 +466,7 @@ def test_distributed_rl_connects_broker(tmp_path, monkeypatch):
         called['urls'] = urls
 
     monkeypatch.setattr(event_bus, 'connect_broker', fake_connect)
-    import solhunter_zero.rl_daemon as rl_d
+    import solhunter_zero.rl_daemon as rl_d  # noqa: E402
     monkeypatch.setattr(rl_d, 'connect_broker', fake_connect)
     monkeypatch.setenv('BROKER_URL', 'redis://localhost')
 
@@ -548,16 +551,17 @@ def test_hierarchical_policy_persists_weights(tmp_path, monkeypatch):
 
     agents = [DummyAgent("a1"), DummyAgent("a2")]
 
-    import solhunter_zero.rl_training as rl_training
-    from pathlib import Path
+    from pathlib import Path  # noqa: E402
+
+    import solhunter_zero.rl_training as rl_training  # noqa: E402
     monkeypatch.setattr(
         rl_training,
         "fit",
         lambda *a, **k: (Path(k.get("model_path")).write_text("x")),
     )
 
-    import solhunter_zero.event_bus as event_bus
-    import solhunter_zero.rl_daemon as rl_d
+    import solhunter_zero.event_bus as event_bus  # noqa: E402
+    import solhunter_zero.rl_daemon as rl_d  # noqa: E402
     monkeypatch.setattr(event_bus, "publish", lambda *a, **k: None)
     monkeypatch.setattr(rl_d, "publish", lambda *a, **k: None)
     class DummyData:
@@ -565,11 +569,11 @@ def test_hierarchical_policy_persists_weights(tmp_path, monkeypatch):
             pass
     monkeypatch.setattr(rl_d, "OfflineData", DummyData)
 
-    import solhunter_zero.hierarchical_rl as hrl
+    import solhunter_zero.hierarchical_rl as hrl  # noqa: E402
     monkeypatch.setattr(hrl, "torch", None)
     monkeypatch.setattr(hrl, "nn", None)
 
-    from types import SimpleNamespace
+    from types import SimpleNamespace  # noqa: E402
     trades = [
         SimpleNamespace(reason="a1", direction="buy", amount=1, price=1),
         SimpleNamespace(reason="a1", direction="sell", amount=1, price=2),
@@ -579,7 +583,7 @@ def test_hierarchical_policy_persists_weights(tmp_path, monkeypatch):
     snaps = [SimpleNamespace(token="tok", price=1.0, depth=1.0, timestamp=0)]
     monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: (trades, snaps))
 
-    import torch
+    import torch  # noqa: E402
     daemon = RLDaemon(
         memory_path=mem_db,
         data_path=str(data_path),

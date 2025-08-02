@@ -1,12 +1,13 @@
 import asyncio
+import importlib.machinery
 import sys
 import types
+
 import numpy as np
-import importlib.machinery
 import pytest
+
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
-
 
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
@@ -49,7 +50,7 @@ if importlib.util.find_spec("solana.rpc.websocket_api") is None:
     ws_mod.RpcTransactionLogsFilterMentions = object
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 else:
-    import solana.rpc.websocket_api as ws_mod
+    import solana.rpc.websocket_api as ws_mod  # noqa: E402
 
     ws_mod.connect = lambda *a, **k: None
     if not hasattr(ws_mod, "RpcTransactionLogsFilterMentions"):
@@ -81,7 +82,7 @@ def test_full_workflow(monkeypatch):
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
-    import solhunter_zero.gas as gas_mod
+    import solhunter_zero.gas as gas_mod  # noqa: E402
 
     monkeypatch.setattr(gas_mod, "get_current_fee", lambda testnet=False: 0.0)
 

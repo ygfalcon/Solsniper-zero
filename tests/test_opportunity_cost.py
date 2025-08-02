@@ -1,6 +1,5 @@
 import asyncio
 
-
 from solhunter_zero.agents.opportunity_cost import OpportunityCostAgent
 from solhunter_zero.portfolio import Portfolio, Position
 from solhunter_zero.simulation import SimulationResult

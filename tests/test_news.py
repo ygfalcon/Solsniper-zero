@@ -1,9 +1,11 @@
 import pytest
+
 transformers = pytest.importorskip("transformers")
 if not hasattr(transformers, "pipeline"):
     transformers.pipeline = lambda *a, **k: lambda x: []
-import solhunter_zero.news as news
-import solhunter_zero.http as http
+import solhunter_zero.http as http  # noqa: E402
+import solhunter_zero.news as news  # noqa: E402
+
 
 class FakeResp:
     def __init__(self, text):

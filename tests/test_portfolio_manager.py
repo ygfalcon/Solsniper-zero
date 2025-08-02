@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from solhunter_zero.agents.portfolio_manager import PortfolioManager

@@ -2,26 +2,28 @@ import asyncio
 import types
 
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
-import numpy as np, faiss
+import faiss  # noqa: E402
+import numpy as np  # noqa: E402
+
 if getattr(np, "_STUB", False) or getattr(faiss, "_STUB", False):
     pytest.skip("requires real numpy/faiss", allow_module_level=True)
 
-from solhunter_zero.agents.simulation import SimulationAgent
-from solhunter_zero.agents.conviction import ConvictionAgent
-from solhunter_zero.agents.arbitrage import ArbitrageAgent
-from solhunter_zero.agents.exit import ExitAgent
-from solhunter_zero.agents.execution import ExecutionAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents.meta_conviction import MetaConvictionAgent
-from solhunter_zero.agents.portfolio_agent import PortfolioAgent
-from solhunter_zero.agents.swarm import AgentSwarm
-from solhunter_zero.memory import Memory
-from solhunter_zero.advanced_memory import AdvancedMemory
-
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.portfolio import Portfolio, Position
+from solhunter_zero.advanced_memory import AdvancedMemory  # noqa: E402
+from solhunter_zero.agent_manager import AgentManager  # noqa: E402
+from solhunter_zero.agents.arbitrage import ArbitrageAgent  # noqa: E402
+from solhunter_zero.agents.conviction import ConvictionAgent  # noqa: E402
+from solhunter_zero.agents.execution import ExecutionAgent  # noqa: E402
+from solhunter_zero.agents.exit import ExitAgent  # noqa: E402
+from solhunter_zero.agents.memory import MemoryAgent  # noqa: E402
+from solhunter_zero.agents.meta_conviction import MetaConvictionAgent  # noqa: E402
+from solhunter_zero.agents.portfolio_agent import PortfolioAgent  # noqa: E402
+from solhunter_zero.agents.simulation import SimulationAgent  # noqa: E402
+from solhunter_zero.agents.swarm import AgentSwarm  # noqa: E402
+from solhunter_zero.memory import Memory  # noqa: E402
+from solhunter_zero.portfolio import Portfolio, Position  # noqa: E402
 
 
 class DummyPortfolio(Portfolio):
@@ -409,5 +411,4 @@ def test_portfolio_agent_buy():
     agent = PortfolioAgent(max_allocation=0.5)
     actions = asyncio.run(agent.propose_trade("tok", pf))
     assert actions and actions[0]["side"] == "buy"
-
 

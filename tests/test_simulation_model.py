@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-torch = pytest.importorskip("torch")
-from solhunter_zero.simulation import SimulationResult
 
-from solhunter_zero import models, simulation
+torch = pytest.importorskip("torch")
+from solhunter_zero import models, simulation  # noqa: E402
+from solhunter_zero.simulation import SimulationResult  # noqa: E402
 
 
 def setup_function(_):

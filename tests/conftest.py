@@ -1,8 +1,8 @@
+import importlib.machinery
+import importlib.util
 import os
 import sys
 import types
-import importlib.util
-import importlib.machinery
 
 _orig_find_spec = importlib.util.find_spec
 
@@ -82,7 +82,7 @@ if _gp_spec is None:
     protobuf.internal = internal
     protobuf.runtime_version = runtime_version
     try:
-        import google
+        import google  # noqa: E402
     except ModuleNotFoundError:
         google = types.ModuleType("google")
         google.__path__ = []
@@ -105,7 +105,7 @@ class Message:
             setattr(self, k, v)
 
     def SerializeToString(self) -> bytes:
-        import json
+        import json  # noqa: E402
 
         def encode(val):
             if isinstance(val, Message):
@@ -117,7 +117,7 @@ class Message:
         return json.dumps({k: encode(v) for k, v in self.__dict__.items()}).encode()
 
     def ParseFromString(self, data: bytes) -> None:
-        import json
+        import json  # noqa: E402
 
         def decode(val):
             if isinstance(val, dict):
@@ -252,10 +252,11 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-import pytest
-import asyncio
+import asyncio  # noqa: E402
 
-from solhunter_zero.http import close_session
+import pytest  # noqa: E402
+
+from solhunter_zero.http import close_session  # noqa: E402
 
 
 def pytest_addoption(parser):

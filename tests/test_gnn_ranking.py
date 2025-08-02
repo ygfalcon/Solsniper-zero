@@ -1,6 +1,7 @@
 import pytest
+
 torch = pytest.importorskip("torch")
-from solhunter_zero.models.gnn import train_route_gnn, rank_routes
+from solhunter_zero.models.gnn import rank_routes, train_route_gnn  # noqa: E402
 
 
 def test_rank_routes():
@@ -9,4 +10,3 @@ def test_rank_routes():
     model = train_route_gnn(routes, profits, epochs=50, lr=0.05)
     idx = rank_routes(model, [["a", "b"], ["a", "c"]])
     assert idx == 1
-

@@ -1,6 +1,7 @@
 import numpy as np
-from solhunter_zero import models
 import pytest
+
+from solhunter_zero import models
 
 
 @pytest.mark.slow

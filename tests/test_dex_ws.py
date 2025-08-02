@@ -1,10 +1,10 @@
 import asyncio
 import json
+
 import aiohttp
 
-from solhunter_zero import dex_ws
+from solhunter_zero import dex_ws, scanner_common
 from solhunter_zero import token_scanner as async_scanner
-from solhunter_zero import scanner_common
 from solhunter_zero.event_bus import subscribe
 
 
@@ -111,8 +111,9 @@ def test_scan_tokens_async_includes_dex_ws(monkeypatch):
     scanner_common.HEADERS.clear()
     scanner_common.HEADERS["X-API-KEY"] = "k"
     monkeypatch.setattr(scanner_common, "DEX_LISTING_WS_URL", "ws://dex")
-    import importlib
-    import solhunter_zero.token_scanner as ts_mod
+    import importlib  # noqa: E402
+
+    import solhunter_zero.token_scanner as ts_mod  # noqa: E402
     importlib.reload(ts_mod)
     monkeypatch.setattr(ts_mod, "DEX_LISTING_WS_URL", "ws://dex")
     events = []

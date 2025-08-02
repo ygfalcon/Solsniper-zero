@@ -2,12 +2,12 @@ import asyncio
 import json
 import os
 import subprocess
-import sys
 
 import pytest
+
 pytest.importorskip("google.protobuf")
-import websockets
-from aiohttp import web
+import websockets  # noqa: E402
+from aiohttp import web  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -64,8 +64,8 @@ async def test_depth_service_event_bus(tmp_path):
     # Start event bus server
     events = []
 
-    from solhunter_zero import event_pb2
-    from solhunter_zero.event_bus import _decode_payload
+    from solhunter_zero import event_pb2  # noqa: E402
+    from solhunter_zero.event_bus import _decode_payload  # noqa: E402
 
     async def bus_handler(ws):
         async for msg in ws:
@@ -166,8 +166,8 @@ async def test_depth_service_diff_updates(tmp_path):
 
     events = []
 
-    from solhunter_zero import event_pb2
-    from solhunter_zero.event_bus import _decode_payload
+    from solhunter_zero import event_pb2  # noqa: E402
+    from solhunter_zero.event_bus import _decode_payload  # noqa: E402
 
     async def bus_handler(ws):
         async for msg in ws:
@@ -285,8 +285,8 @@ async def test_depth_service_event_bus_reconnect(tmp_path):
 
     events = []
 
-    from solhunter_zero import event_pb2
-    from solhunter_zero.event_bus import _decode_payload
+    from solhunter_zero import event_pb2  # noqa: E402
+    from solhunter_zero.event_bus import _decode_payload  # noqa: E402
 
     async def bus_handler(ws):
         async for msg in ws:
@@ -439,7 +439,7 @@ async def test_depth_service_route_search(tmp_path):
 
     await asyncio.sleep(1.0)
 
-    from solhunter_zero import depth_client
+    from solhunter_zero import depth_client  # noqa: E402
 
     res = await depth_client.best_route("TOK", 1.0, max_hops=4)
 
@@ -515,7 +515,7 @@ async def test_depth_service_ws_snapshot(tmp_path):
     feed_server = await websockets.serve(feed_handler, "localhost", 0)
     feed_port = feed_server.sockets[0].getsockname()[1]
 
-    import socket
+    import socket  # noqa: E402
 
     sock = socket.socket()
     sock.bind(("localhost", 0))

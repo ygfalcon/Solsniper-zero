@@ -1,11 +1,12 @@
 import asyncio
+import importlib.machinery
+import importlib.util
 import json
-import websockets
-import pytest
 import sys
 import types
-import importlib.util
-import importlib.machinery
+
+import pytest
+import websockets
 
 if importlib.util.find_spec("solders") is None:
     mod = types.ModuleType("solders")
@@ -19,11 +20,12 @@ if importlib.util.find_spec("aiofiles") is None:
     aiof.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
     sys.modules.setdefault("aiofiles", aiof)
 
-from solhunter_zero.price_stream_manager import PriceStreamManager
-from solhunter_zero.agents.arbitrage import ArbitrageAgent
-from solhunter_zero.portfolio import Portfolio
-from solhunter_zero.event_bus import subscribe
-import os
+import os  # noqa: E402
+
+from solhunter_zero.agents.arbitrage import ArbitrageAgent  # noqa: E402
+from solhunter_zero.event_bus import subscribe  # noqa: E402
+from solhunter_zero.portfolio import Portfolio  # noqa: E402
+from solhunter_zero.price_stream_manager import PriceStreamManager  # noqa: E402
 
 
 @pytest.mark.asyncio

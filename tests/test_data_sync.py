@@ -1,8 +1,7 @@
 import asyncio
-import aiohttp
+import sys
 import time
 import types
-import sys
 
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
@@ -58,8 +57,9 @@ for name in [
     setattr(dummy_pb, name, type(name, (), {}))
 sys.modules.setdefault("solhunter_zero.event_pb2", dummy_pb)
 
-from solhunter_zero import data_sync
-from solhunter_zero.offline_data import OfflineData
+from solhunter_zero import data_sync  # noqa: E402
+from solhunter_zero.offline_data import OfflineData  # noqa: E402
+
 
 class FakeResp:
     def __init__(self, url):
@@ -121,4 +121,3 @@ def test_scheduler_rotation(tmp_path, monkeypatch):
     data = OfflineData(f"sqlite:///{db}")
     snaps = asyncio.run(data.list_snapshots())
     assert len(snaps) <= 1
-

@@ -1,5 +1,6 @@
-from solhunter_zero.offline_data import OfflineData
 import pytest
+
+from solhunter_zero.offline_data import OfflineData
 
 
 @pytest.mark.asyncio
@@ -20,9 +21,10 @@ async def test_offline_data_roundtrip(tmp_path):
 
 @pytest.mark.asyncio
 async def test_async_queue_commit(tmp_path, monkeypatch):
-    from sqlalchemy.ext.asyncio import AsyncSession
-    import psutil
-    import asyncio
+    import asyncio  # noqa: E402
+
+    import psutil  # noqa: E402
+    from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
     commits = 0
     orig_commit = AsyncSession.commit
@@ -57,8 +59,9 @@ async def test_async_queue_commit(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_queue_flush_interval(tmp_path, monkeypatch):
-    from sqlalchemy.ext.asyncio import AsyncSession
-    import asyncio
+    import asyncio  # noqa: E402
+
+    from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
     commits = 0
     orig_commit = AsyncSession.commit
@@ -82,7 +85,7 @@ async def test_queue_flush_interval(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_memmap_buffer(tmp_path):
-    import asyncio
+    import asyncio  # noqa: E402
     mmap_path = tmp_path / "buf.mmap"
     db = f"sqlite:///{tmp_path/'mmap.db'}"
     data = OfflineData(db)
@@ -114,7 +117,7 @@ async def test_start_writer_env(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_export_npz_matches_manual(tmp_path):
-    import numpy as np
+    import numpy as np  # noqa: E402
 
     db = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db)
@@ -163,8 +166,8 @@ async def test_export_npz_matches_manual(tmp_path):
 @pytest.mark.asyncio
 async def test_flush_performance(tmp_path):
     """Verify executemany batching improves flush throughput."""
-    import time
-    import asyncio
+    import asyncio  # noqa: E402
+    import time  # noqa: E402
 
     async def bench(use_memmap: bool = False):
         db = f"sqlite:///{tmp_path/'bench.db'}"

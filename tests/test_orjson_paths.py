@@ -1,10 +1,11 @@
 import json
+import runpy
 import sys
 import types
-import runpy
-import asyncio
+
 import pytest
 from solders.keypair import Keypair
+
 
 @pytest.mark.asyncio
 async def test_wallet_load_keypair_async_uses_orjson(monkeypatch, tmp_path):
@@ -17,7 +18,7 @@ async def test_wallet_load_keypair_async_uses_orjson(monkeypatch, tmp_path):
         called = True
         return orig(data)
     monkeypatch.setattr(orjson, "loads", fake)
-    from solhunter_zero import wallet
+    from solhunter_zero import wallet  # noqa: E402
     path = tmp_path / "kp.json"
     kp = Keypair()
     path.write_text(json.dumps(list(kp.to_bytes())))
@@ -36,8 +37,7 @@ def test_arbitrage_parse_env_uses_orjson(monkeypatch):
         called = True
         return orig(data)
     monkeypatch.setattr(orjson, "loads", fake)
-    import os
-    import solhunter_zero.arbitrage as arb
+    import solhunter_zero.arbitrage as arb  # noqa: E402
     monkeypatch.setenv("TEST_ENV_JSON", "{\"a\": 1}")
     assert arb._parse_mapping_env("TEST_ENV_JSON") == {"a": 1}
     assert called
@@ -45,7 +45,7 @@ def test_arbitrage_parse_env_uses_orjson(monkeypatch):
 
 def test_multi_rl_cli_uses_http_dumps(monkeypatch, tmp_path):
     pytest.importorskip("orjson")
-    import solhunter_zero.http as http
+    import solhunter_zero.http as http  # noqa: E402
     called = False
     def fake_dumps(obj):
         nonlocal called
@@ -67,4 +67,3 @@ def test_multi_rl_cli_uses_http_dumps(monkeypatch, tmp_path):
     ])
     runpy.run_module("solhunter_zero.multi_rl", run_name="__main__")
     assert called
-
