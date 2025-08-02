@@ -14,27 +14,33 @@ except Exception:  # pragma: no cover - optional dependency
     faiss = None
     SentenceTransformer = None
 
-# Optional GPU index for FAISS
-_GPU_ENV = os.getenv("GPU_MEMORY_INDEX")
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
-if _GPU_ENV is not None:
-    GPU_MEMORY_INDEX = _GPU_ENV.lower() in {"1", "true", "yes"}
-else:  # auto-detect CUDA devices
-    _detected = False
+
+
+def _detect_gpu() -> bool:
+    """Return ``True`` if a CUDA device is available."""
     if _HAS_FAISS_GPU:
         try:
             faiss.StandardGpuResources()
-            _detected = True
+            return True
         except Exception:
-            _detected = False
-    if not _detected:
-        try:
-            import torch
+            pass
+    try:
+        import torch
 
-            _detected = torch.cuda.is_available()
-        except Exception:
-            _detected = False
-    GPU_MEMORY_INDEX = bool(_detected)
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def _gpu_index_enabled() -> bool:
+    """Return ``True`` if the FAISS index should use GPU acceleration."""
+    if os.getenv("FORCE_CPU_INDEX", "").lower() in {"1", "true", "yes"}:
+        return False
+    env = os.getenv("GPU_MEMORY_INDEX")
+    if env is not None:
+        return env.lower() in {"1", "true", "yes"}
+    return _detect_gpu()
 from sqlalchemy import (
     create_engine,
     Column,
@@ -119,6 +125,7 @@ class AdvancedMemory(BaseMemory):
 
         self.index_path = index_path
         self.cpu_index = None
+        self._use_gpu = _gpu_index_enabled()
         if faiss is not None and SentenceTransformer is not None:
             self.model = SentenceTransformer("all-MiniLM-L6-v2")
             dim = self.model.get_sentence_embedding_dimension()
@@ -126,7 +133,7 @@ class AdvancedMemory(BaseMemory):
                 cpu_index = faiss.read_index(index_path)
             else:
                 cpu_index = faiss.IndexIDMap2(faiss.IndexFlatL2(dim))
-            if GPU_MEMORY_INDEX and _HAS_FAISS_GPU:
+            if self._use_gpu and _HAS_FAISS_GPU:
                 self.cpu_index = cpu_index
                 self.index = faiss.index_cpu_to_all_gpus(cpu_index)
             else:
@@ -368,7 +375,7 @@ class AdvancedMemory(BaseMemory):
         idx = faiss.read_index(tmp)
         os.remove(tmp)
         if self.index.ntotal < idx.ntotal:
-            if GPU_MEMORY_INDEX and _HAS_FAISS_GPU:
+            if self._use_gpu and _HAS_FAISS_GPU:
                 self.cpu_index = idx
                 self.index = faiss.index_cpu_to_all_gpus(idx)
             else:
