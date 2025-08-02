@@ -1050,7 +1050,14 @@ data can be exported from `offline_data.db` using `scripts/build_tick_dataset.py
 python scripts/build_tick_dataset.py --db offline_data.db --out datasets/tick_history.json
 ```
 
-The backtester can also be launched via the `solhunter-backtest` command.
+The backtester can also be launched via the `solhunter-backtest` command. A
+synthetic price history with hundreds of daily points is provided at
+`tests/data/prices.json`:
+
+```bash
+solhunter-backtest tests/data/prices.json -c config.toml
+```
+
 This wrapper invokes `solhunter_zero.backtest_cli`, so the available
 arguments are the same. For example:
 
