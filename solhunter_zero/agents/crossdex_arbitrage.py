@@ -1,10 +1,31 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List, Dict, Any, Mapping, Sequence, Callable, Awaitable
+import os
+import time
+from typing import (
+    List,
+    Dict,
+    Any,
+    Mapping,
+    Sequence,
+    Callable,
+    Awaitable,
+    AsyncGenerator,
+)
 
 from . import BaseAgent
-from ..arbitrage import DEX_FEES, DEX_GAS, DEX_LATENCY, VENUE_URLS
+from ..arbitrage import (
+    DEX_FEES,
+    DEX_GAS,
+    DEX_LATENCY,
+    VENUE_URLS,
+    stream_orca_prices,
+    stream_raydium_prices,
+    stream_jupiter_prices,
+    stream_phoenix_prices,
+    stream_meteora_prices,
+)
 from ..event_bus import subscribe
 from .. import routeffi as _routeffi
 from ..portfolio import Portfolio
@@ -24,6 +45,7 @@ class CrossDEXArbitrage(BaseAgent):
         feeds: Mapping[str, PriceFeed] | Sequence[PriceFeed] | None = None,
         *,
         max_hops: int = 4,
+        use_price_streams: bool | None = None,
     ) -> None:
         self.threshold = float(threshold)
         self.amount = float(amount)
@@ -48,7 +70,27 @@ class CrossDEXArbitrage(BaseAgent):
         self._latency_updates: Dict[str, float] = {}
         self._latency_unsub = subscribe("dex_latency_update", self._handle_latency)
 
+        stream_env = os.getenv("USE_PRICE_STREAMS", "0").lower() in {"1", "true", "yes"}
+        if use_price_streams is None:
+            use_price_streams = stream_env
+        else:
+            use_price_streams = bool(use_price_streams) or stream_env
+        self.use_price_streams = bool(use_price_streams)
+
+        self._price_cache: Dict[str, Dict[str, float]] = {}
+        self._stream_tasks: Dict[tuple[str, str], asyncio.Task] = {}
+        self._stream_stats: Dict[tuple[str, str], Dict[str, float]] = {}
+        self._stream_funcs: Dict[str, Callable[[str], AsyncGenerator[float, None]]] = {
+            "orca": stream_orca_prices,
+            "raydium": stream_raydium_prices,
+            "jupiter": stream_jupiter_prices,
+            "phoenix": stream_phoenix_prices,
+            "meteora": stream_meteora_prices,
+        }
+
     def close(self) -> None:
+        for task in list(self._stream_tasks.values()):
+            task.cancel()
         if self._latency_unsub:
             self._latency_unsub()
 
@@ -58,6 +100,43 @@ class CrossDEXArbitrage(BaseAgent):
                 self._latency_updates[venue] = float(val)
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    def _update_price(self, token: str, venue: str, price: float) -> None:
+        token_cache = self._price_cache.setdefault(token, {})
+        token_cache[venue] = float(price)
+        now = time.monotonic()
+        key = (token, venue)
+        stats = self._stream_stats.setdefault(
+            key, {"last": now, "interval_sum": 0.0, "count": 0}
+        )
+        last = stats.get("last")
+        if last is not None:
+            interval = now - last
+            stats["interval_sum"] += interval
+            stats["count"] += 1
+        stats["last"] = now
+
+    def _start_stream(self, token: str, venue: str) -> None:
+        if not self.use_price_streams:
+            return
+        key = (token, venue)
+        if key in self._stream_tasks:
+            return
+        fn = self._stream_funcs.get(venue)
+        if fn is None:
+            return
+
+        async def _runner() -> None:
+            try:
+                async for price in fn(token):
+                    self._update_price(token, venue, price)
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+
+        self._stream_tasks[key] = asyncio.create_task(_runner())
 
     async def _ensure_latency(self) -> None:
         if self._latency_updates:
@@ -75,9 +154,21 @@ class CrossDEXArbitrage(BaseAgent):
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
         await self._ensure_latency()
-        names = list(self.feeds.keys())
-        prices = await asyncio.gather(*(f(token) for f in self.feeds.values()))
-        price_map = {n: p for n, p in zip(names, prices) if p > 0}
+
+        token_cache = self._price_cache.setdefault(token, {})
+        price_map: Dict[str, float] = {
+            n: p for n, p in token_cache.items() if p > 0
+        } if self.use_price_streams else {}
+
+        for name in self.feeds.keys():
+            if self.use_price_streams:
+                self._start_stream(token, name)
+            if name not in price_map:
+                price = await self.feeds[name](token)
+                if price > 0:
+                    price_map[name] = price
+                    token_cache[name] = price
+
         if len(price_map) < 2:
             return []
 
@@ -103,3 +194,16 @@ class CrossDEXArbitrage(BaseAgent):
             actions.append({"token": token, "side": "buy", "amount": self.amount, "price": price_map[buy], "venue": buy})
             actions.append({"token": token, "side": "sell", "amount": self.amount, "price": price_map[sell], "venue": sell})
         return actions
+
+    # ------------------------------------------------------------------
+    @property
+    def metrics(self) -> Dict[str, Dict[str, float]]:
+        """Return average update interval per venue and token."""
+
+        data: Dict[str, Dict[str, float]] = {}
+        for (token, venue), st in self._stream_stats.items():
+            cnt = st.get("count", 0)
+            if cnt:
+                avg = st["interval_sum"] / cnt
+                data.setdefault(token, {})[venue] = avg
+        return data
