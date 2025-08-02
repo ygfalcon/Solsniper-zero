@@ -122,6 +122,14 @@ else:
 # optional mmap ring buffer path for outgoing protobuf frames
 _EVENT_BUS_MMAP = os.getenv("EVENT_BUS_MMAP")
 _EVENT_BUS_MMAP_SIZE = int(os.getenv("EVENT_BUS_MMAP_SIZE", str(1 << 20)) or (1 << 20))
+
+# how long to buffer mmap writes before flushing (ms)
+_EVENT_MMAP_BATCH_MS = int(os.getenv("EVENT_MMAP_BATCH_MS", "5") or 5)
+# number of events to batch before flushing
+_EVENT_MMAP_BATCH_SIZE = int(os.getenv("EVENT_MMAP_BATCH_SIZE", "16") or 16)
+
+_MMAP_BUFFER: list[bytes] = []
+_MMAP_FLUSH_HANDLE = None
 _MMAP: mmap.mmap | None = None
 
 
@@ -214,6 +222,7 @@ def open_mmap(path: str | None = None, size: int | None = None) -> mmap.mmap | N
 
 def close_mmap() -> None:
     """Close the event mmap if open."""
+    _flush_mmap_buffer()
     global _MMAP
     if _MMAP is not None:
         try:
@@ -223,28 +232,75 @@ def close_mmap() -> None:
     _MMAP = None
 
 
-def _mmap_write(data: bytes) -> None:
-    mm = open_mmap()
-    if mm is None or len(data) == 0:
-        return
+def _write_frame(mm: mmap.mmap, pos: int, data: bytes) -> int:
     size = mm.size()
-    if size < 8:
-        return
-    pos = int.from_bytes(mm[:4], "little") or 4
     if pos < 4 or pos + 4 + len(data) > size:
         pos = 4
     if len(data) > size - 8:
         data = data[: size - 8]
-    mm[pos:pos+4] = len(data).to_bytes(4, "little")
-    mm[pos+4:pos+4+len(data)] = data
+    mm[pos:pos + 4] = len(data).to_bytes(4, "little")
+    mm[pos + 4 : pos + 4 + len(data)] = data
     pos += 4 + len(data)
     if pos >= size:
         pos = 4
+    return pos
+
+
+def _flush_mmap_buffer() -> None:
+    global _MMAP_FLUSH_HANDLE
+    handle = _MMAP_FLUSH_HANDLE
+    _MMAP_FLUSH_HANDLE = None
+    if handle is not None:
+        try:
+            handle.cancel()
+        except Exception:
+            pass
+    if not _MMAP_BUFFER:
+        return
+    mm = open_mmap()
+    if mm is None or mm.size() < 8:
+        _MMAP_BUFFER.clear()
+        return
+    pos = int.from_bytes(mm[:4], "little") or 4
+    for buf in _MMAP_BUFFER:
+        pos = _write_frame(mm, pos, buf)
     mm[:4] = pos.to_bytes(4, "little")
+    _MMAP_BUFFER.clear()
     try:
         mm.flush()
     except Exception:
         pass
+
+
+def _mmap_write(data: bytes) -> None:
+    global _MMAP_FLUSH_HANDLE
+    if len(data) == 0:
+        return
+    if _EVENT_MMAP_BATCH_MS <= 0 and _EVENT_MMAP_BATCH_SIZE <= 1:
+        mm = open_mmap()
+        if mm is None or mm.size() < 8:
+            return
+        pos = int.from_bytes(mm[:4], "little") or 4
+        pos = _write_frame(mm, pos, data)
+        mm[:4] = pos.to_bytes(4, "little")
+        try:
+            mm.flush()
+        except Exception:
+            pass
+        return
+
+    _MMAP_BUFFER.append(data)
+    if _EVENT_MMAP_BATCH_SIZE > 0 and len(_MMAP_BUFFER) >= _EVENT_MMAP_BATCH_SIZE:
+        _flush_mmap_buffer()
+        return
+    if _EVENT_MMAP_BATCH_MS > 0 and _MMAP_FLUSH_HANDLE is None:
+        try:
+            loop = asyncio.get_running_loop()
+            _MMAP_FLUSH_HANDLE = loop.call_later(
+                _EVENT_MMAP_BATCH_MS / 1000.0, _flush_mmap_buffer
+            )
+        except RuntimeError:
+            _flush_mmap_buffer()
 
 
 def _get_bus_url(cfg=None):
@@ -258,6 +314,15 @@ def _get_event_serialization(cfg=None) -> str | None:
 def _get_event_batch_ms(cfg=None) -> int:
     from .config import get_event_batch_ms
     return get_event_batch_ms(cfg)
+
+def _get_event_mmap_batch_ms(cfg=None) -> int:
+    from .config import get_event_mmap_batch_ms
+    return get_event_mmap_batch_ms(cfg)
+
+
+def _get_event_mmap_batch_size(cfg=None) -> int:
+    from .config import get_event_mmap_batch_size
+    return get_event_mmap_batch_size(cfg)
 
 try:
     import websockets  # type: ignore
@@ -1255,6 +1320,28 @@ def _reload_batch(cfg) -> None:
 
 
 subscription("config_updated", _reload_batch).__enter__()
+
+
+# ---------------------------------------------------------------------------
+#  Mmap batch configuration
+# ---------------------------------------------------------------------------
+
+
+def _reload_mmap_batch(cfg) -> None:
+    global _EVENT_MMAP_BATCH_MS, _EVENT_MMAP_BATCH_SIZE
+    try:
+        ms = int(_get_event_mmap_batch_ms(cfg) or 0)
+    except Exception:
+        ms = 0
+    try:
+        sz = int(_get_event_mmap_batch_size(cfg) or 0)
+    except Exception:
+        sz = 0
+    _EVENT_MMAP_BATCH_MS = ms
+    _EVENT_MMAP_BATCH_SIZE = sz
+
+
+subscription("config_updated", _reload_mmap_batch).__enter__()
 
 
 # ---------------------------------------------------------------------------

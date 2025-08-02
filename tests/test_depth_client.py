@@ -6,6 +6,7 @@ import subprocess
 import time
 import base64
 import pytest
+import aiohttp
 from aiohttp import web
 
 from solhunter_zero import depth_client

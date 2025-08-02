@@ -747,3 +747,28 @@ async def test_websocket_topic_filtering():
     await ws_filtered.close()
     await stop_ws_server()
 
+
+@pytest.mark.asyncio
+async def test_mmap_batching(monkeypatch, tmp_path):
+    import importlib
+    path = tmp_path / "events.mmap"
+    monkeypatch.setenv("EVENT_BUS_MMAP", str(path))
+    monkeypatch.setenv("EVENT_BUS_MMAP_SIZE", "4096")
+    monkeypatch.setenv("EVENT_MMAP_BATCH_MS", "50")
+    monkeypatch.setenv("EVENT_MMAP_BATCH_SIZE", "10")
+    import solhunter_zero.event_bus as ev
+    ev = importlib.reload(ev)
+    ev.publish("weights_updated", {"weights": {"x": 1}})
+    ev.publish("weights_updated", {"weights": {"x": 2}})
+    await asyncio.sleep(0.06)
+    mm = ev.open_mmap()
+    assert mm is not None
+    off = 4
+    lengths = []
+    for _ in range(2):
+        ln = int.from_bytes(mm[off:off+4], "little")
+        lengths.append(ln)
+        off += 4 + ln
+    assert len(lengths) == 2 and all(l > 0 for l in lengths)
+    ev.close_mmap()
+

@@ -210,6 +210,9 @@ Install the Rust toolchain if `cargo` isn't available:
   - `EVENT_BATCH_MS` – messages are batched for the given milliseconds before
     broadcast (defaults to `10`). Set `EVENT_BATCH_MS=0` to disable batching. Run
     `scripts/benchmark_event_bus_batch.py` to tune this value.
+  - `EVENT_MMAP_BATCH_MS` and `EVENT_MMAP_BATCH_SIZE` – flush events written to
+    a shared memory bus after this many milliseconds or when the buffer reaches
+    the given size (defaults to `5`ms and `16`). Tune to minimize IPC overhead.
   - `DEPTH_UPDATE_THRESHOLD` – minimum relative change before broadcasting a
     new snapshot (defaults to `0`).
   - `DEPTH_MIN_SEND_INTERVAL` – minimum interval in milliseconds between
@@ -484,6 +487,8 @@ profit calculation so routes are ranked based on the borrowed size.
    export EVENT_BUS_MMAP_SIZE=$((1<<20))
    ```
    Start all producers and consumers with these variables for lower latency.
+   Adjust `EVENT_MMAP_BATCH_MS` and `EVENT_MMAP_BATCH_SIZE` to batch writes and
+   reduce IPC overhead.
 20. **Full system startup**
    Launch the Rust service, RL daemon and trading loop together:
    ```bash

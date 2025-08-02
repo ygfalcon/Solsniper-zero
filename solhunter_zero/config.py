@@ -81,6 +81,8 @@ ENV_VARS = {
     "compress_events": "COMPRESS_EVENTS",
     "event_serialization": "EVENT_SERIALIZATION",
     "event_batch_ms": "EVENT_BATCH_MS",
+    "event_mmap_batch_ms": "EVENT_MMAP_BATCH_MS",
+    "event_mmap_batch_size": "EVENT_MMAP_BATCH_SIZE",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
     "use_depth_stream": "USE_DEPTH_STREAM",
@@ -395,6 +397,24 @@ def get_event_batch_ms(cfg: Mapping[str, Any] | None = None) -> int:
     val = os.getenv("EVENT_BATCH_MS")
     if val is None or val == "":
         val = cfg.get("event_batch_ms", 0)
+    return int(val or 0)
+
+
+def get_event_mmap_batch_ms(cfg: Mapping[str, Any] | None = None) -> int:
+    """Return mmap event batching interval in milliseconds."""
+    cfg = cfg or _ACTIVE_CONFIG
+    val = os.getenv("EVENT_MMAP_BATCH_MS")
+    if val is None or val == "":
+        val = cfg.get("event_mmap_batch_ms", 0)
+    return int(val or 0)
+
+
+def get_event_mmap_batch_size(cfg: Mapping[str, Any] | None = None) -> int:
+    """Return number of events to buffer before mmap flush."""
+    cfg = cfg or _ACTIVE_CONFIG
+    val = os.getenv("EVENT_MMAP_BATCH_SIZE")
+    if val is None or val == "":
+        val = cfg.get("event_mmap_batch_size", 0)
     return int(val or 0)
 
 
