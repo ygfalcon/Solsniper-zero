@@ -28,6 +28,7 @@ dependencies = [
     "tomli-w>=1.0,<2.0",
     "cachetools>=5.3,<6.0",
     "watchfiles>=0.19,<2.0",
+    "websockets<12",
 ]
 
 [project.optional-dependencies]

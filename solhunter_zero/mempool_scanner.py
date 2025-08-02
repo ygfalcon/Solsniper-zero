@@ -10,6 +10,8 @@ import time
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 
+import websockets
+
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
 from .event_bus import subscription
@@ -39,7 +41,49 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
 
-from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
+# End of PublicKey stub
+
+# Patch websockets.connect for compatibility with solana <0.37 when
+# websockets >=11 makes ``connect`` a function that cannot be subclassed.
+try:  # pragma: no cover - runtime check
+    if not isinstance(websockets.connect, type):
+        from websockets.legacy.client import Connect as _Connect
+
+        websockets.connect = _Connect
+        import websockets.legacy.client as _ws_legacy
+
+        _ws_legacy.connect = _Connect
+except Exception:
+    pass
+
+try:
+    from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
+except TypeError:  # websockets connect isn't subclassable
+    try:
+        from websockets.legacy.client import Connect as _Connect
+    except Exception:  # pragma: no cover - stub websockets
+
+        class _Connect:
+            def __init__(self, uri: str, **kwargs: Any) -> None:
+                self.uri = uri
+                self.kwargs = kwargs
+
+            async def __aenter__(self):
+                self._conn = await websockets.connect(self.uri, **self.kwargs)
+                return self._conn
+
+            async def __aexit__(self, exc_type, exc, tb):
+                await self._conn.__aexit__(exc_type, exc, tb)
+
+    websockets.connect = _Connect
+    import websockets.legacy.client as _ws_legacy
+
+    _ws_legacy.connect = _Connect
+    import importlib
+
+    _wsapi = importlib.import_module("solana.rpc.websocket_api")
+    RpcTransactionLogsFilterMentions = _wsapi.RpcTransactionLogsFilterMentions
+    connect = getattr(_wsapi, "connect", _Connect)
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
 from .dex_scanner import DEX_PROGRAM_ID
