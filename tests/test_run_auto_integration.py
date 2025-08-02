@@ -1,5 +1,6 @@
 import sys
 import types
+import asyncio
 import contextlib
 import json
 import os
