@@ -30,3 +30,13 @@ To run the static analysis checks used in CI, execute:
 python -m compileall .
 flake8
 ```
+
+## Paper Test
+
+A lightweight paper-trading demo is available to exercise the trading loop
+with offline data.  It replays a dataset of price ticks and prints aggregate
+ROI after simulating 100 iterations.  To run it:
+
+```bash
+python scripts/paper_test.py
+```

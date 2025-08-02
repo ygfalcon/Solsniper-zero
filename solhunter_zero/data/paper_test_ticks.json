@@ -1,0 +1,722 @@
+[
+  {
+    "timestamp": "2023-01-01T00:00:00",
+    "price": 1.0,
+    "depth": 1000.0,
+    "imbalance": -0.3659
+  },
+  {
+    "timestamp": "2023-01-01T00:01:00",
+    "price": 1.01,
+    "depth": 1000.5,
+    "imbalance": 0.118
+  },
+  {
+    "timestamp": "2023-01-01T00:02:00",
+    "price": 1.02,
+    "depth": 1001.0,
+    "imbalance": -0.1172
+  },
+  {
+    "timestamp": "2023-01-01T00:03:00",
+    "price": 1.03,
+    "depth": 1001.5,
+    "imbalance": 0.2607
+  },
+  {
+    "timestamp": "2023-01-01T00:04:00",
+    "price": 1.04,
+    "depth": 1002.0,
+    "imbalance": -0.0858
+  },
+  {
+    "timestamp": "2023-01-01T00:05:00",
+    "price": 1.05,
+    "depth": 1002.5,
+    "imbalance": -0.0583
+  },
+  {
+    "timestamp": "2023-01-01T00:06:00",
+    "price": 1.06,
+    "depth": 1003.0,
+    "imbalance": 0.2254
+  },
+  {
+    "timestamp": "2023-01-01T00:07:00",
+    "price": 1.07,
+    "depth": 1003.5,
+    "imbalance": 0.3602
+  },
+  {
+    "timestamp": "2023-01-01T00:08:00",
+    "price": 1.08,
+    "depth": 1004.0,
+    "imbalance": 0.1904
+  },
+  {
+    "timestamp": "2023-01-01T00:09:00",
+    "price": 1.09,
+    "depth": 1004.5,
+    "imbalance": 0.2818
+  },
+  {
+    "timestamp": "2023-01-01T00:10:00",
+    "price": 1.1,
+    "depth": 1005.0,
+    "imbalance": -0.2714
+  },
+  {
+    "timestamp": "2023-01-01T00:11:00",
+    "price": 1.11,
+    "depth": 1005.5,
+    "imbalance": -0.1077
+  },
+  {
+    "timestamp": "2023-01-01T00:12:00",
+    "price": 1.12,
+    "depth": 1006.0,
+    "imbalance": -0.0376
+  },
+  {
+    "timestamp": "2023-01-01T00:13:00",
+    "price": 1.13,
+    "depth": 1006.5,
+    "imbalance": -0.4156
+  },
+  {
+    "timestamp": "2023-01-01T00:14:00",
+    "price": 1.14,
+    "depth": 1007.0,
+    "imbalance": 0.2545
+  },
+  {
+    "timestamp": "2023-01-01T00:15:00",
+    "price": 1.15,
+    "depth": 1007.5,
+    "imbalance": 0.0503
+  },
+  {
+    "timestamp": "2023-01-01T00:16:00",
+    "price": 1.16,
+    "depth": 1008.0,
+    "imbalance": -0.1528
+  },
+  {
+    "timestamp": "2023-01-01T00:17:00",
+    "price": 1.17,
+    "depth": 1008.5,
+    "imbalance": 0.2556
+  },
+  {
+    "timestamp": "2023-01-01T00:18:00",
+    "price": 1.18,
+    "depth": 1009.0,
+    "imbalance": 0.0452
+  },
+  {
+    "timestamp": "2023-01-01T00:19:00",
+    "price": 1.19,
+    "depth": 1009.5,
+    "imbalance": -0.4163
+  },
+  {
+    "timestamp": "2023-01-01T00:20:00",
+    "price": 1.2,
+    "depth": 1010.0,
+    "imbalance": 0.4743
+  },
+  {
+    "timestamp": "2023-01-01T00:21:00",
+    "price": 1.21,
+    "depth": 1010.5,
+    "imbalance": -0.3475
+  },
+  {
+    "timestamp": "2023-01-01T00:22:00",
+    "price": 1.22,
+    "depth": 1011.0,
+    "imbalance": -0.3657
+  },
+  {
+    "timestamp": "2023-01-01T00:23:00",
+    "price": 1.23,
+    "depth": 1011.5,
+    "imbalance": -0.1317
+  },
+  {
+    "timestamp": "2023-01-01T00:24:00",
+    "price": 1.24,
+    "depth": 1012.0,
+    "imbalance": -0.2897
+  },
+  {
+    "timestamp": "2023-01-01T00:25:00",
+    "price": 1.25,
+    "depth": 1012.5,
+    "imbalance": -0.322
+  },
+  {
+    "timestamp": "2023-01-01T00:26:00",
+    "price": 1.26,
+    "depth": 1013.0,
+    "imbalance": 0.4208
+  },
+  {
+    "timestamp": "2023-01-01T00:27:00",
+    "price": 1.27,
+    "depth": 1013.5,
+    "imbalance": 0.2134
+  },
+  {
+    "timestamp": "2023-01-01T00:28:00",
+    "price": 1.28,
+    "depth": 1014.0,
+    "imbalance": -0.1736
+  },
+  {
+    "timestamp": "2023-01-01T00:29:00",
+    "price": 1.29,
+    "depth": 1014.5,
+    "imbalance": 0.3767
+  },
+  {
+    "timestamp": "2023-01-01T00:30:00",
+    "price": 1.3,
+    "depth": 1015.0,
+    "imbalance": -0.1509
+  },
+  {
+    "timestamp": "2023-01-01T00:31:00",
+    "price": 1.31,
+    "depth": 1015.5,
+    "imbalance": -0.1631
+  },
+  {
+    "timestamp": "2023-01-01T00:32:00",
+    "price": 1.32,
+    "depth": 1016.0,
+    "imbalance": 0.3969
+  },
+  {
+    "timestamp": "2023-01-01T00:33:00",
+    "price": 1.33,
+    "depth": 1016.5,
+    "imbalance": -0.408
+  },
+  {
+    "timestamp": "2023-01-01T00:34:00",
+    "price": 1.34,
+    "depth": 1017.0,
+    "imbalance": 0.1672
+  },
+  {
+    "timestamp": "2023-01-01T00:35:00",
+    "price": 1.35,
+    "depth": 1017.5,
+    "imbalance": -0.4428
+  },
+  {
+    "timestamp": "2023-01-01T00:36:00",
+    "price": 1.36,
+    "depth": 1018.0,
+    "imbalance": 0.2666
+  },
+  {
+    "timestamp": "2023-01-01T00:37:00",
+    "price": 1.37,
+    "depth": 1018.5,
+    "imbalance": -0.3032
+  },
+  {
+    "timestamp": "2023-01-01T00:38:00",
+    "price": 1.38,
+    "depth": 1019.0,
+    "imbalance": -0.1188
+  },
+  {
+    "timestamp": "2023-01-01T00:39:00",
+    "price": 1.39,
+    "depth": 1019.5,
+    "imbalance": -0.3818
+  },
+  {
+    "timestamp": "2023-01-01T00:40:00",
+    "price": 1.4,
+    "depth": 1020.0,
+    "imbalance": 0.0103
+  },
+  {
+    "timestamp": "2023-01-01T00:41:00",
+    "price": 1.41,
+    "depth": 1020.5,
+    "imbalance": -0.3051
+  },
+  {
+    "timestamp": "2023-01-01T00:42:00",
+    "price": 1.42,
+    "depth": 1021.0,
+    "imbalance": -0.3007
+  },
+  {
+    "timestamp": "2023-01-01T00:43:00",
+    "price": 1.43,
+    "depth": 1021.5,
+    "imbalance": 0.1825
+  },
+  {
+    "timestamp": "2023-01-01T00:44:00",
+    "price": 1.44,
+    "depth": 1022.0,
+    "imbalance": -0.2419
+  },
+  {
+    "timestamp": "2023-01-01T00:45:00",
+    "price": 1.45,
+    "depth": 1022.5,
+    "imbalance": -0.4228
+  },
+  {
+    "timestamp": "2023-01-01T00:46:00",
+    "price": 1.46,
+    "depth": 1023.0,
+    "imbalance": -0.2273
+  },
+  {
+    "timestamp": "2023-01-01T00:47:00",
+    "price": 1.47,
+    "depth": 1023.5,
+    "imbalance": -0.4993
+  },
+  {
+    "timestamp": "2023-01-01T00:48:00",
+    "price": 1.48,
+    "depth": 1024.0,
+    "imbalance": -0.1535
+  },
+  {
+    "timestamp": "2023-01-01T00:49:00",
+    "price": 1.49,
+    "depth": 1024.5,
+    "imbalance": -0.3187
+  },
+  {
+    "timestamp": "2023-01-01T00:50:00",
+    "price": 1.5,
+    "depth": 1025.0,
+    "imbalance": -0.2901
+  },
+  {
+    "timestamp": "2023-01-01T00:51:00",
+    "price": 1.51,
+    "depth": 1025.5,
+    "imbalance": -0.4921
+  },
+  {
+    "timestamp": "2023-01-01T00:52:00",
+    "price": 1.52,
+    "depth": 1026.0,
+    "imbalance": 0.0322
+  },
+  {
+    "timestamp": "2023-01-01T00:53:00",
+    "price": 1.53,
+    "depth": 1026.5,
+    "imbalance": 0.4979
+  },
+  {
+    "timestamp": "2023-01-01T00:54:00",
+    "price": 1.54,
+    "depth": 1027.0,
+    "imbalance": -0.2119
+  },
+  {
+    "timestamp": "2023-01-01T00:55:00",
+    "price": 1.55,
+    "depth": 1027.5,
+    "imbalance": -0.0829
+  },
+  {
+    "timestamp": "2023-01-01T00:56:00",
+    "price": 1.56,
+    "depth": 1028.0,
+    "imbalance": 0.0955
+  },
+  {
+    "timestamp": "2023-01-01T00:57:00",
+    "price": 1.57,
+    "depth": 1028.5,
+    "imbalance": -0.4235
+  },
+  {
+    "timestamp": "2023-01-01T00:58:00",
+    "price": 1.58,
+    "depth": 1029.0,
+    "imbalance": 0.2734
+  },
+  {
+    "timestamp": "2023-01-01T00:59:00",
+    "price": 1.59,
+    "depth": 1029.5,
+    "imbalance": 0.2013
+  },
+  {
+    "timestamp": "2023-01-01T01:00:00",
+    "price": 1.6,
+    "depth": 1030.0,
+    "imbalance": 0.2348
+  },
+  {
+    "timestamp": "2023-01-01T01:01:00",
+    "price": 1.61,
+    "depth": 1030.5,
+    "imbalance": -0.2945
+  },
+  {
+    "timestamp": "2023-01-01T01:02:00",
+    "price": 1.62,
+    "depth": 1031.0,
+    "imbalance": 0.4761
+  },
+  {
+    "timestamp": "2023-01-01T01:03:00",
+    "price": 1.63,
+    "depth": 1031.5,
+    "imbalance": -0.1482
+  },
+  {
+    "timestamp": "2023-01-01T01:04:00",
+    "price": 1.64,
+    "depth": 1032.0,
+    "imbalance": 0.3364
+  },
+  {
+    "timestamp": "2023-01-01T01:05:00",
+    "price": 1.65,
+    "depth": 1032.5,
+    "imbalance": 0.3681
+  },
+  {
+    "timestamp": "2023-01-01T01:06:00",
+    "price": 1.66,
+    "depth": 1033.0,
+    "imbalance": -0.4337
+  },
+  {
+    "timestamp": "2023-01-01T01:07:00",
+    "price": 1.67,
+    "depth": 1033.5,
+    "imbalance": -0.2163
+  },
+  {
+    "timestamp": "2023-01-01T01:08:00",
+    "price": 1.68,
+    "depth": 1034.0,
+    "imbalance": -0.1702
+  },
+  {
+    "timestamp": "2023-01-01T01:09:00",
+    "price": 1.69,
+    "depth": 1034.5,
+    "imbalance": -0.3317
+  },
+  {
+    "timestamp": "2023-01-01T01:10:00",
+    "price": 1.7,
+    "depth": 1035.0,
+    "imbalance": 0.0378
+  },
+  {
+    "timestamp": "2023-01-01T01:11:00",
+    "price": 1.71,
+    "depth": 1035.5,
+    "imbalance": -0.042
+  },
+  {
+    "timestamp": "2023-01-01T01:12:00",
+    "price": 1.72,
+    "depth": 1036.0,
+    "imbalance": -0.3444
+  },
+  {
+    "timestamp": "2023-01-01T01:13:00",
+    "price": 1.73,
+    "depth": 1036.5,
+    "imbalance": -0.3125
+  },
+  {
+    "timestamp": "2023-01-01T01:14:00",
+    "price": 1.74,
+    "depth": 1037.0,
+    "imbalance": 0.2704
+  },
+  {
+    "timestamp": "2023-01-01T01:15:00",
+    "price": 1.75,
+    "depth": 1037.5,
+    "imbalance": 0.1805
+  },
+  {
+    "timestamp": "2023-01-01T01:16:00",
+    "price": 1.76,
+    "depth": 1038.0,
+    "imbalance": -0.3717
+  },
+  {
+    "timestamp": "2023-01-01T01:17:00",
+    "price": 1.77,
+    "depth": 1038.5,
+    "imbalance": 0.356
+  },
+  {
+    "timestamp": "2023-01-01T01:18:00",
+    "price": 1.78,
+    "depth": 1039.0,
+    "imbalance": 0.4465
+  },
+  {
+    "timestamp": "2023-01-01T01:19:00",
+    "price": 1.79,
+    "depth": 1039.5,
+    "imbalance": -0.0498
+  },
+  {
+    "timestamp": "2023-01-01T01:20:00",
+    "price": 1.8,
+    "depth": 1040.0,
+    "imbalance": -0.1249
+  },
+  {
+    "timestamp": "2023-01-01T01:21:00",
+    "price": 1.81,
+    "depth": 1040.5,
+    "imbalance": -0.1616
+  },
+  {
+    "timestamp": "2023-01-01T01:22:00",
+    "price": 1.82,
+    "depth": 1041.0,
+    "imbalance": -0.3169
+  },
+  {
+    "timestamp": "2023-01-01T01:23:00",
+    "price": 1.83,
+    "depth": 1041.5,
+    "imbalance": 0.2786
+  },
+  {
+    "timestamp": "2023-01-01T01:24:00",
+    "price": 1.84,
+    "depth": 1042.0,
+    "imbalance": -0.0909
+  },
+  {
+    "timestamp": "2023-01-01T01:25:00",
+    "price": 1.85,
+    "depth": 1042.5,
+    "imbalance": -0.2755
+  },
+  {
+    "timestamp": "2023-01-01T01:26:00",
+    "price": 1.86,
+    "depth": 1043.0,
+    "imbalance": -0.1542
+  },
+  {
+    "timestamp": "2023-01-01T01:27:00",
+    "price": 1.87,
+    "depth": 1043.5,
+    "imbalance": -0.3522
+  },
+  {
+    "timestamp": "2023-01-01T01:28:00",
+    "price": 1.88,
+    "depth": 1044.0,
+    "imbalance": 0.0806
+  },
+  {
+    "timestamp": "2023-01-01T01:29:00",
+    "price": 1.89,
+    "depth": 1044.5,
+    "imbalance": -0.1183
+  },
+  {
+    "timestamp": "2023-01-01T01:30:00",
+    "price": 1.9,
+    "depth": 1045.0,
+    "imbalance": 0.443
+  },
+  {
+    "timestamp": "2023-01-01T01:31:00",
+    "price": 1.91,
+    "depth": 1045.5,
+    "imbalance": 0.4862
+  },
+  {
+    "timestamp": "2023-01-01T01:32:00",
+    "price": 1.92,
+    "depth": 1046.0,
+    "imbalance": -0.3977
+  },
+  {
+    "timestamp": "2023-01-01T01:33:00",
+    "price": 1.93,
+    "depth": 1046.5,
+    "imbalance": 0.4698
+  },
+  {
+    "timestamp": "2023-01-01T01:34:00",
+    "price": 1.94,
+    "depth": 1047.0,
+    "imbalance": -0.4687
+  },
+  {
+    "timestamp": "2023-01-01T01:35:00",
+    "price": 1.95,
+    "depth": 1047.5,
+    "imbalance": 0.4441
+  },
+  {
+    "timestamp": "2023-01-01T01:36:00",
+    "price": 1.96,
+    "depth": 1048.0,
+    "imbalance": 0.4042
+  },
+  {
+    "timestamp": "2023-01-01T01:37:00",
+    "price": 1.97,
+    "depth": 1048.5,
+    "imbalance": -0.0854
+  },
+  {
+    "timestamp": "2023-01-01T01:38:00",
+    "price": 1.98,
+    "depth": 1049.0,
+    "imbalance": 0.2085
+  },
+  {
+    "timestamp": "2023-01-01T01:39:00",
+    "price": 1.99,
+    "depth": 1049.5,
+    "imbalance": -0.3315
+  },
+  {
+    "timestamp": "2023-01-01T01:40:00",
+    "price": 2.0,
+    "depth": 1050.0,
+    "imbalance": -0.3112
+  },
+  {
+    "timestamp": "2023-01-01T01:41:00",
+    "price": 2.01,
+    "depth": 1050.5,
+    "imbalance": -0.1532
+  },
+  {
+    "timestamp": "2023-01-01T01:42:00",
+    "price": 2.02,
+    "depth": 1051.0,
+    "imbalance": -0.334
+  },
+  {
+    "timestamp": "2023-01-01T01:43:00",
+    "price": 2.03,
+    "depth": 1051.5,
+    "imbalance": -0.1037
+  },
+  {
+    "timestamp": "2023-01-01T01:44:00",
+    "price": 2.04,
+    "depth": 1052.0,
+    "imbalance": -0.4366
+  },
+  {
+    "timestamp": "2023-01-01T01:45:00",
+    "price": 2.05,
+    "depth": 1052.5,
+    "imbalance": 0.4711
+  },
+  {
+    "timestamp": "2023-01-01T01:46:00",
+    "price": 2.06,
+    "depth": 1053.0,
+    "imbalance": -0.1636
+  },
+  {
+    "timestamp": "2023-01-01T01:47:00",
+    "price": 2.07,
+    "depth": 1053.5,
+    "imbalance": 0.3876
+  },
+  {
+    "timestamp": "2023-01-01T01:48:00",
+    "price": 2.08,
+    "depth": 1054.0,
+    "imbalance": -0.2202
+  },
+  {
+    "timestamp": "2023-01-01T01:49:00",
+    "price": 2.09,
+    "depth": 1054.5,
+    "imbalance": 0.0557
+  },
+  {
+    "timestamp": "2023-01-01T01:50:00",
+    "price": 2.1,
+    "depth": 1055.0,
+    "imbalance": -0.1407
+  },
+  {
+    "timestamp": "2023-01-01T01:51:00",
+    "price": 2.11,
+    "depth": 1055.5,
+    "imbalance": -0.2799
+  },
+  {
+    "timestamp": "2023-01-01T01:52:00",
+    "price": 2.12,
+    "depth": 1056.0,
+    "imbalance": -0.3585
+  },
+  {
+    "timestamp": "2023-01-01T01:53:00",
+    "price": 2.13,
+    "depth": 1056.5,
+    "imbalance": 0.2673
+  },
+  {
+    "timestamp": "2023-01-01T01:54:00",
+    "price": 2.14,
+    "depth": 1057.0,
+    "imbalance": -0.2101
+  },
+  {
+    "timestamp": "2023-01-01T01:55:00",
+    "price": 2.15,
+    "depth": 1057.5,
+    "imbalance": -0.1762
+  },
+  {
+    "timestamp": "2023-01-01T01:56:00",
+    "price": 2.16,
+    "depth": 1058.0,
+    "imbalance": -0.0957
+  },
+  {
+    "timestamp": "2023-01-01T01:57:00",
+    "price": 2.17,
+    "depth": 1058.5,
+    "imbalance": 0.1264
+  },
+  {
+    "timestamp": "2023-01-01T01:58:00",
+    "price": 2.18,
+    "depth": 1059.0,
+    "imbalance": 0.0023
+  },
+  {
+    "timestamp": "2023-01-01T01:59:00",
+    "price": 2.19,
+    "depth": 1059.5,
+    "imbalance": 0.0152
+  }
+]
