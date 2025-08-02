@@ -7,6 +7,7 @@ import datetime
 from pathlib import Path
 from typing import Any, Iterable, List, Tuple
 from contextlib import suppress
+from concurrent.futures import ProcessPoolExecutor
 import time
 import psutil
 from collections import deque
@@ -1132,38 +1133,23 @@ class RLTraining:
         self._worker_sub = sub
 
 
-def fit(
+def _train_model(
     trades: Iterable[Any],
     snaps: Iterable[Any],
     *,
-    model_path: str | Path = "ppo_model.pt",
     algo: str = "ppo",
     regime_weight: float = 1.0,
     device: str | None = None,
     dynamic_workers: bool = False,
     prioritized_replay: bool = False,
     cpu_callback: Callable[[], float] | None = None,
-) -> None:
-    """Train a lightweight RL model from in-memory samples.
-
-    Parameters
-    ----------
-    trades:
-        Iterable of trade records as returned by :class:`~solhunter_zero.memory.Memory`.
-    snaps:
-        Iterable of :class:`~solhunter_zero.offline_data.MarketSnapshot`.
-    model_path:
-        File path where the checkpoint is stored.
-    algo:
-        ``"ppo"``, ``"dqn"``, ``"a3c"`` or ``"ddpg"`` model type.
-    device:
-        Optional accelerator string, ``"cuda"`` or ``"mps"``.
-    """
+    state_dict: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Internal helper returning trained model weights."""
 
     dataset = _TradeDataset(trades, snaps, regime_weight=regime_weight)
     if len(dataset) == 0:
-        Path(model_path).touch()
-        return
+        return state_dict or {}
 
     if algo == "dqn":
         model: pl.LightningModule = LightningDQN()
@@ -1173,6 +1159,10 @@ def fit(
         model = LightningDDPG()
     else:
         model = LightningPPO()
+
+    if state_dict:
+        with suppress(Exception):
+            model.load_state_dict(state_dict)
 
     use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {
         "0",
@@ -1187,13 +1177,6 @@ def fit(
             ):
                 model = torch.compile(model)
         except Exception:
-            pass
-
-    path = Path(model_path)
-    if path.exists():
-        try:
-            model.load_state_dict(torch.load(path))
-        except Exception:  # pragma: no cover - ignore corrupt weights
             pass
 
     if device is None:
@@ -1231,6 +1214,104 @@ def fit(
         persistent_workers=num_workers > 0,
     )
     trainer.fit(model, train_dataloaders=loader)
+    return model.state_dict()
+
+
+def _fit_worker(args: tuple[Any, ...]) -> dict[str, Any]:
+    """Multiprocessing worker wrapper for :func:`_train_model`."""
+
+    return _train_model(*args)
+
+
+def fit(
+    trades: Iterable[Any],
+    snaps: Iterable[Any],
+    *,
+    model_path: str | Path = "ppo_model.pt",
+    algo: str = "ppo",
+    regime_weight: float = 1.0,
+    device: str | None = None,
+    dynamic_workers: bool = False,
+    prioritized_replay: bool = False,
+    cpu_callback: Callable[[], float] | None = None,
+    workers: int | None = None,
+) -> None:
+    """Train a lightweight RL model from in-memory samples.
+
+    Parameters
+    ----------
+    trades:
+        Iterable of trade records as returned by :class:`~solhunter_zero.memory.Memory`.
+    snaps:
+        Iterable of :class:`~solhunter_zero.offline_data.MarketSnapshot`.
+    model_path:
+        File path where the checkpoint is stored.
+    algo:
+        ``"ppo"``, ``"dqn"``, ``"a3c"`` or ``"ddpg"`` model type.
+    device:
+        Optional accelerator string, ``"cuda"`` or ``"mps"``.
+    """
+
+    env_workers = os.getenv("RL_WORKERS")
+    if env_workers is not None:
+        try:
+            workers = int(env_workers)
+        except Exception:
+            pass
+
+    path = Path(model_path)
+    init_state: dict[str, Any] | None = None
+    if path.exists():
+        with suppress(Exception):
+            init_state = torch.load(path)
+
+    if workers is None or workers < 2:
+        state = _train_model(
+            trades,
+            snaps,
+            algo=algo,
+            regime_weight=regime_weight,
+            device=device,
+            dynamic_workers=dynamic_workers,
+            prioritized_replay=prioritized_replay,
+            cpu_callback=cpu_callback,
+            state_dict=init_state,
+        )
+    else:
+        trade_list = list(trades)
+        snap_list = list(snaps)
+        parts = [trade_list[i::workers] for i in range(workers)]
+        args = [
+            (
+                part,
+                snap_list,
+                algo,
+                regime_weight,
+                device,
+                dynamic_workers,
+                prioritized_replay,
+                cpu_callback,
+                init_state,
+            )
+            for part in parts
+        ]
+        with ProcessPoolExecutor(max_workers=workers) as exc:
+            results = list(exc.map(_fit_worker, args))
+        state = {}
+        if results:
+            for k in results[0].keys():
+                state[k] = torch.stack([r[k] for r in results], dim=0).mean(dim=0)
+    if not state:
+        path.touch()
+        return
+
+    model = {
+        "dqn": LightningDQN,
+        "a3c": LightningA3C,
+        "ddpg": LightningDDPG,
+    }.get(algo, LightningPPO)()
+    with suppress(Exception):
+        model.load_state_dict(state)
     torch.save(model.state_dict(), path)
     from .models import export_torchscript, export_onnx
 
@@ -1244,7 +1325,7 @@ def fit(
             export_onnx(model.cpu(), path.with_suffix(".onnx"), sample)
         except Exception as exc:  # pragma: no cover - optional
             logging.getLogger(__name__).warning("failed to export onnx: %s", exc)
-    model.to(device)
+    model.to(device or "cpu")
 
 
 class MultiAgentRL:
