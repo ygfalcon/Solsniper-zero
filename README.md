@@ -162,6 +162,21 @@ Key discovery options:
    several built‑in **agents** that replace the previous static strategy
    modules.
 
+## Paper Trading
+
+Before committing real SOL, you can evaluate strategies using the paper
+trading harness. It replays built-in historical datasets entirely offline and
+reports the return on investment (ROI) for simulated trades.
+
+```bash
+python scripts/paper_test.py --iterations 100
+```
+
+Run the command above to execute 100 iterations. The final ROI summary
+indicates performance: positive values represent profit, while negative values
+show a loss. Because the test uses only bundled data, it runs without network
+access so you can validate performance before risking real funds.
+
 ## Rust Depth Service
 
 The `depth_service` crate provides low‑latency order book snapshots and
