@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-import argparse
-import os
-import asyncio
+"""Run a dry-run trading loop and report ROI statistics.
 
+The script executes the automated trading agent in offline dry-run mode.
+Use the ``--capital`` argument to specify the starting USD balance.
+"""
+
+import argparse
+import asyncio
+import os
+
+from solhunter_zero.http import close_session
 from solhunter_zero.main import run_auto
 from solhunter_zero.memory import Memory
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 from solhunter_zero.util import run_coro
-from solhunter_zero.http import close_session
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,10 +31,18 @@ def main(argv: list[str] | None = None) -> int:
         default="sqlite:///memory.db",
         help="Memory database URL",
     )
+    parser.add_argument(
+        "--capital",
+        type=float,
+        default=20.0,
+        help="Initial USD balance for the trading simulation",
+    )
     args = parser.parse_args(argv)
 
     if args.config:
         os.environ["SOLHUNTER_CONFIG"] = args.config
+
+    os.environ["MIN_PORTFOLIO_VALUE"] = str(args.capital)
 
     run_auto(
         memory_path=args.memory,
