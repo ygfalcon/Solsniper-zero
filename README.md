@@ -177,6 +177,13 @@ indicates performance: positive values represent profit, while negative values
 show a loss. Because the test uses only bundled data, it runs without network
 access so you can validate performance before risking real funds.
 
+To start with a specific bankroll, use the `--capital` option, which overrides
+the default bankroll:
+
+```bash
+python scripts/paper_test.py --capital 100 --iterations 100
+```
+
 ## Rust Depth Service
 
 The `depth_service` crate provides low‑latency order book snapshots and
