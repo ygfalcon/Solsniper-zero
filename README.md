@@ -972,6 +972,33 @@ curl -X POST http://localhost:5000/memory/query \
   -d '{"sql":"SELECT token, direction, amount, price FROM trades"}'
 ```
 
+## Investor Demo
+
+Run a lightweight backtest to showcase strategy performance for potential investors:
+
+```bash
+python scripts/investor_demo.py --data tests/data/prices.json --capital 100 --reports reports
+```
+
+The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. It writes a summary JSON and CSV and prints a confirmation like `Wrote reports to reports`.
+
+Sample `summary.json`:
+
+```json
+[
+  {"config": "buy_hold", "roi": 0.021, "sharpe": 0.478, "drawdown": 0.009, "final_capital": 102.14},
+  ...
+]
+```
+
+`summary.csv` contains the same data in tabular form:
+
+```csv
+config,roi,sharpe,drawdown,final_capital
+buy_hold,0.021,0.478,0.009,102.14
+...
+```
+
 ## Additional Metrics
 
 Recent updates introduce new real-time metrics used by the simulator and risk
