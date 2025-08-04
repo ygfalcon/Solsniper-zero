@@ -9,7 +9,7 @@ import sys
 import types
 from importlib import resources
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -43,13 +43,22 @@ DEFAULT_DATA_PATH = Path(DATA_FILE)
 
 
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> np.ndarray:
-    """Return aggregated strategy returns for ``weights``."""
-    weight_sum = sum(float(weights.get(name, 1.0)) for name, _ in DEFAULT_STRATEGIES)
-    arrs = []
+    """Aggregate returns only for strategies explicitly weighted in ``weights``.
+
+    Strategies not present in ``weights`` or given a weight of zero are
+    ignored when computing the combined return series.
+    """
+
+    arrs: List[Tuple[np.ndarray, float]] = []
+    weight_sum = 0.0
     for name, strat in DEFAULT_STRATEGIES:
+        w = float(weights.get(name, 0.0))
+        if not w:
+            continue
         rets = strat(prices)
         if rets:
-            arrs.append((np.array(rets, dtype=float), float(weights.get(name, 1.0))))
+            arrs.append((np.array(rets, dtype=float), w))
+            weight_sum += w
     if not arrs or weight_sum == 0:
         return np.array([])
     length = min(len(a) for a, _ in arrs)
