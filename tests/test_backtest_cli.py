@@ -1,13 +1,15 @@
+from importlib import resources
 from pathlib import Path
 from solhunter_zero.backtester import backtest_configs, DEFAULT_STRATEGIES
 from solhunter_zero import backtest_cli
 
 
 def test_backtest_cli_with_dates_and_config(tmp_path):
-    h_path = Path(__file__).parent / "data" / "prices.json"
-    prices, liquidity = backtest_cli._load_history(
-        str(h_path), "2023-01-02", "2023-01-04"
-    )
+    h_path = resources.files("solhunter_zero") / "data" / "demo_prices.json"
+    with resources.as_file(h_path) as p:
+        prices, liquidity = backtest_cli._load_history(
+            str(p), "2023-01-02", "2023-01-04"
+        )
     assert prices == [101.2, 101.05, 100.56]
     assert liquidity is None
 

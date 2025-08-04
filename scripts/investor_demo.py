@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Dict, List
 
@@ -73,9 +75,10 @@ def max_drawdown(returns: np.ndarray) -> float:
     return float(np.max(drawdowns))
 
 
-def load_prices(path: Path) -> List[float]:
+def load_prices(path: Path | Traversable) -> List[float]:
     """Load a JSON price dataset into a list of floats."""
-    data = json.loads(path.read_text())
+    with resources.as_file(path) as p:
+        data = json.loads(p.read_text())
     prices = [float(entry["price"]) for entry in data]
     return prices
 
@@ -85,7 +88,7 @@ def main(argv: List[str] | None = None) -> None:
     parser.add_argument(
         "--data",
         type=Path,
-        default=Path("tests/data/prices.json"),
+        default=resources.files("solhunter_zero") / "data" / "demo_prices.json",
         help="Path to JSON price history",
     )
     parser.add_argument(

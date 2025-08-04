@@ -11,16 +11,12 @@ def test_investor_demo(tmp_path):
     assert spec.loader is not None
     spec.loader.exec_module(module)
 
-    module.main(
-        [
-            "--data",
-            "tests/data/prices.json",
-            "--reports",
-            str(tmp_path),
-            "--capital",
-            "100",
-        ]
-    )
+    module.main([
+        "--reports",
+        str(tmp_path),
+        "--capital",
+        "100",
+    ])
 
     summary_json = tmp_path / "summary.json"
     assert summary_json.exists(), "Summary JSON not generated"

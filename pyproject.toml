@@ -63,4 +63,5 @@ include = ["solhunter_zero*"]
 "solhunter_zero" = [
     "libroute_ffi.so",
     "data/*.json",
+    "data/demo_prices.json",
 ]

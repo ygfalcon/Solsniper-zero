@@ -1074,10 +1074,10 @@ python scripts/build_tick_dataset.py --db offline_data.db --out datasets/tick_hi
 
 The backtester can also be launched via the `solhunter-backtest` command. A
 synthetic price history with hundreds of daily points is provided at
-`tests/data/prices.json`:
+`solhunter_zero/data/demo_prices.json`:
 
 ```bash
-solhunter-backtest tests/data/prices.json -c config.toml
+solhunter-backtest solhunter_zero/data/demo_prices.json -c config.toml
 ```
 
 This wrapper invokes `solhunter_zero.backtest_cli`, so the available
