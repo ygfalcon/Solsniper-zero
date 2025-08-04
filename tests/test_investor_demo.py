@@ -1,17 +1,10 @@
-import importlib.util
 import json
-from pathlib import Path
+
+from solhunter_zero import investor_demo
 
 
 def test_investor_demo(tmp_path):
-    spec = importlib.util.spec_from_file_location(
-        "investor_demo", Path("scripts/investor_demo.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-
-    module.main(
+    investor_demo.main(
         [
             "--data",
             "tests/data/prices.json",

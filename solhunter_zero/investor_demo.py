@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Demonstration script for investors running rolling backtests.
 
 This script runs a rolling backtest over a historical price dataset using
@@ -16,33 +15,36 @@ from typing import Dict, List
 
 import numpy as np
 
-# Ensure repository root is on path when executed as a script
+# Provide lightweight stubs for optional heavy dependencies
 import sys
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-# Provide a lightweight Memory stub to avoid heavy dependencies in demos
 import types
-memory_stub = types.ModuleType("solhunter_zero.memory")
 
-class Memory:  # minimal stub
-    def __init__(self, *args, **kwargs):
-        pass
+try:  # pragma: no cover - used only when optional deps missing
+    import solhunter_zero.memory  # noqa: F401
+except ImportError:  # pragma: no cover
+    memory_stub = types.ModuleType("solhunter_zero.memory")
 
-memory_stub.Memory = Memory
-sys.modules.setdefault("solhunter_zero.memory", memory_stub)
+    class Memory:  # minimal stub
+        def __init__(self, *args, **kwargs):
+            pass
 
-# Stub portfolio module to avoid optional dependencies
-portfolio_stub = types.ModuleType("solhunter_zero.portfolio")
+    memory_stub.Memory = Memory
+    sys.modules.setdefault("solhunter_zero.memory", memory_stub)
 
-def hedge_allocation(*args, **kwargs):
-    return 0.0
+try:  # pragma: no cover - used only when optional deps missing
+    import solhunter_zero.portfolio  # noqa: F401
+except ImportError:  # pragma: no cover
+    portfolio_stub = types.ModuleType("solhunter_zero.portfolio")
 
-portfolio_stub.hedge_allocation = hedge_allocation
-sys.modules.setdefault("solhunter_zero.portfolio", portfolio_stub)
+    def hedge_allocation(*args, **kwargs):
+        return 0.0
 
-from solhunter_zero.backtest_pipeline import rolling_backtest
-from solhunter_zero.backtester import DEFAULT_STRATEGIES
-from solhunter_zero.risk import RiskManager
+    portfolio_stub.hedge_allocation = hedge_allocation
+    sys.modules.setdefault("solhunter_zero.portfolio", portfolio_stub)
+
+from .backtest_pipeline import rolling_backtest
+from .backtester import DEFAULT_STRATEGIES
+from .risk import RiskManager
 
 
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> np.ndarray:
