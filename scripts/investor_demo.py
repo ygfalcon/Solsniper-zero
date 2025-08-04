@@ -143,7 +143,10 @@ def main(argv: List[str] | None = None) -> None:
             plt.savefig(args.reports / f"{name}.png")
             plt.close()
         except Exception as exc:  # pragma: no cover - plotting optional
-            print(f"Plotting failed for {name}: {exc}")
+            print(
+                f"Plotting failed for {name}: {exc}. "
+                "Install the demo extra with 'pip install solhunter-zero[demo]' to enable plotting."
+            )
 
     json_path = args.reports / "summary.json"
     csv_path = args.reports / "summary.csv"

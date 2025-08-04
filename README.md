@@ -184,6 +184,21 @@ the default bankroll:
 python scripts/paper_test.py --capital 100 --iterations 100
 ```
 
+## Investor Demo
+
+Run a lightweight backtest showcase for presentations:
+
+```bash
+python scripts/investor_demo.py
+```
+
+Plotting the performance graphs requires `matplotlib`. Install it via the optional
+demo extras:
+
+```bash
+pip install solhunter-zero[demo]
+```
+
 ## Rust Depth Service
 
 The `depth_service` crate provides low‑latency order book snapshots and

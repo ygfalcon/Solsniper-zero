@@ -38,6 +38,7 @@ dev = [
     "flake8",
     "grpcio-tools",
 ]
+demo = ["matplotlib"]
 numba = ["numba"]
 fastjson = ["orjson"]
 fastcompress = ["lz4", "zstandard"]
