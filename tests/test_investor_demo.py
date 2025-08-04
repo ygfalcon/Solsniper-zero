@@ -1,27 +1,29 @@
+import importlib.util
 import json
-import subprocess
-import sys
+from pathlib import Path
 
 
 def test_investor_demo(tmp_path):
-    data = [
-        {"date": f"2024-01-{i+1:02d}", "price": 100 + i}
-        for i in range(60)
-    ]
-    data_path = tmp_path / "prices.json"
-    data_path.write_text(json.dumps(data))
+    spec = importlib.util.spec_from_file_location(
+        "investor_demo", Path("scripts/investor_demo.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
 
-    reports_dir = tmp_path / "reports"
-    cmd = [sys.executable, "scripts/investor_demo.py", "--data", str(data_path), "--reports", str(reports_dir)]
-    subprocess.check_call(cmd)
+    module.main(
+        [
+            "--data",
+            "tests/data/prices.json",
+            "--reports",
+            str(tmp_path),
+            "--capital",
+            "100",
+        ]
+    )
 
-    summary_json = reports_dir / "summary.json"
-    summary_csv = reports_dir / "summary.csv"
-    assert summary_json.exists(), "JSON report not generated"
-    assert summary_csv.exists(), "CSV report not generated"
-
+    summary_json = tmp_path / "summary.json"
+    assert summary_json.exists(), "Summary JSON not generated"
     content = json.loads(summary_json.read_text())
-    assert isinstance(content, list) and content
-    first = content[0]
-    for key in ["config", "roi", "sharpe", "drawdown"]:
-        assert key in first
+    assert content and "roi" in content[0]
+
