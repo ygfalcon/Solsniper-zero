@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import os
 from argparse import ArgumentParser
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import tomllib
 import asyncio
+import csv
 
 from .http import close_session
 from .util import install_uvloop
@@ -60,35 +61,119 @@ def bayesian_optimize_weights(
     return {k: float(best[i]) for i, k in enumerate(keys)}
 
 
-def _load_history(path: str | None, start: str | None, end: str | None) -> list[float]:
-    """Load price history from ``path`` filtered by ``start`` and ``end`` dates."""
+def _load_history(
+    path: str | None, start: str | None, end: str | None
+) -> Tuple[List[float], Optional[List[float]]]:
+    """Load price and optional liquidity history.
+
+    ``path`` may point to JSON or CSV files. JSON files can contain either a
+    list of numbers, a list of objects with ``date``/``price``/``liquidity``
+    fields, or an object with ``prices`` and optional ``liquidity`` arrays.
+    Large newline-delimited JSON files are processed incrementally to avoid
+    loading the entire file into memory.
+    """
 
     if not path:
-        return []
+        return [], None
+
+    start_dt = datetime.fromisoformat(start) if start else None
+    end_dt = datetime.fromisoformat(end) if end else None
+
+    prices: List[float] = []
+    liquidity: Optional[List[float]] = None
+
+    def add_liq(val: Optional[str | float]) -> None:
+        nonlocal liquidity
+        if val is None or val == "":
+            return
+        if liquidity is None:
+            liquidity = []
+        liquidity.append(float(val))
+
+    if path.endswith(".csv"):
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            if (start_dt or end_dt) and "date" not in (reader.fieldnames or []):
+                raise ValueError("Date range specified but history has no dates")
+            for row in reader:
+                if "date" in row and row["date"]:
+                    d = datetime.fromisoformat(row["date"])
+                    if start_dt and d < start_dt:
+                        continue
+                    if end_dt and d > end_dt:
+                        continue
+                prices.append(float(row["price"]))
+                add_liq(row.get("liquidity"))
+        return prices, liquidity
+
+    size = os.path.getsize(path)
+    if size > 5_000_000:  # 5 MB -> stream line-delimited JSON
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                item = json.loads(line)
+                if "date" in item:
+                    d = datetime.fromisoformat(item["date"])
+                    if start_dt and d < start_dt:
+                        continue
+                    if end_dt and d > end_dt:
+                        continue
+                elif start_dt or end_dt:
+                    raise ValueError("Date range specified but history has no dates")
+                prices.append(float(item["price"]))
+                add_liq(item.get("liquidity"))
+        return prices, liquidity
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     if not data:
-        return []
+        return [], None
 
-    if isinstance(data[0], dict) and "date" in data[0]:
-        start_dt = datetime.fromisoformat(start) if start else None
-        end_dt = datetime.fromisoformat(end) if end else None
-        filtered = []
-        for item in data:
-            d = datetime.fromisoformat(item["date"])
-            if start_dt and d < start_dt:
-                continue
-            if end_dt and d > end_dt:
-                continue
-            filtered.append(float(item["price"]))
-        return filtered
+    if isinstance(data, dict):
+        prices_data = data.get("prices", [])
+        liquidity_data = data.get("liquidity")
+        dates = data.get("dates")
+        if dates:
+            for i, p in enumerate(prices_data):
+                d = datetime.fromisoformat(dates[i])
+                if start_dt and d < start_dt:
+                    continue
+                if end_dt and d > end_dt:
+                    continue
+                prices.append(float(p))
+                if liquidity_data and i < len(liquidity_data):
+                    add_liq(liquidity_data[i])
+            return prices, liquidity
+        if start_dt or end_dt:
+            raise ValueError("Date range specified but history has no dates")
+        prices = [float(x) for x in prices_data]
+        if liquidity_data:
+            liquidity = [float(x) for x in liquidity_data]
+        return prices, liquidity
 
-    if start or end:
-        raise ValueError("Date range specified but history has no dates")
+    if isinstance(data, list):
+        if data and isinstance(data[0], dict):
+            for item in data:
+                if "date" in item:
+                    d = datetime.fromisoformat(item["date"])
+                    if start_dt and d < start_dt:
+                        continue
+                    if end_dt and d > end_dt:
+                        continue
+                elif start_dt or end_dt:
+                    raise ValueError("Date range specified but history has no dates")
+                prices.append(float(item["price"]))
+                add_liq(item.get("liquidity"))
+            return prices, liquidity
+        if start_dt or end_dt:
+            raise ValueError("Date range specified but history has no dates")
+        prices = [float(x) for x in data]
+        return prices, None
 
-    return [float(x) for x in data]
+    return [], None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -151,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.history:
         parser.error("history is required unless --analyze-trades is used")
 
-    prices = _load_history(args.history, args.start, args.end)
+    prices, liquidity = _load_history(args.history, args.start, args.end)
 
     strategy_map = dict(DEFAULT_STRATEGIES)
     if args.strategies:
@@ -164,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         strategies = DEFAULT_STRATEGIES
 
     if not args.configs:
-        results = backtest_strategies(prices, strategies=strategies)
+        results = backtest_strategies(prices, liquidity=liquidity, strategies=strategies)
     else:
         cfgs = []
         for path in args.configs:
@@ -179,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
             best = bayesian_optimize_weights(prices, keys, strategies, args.iterations)
             print(json.dumps(best))
             return 0
-        results = backtest_configs(prices, cfgs, strategies=strategies)
+        results = backtest_configs(prices, cfgs, strategies=strategies, liquidity=liquidity)
 
     for res in results:
         print(f"{res.name}\tROI={res.roi:.4f}\tSharpe={res.sharpe:.2f}")
