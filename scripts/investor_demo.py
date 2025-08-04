@@ -80,7 +80,7 @@ def load_prices(path: Path) -> List[float]:
     return prices
 
 
-def main() -> None:
+def main(argv: List[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Investor demo backtest")
     parser.add_argument(
         "--data",
@@ -94,7 +94,13 @@ def main() -> None:
         default=Path("reports"),
         help="Directory to write reports/plots to",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--capital",
+        type=float,
+        default=100.0,
+        help="Starting capital for the backtest",
+    )
+    args = parser.parse_args(argv)
 
     prices = load_prices(args.data)
     history = {"asset": prices}
@@ -109,15 +115,17 @@ def main() -> None:
     summary: List[Dict[str, float]] = []
 
     for name, weights in configs.items():
-        risk = RiskManager()
+        risk = RiskManager(min_portfolio_value=args.capital)
         result = rolling_backtest(history, weights, risk)
         returns = compute_weighted_returns(prices, weights)
         dd = max_drawdown(returns)
+        final_capital = args.capital * (1 + result.roi)
         metrics = {
             "config": name,
             "roi": result.roi,
             "sharpe": result.sharpe,
             "drawdown": dd,
+            "final_capital": final_capital,
         }
         summary.append(metrics)
 
