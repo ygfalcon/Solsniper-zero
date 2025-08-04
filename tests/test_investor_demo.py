@@ -1,3 +1,4 @@
+import csv
 import importlib.util
 import json
 from pathlib import Path
@@ -26,4 +27,11 @@ def test_investor_demo(tmp_path):
     assert summary_json.exists(), "Summary JSON not generated"
     content = json.loads(summary_json.read_text())
     assert content and "roi" in content[0]
+
+    summary_csv = tmp_path / "summary.csv"
+    assert summary_csv.exists(), "Summary CSV not generated"
+    with summary_csv.open(newline="", encoding="utf-8") as cf:
+        reader = csv.reader(cf)
+        header = next(reader)
+    assert {"roi", "sharpe", "drawdown"}.issubset(header)
 
