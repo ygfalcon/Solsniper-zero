@@ -31,6 +31,9 @@ class StrategyResult:
     name: str
     roi: float
     sharpe: float
+    max_drawdown: float
+    volatility: float
+    cumulative_returns: List[float]
 
 
 def buy_and_hold(prices: List[float], liquidity: Optional[List[float]] = None) -> List[float]:
@@ -77,13 +80,30 @@ def backtest_strategies(
         if not rets:
             roi = 0.0
             sharpe = 0.0
+            max_dd = 0.0
+            vol = 0.0
+            cum_returns: List[float] = []
         else:
             arr = np.array(rets, dtype=float)
-            roi = float(np.prod(1 + arr) - 1)
-            std = float(arr.std())
+            cum = np.cumprod(1 + arr)
+            cum_returns = (cum - 1).tolist()
+            roi = float(cum_returns[-1])
+            vol = float(arr.std())
             mean = float(arr.mean())
-            sharpe = mean / std if std > 0 else 0.0
-        results.append(StrategyResult(name=name, roi=roi, sharpe=sharpe))
+            sharpe = mean / vol if vol > 0 else 0.0
+            running_max = np.maximum.accumulate(cum)
+            drawdowns = (running_max - cum) / running_max
+            max_dd = float(drawdowns.max())
+        results.append(
+            StrategyResult(
+                name=name,
+                roi=roi,
+                sharpe=sharpe,
+                max_drawdown=max_dd,
+                volatility=vol,
+                cumulative_returns=cum_returns,
+            )
+        )
 
     results.sort(key=lambda r: (r.roi, r.sharpe), reverse=True)
     return results
@@ -102,7 +122,14 @@ def backtest_weighted(
 
     weight_sum = sum(float(weights.get(n, 1.0)) for n, _ in strategies)
     if weight_sum <= 0:
-        return StrategyResult(name="weighted", roi=0.0, sharpe=0.0)
+        return StrategyResult(
+            name="weighted",
+            roi=0.0,
+            sharpe=0.0,
+            max_drawdown=0.0,
+            volatility=0.0,
+            cumulative_returns=[],
+        )
 
     arrs = []
     for name, strat in strategies:
@@ -111,7 +138,14 @@ def backtest_weighted(
             arrs.append((np.array(rets, dtype=float), float(weights.get(name, 1.0))))
 
     if not arrs:
-        return StrategyResult(name="weighted", roi=0.0, sharpe=0.0)
+        return StrategyResult(
+            name="weighted",
+            roi=0.0,
+            sharpe=0.0,
+            max_drawdown=0.0,
+            volatility=0.0,
+            cumulative_returns=[],
+        )
 
     length = min(len(a) for a, _ in arrs)
     agg = np.zeros(length, dtype=float)
@@ -119,11 +153,23 @@ def backtest_weighted(
         agg += w * a[:length]
 
     agg /= weight_sum
-    roi = float(np.prod(1 + agg) - 1)
-    std = float(agg.std())
+    cum = np.cumprod(1 + agg)
+    cum_returns = (cum - 1).tolist()
+    roi = float(cum_returns[-1])
+    vol = float(agg.std())
     mean = float(agg.mean())
-    sharpe = mean / std if std > 0 else 0.0
-    return StrategyResult(name="weighted", roi=roi, sharpe=sharpe)
+    sharpe = mean / vol if vol > 0 else 0.0
+    running_max = np.maximum.accumulate(cum)
+    drawdowns = (running_max - cum) / running_max
+    max_dd = float(drawdowns.max())
+    return StrategyResult(
+        name="weighted",
+        roi=roi,
+        sharpe=sharpe,
+        max_drawdown=max_dd,
+        volatility=vol,
+        cumulative_returns=cum_returns,
+    )
 
 
 def backtest_configs(
@@ -137,7 +183,16 @@ def backtest_configs(
     results = []
     for name, weights in configs:
         res = backtest_weighted(prices, weights, liquidity=liquidity, strategies=strategies)
-        results.append(StrategyResult(name=name, roi=res.roi, sharpe=res.sharpe))
+        results.append(
+            StrategyResult(
+                name=name,
+                roi=res.roi,
+                sharpe=res.sharpe,
+                max_drawdown=res.max_drawdown,
+                volatility=res.volatility,
+                cumulative_returns=res.cumulative_returns,
+            )
+        )
 
     results.sort(key=lambda r: (r.roi, r.sharpe), reverse=True)
     return results

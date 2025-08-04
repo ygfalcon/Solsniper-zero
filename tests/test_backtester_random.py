@@ -28,13 +28,27 @@ def test_backtester_on_random_data():
         assert isinstance(res, backtester.StrategyResult)
         assert isinstance(res.roi, float)
         assert isinstance(res.sharpe, float)
+        assert isinstance(res.max_drawdown, float)
+        assert isinstance(res.volatility, float)
+        assert isinstance(res.cumulative_returns, list)
         assert not np.isnan(res.roi)
         assert not np.isnan(res.sharpe)
+        assert not np.isnan(res.max_drawdown)
+        assert not np.isnan(res.volatility)
+        if res.cumulative_returns:
+            assert all(isinstance(v, float) for v in res.cumulative_returns)
 
     weights = {name: 1.0 for name, _ in backtester.DEFAULT_STRATEGIES}
     weighted = backtester.backtest_weighted(prices, weights)
     assert isinstance(weighted, backtester.StrategyResult)
     assert isinstance(weighted.roi, float)
     assert isinstance(weighted.sharpe, float)
+    assert isinstance(weighted.max_drawdown, float)
+    assert isinstance(weighted.volatility, float)
+    assert isinstance(weighted.cumulative_returns, list)
     assert not np.isnan(weighted.roi)
     assert not np.isnan(weighted.sharpe)
+    assert not np.isnan(weighted.max_drawdown)
+    assert not np.isnan(weighted.volatility)
+    if weighted.cumulative_returns:
+        assert all(isinstance(v, float) for v in weighted.cumulative_returns)
