@@ -43,14 +43,23 @@ DEFAULT_DATA_PATH = Path(DATA_FILE)
 
 
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> np.ndarray:
-    """Return aggregated strategy returns for ``weights``."""
-    weight_sum = sum(float(weights.get(name, 1.0)) for name, _ in DEFAULT_STRATEGIES)
+    """Return aggregated strategy returns for ``weights``.
+
+    Strategies with non-positive weights are ignored. If no positive
+    weights are provided an empty array is returned.
+    """
+
     arrs = []
+    weight_sum = 0.0
     for name, strat in DEFAULT_STRATEGIES:
+        w = float(weights.get(name, 0.0))
+        if w <= 0:
+            continue
         rets = strat(prices)
         if rets:
-            arrs.append((np.array(rets, dtype=float), float(weights.get(name, 1.0))))
-    if not arrs or weight_sum == 0:
+            arrs.append((np.array(rets, dtype=float), w))
+            weight_sum += w
+    if not arrs or weight_sum <= 0:
         return np.array([])
     length = min(len(a) for a, _ in arrs)
     agg = np.zeros(length, dtype=float)
