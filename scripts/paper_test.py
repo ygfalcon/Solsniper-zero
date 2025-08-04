@@ -25,6 +25,12 @@ def main(argv: list[str] | None = None) -> int:
         default="sqlite:///memory.db",
         help="Memory database URL",
     )
+    parser.add_argument(
+        "--capital",
+        type=float,
+        default=100.0,
+        help="Effective capital available for simulated trades",
+    )
     args = parser.parse_args(argv)
 
     if args.config:
@@ -35,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         iterations=args.iterations,
         dry_run=True,
         offline=True,
+        capital=args.capital,
     )
 
     mem = Memory(args.memory)
