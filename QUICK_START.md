@@ -20,3 +20,14 @@
   # or
   solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --reports reports
   ```
+
+  Append `--full-system` to exercise the reinforcement-learning and full
+  arbitrage pipelines:
+
+  ```bash
+  solhunter-demo --preset multi --reports reports --full-system
+  ```
+
+  Expect extra outputs like `correlations.json`, `hedged_weights.json` and an
+  RL reward entry in `highlights.json`. This mode depends on heavier packages
+  including `torch`, `pytorch-lightning`, `sqlalchemy` and `psutil`.
