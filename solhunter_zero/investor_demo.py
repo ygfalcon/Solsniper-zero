@@ -16,6 +16,9 @@ import types
 from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
+import threading
+
+from .price_stream_manager import PriceStreamManager
 
 try:  # SQLAlchemy is optional; fall back to a simple in-memory implementation
     from .memory import Memory  # type: ignore
@@ -613,6 +616,16 @@ def main(argv: List[str] | None = None) -> None:
         action="store_true",
         help="Run a lightweight RL demo using a tiny pre-trained stub",
     )
+    parser.add_argument(
+        "--price-streams",
+        default=None,
+        help="Comma-separated venue=url pairs for live price streams",
+    )
+    parser.add_argument(
+        "--tokens",
+        default=None,
+        help="Comma-separated tokens to subscribe to in price streams",
+    )
     args = parser.parse_args(argv)
 
     if args.data is not None and args.preset is not None:
@@ -638,6 +651,31 @@ def main(argv: List[str] | None = None) -> None:
     first_token, (prices, dates) = next(iter(price_map.items()))
     if not prices or not dates:
         raise ValueError("price data must contain at least one entry")
+
+    stream_mgr = None
+    _stream_loop = None
+    _stream_thread = None
+    if args.price_streams:
+        streams: Dict[str, str] = {}
+        for spec in str(args.price_streams).split(','):
+            if not spec:
+                continue
+            if '=' not in spec:
+                raise ValueError('--price-streams requires venue=url pairs')
+            venue, url = spec.split('=', 1)
+            streams[venue.strip()] = url.strip()
+        if not streams:
+            raise ValueError('--price-streams requires venue=url pairs')
+        tokens = (
+            [t.strip() for t in str(args.tokens).split(',') if t.strip()]
+            if args.tokens
+            else list(price_map.keys())
+        )
+        stream_mgr = PriceStreamManager(streams, tokens)
+        _stream_loop = asyncio.new_event_loop()
+        _stream_thread = threading.Thread(target=_stream_loop.run_forever, daemon=True)
+        _stream_thread.start()
+        asyncio.run_coroutine_threadsafe(stream_mgr.start(), _stream_loop).result()
 
     # Demonstrate Memory usage and portfolio hedging using the first token.
     # ``Memory`` relies on SQLAlchemy which may not be installed in minimal
@@ -1033,6 +1071,12 @@ def main(argv: List[str] | None = None) -> None:
         )
 
     print(f"Wrote reports to {args.reports}")
+
+    if stream_mgr is not None and _stream_loop is not None:
+        asyncio.run_coroutine_threadsafe(stream_mgr.stop(), _stream_loop).result()
+        _stream_loop.call_soon_threadsafe(_stream_loop.stop)
+        if _stream_thread is not None:
+            _stream_thread.join()
 
 
 if __name__ == "__main__":  # pragma: no cover
