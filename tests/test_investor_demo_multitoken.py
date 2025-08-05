@@ -1,6 +1,5 @@
 import importlib
 import json
-from pathlib import Path
 
 import pytest
 
@@ -10,13 +9,12 @@ pytestmark = pytest.mark.timeout(30)
 
 
 def test_investor_demo_multitoken(tmp_path, capsys):
-    data_path = Path(__file__).resolve().parent / "data" / "prices_multitoken.json"
-    # Ensure loader returns mapping
-    loaded = investor_demo.load_prices(data_path)
+    # Ensure loader returns mapping when using preset
+    loaded = investor_demo.load_prices(preset="multi")
     assert isinstance(loaded, dict)
     assert {"SOL", "ETH"} <= loaded.keys()
 
-    investor_demo.main(["--data", str(data_path), "--reports", str(tmp_path)])
+    investor_demo.main(["--preset", "multi", "--reports", str(tmp_path)])
     out = capsys.readouterr().out
     # Output should include token prefixes for strategies
     assert "SOL buy_hold" in out
