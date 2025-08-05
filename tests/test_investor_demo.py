@@ -1,6 +1,7 @@
 import csv
 import json
 import importlib
+import re
 
 import pytest
 
@@ -10,7 +11,7 @@ from solhunter_zero import investor_demo
 pytestmark = pytest.mark.timeout(30)
 
 
-def test_investor_demo(tmp_path, monkeypatch):
+def test_investor_demo(tmp_path, monkeypatch, capsys):
     calls: dict[str, object] = {}
 
     class DummyMem:
@@ -38,6 +39,14 @@ def test_investor_demo(tmp_path, monkeypatch):
             "100",
         ]
     )
+
+    captured = capsys.readouterr()
+    out = captured.out
+    strategies = {"buy_hold", "momentum", "mean_reversion", "mixed"}
+    for name in strategies:
+        assert re.search(
+            rf"{name}: .*ROI .*Sharpe .*Drawdown .*Win rate", out
+        ), f"Missing metrics for {name}"
 
     summary_json = tmp_path / "summary.json"
     summary_csv = tmp_path / "summary.csv"
