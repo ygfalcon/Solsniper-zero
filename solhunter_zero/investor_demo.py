@@ -572,7 +572,7 @@ def main(argv: List[str] | None = None) -> None:
     parser.add_argument(
         "--preset",
         choices=sorted(PRESET_DATA_FILES.keys()),
-        default="short",
+        default=None,
         help="Bundled price dataset to use (default: 'short')",
     )
     parser.add_argument(
@@ -611,11 +611,10 @@ def main(argv: List[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    preset = args.preset
-    if args.data is not None:
-        if args.preset != parser.get_default("preset"):
-            raise ValueError("Cannot specify both --data and --preset")
-        preset = None
+    if args.data is not None and args.preset is not None:
+        raise ValueError("Cannot specify both --data and --preset")
+
+    preset = args.preset or "short"
 
     global FULL_SYSTEM, RL_DEMO, RL_REPORT_DIR
     FULL_SYSTEM = bool(args.full_system)
