@@ -37,6 +37,8 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(investor_demo, "Memory", DummyMem)
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
+    expected_rl = 7.0
+    monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)
 
     investor_demo.main(
         [
@@ -62,6 +64,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     assert trade_results["flash_loan_profit"] == pytest.approx(0.1)
     assert trade_results["sniper_tokens"] == ["demo_token"]
     assert trade_results["dex_new_pools"] == ["pool_demo"]
+    assert trade_results["rl_reward"] == expected_rl
 
     summary_json = tmp_path / "summary.json"
     summary_csv = tmp_path / "summary.csv"
@@ -212,6 +215,9 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     assert highlights.get("flash_loan_profit") == pytest.approx(0.1)
     assert highlights.get("sniper_tokens") == ["demo_token"]
     assert highlights.get("dex_new_pools") == ["pool_demo"]
+    assert highlights.get("rl_reward") == expected_rl
+    assert highlights.get("key_correlations")
+    assert highlights.get("hedged_weights")
 
     # Correlation and hedged weight outputs should be generated
     corr_path = tmp_path / "correlations.json"
