@@ -63,6 +63,16 @@ def _run_and_check(
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
 
+    # Correlation and hedged weight outputs should exist
+    corr_json = reports_dir / "correlations.json"
+    hedged_json = reports_dir / "hedged_weights.json"
+    assert corr_json.is_file()
+    assert hedged_json.is_file()
+    corr_data = json.loads(corr_json.read_text())
+    hedged_data = json.loads(hedged_json.read_text())
+    assert "buy_hold-momentum" in corr_data
+    assert {"buy_hold", "momentum"} <= hedged_data.keys()
+
     shutil.rmtree(reports_dir, ignore_errors=True)
 
 

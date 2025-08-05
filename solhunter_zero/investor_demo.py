@@ -311,8 +311,9 @@ def main(argv: List[str] | None = None) -> None:
                         cov = sum((a[k] - ma) * (b[k] - mb) for k in range(n)) / n
                         c = cov / (va ** 0.5 * vb ** 0.5)
                     corr_pairs[(keys[i], keys[j])] = c
-
-    _ = hedge_allocation({"buy_hold": 1.0, "momentum": 0.0}, corr_pairs)
+    hedged_weights = hedge_allocation(
+        {"buy_hold": 1.0, "momentum": 0.0}, corr_pairs
+    )
 
     configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -324,8 +325,14 @@ def main(argv: List[str] | None = None) -> None:
             "mean_reversion": 1 / 3,
         },
     }
-
     args.reports.mkdir(parents=True, exist_ok=True)
+
+    # Persist correlation pairs and hedged weights for inspection
+    corr_out = {f"{a}-{b}": c for (a, b), c in corr_pairs.items()}
+    with open(args.reports / "correlations.json", "w", encoding="utf-8") as cf:
+        json.dump(corr_out, cf, indent=2)
+    with open(args.reports / "hedged_weights.json", "w", encoding="utf-8") as hf:
+        json.dump(hedged_weights, hf, indent=2)
     summary: List[Dict[str, float | int]] = []
     trade_history: List[Dict[str, float | str]] = []
 
