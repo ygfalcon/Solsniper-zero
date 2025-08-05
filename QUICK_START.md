@@ -7,6 +7,7 @@
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py`.
+- Install the demo dependencies with `pip install .[demo]` before running `make demo` or `solhunter-demo`.
 - Run `make demo` to execute the investor demo with the bundled short preset. You can also use the `solhunter-demo` CLI to backtest bundled prices. Both finish in a few seconds and write summaries and trade history to the folder given by `--reports`:
 
   ```bash
