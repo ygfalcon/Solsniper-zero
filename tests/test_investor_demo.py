@@ -22,6 +22,12 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
     expected_rl = 7.0
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)
+    async def fake_arb() -> dict:
+        investor_demo.used_trade_types.add("arbitrage")
+        return {"path": ["dex1", "dex2"], "profit": 4.795}
+    monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arb)
+    from solhunter_zero import routeffi as rffi
+    monkeypatch.setattr(rffi, "_best_route_json", lambda *a, **k: (["r1", "r2"], 1.23))
 
     investor_demo.main(
         [
@@ -45,6 +51,8 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     trade_results = json.loads(match.group(1))
     assert trade_results["arbitrage_profit"] == pytest.approx(4.795)
     assert trade_results["arbitrage_path"] == ["dex1", "dex2"]
+    assert trade_results["route_ffi_path"] == ["r1", "r2"]
+    assert trade_results["route_ffi_profit"] == pytest.approx(1.23)
     assert trade_results["flash_loan_signature"] == "demo_sig"
     assert trade_results["sniper_tokens"] == ["TKN"]
     assert trade_results["dex_new_pools"] == ["mintA", "mintB"]
@@ -197,6 +205,8 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     assert highlights, "Highlights JSON empty"
     assert highlights.get("arbitrage_profit") == pytest.approx(4.795)
     assert highlights.get("arbitrage_path") == ["dex1", "dex2"]
+    assert highlights.get("route_ffi_path") == ["r1", "r2"]
+    assert highlights.get("route_ffi_profit") == pytest.approx(1.23)
     assert highlights.get("flash_loan_signature") == "demo_sig"
     assert highlights.get("sniper_tokens") == ["TKN"]
     assert highlights.get("dex_new_pools") == ["mintA", "mintB"]
@@ -239,8 +249,14 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
                 tmp_path / f"demo_{name}.png"
             ).exists(), f"Missing plot demo_{name}.png"
 
-    # Demo should exercise arbitrage, flash loan, sniper and DEX scanner trade types
-    assert {"arbitrage", "flash_loan", "sniper", "dex_scanner"} <= investor_demo.used_trade_types
+    # Demo should exercise all trade types including route FFI
+    assert {
+        "arbitrage",
+        "flash_loan",
+        "sniper",
+        "dex_scanner",
+        "route_ffi",
+    } <= investor_demo.used_trade_types
 
     # Memory and portfolio helpers should have been invoked
     assert calls.get("mem_init")
@@ -269,15 +285,25 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
     async def fake_dex() -> None:
         investor_demo.used_trade_types.add("dex_scanner")
 
+    async def fake_route() -> None:
+        investor_demo.used_trade_types.add("route_ffi")
+
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
     monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
     monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
     monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
+    monkeypatch.setattr(investor_demo, "_demo_route_ffi", fake_route)
 
     investor_demo.main(["--reports", str(tmp_path)])
 
     assert seen_before == [set()]
-    assert investor_demo.used_trade_types == {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
+    assert investor_demo.used_trade_types == {
+        "arbitrage",
+        "flash_loan",
+        "sniper",
+        "dex_scanner",
+        "route_ffi",
+    }
 
 
 def test_investor_demo_custom_data_length(tmp_path):

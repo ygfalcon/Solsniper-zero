@@ -426,6 +426,39 @@ async def _demo_dex_scanner() -> List[str]:
     return tokens
 
 
+async def _demo_route_ffi() -> Dict[str, object]:
+    """Exercise ``routeffi._best_route_json`` on deterministic data."""
+
+    try:
+        from . import routeffi
+    except Exception as exc:  # pragma: no cover - optional dependency
+        print(f"Route FFI demo skipped: {exc}")
+        used_trade_types.add("route_ffi")
+        return {"path": [], "profit": 0.0}
+
+    prices = {"dex1": 100.0, "dex2": 105.0}
+    fees = {"dex1": 0.0, "dex2": 0.0}
+    try:
+        result = routeffi._best_route_json(
+            prices,
+            1.0,
+            fees=fees,
+            gas=fees,
+            latency=fees,
+            max_hops=2,
+        )
+    except Exception as exc:  # pragma: no cover - best effort
+        print(f"Route FFI demo skipped: {exc}")
+        result = None
+    if result is None:
+        path = ["dex1", "dex2"]
+        profit = (prices["dex2"] - prices["dex1"]) * 1.0
+    else:
+        path, profit = result
+    used_trade_types.add("route_ffi")
+    return {"path": path, "profit": float(profit)}
+
+
 def run_rl_demo(report_dir: Path) -> float:
     """Run a tiny RL demo and write training metrics.
 
@@ -557,7 +590,10 @@ def _demo_rl_agent() -> float:
 
 def main(argv: List[str] | None = None) -> None:
     used_trade_types.clear()
-    from . import resource_monitor
+    try:
+        from . import resource_monitor
+    except Exception:  # pragma: no cover - optional dependency
+        resource_monitor = None  # type: ignore[assignment]
     try:  # optional risk analysis
         from .risk import correlation_matrix  # type: ignore
     except Exception:  # pragma: no cover - risk module optional
@@ -618,7 +654,12 @@ def main(argv: List[str] | None = None) -> None:
     if args.data is not None and args.preset is not None:
         raise ValueError("Cannot specify both --data and --preset")
 
-    preset = args.preset or "short"
+    if args.preset is not None:
+        preset = args.preset
+    elif args.data is not None:
+        preset = None
+    else:
+        preset = "short"
 
     global FULL_SYSTEM, RL_DEMO, RL_REPORT_DIR
     FULL_SYSTEM = bool(args.full_system)
@@ -947,18 +988,23 @@ def main(argv: List[str] | None = None) -> None:
 
     # Exercise trade types via lightweight stubs
     async def _exercise_trade_types() -> Dict[str, object]:
-        arb, fl_sig, sniped, pools = await asyncio.gather(
+        arb, fl_sig, sniped, pools, route = await asyncio.gather(
             _demo_arbitrage(),
             _demo_flash_loan(),
             _demo_sniper(),
             _demo_dex_scanner(),
+            _demo_route_ffi(),
         )
         rl_reward = _demo_rl_agent()
         arb_path = arb.get("path") if isinstance(arb, dict) else None
         arb_profit = arb.get("profit") if isinstance(arb, dict) else None
+        route_path = route.get("path") if isinstance(route, dict) else None
+        route_profit = route.get("profit") if isinstance(route, dict) else None
         return {
             "arbitrage_path": arb_path,
             "arbitrage_profit": arb_profit,
+            "route_ffi_path": route_path,
+            "route_ffi_profit": route_profit,
             "flash_loan_signature": fl_sig,
             "sniper_tokens": sniped,
             "dex_new_pools": pools,
@@ -977,7 +1023,7 @@ def main(argv: List[str] | None = None) -> None:
     # Collect resource usage metrics if available
     cpu_usage = None
     mem_pct = None
-    if psutil is not None:
+    if psutil is not None and resource_monitor is not None:
         try:
             cpu_usage = resource_monitor.get_cpu_usage()
             mem_pct = psutil.virtual_memory().percent
