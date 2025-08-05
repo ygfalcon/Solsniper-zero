@@ -981,7 +981,7 @@ python scripts/investor_demo.py --data tests/data/prices.json --capital 100 --re
 ```
 
 The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
-It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.md` then prints a capital summary such as:
+It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.json` then prints a capital summary such as:
 
 ```text
 Capital summary
@@ -1011,13 +1011,13 @@ buy_hold,0.021,0.478,0.009,102.14
 `trade_history.csv` lists the backtest trades for each strategy:
 
 ```csv
-strategy,period,action,price,capital
-buy_hold,0,buy,1.00,100.00
-momentum,3,sell,1.12,112.00
+strategy,period,capital
+buy_hold,0,100.00
+momentum,3,112.00
 ...
 ```
 
-The `highlights.md` file summarizes key results:
+The `highlights.json` file summarizes key results:
 
 ```text
 Top ROI: momentum
