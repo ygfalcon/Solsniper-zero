@@ -108,30 +108,31 @@ def test_investor_demo(tmp_path, monkeypatch):
     # Trade history and highlight files should be generated
     trade_csv = tmp_path / "trade_history.csv"
     trade_json = tmp_path / "trade_history.json"
-    assert trade_csv.exists() or trade_json.exists(), "Trade history not generated"
-    if trade_csv.exists():
-        trade_rows = list(csv.DictReader(trade_csv.open()))
-        assert trade_rows, "Trade history CSV empty"
-        assert all({"capital", "action", "price"} <= set(r.keys()) for r in trade_rows)
-        first = trade_rows[0]
-        assert first["action"] == "buy"
-        assert float(first["price"]) == prices[0]
-        # Should record capital for periods beyond the starting point
-        assert any(int(r["period"]) > 0 for r in trade_rows)
-        # Expect at least one sell action in the history
-        assert any(r["action"] == "sell" for r in trade_rows)
-        # Each configured strategy should appear in trade history
-        assert any(r["strategy"] == "mean_reversion" for r in trade_rows)
-    else:
-        trade_data = json.loads(trade_json.read_text())
-        assert trade_data, "Trade history JSON empty"
-        assert all("capital" in r and "action" in r and "price" in r for r in trade_data)
-        first = trade_data[0]
-        assert first["action"] == "buy"
-        assert first["price"] == prices[0]
-        assert any(r["period"] > 0 for r in trade_data)
-        assert any(r["action"] == "sell" for r in trade_data)
-        assert any(r["strategy"] == "mean_reversion" for r in trade_data)
+    assert trade_csv.exists(), "Trade history CSV not generated"
+    assert trade_json.exists(), "Trade history JSON not generated"
+
+    trade_rows = list(csv.DictReader(trade_csv.open()))
+    assert trade_rows, "Trade history CSV empty"
+    assert all({"capital", "action", "price"} <= set(r.keys()) for r in trade_rows)
+    first = trade_rows[0]
+    assert first["action"] == "buy"
+    assert float(first["price"]) == prices[0]
+    # Should record capital for periods beyond the starting point
+    assert any(int(r["period"]) > 0 for r in trade_rows)
+    # Expect at least one sell action in the history
+    assert any(r["action"] == "sell" for r in trade_rows)
+    # Each configured strategy should appear in trade history
+    assert any(r["strategy"] == "mean_reversion" for r in trade_rows)
+
+    trade_data = json.loads(trade_json.read_text())
+    assert trade_data, "Trade history JSON empty"
+    assert all("capital" in r and "action" in r and "price" in r for r in trade_data)
+    first = trade_data[0]
+    assert first["action"] == "buy"
+    assert first["price"] == prices[0]
+    assert any(r["period"] > 0 for r in trade_data)
+    assert any(r["action"] == "sell" for r in trade_data)
+    assert any(r["strategy"] == "mean_reversion" for r in trade_data)
 
     highlights_path = tmp_path / "highlights.json"
     assert highlights_path.exists(), "Highlights JSON not generated"
