@@ -176,6 +176,11 @@ async def _demo_flash_loan() -> None:
 
 def main(argv: List[str] | None = None) -> None:
     used_trade_types.clear()
+    from . import resource_monitor
+    try:
+        import psutil  # type: ignore
+    except Exception:  # pragma: no cover - psutil optional
+        psutil = None  # type: ignore
     parser = argparse.ArgumentParser(description="Investor demo backtest")
     parser.add_argument(
         "--data",
@@ -313,6 +318,16 @@ def main(argv: List[str] | None = None) -> None:
             for row in trade_history:
                 writer.writerow(row)
 
+    # Collect resource usage metrics if available
+    cpu_usage = None
+    mem_pct = None
+    if psutil is not None:
+        try:
+            cpu_usage = resource_monitor.get_cpu_usage()
+            mem_pct = psutil.virtual_memory().percent
+        except Exception:
+            pass
+
     # Write highlights summarising top performing strategy
     top = None
     if summary:
@@ -322,6 +337,10 @@ def main(argv: List[str] | None = None) -> None:
             "top_final_capital": top["final_capital"],
             "top_roi": top["roi"],
         }
+        if cpu_usage is not None:
+            highlights["cpu_usage"] = cpu_usage
+        if mem_pct is not None:
+            highlights["memory_percent"] = mem_pct
         with open(args.reports / "highlights.json", "w", encoding="utf-8") as hf:
             json.dump(highlights, hf, indent=2)
 
@@ -332,6 +351,10 @@ def main(argv: List[str] | None = None) -> None:
     if top:
         print(
             f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
+        )
+    if cpu_usage is not None and mem_pct is not None:
+        print(
+            f"Resource usage - CPU: {cpu_usage:.2f}% Memory: {mem_pct:.2f}%"
         )
 
     # Exercise trade types via lightweight stubs
