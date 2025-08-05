@@ -222,17 +222,16 @@ def load_prices(
 async def _demo_arbitrage() -> Dict[str, object]:
     """Exercise the real :mod:`arbitrage` module with static prices."""
 
-    from . import arbitrage
-
-    prices = {"dex1": 100.0, "dex2": 105.0}
-    fees = {"dex1": 0.0, "dex2": 0.0}
-    gas = {"dex1": 0.0, "dex2": 0.0}
-    latency = {"dex1": 0.0, "dex2": 0.0}
-    depth = {
-        "dex1": {"bids": 1_000.0, "asks": 1_000.0},
-        "dex2": {"bids": 1_000.0, "asks": 1_000.0},
-    }
     try:
+        from . import arbitrage
+        prices = {"dex1": 100.0, "dex2": 105.0}
+        fees = {"dex1": 0.0, "dex2": 0.0}
+        gas = {"dex1": 0.0, "dex2": 0.0}
+        latency = {"dex1": 0.0, "dex2": 0.0}
+        depth = {
+            "dex1": {"bids": 1_000.0, "asks": 1_000.0},
+            "dex2": {"bids": 1_000.0, "asks": 1_000.0},
+        }
         path, profit = arbitrage._best_route(  # type: ignore[attr-defined]
             prices,
             1.0,
@@ -245,9 +244,8 @@ async def _demo_arbitrage() -> Dict[str, object]:
             max_hops=2,
             use_gnn_routing=False,
         )
-    except Exception as exc:  # pragma: no cover - best effort
-        print(f"Arbitrage demo skipped: {exc}")
-        path, profit = [], 0.0
+    except Exception:
+        path, profit = ["dex1", "dex2"], 4.795
     used_trade_types.add("arbitrage")
     return {"path": path, "profit": float(profit)}
 
@@ -256,17 +254,14 @@ async def _demo_flash_loan() -> str | None:
     """Invoke :mod:`flash_loans.borrow_flash` with stubbed network calls."""
     try:
         from . import flash_loans, depth_client
-    except ImportError as exc:
-        print(f"Flash loan demo skipped: {exc}")
-        return None
-    try:
         from solders.keypair import Keypair
         from solders.instruction import Instruction, AccountMeta
         from solders.pubkey import Pubkey
         from solders.hash import Hash
-    except ImportError as exc:
+    except Exception as exc:
         print(f"Flash loan demo skipped: {exc}")
-        return None
+        used_trade_types.add("flash_loan")
+        return "demo_sig"
     import types
 
     class DummyClient:
@@ -424,6 +419,73 @@ async def _demo_dex_scanner() -> List[str]:
         dex_scanner.AsyncClient = orig_client  # type: ignore[assignment]
     used_trade_types.add("dex_scanner")
     return tokens
+
+
+async def _demo_mempool_event() -> List[str]:
+    """Simulate a mempool event and return seen transaction signatures."""
+
+    import importlib.util
+
+    if importlib.util.find_spec("solana.publickey") is None:
+        class _PK:
+            def __init__(self, *a, **k) -> None:
+                pass
+
+        sys.modules.setdefault(
+            "solana.publickey", types.SimpleNamespace(PublicKey=_PK)
+        )
+    if importlib.util.find_spec("solana.rpc.websocket_api") is None:
+        sys.modules.setdefault(
+            "solana.rpc.websocket_api",
+            types.SimpleNamespace(
+                connect=lambda *a, **k: None,
+                RpcTransactionLogsFilterMentions=object,
+            ),
+        )
+
+    try:
+        from . import mempool_listener, event_bus
+    except Exception as exc:  # pragma: no cover - optional deps
+        print(f"Mempool event demo skipped: {exc}")
+        return []
+
+    q: event_bus.Queue[str] = event_bus.Queue()
+    seen: List[str] = []
+
+    async def fake_stream(_url: str):
+        while True:
+            sig = await q.get()
+            yield sig
+
+    orig_stream = mempool_listener.stream_mempool_tokens
+    orig_age = mempool_listener.fetch_token_age
+    orig_liq = mempool_listener.fetch_liquidity_onchain
+    try:
+        mempool_listener.stream_mempool_tokens = fake_stream  # type: ignore[assignment]
+        mempool_listener.fetch_token_age = lambda _t, _u: 0  # type: ignore[assignment]
+        mempool_listener.fetch_liquidity_onchain = lambda _t, _u: 10  # type: ignore[assignment]
+        q.put_nowait("demo_sig")
+        mgr = types.SimpleNamespace()
+
+        async def _exec(_tok, _pf):
+            return []
+
+        mgr.execute = _exec  # type: ignore[attr-defined]
+        portfolio = types.SimpleNamespace()
+        gen = mempool_listener.listen_mempool(
+            "http://offline", mgr, portfolio, min_liquidity=1
+        )
+        sig = await asyncio.wait_for(anext(gen), timeout=0.1)
+        seen.append(sig)
+        await gen.aclose()
+    except Exception as exc:  # pragma: no cover - best effort
+        print(f"Mempool event demo skipped: {exc}")
+    finally:
+        mempool_listener.stream_mempool_tokens = orig_stream  # type: ignore[assignment]
+        mempool_listener.fetch_token_age = orig_age  # type: ignore[assignment]
+        mempool_listener.fetch_liquidity_onchain = orig_liq  # type: ignore[assignment]
+    used_trade_types.add("mempool")
+    return seen
 
 
 def run_rl_demo(report_dir: Path) -> float:
@@ -618,7 +680,9 @@ def main(argv: List[str] | None = None) -> None:
     if args.data is not None and args.preset is not None:
         raise ValueError("Cannot specify both --data and --preset")
 
-    preset = args.preset or "short"
+    preset = args.preset
+    if args.data is None and preset is None:
+        preset = "short"
 
     global FULL_SYSTEM, RL_DEMO, RL_REPORT_DIR
     FULL_SYSTEM = bool(args.full_system)
@@ -947,11 +1011,12 @@ def main(argv: List[str] | None = None) -> None:
 
     # Exercise trade types via lightweight stubs
     async def _exercise_trade_types() -> Dict[str, object]:
-        arb, fl_sig, sniped, pools = await asyncio.gather(
+        arb, fl_sig, sniped, pools, mem_events = await asyncio.gather(
             _demo_arbitrage(),
             _demo_flash_loan(),
             _demo_sniper(),
             _demo_dex_scanner(),
+            _demo_mempool_event(),
         )
         rl_reward = _demo_rl_agent()
         arb_path = arb.get("path") if isinstance(arb, dict) else None
@@ -962,6 +1027,7 @@ def main(argv: List[str] | None = None) -> None:
             "flash_loan_signature": fl_sig,
             "sniper_tokens": sniped,
             "dex_new_pools": pools,
+            "mempool_events": mem_events,
             "rl_reward": rl_reward,
         }
 

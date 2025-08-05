@@ -2,10 +2,26 @@ import csv
 import json
 import importlib
 import re
+import sys
+import types
 
 import pytest
 
-from solhunter_zero import investor_demo
+import importlib.util
+
+if importlib.util.find_spec("solana.publickey") is None:
+    class _PK:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+    sys.modules.setdefault("solana.publickey", types.SimpleNamespace(PublicKey=_PK))
+if importlib.util.find_spec("solana.rpc.websocket_api") is None:
+    sys.modules.setdefault(
+        "solana.rpc.websocket_api",
+        types.SimpleNamespace(connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object),
+    )
+
+from solhunter_zero import investor_demo, mempool_listener
 
 
 pytestmark = pytest.mark.timeout(30)
@@ -22,6 +38,8 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
     expected_rl = 7.0
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)
+    monkeypatch.setattr(mempool_listener, "fetch_token_age", lambda t, u: 0)
+    monkeypatch.setattr(mempool_listener, "fetch_liquidity_onchain", lambda t, u: 10)
 
     investor_demo.main(
         [
@@ -48,6 +66,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     assert trade_results["flash_loan_signature"] == "demo_sig"
     assert trade_results["sniper_tokens"] == ["TKN"]
     assert trade_results["dex_new_pools"] == ["mintA", "mintB"]
+    assert trade_results["mempool_events"] == ["demo_sig"]
     assert trade_results["rl_reward"] == expected_rl
 
     summary_json = tmp_path / "summary.json"
@@ -200,6 +219,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     assert highlights.get("flash_loan_signature") == "demo_sig"
     assert highlights.get("sniper_tokens") == ["TKN"]
     assert highlights.get("dex_new_pools") == ["mintA", "mintB"]
+    assert highlights.get("mempool_events") == ["demo_sig"]
     assert highlights.get("rl_reward") == expected_rl
     assert highlights.get("key_correlations")
     assert highlights.get("hedged_weights")
@@ -269,15 +289,26 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
     async def fake_dex() -> None:
         investor_demo.used_trade_types.add("dex_scanner")
 
+    async def fake_mempool() -> list[str]:
+        investor_demo.used_trade_types.add("mempool")
+        return []
+
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
     monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
     monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
     monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
+    monkeypatch.setattr(investor_demo, "_demo_mempool_event", fake_mempool)
 
     investor_demo.main(["--reports", str(tmp_path)])
 
     assert seen_before == [set()]
-    assert investor_demo.used_trade_types == {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
+    assert investor_demo.used_trade_types == {
+        "arbitrage",
+        "flash_loan",
+        "sniper",
+        "dex_scanner",
+        "mempool",
+    }
 
 
 def test_investor_demo_custom_data_length(tmp_path):

@@ -4,10 +4,9 @@ import pytest
 from solhunter_zero import investor_demo
 
 
-
 @pytest.fixture(autouse=True)
 def clear_used_trade_types():
-    '''Ensure used_trade_types is reset for each test.'''
+    """Ensure used_trade_types is reset for each test."""
     investor_demo.used_trade_types.clear()
     yield
     investor_demo.used_trade_types.clear()
@@ -36,3 +35,10 @@ def test_demo_dex_scanner():
     pools = asyncio.run(investor_demo._demo_dex_scanner())
     assert pools == ["mintA", "mintB"]
     assert investor_demo.used_trade_types == {"dex_scanner"}
+
+
+def test_demo_mempool_event():
+    events = asyncio.run(investor_demo._demo_mempool_event())
+    assert events == ["demo_sig"]
+    assert investor_demo.used_trade_types == {"mempool"}
+
