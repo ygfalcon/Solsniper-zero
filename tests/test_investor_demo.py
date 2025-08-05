@@ -53,9 +53,22 @@ def test_investor_demo(tmp_path, monkeypatch):
     assert {"buy_hold", "momentum", "mean_reversion", "mixed"} <= configs
 
     # Each summary entry must include core metrics
+    required = [
+        "roi",
+        "sharpe",
+        "drawdown",
+        "volatility",
+        "trades",
+        "wins",
+        "losses",
+        "final_capital",
+    ]
     for entry in content:
-        for key in ["roi", "sharpe", "drawdown", "final_capital"]:
+        for key in required:
             assert key in entry
+    for row in csv_rows:
+        for key in required:
+            assert key in row
 
     # Compute expected metrics for the built-in price dataset
     prices = investor_demo.load_prices()
@@ -70,7 +83,7 @@ def test_investor_demo(tmp_path, monkeypatch):
             "mean_reversion": 1 / 3,
         },
     }
-    expected: dict[str, dict[str, float]] = {}
+    expected: dict[str, dict[str, float | int]] = {}
     for name, weights in strat_configs.items():
         returns = investor_demo.compute_weighted_returns(prices, weights)
         if returns:
@@ -84,26 +97,47 @@ def test_investor_demo(tmp_path, monkeypatch):
             variance = sum((r - mean) ** 2 for r in returns) / len(returns)
             vol = variance ** 0.5
             sharpe = mean / vol if vol else 0.0
+            trades = sum(1 for r in returns if r != 0)
+            wins = sum(1 for r in returns if r > 0)
+            losses = sum(1 for r in returns if r < 0)
         else:
             roi = 0.0
             sharpe = 0.0
+            vol = 0.0
+            trades = wins = losses = 0
         dd = investor_demo.max_drawdown(returns)
         final_capital = start_capital * (1 + roi)
         expected[name] = {
             "roi": roi,
             "sharpe": sharpe,
             "drawdown": dd,
+            "volatility": vol,
+            "trades": trades,
+            "wins": wins,
+            "losses": losses,
             "final_capital": final_capital,
         }
+    csv_map: dict[str, dict[str, float | int | str]] = {}
+    for row in csv_rows:
+        parsed: dict[str, float | int | str] = {}
+        for key, val in row.items():
+            if key == "config":
+                parsed[key] = val
+            elif key in {"trades", "wins", "losses"}:
+                parsed[key] = int(val)
+            else:
+                parsed[key] = float(val)
+        csv_map[row["config"]] = parsed
 
     for entry in content:
         exp = expected[entry["config"]]
-        assert entry["roi"] == pytest.approx(exp["roi"], rel=1e-6)
-        assert entry["sharpe"] == pytest.approx(exp["sharpe"], rel=1e-6)
-        assert entry["drawdown"] == pytest.approx(exp["drawdown"], rel=1e-6)
-        assert entry["final_capital"] == pytest.approx(
-            exp["final_capital"], rel=1e-6
-        )
+        csv_entry = csv_map[entry["config"]]
+        for key in ["roi", "sharpe", "drawdown", "volatility", "final_capital"]:
+            assert entry[key] == pytest.approx(exp[key], rel=1e-6)
+            assert csv_entry[key] == pytest.approx(exp[key], rel=1e-6)
+        for key in ["trades", "wins", "losses"]:
+            assert entry[key] == exp[key]
+            assert csv_entry[key] == exp[key]
 
     # Trade history and highlight files should be generated
     trade_csv = tmp_path / "trade_history.csv"
