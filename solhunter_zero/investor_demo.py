@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""Investor demo utilities and CLI."""
+"""Investor demo utilities and CLI.
+
+The demo degrades gracefully when optional dependencies are unavailable,
+falling back to simplified implementations for correlation matrices and
+hedge allocation.
+"""
 
 import argparse
 import asyncio
@@ -17,8 +22,6 @@ try:  # SQLAlchemy is optional; fall back to a simple in-memory implementation
 except Exception:  # pragma: no cover - absence of SQLAlchemy
     Memory = None  # type: ignore[assignment]
 
-from .portfolio import hedge_allocation
-from .risk import correlation_matrix
 
 
 # Track which trade types have been exercised by the demo
@@ -500,6 +503,17 @@ def _demo_rl_agent() -> float:
 def main(argv: List[str] | None = None) -> None:
     used_trade_types.clear()
     from . import resource_monitor
+    try:  # optional risk analysis
+        from .risk import correlation_matrix  # type: ignore
+    except Exception:  # pragma: no cover - risk module optional
+        correlation_matrix = None  # type: ignore[assignment]
+    try:  # optional hedging utilities
+        from .portfolio import hedge_allocation  # type: ignore
+    except Exception:  # pragma: no cover - portfolio module optional
+        def hedge_allocation(
+            weights: Dict[str, float], _corr: Dict[tuple[str, str], float]
+        ) -> Dict[str, float]:
+            return weights
     try:
         import psutil  # type: ignore
     except Exception:  # pragma: no cover - psutil optional
@@ -604,13 +618,7 @@ def main(argv: List[str] | None = None) -> None:
         series[name] = pseudo_prices
     corr_pairs: Dict[tuple[str, str], float] = {}
     if len(series) >= 2:
-        try:
-            corr_mat = correlation_matrix(series)
-            keys = list(series.keys())
-            for i in range(len(keys)):
-                for j in range(i + 1, len(keys)):
-                    corr_pairs[(keys[i], keys[j])] = float(corr_mat[i, j])
-        except Exception:
+        def _manual_corr() -> None:
             keys = list(strategy_returns.keys())
             for i in range(len(keys)):
                 for j in range(i + 1, len(keys)):
@@ -631,6 +639,18 @@ def main(argv: List[str] | None = None) -> None:
                         cov = sum((a[k] - ma) * (b[k] - mb) for k in range(n)) / n
                         c = cov / (va ** 0.5 * vb ** 0.5)
                     corr_pairs[(keys[i], keys[j])] = c
+
+        if correlation_matrix is not None:
+            try:
+                corr_mat = correlation_matrix(series)
+                keys = list(series.keys())
+                for i in range(len(keys)):
+                    for j in range(i + 1, len(keys)):
+                        corr_pairs[(keys[i], keys[j])] = float(corr_mat[i, j])
+            except Exception:
+                _manual_corr()
+        else:
+            _manual_corr()
     hedged_weights = hedge_allocation(
         {"buy_hold": 1.0, "momentum": 0.0}, corr_pairs
     )
