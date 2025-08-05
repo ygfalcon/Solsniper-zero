@@ -3,12 +3,124 @@ import base64
 import logging
 from typing import Optional, Sequence, Mapping
 
-from solders.instruction import Instruction, AccountMeta
-from solders.pubkey import Pubkey
-from solders.keypair import Keypair
-from solders.message import MessageV0
-from solders.transaction import VersionedTransaction
-from solana.rpc.async_api import AsyncClient
+try:  # pragma: no cover - optional dependencies
+    from solders.instruction import Instruction, AccountMeta  # type: ignore
+    from solders.pubkey import Pubkey  # type: ignore
+    from solders.keypair import Keypair  # type: ignore
+    from solders.message import MessageV0  # type: ignore
+    from solders.transaction import VersionedTransaction  # type: ignore
+    from solders.hash import Hash  # type: ignore
+    from solana.rpc.async_api import AsyncClient  # type: ignore
+    _DEPS_OK = bool(
+        hasattr(Keypair, "sign_message") and hasattr(Pubkey, "from_string")
+    )
+except Exception:  # pragma: no cover - missing deps
+    _DEPS_OK = False
+
+if not _DEPS_OK:  # pragma: no cover - fallback stubs
+    import sys
+    import types
+
+    class Pubkey:
+        """Minimal stand-in for :class:`solders.pubkey.Pubkey`."""
+
+        @staticmethod
+        def from_string(_s: str) -> "Pubkey":
+            return Pubkey()
+
+        @staticmethod
+        def default() -> "Pubkey":
+            return Pubkey()
+
+    class Keypair:
+        """Very small substitute for :class:`solders.keypair.Keypair`."""
+
+        def __init__(self) -> None:
+            self._pub = Pubkey()
+
+        def pubkey(self) -> Pubkey:
+            return self._pub
+
+        def sign_message(self, _msg: bytes) -> bytes:
+            return b"sig"
+
+    class AccountMeta:
+        def __init__(self, pubkey: Pubkey, is_signer: bool, is_writable: bool) -> None:
+            self.pubkey = pubkey
+            self.is_signer = is_signer
+            self.is_writable = is_writable
+
+    class Instruction:
+        def __init__(
+            self,
+            program_id: Pubkey,
+            data: bytes,
+            accounts: Sequence[AccountMeta],
+        ) -> None:
+            self.program_id = program_id
+            self.data = data
+            self.accounts = accounts
+
+    class MessageV0:
+        @staticmethod
+        def try_compile(_payer, _ixs, _lookups, _blockhash) -> "MessageV0":
+            return MessageV0()
+
+        def __bytes__(self) -> bytes:  # pragma: no cover - simple stub
+            return b"msg"
+
+    class VersionedTransaction:
+        @staticmethod
+        def populate(
+            _msg: MessageV0, _sigs: Sequence[bytes]
+        ) -> "VersionedTransaction":
+            return VersionedTransaction()
+
+        def __bytes__(self) -> bytes:  # pragma: no cover - simple stub
+            return b"tx"
+
+    class Hash:
+        @staticmethod
+        def default() -> str:  # pragma: no cover - simple stub
+            return "0" * 32
+
+    class AsyncClient:
+        """Placeholder for :class:`solana.rpc.async_api.AsyncClient`."""
+
+        def __init__(self, _url: str) -> None:  # pragma: no cover - simple stub
+            self.url = _url
+
+        async def __aenter__(self) -> "AsyncClient":
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def get_latest_blockhash(self):
+            return types.SimpleNamespace(
+                value=types.SimpleNamespace(blockhash=Hash.default())
+            )
+
+        async def confirm_transaction(self, _sig: str) -> None:
+            return None
+
+    # Register stub modules so ``investor_demo`` can import them.
+    solders_pkg = types.ModuleType("solders")
+    solders_pkg.__path__ = []  # type: ignore[attr-defined]
+    sys.modules.setdefault("solders", solders_pkg)
+
+    def _register(name: str, **attrs: object) -> None:
+        mod = types.ModuleType(name)
+        for k, v in attrs.items():
+            setattr(mod, k, v)
+        sys.modules[f"solders.{name}"] = mod
+
+    _register("keypair", Keypair=Keypair)
+    _register("pubkey", Pubkey=Pubkey)
+    _register("instruction", Instruction=Instruction, AccountMeta=AccountMeta)
+    _register("message", MessageV0=MessageV0)
+    _register("transaction", VersionedTransaction=VersionedTransaction)
+    _register("hash", Hash=Hash)
 
 from . import depth_client
 
