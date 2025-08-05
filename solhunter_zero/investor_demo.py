@@ -248,54 +248,107 @@ async def _demo_flash_loan() -> float:
 
 
 async def _demo_sniper() -> List[str]:
-    """Invoke sniper evaluate with stub inputs and return discovered tokens."""
+    """Run :mod:`solhunter_zero.sniper` with deterministic helpers."""
+
     prices, dates = load_prices(preset="short")
     token = f"token_{dates[0]}" if dates else "token_demo"
 
-    mod_name = f"{__package__}.sniper"
-    orig = sys.modules.get(mod_name)
-    sni_stub = types.ModuleType(mod_name)
+    from . import sniper
+    from .simulation import SimulationResult
+    from .portfolio import Portfolio, Position
 
-    async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": token}]
+    # Patch the heavy helpers used by ``sniper.evaluate`` so the demo remains
+    # deterministic and lightweight.  ``run_simulations`` is replaced with a
+    # stub returning two results to give a non-zero Sharpe ratio while
+    # ``fetch_token_prices_async`` avoids any network access.
+    def fake_run(_token: str, count: int = 100) -> List[SimulationResult]:
+        res = SimulationResult(
+            success_prob=0.7,
+            expected_roi=2.0,
+            volume=1.0,
+            liquidity=1.0,
+            slippage=0.1,
+            volatility=0.05,
+            volume_spike=1.5,
+        )
+        res2 = SimulationResult(
+            success_prob=0.7,
+            expected_roi=1.0,
+            volume=1.0,
+            liquidity=1.0,
+            slippage=0.1,
+            volatility=0.05,
+            volume_spike=1.5,
+        )
+        return [res, res2]
 
-    sni_stub.evaluate = evaluate
-    sys.modules[mod_name] = sni_stub
+    async def fake_prices(tokens: set[str]) -> dict[str, float]:
+        return {t: 1.0 for t in tokens}
+
+    orig_run = sniper.run_simulations
+    orig_fetch = sniper.fetch_token_prices_async
+    sniper.run_simulations = fake_run
+    sniper.fetch_token_prices_async = fake_prices
     try:
-        from .sniper import evaluate as demo_func  # type: ignore
-        results = await demo_func("demo", None)
+        portfolio = Portfolio(path=None)
+        portfolio.balances["USDC"] = Position("USDC", 100.0, 1.0, 1.0)
+        actions = await sniper.evaluate(token, portfolio)
     finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+        sniper.run_simulations = orig_run
+        sniper.fetch_token_prices_async = orig_fetch
 
     used_trade_types.add("sniper")
-    return [r.get("token", "") for r in results]
+    return [a.get("token", "") for a in actions]
 
 
 async def _demo_dex_scanner() -> List[str]:
-    """Invoke DEX pool scanning with stub inputs and return discovered pools."""
+    """Run :mod:`solhunter_zero.dex_scanner` with mocked RPC data."""
+
     prices, dates = load_prices(preset="short")
     pool = f"pool_{dates[1]}" if len(dates) > 1 else "pool_demo"
 
-    mod_name = f"{__package__}.dex_scanner"
-    orig = sys.modules.get(mod_name)
-    dex_stub = types.ModuleType(mod_name)
+    from . import dex_scanner
 
-    async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return [pool]
+    # Minimal AsyncClient stub returning a pre-baked RPC response.  This avoids
+    # network access yet exercises the real parsing logic inside
+    # ``dex_scanner.scan_new_pools``.
+    class FakeClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
 
-    dex_stub.scan_new_pools = scan_new_pools
-    sys.modules[mod_name] = dex_stub
+        async def __aenter__(self) -> "FakeClient":
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def get_program_accounts(self, *_args, **_kwargs):
+            return {
+                "result": [
+                    {
+                        "account": {
+                            "data": {
+                                "parsed": {
+                                    "info": {
+                                        "tokenA": {"mint": pool, "name": pool},
+                                        "tokenB": {"mint": "other", "name": "other"},
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+
+    orig_client = dex_scanner.AsyncClient
+    orig_match = dex_scanner.token_matches
+    dex_scanner.AsyncClient = FakeClient
+    dex_scanner.token_matches = lambda addr, *a, **k: addr == pool  # type: ignore
     try:
-        from .dex_scanner import scan_new_pools as demo_func  # type: ignore
-        pools = await demo_func("url")
+        pools = await dex_scanner.scan_new_pools("http://rpc")
     finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+        dex_scanner.AsyncClient = orig_client
+        dex_scanner.token_matches = orig_match
 
     used_trade_types.add("dex_scanner")
     return [str(p) for p in pools]

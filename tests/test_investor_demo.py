@@ -23,6 +23,25 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     expected_rl = 7.0
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)
 
+    # Capture calls into the real sniper and dex scanner modules to ensure the
+    # demo exercises them instead of stubs.
+    import solhunter_zero.sniper as sniper_mod
+    import solhunter_zero.dex_scanner as dex_mod
+
+    seen: dict[str, bool] = {}
+
+    orig_eval = sniper_mod.evaluate
+    async def wrapped_eval(token, portfolio):
+        seen["sniper"] = True
+        return await orig_eval(token, portfolio)
+    monkeypatch.setattr(sniper_mod, "evaluate", wrapped_eval)
+
+    orig_scan = dex_mod.scan_new_pools
+    async def wrapped_scan(url):
+        seen["dex"] = True
+        return await orig_scan(url)
+    monkeypatch.setattr(dex_mod, "scan_new_pools", wrapped_scan)
+
     investor_demo.main(
         [
             "--reports",
@@ -47,6 +66,8 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     assert trade_results["flash_loan_profit"] == pytest.approx(0.001482213438735234)
     assert trade_results["sniper_tokens"] == ["token_2023-01-01"]
     assert trade_results["dex_new_pools"] == ["pool_2023-01-02"]
+    assert seen.get("sniper")
+    assert seen.get("dex")
     assert trade_results["rl_reward"] == expected_rl
 
     summary_json = tmp_path / "summary.json"
