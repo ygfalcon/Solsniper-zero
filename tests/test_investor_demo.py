@@ -85,7 +85,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
             assert key in row
 
     # Compute expected metrics for the built-in price dataset
-    prices, dates = investor_demo.load_prices()
+    prices, dates = investor_demo.load_prices(preset="short")
     start_capital = 100.0
     strat_configs = {
         "buy_hold": {"buy_hold": 1.0},
