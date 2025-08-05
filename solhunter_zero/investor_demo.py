@@ -14,6 +14,7 @@ from typing import Callable, Dict, List, Tuple
 
 from .memory import Memory
 from .portfolio import hedge_allocation
+from . import risk
 
 
 # Track which trade types have been exercised by the demo
@@ -200,8 +201,9 @@ def main(argv: List[str] | None = None) -> None:
     prices = load_prices(args.data)
 
     # Demonstrate Memory usage and portfolio hedging
+    var = risk.value_at_risk(prices)
     mem = Memory("sqlite:///:memory:")
-    mem.log_var(0.0)
+    mem.log_var(var)
     asyncio.run(mem.close())
 
     _ = hedge_allocation({"buy_hold": 1.0, "momentum": 0.0}, {})

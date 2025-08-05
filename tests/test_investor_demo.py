@@ -165,7 +165,8 @@ def test_investor_demo(tmp_path, monkeypatch):
 
     # Memory and portfolio helpers should have been invoked
     assert calls.get("mem_init")
-    assert calls.get("mem_log_var") == 0.0
+    expected_var = investor_demo.risk.value_at_risk(prices)
+    assert calls.get("mem_log_var") == pytest.approx(expected_var, rel=1e-6)
     assert calls.get("mem_closed")
     assert "hedge_called" in calls
 
