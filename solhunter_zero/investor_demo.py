@@ -12,25 +12,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
-# Provide lightweight stubs for optional heavy modules
-memory_stub = types.ModuleType("solhunter_zero.memory")
-
-
-class Memory:  # minimal stub
-    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - simple stub
-        pass
-
-
-def hedge_allocation(*args, **kwargs) -> float:  # pragma: no cover - simple stub
-    return 0.0
-
-
-memory_stub.Memory = Memory
-sys.modules.setdefault("solhunter_zero.memory", memory_stub)
-
-portfolio_stub = types.ModuleType("solhunter_zero.portfolio")
-portfolio_stub.hedge_allocation = hedge_allocation
-sys.modules.setdefault("solhunter_zero.portfolio", portfolio_stub)
+from .memory import Memory
+from .portfolio import hedge_allocation
 
 
 # Track which trade types have been exercised by the demo
@@ -198,6 +181,13 @@ def main(argv: List[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     prices = load_prices(args.data)
+
+    # Demonstrate Memory usage and portfolio hedging
+    mem = Memory("sqlite:///:memory:")
+    mem.log_var(0.0)
+    asyncio.run(mem.close())
+
+    _ = hedge_allocation({"buy_hold": 1.0, "momentum": 0.0}, {})
 
     configs = {
         "buy_hold": {"buy_hold": 1.0},
