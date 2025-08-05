@@ -195,9 +195,17 @@ def main(argv: List[str] | None = None) -> None:
         default=100.0,
         help="Starting capital for the backtest",
     )
+    parser.add_argument(
+        "--max-periods",
+        type=int,
+        default=None,
+        help="Maximum number of price points to process",
+    )
     args = parser.parse_args(argv)
 
     prices = load_prices(args.data)
+    if args.max_periods is not None:
+        prices = prices[: args.max_periods]
 
     # Demonstrate Memory usage and portfolio hedging
     mem = Memory("sqlite:///:memory:")

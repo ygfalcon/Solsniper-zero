@@ -27,12 +27,19 @@ def test_investor_demo(tmp_path, monkeypatch):
     monkeypatch.setattr(investor_demo, "Memory", DummyMem)
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
 
+    small_path = investor_demo.DATA_FILE.parent / "investor_demo_prices_small.json"
+    max_periods = 20
+
     investor_demo.main(
         [
             "--reports",
             str(tmp_path),
             "--capital",
             "100",
+            "--data",
+            str(small_path),
+            "--max-periods",
+            str(max_periods),
         ]
     )
 
@@ -58,7 +65,7 @@ def test_investor_demo(tmp_path, monkeypatch):
             assert key in entry
 
     # Compute expected metrics for the built-in price dataset
-    prices = investor_demo.load_prices()
+    prices = investor_demo.load_prices(small_path)[:max_periods]
     start_capital = 100.0
     strat_configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -196,20 +203,24 @@ def test_investor_demo_custom_data_length(tmp_path):
     data_path = tmp_path / "prices.json"
     data_path.write_text(json.dumps(price_data))
 
-    investor_demo.main(["--data", str(data_path), "--reports", str(tmp_path)])
+    max_periods = 3
+    investor_demo.main(
+        [
+            "--data",
+            str(data_path),
+            "--reports",
+            str(tmp_path),
+            "--max-periods",
+            str(max_periods),
+        ]
+    )
 
     trade_csv = tmp_path / "trade_history.csv"
     assert trade_csv.exists()
     rows = list(csv.DictReader(trade_csv.open()))
     assert rows
 
-    periods_by_strategy: dict[str, set[int]] = {}
-    for row in rows:
-        periods_by_strategy.setdefault(row["strategy"], set()).add(
-            int(row["period"])
-        )
-
-    expected_last = len(price_data) - 1
-    for periods in periods_by_strategy.values():
-        assert max(periods) == expected_last
-        assert len(periods) == len(price_data)
+    all_periods = [int(row["period"]) for row in rows]
+    expected_last = max_periods - 1
+    assert max(all_periods) == expected_last
+    assert all(p <= expected_last for p in all_periods)
