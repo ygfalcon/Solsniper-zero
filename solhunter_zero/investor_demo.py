@@ -40,22 +40,31 @@ RL_DEMO: bool = False
 # Simple strategy functions used for demonstration
 
 
-def _buy_and_hold(prices: List[float]) -> List[float]:
+def _buy_and_hold(
+    prices: List[float], fee: float = 0.0, slippage: float = 0.0
+) -> List[float]:
     rets: List[float] = []
+    cost = fee + slippage
     for i in range(1, len(prices)):
-        rets.append((prices[i] - prices[i - 1]) / prices[i - 1])
+        r = (prices[i] - prices[i - 1]) / prices[i - 1] - cost
+        rets.append(r)
     return rets
 
 
-def _momentum(prices: List[float]) -> List[float]:
+def _momentum(
+    prices: List[float], fee: float = 0.0, slippage: float = 0.0
+) -> List[float]:
     returns: List[float] = []
+    cost = fee + slippage
     for i in range(1, len(prices)):
         r = (prices[i] - prices[i - 1]) / prices[i - 1]
-        returns.append(r if r > 0 else 0.0)
+        returns.append(r - cost if r > 0 else 0.0)
     return returns
 
 
-def _mean_reversion(prices: List[float]) -> List[float]:
+def _mean_reversion(
+    prices: List[float], fee: float = 0.0, slippage: float = 0.0
+) -> List[float]:
     """Simple mean-reversion strategy.
 
     This toy implementation buys after price drops and assumes an immediate
@@ -64,13 +73,16 @@ def _mean_reversion(prices: List[float]) -> List[float]:
     """
 
     returns: List[float] = []
+    cost = fee + slippage
     for i in range(1, len(prices)):
         r = (prices[i] - prices[i - 1]) / prices[i - 1]
-        returns.append(-r if r < 0 else 0.0)
+        returns.append(-r - cost if r < 0 else 0.0)
     return returns
 
 
-DEFAULT_STRATEGIES: List[Tuple[str, Callable[[List[float]], List[float]]]] = [
+DEFAULT_STRATEGIES: List[
+    Tuple[str, Callable[[List[float], float, float], List[float]]]
+] = [
     ("buy_hold", _buy_and_hold),
     ("momentum", _momentum),
     ("mean_reversion", _mean_reversion),
@@ -86,7 +98,12 @@ PRESET_DATA_FILES: Dict[str, Path] = {
 }
 
 
-def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> List[float]:
+def compute_weighted_returns(
+    prices: List[float],
+    weights: Dict[str, float],
+    fee: float = 0.0,
+    slippage: float = 0.0,
+) -> List[float]:
     """Aggregate strategy returns weighted by ``weights``.
 
     Negative weights represent short positions.  Returns are normalised by the
@@ -100,7 +117,7 @@ def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> 
         w = float(weights.get(name, 0.0))
         if not w:
             continue
-        rets = strat(prices)
+        rets = strat(prices, fee, slippage)
         if rets:
             arrs.append(([float(r) for r in rets], w))
             abs_sum += abs(w)
@@ -548,6 +565,18 @@ def main(argv: List[str] | None = None) -> None:
         help="Starting capital for the backtest",
     )
     parser.add_argument(
+        "--fee",
+        type=float,
+        default=0.0,
+        help="Per-trade fee as a fractional cost",
+    )
+    parser.add_argument(
+        "--slippage",
+        type=float,
+        default=0.0,
+        help="Per-trade slippage as a fractional cost",
+    )
+    parser.add_argument(
         "--full-system",
         action="store_true",
         help="Run the heavier RL components",
@@ -610,7 +639,7 @@ def main(argv: List[str] | None = None) -> None:
 
     # Compute correlations between strategy returns for the first token
     strategy_returns: Dict[str, List[float]] = {
-        name: strat(prices) for name, strat in DEFAULT_STRATEGIES
+        name: strat(prices, args.fee, args.slippage) for name, strat in DEFAULT_STRATEGIES
     }
     series: Dict[str, List[float]] = {}
     for name, rets in strategy_returns.items():
@@ -698,7 +727,7 @@ def main(argv: List[str] | None = None) -> None:
         if not prices or not dates:
             raise ValueError("price data must contain at least one entry")
         for name, weights in configs.items():
-            returns = compute_weighted_returns(prices, weights)
+            returns = compute_weighted_returns(prices, weights, args.fee, args.slippage)
             if returns:
                 cum: List[float] = []
                 total = 1.0
