@@ -7,7 +7,12 @@
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py`.
-- Run `make demo` to execute the investor demo with the bundled short preset. You can also use the `solhunter-demo` CLI to backtest bundled prices. Both finish in a few seconds and write summaries and trade history to the folder given by `--reports`:
+- Run `make demo` to execute the investor demo with the bundled short preset.
+- Run `make demo-full` for the multi-token, full-system demo.
+
+You can also use the `solhunter-demo` CLI to backtest bundled prices. All of
+these commands write summaries and trade history to the folder given by
+`--reports`:
 
   ```bash
   make demo
@@ -15,7 +20,14 @@
   solhunter-demo --preset short --reports reports
   ```
 
-  To try multiple tokens, use the bundled `multi` preset or pass the dataset path explicitly:
+  ```bash
+  make demo-full
+  # or
+  solhunter-demo --preset multi --full-system --reports reports
+  ```
+
+  To try multiple tokens without the full system, use the bundled `multi`
+  preset or pass the dataset path explicitly:
 
   ```bash
   solhunter-demo --preset multi --reports reports
@@ -23,13 +35,7 @@
   solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --reports reports
   ```
 
-  Append `--full-system` to exercise the reinforcement-learning and full
-  arbitrage pipelines:
-
-  ```bash
-  solhunter-demo --preset multi --reports reports --full-system
-  ```
-
-  Expect extra outputs like `correlations.json`, `hedged_weights.json` and an
-  RL reward entry in `highlights.json`. This mode depends on heavier packages
-  including `torch`, `pytorch-lightning`, `sqlalchemy` and `psutil`.
+  The full-system demo produces extra outputs like `correlations.json`,
+  `hedged_weights.json` and an RL reward entry in `highlights.json`. This mode
+  depends on heavier packages including `torch`, `pytorch-lightning`,
+  `sqlalchemy` and `psutil`.
