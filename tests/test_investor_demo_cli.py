@@ -37,6 +37,9 @@ def _run_and_check(
     assert summary_csv.stat().st_size > 0
     summary_rows = list(csv.DictReader(summary_csv.open()))
     assert any(r["config"] == "mean_reversion" for r in summary_rows)
+    for row in summary_rows:
+        assert "win_rate" in row
+        float(row["win_rate"])
 
     trade_history_csv = reports_dir / "trade_history.csv"
     highlights_json = reports_dir / "highlights.json"

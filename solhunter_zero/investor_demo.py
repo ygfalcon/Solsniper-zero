@@ -331,12 +331,14 @@ def main(argv: List[str] | None = None) -> None:
             trades = sum(1 for r in returns if r != 0)
             wins = sum(1 for r in returns if r > 0)
             losses = sum(1 for r in returns if r < 0)
+            win_rate = wins / trades if trades else 0.0
         else:
             cum = []
             roi = 0.0
             sharpe = 0.0
             vol = 0.0
             trades = wins = losses = 0
+            win_rate = 0.0
         dd = max_drawdown(returns)
         final_capital = args.capital * (1 + roi)
         metrics = {
@@ -348,6 +350,7 @@ def main(argv: List[str] | None = None) -> None:
             "trades": trades,
             "wins": wins,
             "losses": losses,
+            "win_rate": win_rate,
             "final_capital": final_capital,
         }
         summary.append(metrics)
