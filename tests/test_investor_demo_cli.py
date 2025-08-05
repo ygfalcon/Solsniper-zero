@@ -61,10 +61,25 @@ def _run_and_check(
     match = re.search(r"Trade type results: (\{.*\})", result.stdout)
     assert match, "Trade type results not reported"
     trade_results = json.loads(match.group(1))
-    assert trade_results["arbitrage_profit"] == pytest.approx(0.25)
-    assert trade_results["flash_loan_profit"] == pytest.approx(0.1)
-    assert trade_results["sniper_tokens"] == ["demo_token"]
-    assert trade_results["dex_new_pools"] == ["pool_demo"]
+    base = investor_demo.load_prices()
+    if isinstance(base, dict):
+        base_prices, _ = next(iter(base.values()))
+    else:
+        base_prices, _ = base
+    arb_expected = abs(base_prices[1] - base_prices[0]) if len(base_prices) >= 2 else 0.0
+    fl_expected = base_prices[0] * investor_demo.FLASH_LOAN_INTEREST if base_prices else 0.0
+    multi_prices = investor_demo.load_prices(preset="multi")
+    assert isinstance(multi_prices, dict)
+    sniper_expected = [
+        token
+        for token, (prices, _dates) in multi_prices.items()
+        if len(prices) >= 2 and prices[1] > prices[0]
+    ]
+    dex_expected = [f"{token}-USDC" for token in sorted(multi_prices.keys())]
+    assert trade_results["arbitrage_profit"] == pytest.approx(arb_expected)
+    assert trade_results["flash_loan_profit"] == pytest.approx(fl_expected)
+    assert trade_results["sniper_tokens"] == sniper_expected
+    assert trade_results["dex_new_pools"] == dex_expected
 
     summary_json = reports_dir / "summary.json"
     summary_csv = reports_dir / "summary.csv"
@@ -138,10 +153,10 @@ def _run_and_check(
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
     highlights_data = json.loads(highlights_json.read_text())
-    assert highlights_data.get("arbitrage_profit") == pytest.approx(0.25)
-    assert highlights_data.get("flash_loan_profit") == pytest.approx(0.1)
-    assert highlights_data.get("sniper_tokens") == ["demo_token"]
-    assert highlights_data.get("dex_new_pools") == ["pool_demo"]
+    assert highlights_data.get("arbitrage_profit") == pytest.approx(arb_expected)
+    assert highlights_data.get("flash_loan_profit") == pytest.approx(fl_expected)
+    assert highlights_data.get("sniper_tokens") == sniper_expected
+    assert highlights_data.get("dex_new_pools") == dex_expected
     if isinstance(loaded_prices, dict):
         assert highlights_data.get("top_token") in tokens
         assert "SOL buy_hold" in result.stdout
