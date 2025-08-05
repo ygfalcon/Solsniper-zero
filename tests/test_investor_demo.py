@@ -50,7 +50,7 @@ def test_investor_demo(tmp_path, monkeypatch):
 
     # Expect results for all configured strategies
     configs = {entry.get("config") for entry in content}
-    assert {"buy_hold", "momentum", "mixed"} <= configs
+    assert {"buy_hold", "momentum", "mean_reversion", "mixed"} <= configs
 
     # Each summary entry must include core metrics
     for entry in content:
@@ -63,7 +63,12 @@ def test_investor_demo(tmp_path, monkeypatch):
     strat_configs = {
         "buy_hold": {"buy_hold": 1.0},
         "momentum": {"momentum": 1.0},
-        "mixed": {"buy_hold": 0.5, "momentum": 0.5},
+        "mean_reversion": {"mean_reversion": 1.0},
+        "mixed": {
+            "buy_hold": 1 / 3,
+            "momentum": 1 / 3,
+            "mean_reversion": 1 / 3,
+        },
     }
     expected: dict[str, dict[str, float]] = {}
     for name, weights in strat_configs.items():
@@ -115,6 +120,8 @@ def test_investor_demo(tmp_path, monkeypatch):
         assert any(int(r["period"]) > 0 for r in trade_rows)
         # Expect at least one sell action in the history
         assert any(r["action"] == "sell" for r in trade_rows)
+        # Each configured strategy should appear in trade history
+        assert any(r["strategy"] == "mean_reversion" for r in trade_rows)
     else:
         trade_data = json.loads(trade_json.read_text())
         assert trade_data, "Trade history JSON empty"
@@ -124,6 +131,7 @@ def test_investor_demo(tmp_path, monkeypatch):
         assert first["price"] == prices[0]
         assert any(r["period"] > 0 for r in trade_data)
         assert any(r["action"] == "sell" for r in trade_data)
+        assert any(r["strategy"] == "mean_reversion" for r in trade_data)
 
     highlights_path = tmp_path / "highlights.json"
     assert highlights_path.exists(), "Highlights JSON not generated"
@@ -149,7 +157,7 @@ def test_investor_demo(tmp_path, monkeypatch):
 
     # Plot files are produced when matplotlib is installed
     if importlib.util.find_spec("matplotlib") is not None:
-        for name in ["buy_hold", "momentum", "mixed"]:
+        for name in ["buy_hold", "momentum", "mean_reversion", "mixed"]:
             assert (tmp_path / f"{name}.png").exists(), f"Missing plot {name}.png"
 
     # Demo should exercise arbitrage and flash loan trade types

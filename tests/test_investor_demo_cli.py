@@ -21,6 +21,8 @@ def _run_and_check(cmd: list[str], reports_dir: Path, repo_root: Path, env: dict
     assert summary_json.is_file()
     assert summary_csv.is_file()
     assert summary_csv.stat().st_size > 0
+    summary_rows = list(csv.DictReader(summary_csv.open()))
+    assert any(r["config"] == "mean_reversion" for r in summary_rows)
 
     trade_history_csv = reports_dir / "trade_history.csv"
     highlights_json = reports_dir / "highlights.json"
@@ -32,6 +34,7 @@ def _run_and_check(cmd: list[str], reports_dir: Path, repo_root: Path, env: dict
     assert first["action"] == "buy"
     prices = investor_demo.load_prices()
     assert float(first["price"]) == prices[0]
+    assert any(r["strategy"] == "mean_reversion" for r in rows)
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
 
