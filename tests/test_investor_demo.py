@@ -11,31 +11,14 @@ from solhunter_zero import investor_demo
 pytestmark = pytest.mark.timeout(30)
 
 
-def test_investor_demo(tmp_path, monkeypatch, capsys):
-    calls: dict[str, object] = {}
-
-    class DummyMem:
-        def __init__(self, *a, **k):
-            calls["mem_init"] = True
-            self.trade: dict | None = None
-
-        async def log_trade(self, **kwargs):
-            self.trade = kwargs
-
-        async def list_trades(self, token: str):
-            return [self.trade] if self.trade else []
-
-        def log_var(self, value: float):
-            calls["mem_log_var"] = value
-
-        async def close(self) -> None:  # pragma: no cover - simple stub
-            calls["mem_closed"] = True
+def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
+    calls = dummy_mem.calls
 
     def fake_hedge(weights, corrs):
         calls["hedge_called"] = (weights, corrs)
         return weights
 
-    monkeypatch.setattr(investor_demo, "Memory", DummyMem)
+    monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
     expected_rl = 7.0
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)

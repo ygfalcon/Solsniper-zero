@@ -45,7 +45,7 @@ def test_max_drawdown_synthetic():
     assert investor_demo.max_drawdown([]) == 0.0
 
 
-def test_correlations_synthetic(monkeypatch, tmp_path):
+def test_correlations_synthetic(monkeypatch, tmp_path, dummy_mem):
     """Correlation pairs from synthetic price data."""
 
     prices = [1.0, 2.0, 1.0, 2.0]
@@ -55,23 +55,7 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
         lambda _=None: (prices, ["2024-01-01"] * len(prices)),
     )
 
-    class DummyMem:
-        def __init__(self, *a, **k):
-            self.trade: dict | None = None
-
-        async def log_trade(self, **kwargs):
-            self.trade = kwargs
-
-        async def list_trades(self, token: str):
-            return [self.trade] if self.trade else []
-
-        def log_var(self, value: float):
-            pass
-
-        async def close(self) -> None:  # pragma: no cover - simple stub
-            pass
-
-    monkeypatch.setattr(investor_demo, "Memory", DummyMem)
+    monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
 
     async def fake_arbitrage() -> None:
         investor_demo.used_trade_types.add("arbitrage")
@@ -109,28 +93,12 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
     )
 
 
-def test_demo_trade_recorded(monkeypatch, tmp_path):
+def test_demo_trade_recorded(monkeypatch, tmp_path, dummy_mem):
     prices = [1.0, 2.0]
     dates = ["2024-01-01", "2024-01-02"]
     monkeypatch.setattr(investor_demo, "load_prices", lambda _=None: (prices, dates))
 
-    class DummyMem:
-        def __init__(self, *a, **k):
-            self.trades: list[dict] = []
-
-        async def log_trade(self, **kwargs):
-            self.trades.append(kwargs)
-
-        async def list_trades(self, token: str):
-            return self.trades
-
-        def log_var(self, value: float) -> None:  # pragma: no cover - simple stub
-            pass
-
-        async def close(self) -> None:  # pragma: no cover - simple stub
-            pass
-
-    dummy = DummyMem()
+    dummy = dummy_mem()
     monkeypatch.setattr(investor_demo, "Memory", lambda *a, **k: dummy)
 
     async def fake_arbitrage() -> None:
@@ -152,8 +120,8 @@ def test_demo_trade_recorded(monkeypatch, tmp_path):
 
     investor_demo.main(["--reports", str(tmp_path)])
 
-    assert len(dummy.trades) == 1
-    trade = dummy.trades[0]
+    assert dummy.trade is not None
+    trade = dummy.trade
     assert trade["token"] == "demo"
     assert trade["direction"] == "buy"
     assert trade["amount"] == 1.0

@@ -6,27 +6,11 @@ from solhunter_zero import investor_demo
 pytestmark = pytest.mark.timeout(30)
 
 
-def test_investor_demo_missing_trade_types(tmp_path, monkeypatch):
-    class DummyMem:
-        def __init__(self, *a, **k):
-            self.trade: dict | None = None
-
-        async def log_trade(self, **kwargs):
-            self.trade = kwargs
-
-        async def list_trades(self, token: str):
-            return [self.trade] if self.trade else []
-
-        def log_var(self, value: float) -> None:
-            pass
-
-        async def close(self) -> None:  # pragma: no cover - simple stub
-            pass
-
+def test_investor_demo_missing_trade_types(tmp_path, monkeypatch, dummy_mem):
     def fake_hedge(weights, corrs):
         return weights
 
-    monkeypatch.setattr(investor_demo, "Memory", DummyMem)
+    monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
 
     async def noop() -> None:

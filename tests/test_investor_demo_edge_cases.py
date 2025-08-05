@@ -9,30 +9,14 @@ from solhunter_zero import investor_demo
 pytestmark = pytest.mark.timeout(30)
 
 
-def test_investor_demo_single_price(tmp_path, monkeypatch):
+def test_investor_demo_single_price(tmp_path, monkeypatch, dummy_mem):
     # create minimal dataset with a single price point
     data = [{"date": "2024-01-01", "price": 100.0}]
     data_file = tmp_path / "prices.json"
     data_file.write_text(json.dumps(data))
 
     # stub Memory to avoid database interactions
-    class DummyMem:
-        def __init__(self, *a, **k):
-            self.trade: dict | None = None
-
-        async def log_trade(self, **kwargs):
-            self.trade = kwargs
-
-        async def list_trades(self, token: str):
-            return [self.trade] if self.trade else []
-
-        def log_var(self, value: float):
-            pass
-
-        async def close(self) -> None:
-            pass
-
-    monkeypatch.setattr(investor_demo, "Memory", DummyMem)
+    monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
 
     # run the demo with the minimal dataset
     investor_demo.main([

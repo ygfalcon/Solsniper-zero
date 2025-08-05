@@ -5,7 +5,7 @@ from pathlib import Path
 from solhunter_zero import investor_demo
 
 
-def test_investor_demo_short_weights(tmp_path, monkeypatch):
+def test_investor_demo_short_weights(tmp_path, monkeypatch, dummy_mem):
     monkeypatch.setattr(
         investor_demo,
         "configs",
@@ -13,23 +13,7 @@ def test_investor_demo_short_weights(tmp_path, monkeypatch):
         raising=False,
     )
 
-    class DummyMem:
-        def __init__(self, *a, **k):
-            self.trade: dict | None = None
-
-        async def log_trade(self, **kwargs):
-            self.trade = kwargs
-
-        async def list_trades(self, token: str):
-            return [self.trade] if self.trade else []
-
-        def log_var(self, value: float):
-            pass
-
-        async def close(self) -> None:
-            pass
-
-    monkeypatch.setattr(investor_demo, "Memory", DummyMem)
+    monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
 
     orig_mkdir = Path.mkdir
 
