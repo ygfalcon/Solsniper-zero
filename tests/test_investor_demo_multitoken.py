@@ -26,6 +26,16 @@ def test_investor_demo_multitoken(tmp_path, capsys):
     tokens = {row["token"] for row in summary}
     assert {"SOL", "ETH"} <= tokens
 
+    highlights = json.loads((tmp_path / "highlights.json").read_text())
+    assert "top_token" in highlights
+    assert "top_strategy" in highlights
+    top_token = highlights["top_token"]
+    top_strategy = highlights["top_strategy"]
+    assert any(
+        row["token"] == top_token and row["config"] == top_strategy
+        for row in summary
+    )
+
     trade_hist = json.loads((tmp_path / "trade_history.json").read_text())
     hist_tokens = {row["token"] for row in trade_hist}
     assert {"SOL", "ETH"} <= hist_tokens
