@@ -13,4 +13,9 @@ def test_investor_demo_cli(tmp_path):
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
     result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert (tmp_path / "summary.json").is_file()
+    assert "Wrote reports" in result.stdout
+    summary_json = tmp_path / "summary.json"
+    summary_csv = tmp_path / "summary.csv"
+    assert summary_json.is_file()
+    assert summary_csv.is_file()
+    assert summary_csv.stat().st_size > 0
