@@ -981,7 +981,11 @@ python scripts/investor_demo.py --data tests/data/prices_short.json --capital 10
 ```
 
 The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
-It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.json` then prints a capital summary such as:
+Strategy weights can be negative to model short positions; the demo normalises
+aggregated returns by the sum of absolute weights so offsetting long/short
+exposures still yield meaningful sequences.
+It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.json`
+then prints a capital summary such as:
 
 ```text
 Capital Summary:
