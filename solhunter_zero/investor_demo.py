@@ -12,25 +12,33 @@ from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
-# Provide lightweight stubs for optional heavy modules
-memory_stub = types.ModuleType("solhunter_zero.memory")
+from .util import run_coro
 
+try:  # use real implementations when available
+    from .memory import Memory  # type: ignore
+except Exception:  # pragma: no cover - optional dependency missing
+    memory_stub = types.ModuleType("solhunter_zero.memory")
 
-class Memory:  # minimal stub
-    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - simple stub
-        pass
+    class Memory:  # minimal stub
+        def __init__(self, *args, **kwargs) -> None:
+            pass
 
+        async def log_trade(self, *args, **kwargs) -> None:
+            return None
 
-def hedge_allocation(*args, **kwargs) -> float:  # pragma: no cover - simple stub
-    return 0.0
+    memory_stub.Memory = Memory
+    sys.modules.setdefault("solhunter_zero.memory", memory_stub)
 
+try:
+    from .portfolio import hedge_allocation  # type: ignore
+except Exception:  # pragma: no cover - optional dependency missing
+    portfolio_stub = types.ModuleType("solhunter_zero.portfolio")
 
-memory_stub.Memory = Memory
-sys.modules.setdefault("solhunter_zero.memory", memory_stub)
+    def hedge_allocation(weights: Dict[str, float], correlations: Dict) -> Dict[str, float]:
+        return dict(weights)
 
-portfolio_stub = types.ModuleType("solhunter_zero.portfolio")
-portfolio_stub.hedge_allocation = hedge_allocation
-sys.modules.setdefault("solhunter_zero.portfolio", portfolio_stub)
+    portfolio_stub.hedge_allocation = hedge_allocation
+    sys.modules.setdefault("solhunter_zero.portfolio", portfolio_stub)
 
 
 # Track which trade types have been exercised by the demo
@@ -197,6 +205,7 @@ def main(argv: List[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     prices = load_prices(args.data)
+    mem = Memory()
 
     configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -227,12 +236,14 @@ def main(argv: List[str] | None = None) -> None:
             sharpe = 0.0
         dd = max_drawdown(returns)
         final_capital = args.capital * (1 + roi)
+        hedged = hedge_allocation(weights, {})
         metrics = {
             "config": name,
             "roi": roi,
             "sharpe": sharpe,
             "drawdown": dd,
             "final_capital": final_capital,
+            "hedged_allocation": json.dumps(hedged),
         }
         summary.append(metrics)
 
@@ -242,6 +253,16 @@ def main(argv: List[str] | None = None) -> None:
         for i, r in enumerate(returns, start=1):
             capital *= 1 + r
             trade_history.append({"strategy": name, "period": i, "capital": capital})
+            direction = "buy" if r >= 0 else "sell"
+            run_coro(
+                mem.log_trade(
+                    token=name,
+                    direction=direction,
+                    amount=abs(r),
+                    price=prices[i],
+                    reason="demo",
+                )
+            )
 
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore

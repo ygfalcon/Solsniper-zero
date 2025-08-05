@@ -2,10 +2,24 @@ import csv
 import json
 import importlib
 
+import pytest
+
 from solhunter_zero import investor_demo
 
+try:
+    from solhunter_zero.memory import Memory  # type: ignore
+except Exception:  # pragma: no cover - optional dependency missing
+    Memory = None
 
-def test_investor_demo(tmp_path):
+
+def test_investor_demo(tmp_path, monkeypatch):
+    logged: list[dict] = []
+
+    if Memory is not None:
+        async def fake_log_trade(self, *args, **kwargs):
+            logged.append(kwargs)
+        monkeypatch.setattr(Memory, "log_trade", fake_log_trade, raising=False)
+
     investor_demo.main(
         [
             "--reports",
@@ -33,8 +47,9 @@ def test_investor_demo(tmp_path):
 
     # Each summary entry must include core metrics
     for entry in content:
-        for key in ["roi", "sharpe", "drawdown", "final_capital"]:
+        for key in ["roi", "sharpe", "drawdown", "final_capital", "hedged_allocation"]:
             assert key in entry
+        json.loads(entry["hedged_allocation"])
 
     # Trade history and highlight files should be generated
     trade_csv = tmp_path / "trade_history.csv"
@@ -69,3 +84,6 @@ def test_investor_demo(tmp_path):
 
     # Demo should exercise arbitrage and flash loan trade types
     assert {"arbitrage", "flash_loan"} <= investor_demo.used_trade_types
+
+    if Memory is not None:
+        assert logged, "No trades were logged"
