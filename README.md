@@ -984,10 +984,13 @@ The script accepts `--data` for the historical price file, `--capital` for the s
 It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.json` then prints a capital summary such as:
 
 ```text
-Capital summary
-buy_hold : 102.14
-momentum : 103.88
-mixed    : 102.97
+Capital Summary:
+buy_hold: 107.06
+momentum: 235.04
+mean_reversion: 218.51
+mixed: 176.88
+Top strategy: momentum with final capital 235.04
+Resource usage - CPU: 19.90% Memory: 3.80%
 Wrote reports to reports
 ```
 
@@ -995,7 +998,7 @@ Sample `summary.json`:
 
 ```json
 [
-  {"config": "buy_hold", "roi": 0.021, "sharpe": 0.478, "drawdown": 0.009, "final_capital": 102.14},
+  {"config": "buy_hold", "roi": 0.0706, "sharpe": 0.0383, "drawdown": 0.1143, "volatility": 0.0053, "trades": 363, "wins": 183, "losses": 180, "final_capital": 107.06},
   ...
 ]
 ```
@@ -1003,25 +1006,30 @@ Sample `summary.json`:
 `summary.csv` contains the same data in tabular form:
 
 ```csv
-config,roi,sharpe,drawdown,final_capital
-buy_hold,0.021,0.478,0.009,102.14
+config,roi,sharpe,drawdown,volatility,trades,wins,losses,final_capital
+buy_hold,0.0706,0.0383,0.1143,0.0053,363,183,180,107.06
 ...
 ```
 
-`trade_history.csv` lists the backtest trades for each strategy:
+`trade_history.csv` lists the backtest trades for each strategy including the action taken and price at each period:
 
 ```csv
-strategy,period,capital
-buy_hold,0,100.00
-momentum,3,112.00
+strategy,period,action,price,capital
+buy_hold,0,buy,100.69,100.00
+buy_hold,1,buy,101.20,100.51
 ...
 ```
 
-The `highlights.json` file summarizes key results:
+The `highlights.json` file summarises the top strategy and resource usage:
 
-```text
-Top ROI: momentum
-Largest drawdown: buy_hold
+```json
+{
+  "top_strategy": "momentum",
+  "top_final_capital": 235.04,
+  "top_roi": 1.3503744758707135,
+  "cpu_usage": 19.9,
+  "memory_percent": 3.8
+}
 ```
 
 ## Additional Metrics
