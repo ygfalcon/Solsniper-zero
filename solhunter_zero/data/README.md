@@ -1,0 +1,8 @@
+# Data files
+
+## investor_demo_prices.json
+
+The `investor_demo_prices.json` dataset backs the investor demo examples. To
+keep the demo lightweight, tests verify that `investor_demo.load_prices()`
+returns no more than 2000 price points. If you update this data, please keep the
+entry count under this limit.
