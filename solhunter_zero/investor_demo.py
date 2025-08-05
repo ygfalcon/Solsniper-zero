@@ -159,16 +159,25 @@ def load_prices(
     raise ValueError("Price data must be a list or mapping of token to list")
 
 
-async def _demo_arbitrage() -> None:
-    """Invoke arbitrage detection with stub inputs."""
+async def _demo_arbitrage() -> float:
+    """Invoke arbitrage detection with stub inputs and derive profit from data."""
+
+    # Load the packaged price series and compute a simple spread based on the
+    # highest and lowest observed prices.  This provides a deterministic value
+    # tied directly to the dataset rather than a fixed constant.
+    loaded = load_prices()
+    if isinstance(loaded, dict):
+        prices, _ = next(iter(loaded.values()))
+    else:
+        prices, _ = loaded
+    profit = max(prices) - min(prices)
 
     mod_name = f"{__package__}.arbitrage"
     orig = sys.modules.get(mod_name)
     arb_stub = types.ModuleType(mod_name)
 
     async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        # Simulate a small arbitrage profit
-        return {"profit": 0.25}
+        return {"profit": profit}
 
     arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
     sys.modules[mod_name] = arb_stub
@@ -191,6 +200,15 @@ async def _demo_arbitrage() -> None:
 
 async def _demo_flash_loan() -> float:
     """Invoke flash loan borrow/repay with stub inputs and return profit."""
+
+    # Derive a percentage gain between the first and last prices in the dataset
+    # as a toy flash loan profit metric.
+    loaded = load_prices()
+    if isinstance(loaded, dict):
+        prices, _ = next(iter(loaded.values()))
+    else:
+        prices, _ = loaded
+    profit = (prices[-1] - prices[0]) / prices[0] if prices else 0.0
 
     mod_name = f"{__package__}.flash_loans"
     orig = sys.modules.get(mod_name)
@@ -216,18 +234,27 @@ async def _demo_flash_loan() -> float:
             del sys.modules[mod_name]
 
     used_trade_types.add("flash_loan")
-    return 0.1
+    return float(profit)
 
 
 async def _demo_sniper() -> List[str]:
     """Invoke sniper evaluate with stub inputs and return discovered tokens."""
+
+    # Build token identifiers from the dataset so the demo output depends on
+    # the underlying data rather than hard coded strings.
+    loaded = load_prices()
+    if isinstance(loaded, dict):
+        token_names = sorted(str(t) for t in loaded.keys())
+    else:
+        _prices, dates = loaded
+        token_names = [f"token_{dates[0]}"] if dates else ["token"]
 
     mod_name = f"{__package__}.sniper"
     orig = sys.modules.get(mod_name)
     sni_stub = types.ModuleType(mod_name)
 
     async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": "demo_token"}]
+        return [{"token": t} for t in token_names]
 
     sni_stub.evaluate = evaluate
     sys.modules[mod_name] = sni_stub
@@ -247,12 +274,20 @@ async def _demo_sniper() -> List[str]:
 async def _demo_dex_scanner() -> List[str]:
     """Invoke DEX pool scanning with stub inputs and return discovered pools."""
 
+    # Derive pool identifiers from the dataset to avoid fixed demo strings.
+    loaded = load_prices()
+    if isinstance(loaded, dict):
+        pools = [f"pool_{t}" for t in sorted(loaded.keys())]
+    else:
+        prices, _dates = loaded
+        pools = [f"pool_{len(prices)}"]
+
     mod_name = f"{__package__}.dex_scanner"
     orig = sys.modules.get(mod_name)
     dex_stub = types.ModuleType(mod_name)
 
     async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return ["pool_demo"]
+        return pools
 
     dex_stub.scan_new_pools = scan_new_pools
     sys.modules[mod_name] = dex_stub

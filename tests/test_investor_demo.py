@@ -38,6 +38,13 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(investor_demo, "Memory", DummyMem)
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
 
+    # Expected outputs derived from the packaged dataset
+    prices, dates = investor_demo.load_prices()
+    expected_arbitrage = max(prices) - min(prices)
+    expected_flash = (prices[-1] - prices[0]) / prices[0]
+    expected_sniper = [f"token_{dates[0]}"]
+    expected_pools = [f"pool_{len(prices)}"]
+
     investor_demo.main(
         [
             "--reports",
@@ -58,10 +65,10 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     match = re.search(r"Trade type results: (\{.*\})", out)
     assert match, "Trade type results not printed"
     trade_results = json.loads(match.group(1))
-    assert trade_results["arbitrage_profit"] == pytest.approx(0.25)
-    assert trade_results["flash_loan_profit"] == pytest.approx(0.1)
-    assert trade_results["sniper_tokens"] == ["demo_token"]
-    assert trade_results["dex_new_pools"] == ["pool_demo"]
+    assert trade_results["arbitrage_profit"] == pytest.approx(expected_arbitrage)
+    assert trade_results["flash_loan_profit"] == pytest.approx(expected_flash)
+    assert trade_results["sniper_tokens"] == expected_sniper
+    assert trade_results["dex_new_pools"] == expected_pools
 
     summary_json = tmp_path / "summary.json"
     summary_csv = tmp_path / "summary.csv"
@@ -208,10 +215,10 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     assert highlights_path.exists(), "Highlights JSON not generated"
     highlights = json.loads(highlights_path.read_text())
     assert highlights, "Highlights JSON empty"
-    assert highlights.get("arbitrage_profit") == pytest.approx(0.25)
-    assert highlights.get("flash_loan_profit") == pytest.approx(0.1)
-    assert highlights.get("sniper_tokens") == ["demo_token"]
-    assert highlights.get("dex_new_pools") == ["pool_demo"]
+    assert highlights.get("arbitrage_profit") == pytest.approx(expected_arbitrage)
+    assert highlights.get("flash_loan_profit") == pytest.approx(expected_flash)
+    assert highlights.get("sniper_tokens") == expected_sniper
+    assert highlights.get("dex_new_pools") == expected_pools
 
     # Correlation and hedged weight outputs should be generated
     corr_path = tmp_path / "correlations.json"
