@@ -192,28 +192,38 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     assert any(r["strategy"] == "mean_reversion" for r in trade_data)
 
     highlights_path = tmp_path / "highlights.json"
+    corr_path = tmp_path / "correlations.json"
+    hedged_path = tmp_path / "hedged_weights.json"
     assert highlights_path.exists(), "Highlights JSON not generated"
+    assert corr_path.exists(), "Correlations JSON not generated"
+    assert hedged_path.exists(), "Hedged weights JSON not generated"
+
+    corr_data = json.loads(corr_path.read_text())
+    hedged_data = json.loads(hedged_path.read_text())
     highlights = json.loads(highlights_path.read_text())
+
+    assert corr_data, "Correlation file empty"
+    assert hedged_data, "Hedged weights JSON empty"
     assert highlights, "Highlights JSON empty"
+
     assert highlights.get("arbitrage_profit") == pytest.approx(4.795)
     assert highlights.get("arbitrage_path") == ["dex1", "dex2"]
     assert highlights.get("flash_loan_signature") == "demo_sig"
     assert highlights.get("sniper_tokens") == ["TKN"]
     assert highlights.get("dex_new_pools") == ["mintA", "mintB"]
     assert highlights.get("rl_reward") == expected_rl
-    assert highlights.get("key_correlations")
-    assert highlights.get("hedged_weights")
 
-    # Correlation and hedged weight outputs should be generated
-    corr_path = tmp_path / "correlations.json"
-    hedged_path = tmp_path / "hedged_weights.json"
-    assert corr_path.exists(), "Correlations JSON not generated"
-    assert hedged_path.exists(), "Hedged weights JSON not generated"
-    corr_data = json.loads(corr_path.read_text())
-    hedged_data = json.loads(hedged_path.read_text())
-    assert "('buy_hold', 'momentum')" in corr_data
-    assert {"buy_hold", "momentum"} <= hedged_data.keys()
-    assert hedged_data["buy_hold"] + hedged_data["momentum"] == pytest.approx(1.0)
+    def _norm(key: str) -> str:
+        m = re.match(r"\('([^']+)', '([^']+)'\)", key)
+        assert m, f"Unexpected correlation key format: {key}"
+        return f"{m.group(1)}-{m.group(2)}"
+
+    corr_pairs = {_norm(k): v for k, v in corr_data.items()}
+    top_corr = sorted(corr_pairs.items(), key=lambda kv: abs(kv[1]), reverse=True)[:3]
+    corr_summary = {k: v for k, v in top_corr}
+
+    assert highlights.get("key_correlations") == corr_summary
+    assert highlights.get("hedged_weights") == hedged_data
 
     # Highlight metrics should identify the top performing strategy
     top_strategy = highlights.get("top_strategy")
@@ -280,13 +290,20 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
     assert investor_demo.used_trade_types == {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
 
 
-def test_investor_demo_custom_data_length(tmp_path):
+def test_investor_demo_custom_data_length(tmp_path, monkeypatch):
     price_data = [
         {"date": f"2024-01-0{i}", "price": p}
         for i, p in enumerate([1.0, 2.0, 3.0, 4.0], start=1)
     ]
     data_path = tmp_path / "prices.json"
     data_path.write_text(json.dumps(price_data))
+
+    orig_load = investor_demo.load_prices
+
+    def _load(path, preset=None):
+        return orig_load(path=path, preset=None)
+
+    monkeypatch.setattr(investor_demo, "load_prices", _load)
 
     investor_demo.main(["--data", str(data_path), "--reports", str(tmp_path)])
 
