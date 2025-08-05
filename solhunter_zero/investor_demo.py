@@ -470,10 +470,15 @@ def main(argv: List[str] | None = None) -> None:
         )
 
     # Exercise trade types via lightweight stubs
-    asyncio.run(_demo_arbitrage())
-    asyncio.run(_demo_flash_loan())
-    asyncio.run(_demo_sniper())
-    asyncio.run(_demo_dex_scanner())
+    async def _exercise_trade_types() -> None:
+        await asyncio.gather(
+            _demo_arbitrage(),
+            _demo_flash_loan(),
+            _demo_sniper(),
+            _demo_dex_scanner(),
+        )
+
+    asyncio.run(_exercise_trade_types())
 
     required = {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
     missing = required - used_trade_types
