@@ -3,6 +3,7 @@ import sys
 import types
 import importlib.util
 import importlib.machinery
+import pytest
 
 _orig_find_spec = importlib.util.find_spec
 
@@ -265,6 +266,31 @@ def pytest_addoption(parser):
         default=False,
         help="run tests marked as slow",
     )
+
+
+@pytest.fixture
+def dummy_mem():
+    calls: dict[str, object] = {}
+
+    class DummyMem:
+        def __init__(self, *a, **k):
+            calls["mem_init"] = True
+            self.trade: dict | None = None
+
+        async def log_trade(self, **kwargs):
+            self.trade = kwargs
+
+        async def list_trades(self, token: str):
+            return [self.trade] if self.trade else []
+
+        def log_var(self, value: float) -> None:
+            calls["mem_log_var"] = value
+
+        async def close(self) -> None:  # pragma: no cover - simple stub
+            calls["mem_closed"] = True
+
+    DummyMem.calls = calls
+    return DummyMem
 
 
 def pytest_collection_modifyitems(config, items):
