@@ -974,13 +974,19 @@ curl -X POST http://localhost:5000/memory/query \
 
 ## Investor Demo
 
-Run a lightweight backtest to showcase strategy performance for potential investors. This uses the short sample dataset, which runs quickly and is suitable for limited execution environments. The demo now emits a trade-history file, a highlights summary and a console capital table alongside the existing CSV and JSON reports:
+Run a lightweight backtest to showcase strategy performance for potential investors. By default it uses the bundled single-token dataset at `solhunter_zero/data/investor_demo_prices.json`, so no `--data` flag is required. The demo emits a trade-history file, a highlights summary and a console capital table alongside the existing CSV and JSON reports:
 
 ```bash
-python scripts/investor_demo.py --data tests/data/prices_short.json --capital 100 --reports reports
+python scripts/investor_demo.py --capital 100 --reports reports
 ```
 
-The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
+To experiment with multiple tokens, supply the multi-token sample dataset located at `tests/data/prices_multitoken.json`:
+
+```bash
+python scripts/investor_demo.py --data tests/data/prices_multitoken.json --capital 100 --reports reports
+```
+
+The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
 Strategy weights can be negative to model short positions; the demo normalises
 aggregated returns by the sum of absolute weights so offsetting long/short
 exposures still yield meaningful sequences.
