@@ -12,7 +12,11 @@ from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
 
-from .memory import Memory
+try:  # SQLAlchemy is optional; fall back to a simple in-memory implementation
+    from .memory import Memory  # type: ignore
+except Exception:  # pragma: no cover - absence of SQLAlchemy
+    Memory = None  # type: ignore[assignment]
+
 from .portfolio import hedge_allocation
 from .risk import correlation_matrix
 
@@ -341,8 +345,18 @@ def main(argv: List[str] | None = None) -> None:
 
     first_token, (prices, dates) = next(iter(price_map.items()))
 
-    # Demonstrate Memory usage and portfolio hedging using the first token
-    mem = Memory("sqlite:///:memory:")
+    # Demonstrate Memory usage and portfolio hedging using the first token.
+    # ``Memory`` relies on SQLAlchemy which may not be installed in minimal
+    # environments.  Attempt to instantiate it and fall back to a simple
+    # in-memory implementation when unavailable.
+    try:
+        if Memory is None:
+            raise ImportError
+        mem = Memory("sqlite:///:memory:")  # type: ignore[call-arg]
+    except ImportError:
+        from .simple_memory import SimpleMemory
+
+        mem = SimpleMemory()
 
     async def _record_demo_trade() -> None:
         await mem.log_trade(
