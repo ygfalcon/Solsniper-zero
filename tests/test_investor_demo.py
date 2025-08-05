@@ -69,3 +69,24 @@ def test_investor_demo(tmp_path):
 
     # Demo should exercise arbitrage and flash loan trade types
     assert {"arbitrage", "flash_loan"} <= investor_demo.used_trade_types
+
+
+def test_used_trade_types_reset(tmp_path, monkeypatch):
+    investor_demo.used_trade_types.add("legacy")
+
+    seen_before: list[set[str]] = []
+
+    async def fake_arbitrage() -> None:
+        seen_before.append(set(investor_demo.used_trade_types))
+        investor_demo.used_trade_types.add("arbitrage")
+
+    async def fake_flash() -> None:
+        investor_demo.used_trade_types.add("flash_loan")
+
+    monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
+    monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
+
+    investor_demo.main(["--reports", str(tmp_path)])
+
+    assert seen_before == [set()]
+    assert investor_demo.used_trade_types == {"arbitrage", "flash_loan"}
