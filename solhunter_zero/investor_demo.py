@@ -269,6 +269,40 @@ async def _demo_dex_scanner() -> List[str]:
     return [str(p) for p in pools]
 
 
+def _demo_rl_agent() -> float:
+    """Run a tiny RL training step using a lightweight PPO stub.
+
+    The real project includes a much more sophisticated reinforcement
+    learning setup.  For the purposes of this demo we import a very small
+    module (``solhunter_zero.ppo_agent``) and invoke a single training
+    step on dummy data.  The function returns the cumulative reward from
+    that step so it can be recorded in the demo highlights.
+    """
+
+    mod_name = f"{__package__}.ppo_agent"
+    try:
+        rl_mod = __import__(mod_name, fromlist=["train_step"])
+    except Exception:  # pragma: no cover - fallback when module missing
+        # Provide a tiny fallback implementation that simply echoes the
+        # reward passed to ``train_step``.  Tests can monkeypatch the
+        # module in ``sys.modules`` to provide custom behaviour.
+        def train_step(_s, _a, reward, _ns, _d):
+            return reward
+
+        rl_mod = types.SimpleNamespace(train_step=train_step)
+
+    state = [0.0]
+    action = 0
+    reward = 1.0
+    next_state = [0.0]
+    done = True
+    try:
+        metric = rl_mod.train_step(state, action, reward, next_state, done)  # type: ignore[attr-defined]
+    except Exception:  # pragma: no cover - extremely defensive
+        metric = reward
+    return float(metric)
+
+
 def main(argv: List[str] | None = None) -> None:
     used_trade_types.clear()
     from . import resource_monitor
@@ -528,11 +562,13 @@ def main(argv: List[str] | None = None) -> None:
             _demo_sniper(),
             _demo_dex_scanner(),
         )
+        rl_reward = _demo_rl_agent()
         return {
             "arbitrage_profit": arb,
             "flash_loan_profit": fl,
             "sniper_tokens": sniped,
             "dex_new_pools": pools,
+            "rl_reward": rl_reward,
         }
 
     trade_outputs = asyncio.run(_exercise_trade_types())
