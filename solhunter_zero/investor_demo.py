@@ -317,8 +317,8 @@ def main(argv: List[str] | None = None) -> None:
     parser.add_argument(
         "--preset",
         choices=sorted(PRESET_DATA_FILES.keys()),
-        default=None,
-        help="Load a bundled price dataset",
+        default="short",
+        help="Bundled price dataset to use (default: 'short')",
     )
     parser.add_argument(
         "--reports",
@@ -339,10 +339,16 @@ def main(argv: List[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
+    preset = args.preset
+    if args.data is not None:
+        if args.preset != parser.get_default("preset"):
+            raise ValueError("Cannot specify both --data and --preset")
+        preset = None
+
     global FULL_SYSTEM
     FULL_SYSTEM = bool(args.full_system)
 
-    loaded = load_prices(args.data, args.preset)
+    loaded = load_prices(args.data, preset)
     if isinstance(loaded, dict):
         price_map = loaded
     else:

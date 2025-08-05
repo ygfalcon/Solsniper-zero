@@ -20,11 +20,11 @@ def test_investor_demo_correlations(tmp_path):
     hedged = json.loads(hedge_path.read_text())
 
     assert correlations["('buy_hold', 'momentum')"] == pytest.approx(
-        0.8963037252936592
+        0.9153898166961075
     )
     assert correlations["('buy_hold', 'mean_reversion')"] == pytest.approx(
-        -0.8825455047038367
+        -0.8498685240167787
     )
 
-    assert hedged["buy_hold"] == pytest.approx(0.1036962747063408)
-    assert hedged["momentum"] == pytest.approx(0.8963037252936592)
+    assert hedged["buy_hold"] == pytest.approx(0.08461018330389247)
+    assert hedged["momentum"] == pytest.approx(0.9153898166961075)
