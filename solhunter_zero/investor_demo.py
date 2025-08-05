@@ -219,8 +219,11 @@ async def _demo_arbitrage() -> Dict[str, object]:
 
 async def _demo_flash_loan() -> str | None:
     """Invoke :mod:`flash_loans.borrow_flash` with stubbed network calls."""
-
-    from . import flash_loans, depth_client
+    try:
+        from . import flash_loans, depth_client
+    except ImportError as exc:
+        print(f"Flash loan demo skipped: {exc}")
+        return None
     from solders.keypair import Keypair
     from solders.instruction import Instruction, AccountMeta
     from solders.pubkey import Pubkey
@@ -337,8 +340,11 @@ async def _demo_sniper() -> List[str]:
 
 async def _demo_dex_scanner() -> List[str]:
     """Scan for new pools using :mod:`dex_scanner` with stubbed RPC."""
-
-    from . import dex_scanner
+    try:
+        from . import dex_scanner
+    except ImportError as exc:
+        print(f"DEX scanner demo skipped: {exc}")
+        return []
 
     class DummyClient:
         async def __aenter__(self):
