@@ -62,6 +62,12 @@ DEFAULT_STRATEGIES: List[Tuple[str, Callable[[List[float]], List[float]]]] = [
 # Packaged price data for the demo
 DATA_FILE = resources.files(__package__) / "data" / "investor_demo_prices.json"
 
+# Optional preset datasets bundled with the package
+PRESET_DATA_FILES: Dict[str, Path] = {
+    "short": resources.files(__package__) / "data" / "investor_demo_prices_short.json",
+    "multi": resources.files(__package__) / "data" / "investor_demo_prices_multi.json",
+}
+
 
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> List[float]:
     """Aggregate strategy returns weighted by ``weights``.
@@ -114,6 +120,7 @@ def max_drawdown(returns: List[float]) -> float:
 
 def load_prices(
     path: Path | None = None,
+    preset: str | None = None,
 ) -> Union[Tuple[List[float], List[str]], Dict[str, Tuple[List[float], List[str]]]]:
     """Load a JSON price dataset.
 
@@ -125,10 +132,18 @@ def load_prices(
     input continues to return a single ``(prices, dates)`` tuple.
     """
 
-    if path is None:
-        data_text = DATA_FILE.read_text()
-    else:
+    if path is not None and preset is not None:
+        raise ValueError("Provide only one of 'path' or 'preset'")
+
+    if preset is not None:
+        data_path = PRESET_DATA_FILES.get(preset)
+        if data_path is None:
+            raise ValueError(f"Unknown preset '{preset}'")
+        data_text = data_path.read_text()
+    elif path is not None:
         data_text = path.read_text()
+    else:
+        data_text = DATA_FILE.read_text()
     data = json.loads(data_text)
 
     def _parse(entries: List[object]) -> Tuple[List[float], List[str]]:
@@ -318,6 +333,12 @@ def main(argv: List[str] | None = None) -> None:
         help="Path to JSON price history",
     )
     parser.add_argument(
+        "--preset",
+        choices=sorted(PRESET_DATA_FILES.keys()),
+        default=None,
+        help="Load a bundled price dataset",
+    )
+    parser.add_argument(
         "--reports",
         type=Path,
         default=Path("reports"),
@@ -331,7 +352,7 @@ def main(argv: List[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    loaded = load_prices(args.data)
+    loaded = load_prices(args.data, args.preset)
     if isinstance(loaded, dict):
         price_map = loaded
     else:
