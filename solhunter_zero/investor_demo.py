@@ -206,6 +206,7 @@ def main(argv: List[str] | None = None) -> None:
 
     args.reports.mkdir(parents=True, exist_ok=True)
     summary: List[Dict[str, float]] = []
+    trade_history: List[Dict[str, float]] = []
 
     for name, weights in configs.items():
         returns = compute_weighted_returns(prices, weights)
@@ -235,6 +236,13 @@ def main(argv: List[str] | None = None) -> None:
         }
         summary.append(metrics)
 
+        # record per-period capital history for this strategy
+        capital = args.capital
+        trade_history.append({"strategy": name, "period": 0, "capital": capital})
+        for i, r in enumerate(returns, start=1):
+            capital *= 1 + r
+            trade_history.append({"strategy": name, "period": i, "capital": capital})
+
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore
 
@@ -260,6 +268,39 @@ def main(argv: List[str] | None = None) -> None:
         writer.writeheader()
         for row in summary:
             writer.writerow(row)
+
+    # Write trade history in CSV and JSON for inspection
+    hist_csv = args.reports / "trade_history.csv"
+    hist_json = args.reports / "trade_history.json"
+    if trade_history:
+        with open(hist_json, "w", encoding="utf-8") as jf:
+            json.dump(trade_history, jf, indent=2)
+        with open(hist_csv, "w", newline="", encoding="utf-8") as cf:
+            writer = csv.DictWriter(cf, fieldnames=["strategy", "period", "capital"])
+            writer.writeheader()
+            for row in trade_history:
+                writer.writerow(row)
+
+    # Write highlights summarising top performing strategy
+    top = None
+    if summary:
+        top = max(summary, key=lambda e: e["final_capital"])
+        highlights = {
+            "top_strategy": top["config"],
+            "top_final_capital": top["final_capital"],
+            "top_roi": top["roi"],
+        }
+        with open(args.reports / "highlights.json", "w", encoding="utf-8") as hf:
+            json.dump(highlights, hf, indent=2)
+
+    # Display a simple capital summary on stdout
+    print("Capital Summary:")
+    for row in summary:
+        print(f"{row['config']}: {row['final_capital']:.2f}")
+    if top:
+        print(
+            f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
+        )
 
     # Exercise trade types via lightweight stubs
     asyncio.run(_demo_arbitrage())
