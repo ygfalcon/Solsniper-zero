@@ -22,6 +22,14 @@ try:  # SQLAlchemy is optional; fall back to a simple in-memory implementation
 except Exception:  # pragma: no cover - absence of SQLAlchemy
     Memory = None  # type: ignore[assignment]
 
+try:  # optional hedging utilities
+    from .portfolio import hedge_allocation  # type: ignore
+except Exception:  # pragma: no cover - portfolio module optional
+    def hedge_allocation(
+        weights: Dict[str, float], _corr: Dict[tuple[str, str], float]
+    ) -> Dict[str, float]:
+        return weights
+
 
 
 # Track which trade types have been exercised by the demo
@@ -36,6 +44,9 @@ FULL_SYSTEM: bool = False
 # always returns a non-zero reward so that the pipeline can be demonstrated in
 # minimal environments.
 RL_DEMO: bool = False
+
+# Directory where RL metrics will be written
+RL_REPORT_DIR: Path | None = None
 
 # Simple strategy functions used for demonstration
 
@@ -411,80 +422,88 @@ async def _demo_dex_scanner() -> List[str]:
     return tokens
 
 
-def _demo_rl_agent() -> float:
-    """Train a tiny RL model using the real pipeline and return reward.
+def run_rl_demo(report_dir: Path) -> float:
+    """Run a tiny RL demo and write training metrics.
 
-    When :data:`RL_DEMO` is ``False`` this function exits immediately so the
-    demo remains lightweight.  When enabled it first attempts to execute the
-    genuine reinforcement learning utilities.  If heavy dependencies such as
-    ``torch`` are unavailable, a small NumPy-based stub is used instead which
-    produces a deterministic non-zero reward.
+    The function attempts to execute the real RL training pipeline when heavy
+    dependencies like :mod:`torch` are available.  In minimal environments it
+    falls back to a compact NumPy Q-learning routine.  Training losses and the
+    reward curve are written to ``report_dir/rl_metrics.json`` and the final
+    cumulative reward is returned.
     """
 
     if not RL_DEMO:
         return 0.0
 
-    def _numpy_stub() -> float:
-        """Fallback PPO stub implemented with NumPy.
+    def _write_metrics(metrics: Dict[str, List[float]]) -> None:
+        try:
+            with open(report_dir / "rl_metrics.json", "w", encoding="utf-8") as mf:
+                json.dump(metrics, mf, indent=2)
+        except Exception:
+            pass
 
-        The "policy" is a single weight that predicts action 1 for positive
-        states and action 0 for negative states. Two fixed samples are evaluated
-        and the total reward equals the number of correct predictions.
-        """
-
+    def _numpy_q_learning() -> float:
         try:
             import numpy as np
 
-            states = np.array([1.0, -1.0])
-            actions = np.array([1, 0])
-            weight = np.array([10.0])
-            preds = (states * weight > 0).astype(int)
-            rewards = np.where(preds == actions, 1.0, 0.0)
-            return float(rewards.sum())
+            n_states, n_actions = 2, 2
+            q = np.zeros((n_states, n_actions))
+            rewards: List[float] = []
+            losses: List[float] = []
+            for epoch in range(10):
+                state = epoch % n_states
+                action = int(np.argmax(q[state]))
+                reward = 1.0 if action == state else -1.0
+                next_state = (state + 1) % n_states
+                td_target = reward + 0.9 * np.max(q[next_state])
+                td_error = td_target - q[state, action]
+                q[state, action] += 0.1 * td_error
+                rewards.append(float(reward))
+                losses.append(float(td_error ** 2))
+            _write_metrics({"loss": losses, "rewards": rewards})
+            return float(sum(rewards))
         except Exception:  # pragma: no cover - NumPy missing
-            states = [1.0, -1.0]
-            actions = [1, 0]
-            weight = 10.0
-            preds = [1 if s * weight > 0 else 0 for s in states]
-            reward = sum(1.0 for p, a in zip(preds, actions) if p == a)
-            return float(reward)
+            q = [[0.0, 0.0], [0.0, 0.0]]
+            rewards: List[float] = []
+            losses: List[float] = []
+            for epoch in range(10):
+                state = epoch % 2
+                action = 0 if q[state][0] >= q[state][1] else 1
+                reward = 1.0 if action == state else -1.0
+                next_state = (state + 1) % 2
+                td_target = reward + 0.9 * max(q[next_state])
+                td_error = td_target - q[state][action]
+                q[state][action] += 0.1 * td_error
+                rewards.append(float(reward))
+                losses.append(float(td_error ** 2))
+            _write_metrics({"loss": losses, "rewards": rewards})
+            return float(sum(rewards))
 
     if not FULL_SYSTEM:
-        return _numpy_stub()
+        return _numpy_q_learning()
 
     try:
         from datetime import datetime
         from types import SimpleNamespace
         import tempfile
-        from pathlib import Path
-
         import torch  # type: ignore[import-untyped]
         from torch.utils.data import DataLoader  # type: ignore[import-untyped]
 
         from . import rl_training, simulation
         from .rl_training import _TradeDataset, LightningPPO
     except Exception:  # pragma: no cover - optional deps
-        return _numpy_stub()
+        return _numpy_q_learning()
 
-    # Avoid network calls for price prediction during dataset construction
     orig_predict = simulation.predict_price_movement
     simulation.predict_price_movement = lambda *a, **k: 0.0  # type: ignore
     try:
         now = datetime.utcnow()
         trades = [
             SimpleNamespace(
-                token="demo",
-                side="buy",
-                price=1.0,
-                amount=1.0,
-                timestamp=now,
+                token="demo", side="buy", price=1.0, amount=1.0, timestamp=now
             ),
             SimpleNamespace(
-                token="demo",
-                side="sell",
-                price=1.1,
-                amount=1.0,
-                timestamp=now,
+                token="demo", side="sell", price=1.1, amount=1.0, timestamp=now
             ),
         ]
         snaps = [
@@ -507,18 +526,29 @@ def _demo_rl_agent() -> float:
             loader = DataLoader(dataset, batch_size=len(dataset))
             model.eval()
             total = 0.0
+            rewards_curve: List[float] = []
+            losses: List[float] = []
+            loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
             with torch.no_grad():
-                for states, actions, rewards in loader:
+                for states, actions, rewards_tensor in loader:
                     logits = model.actor(states)
+                    losses.extend(loss_fn(logits, actions).tolist())
+                    rewards_curve.extend(rewards_tensor.tolist())
                     preds = logits.argmax(dim=1)
                     mask = preds == actions
                     if mask.any():
-                        total += float(rewards[mask].sum())
+                        total += float(rewards_tensor[mask].sum())
+            _write_metrics({"loss": losses, "rewards": rewards_curve})
             return float(total)
     except Exception:  # pragma: no cover - best effort
-        return _numpy_stub()
+        return _numpy_q_learning()
     finally:
         simulation.predict_price_movement = orig_predict
+
+
+def _demo_rl_agent() -> float:
+    report_dir = RL_REPORT_DIR or Path(".")
+    return run_rl_demo(report_dir)
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -528,13 +558,6 @@ def main(argv: List[str] | None = None) -> None:
         from .risk import correlation_matrix  # type: ignore
     except Exception:  # pragma: no cover - risk module optional
         correlation_matrix = None  # type: ignore[assignment]
-    try:  # optional hedging utilities
-        from .portfolio import hedge_allocation  # type: ignore
-    except Exception:  # pragma: no cover - portfolio module optional
-        def hedge_allocation(
-            weights: Dict[str, float], _corr: Dict[tuple[str, str], float]
-        ) -> Dict[str, float]:
-            return weights
     try:
         import psutil  # type: ignore
     except Exception:  # pragma: no cover - psutil optional
@@ -594,9 +617,10 @@ def main(argv: List[str] | None = None) -> None:
             raise ValueError("Cannot specify both --data and --preset")
         preset = None
 
-    global FULL_SYSTEM, RL_DEMO
+    global FULL_SYSTEM, RL_DEMO, RL_REPORT_DIR
     FULL_SYSTEM = bool(args.full_system)
     RL_DEMO = bool(args.rl_demo or args.full_system)
+    RL_REPORT_DIR = args.reports
 
     loaded = load_prices(args.data, preset)
     if isinstance(loaded, dict):
