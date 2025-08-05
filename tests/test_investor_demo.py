@@ -43,10 +43,10 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     match = re.search(r"Trade type results: (\{.*\})", out)
     assert match, "Trade type results not printed"
     trade_results = json.loads(match.group(1))
-    assert trade_results["arbitrage_profit"] == pytest.approx(0.25)
-    assert trade_results["flash_loan_profit"] == pytest.approx(0.1)
-    assert trade_results["sniper_tokens"] == ["demo_token"]
-    assert trade_results["dex_new_pools"] == ["pool_demo"]
+    assert trade_results["arbitrage_profit"] == pytest.approx(0.51)
+    assert trade_results["flash_loan_profit"] == pytest.approx(0.001482213438735234)
+    assert trade_results["sniper_tokens"] == ["token_2023-01-01"]
+    assert trade_results["dex_new_pools"] == ["pool_2023-01-02"]
     assert trade_results["rl_reward"] == expected_rl
 
     summary_json = tmp_path / "summary.json"
@@ -194,10 +194,10 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     assert highlights_path.exists(), "Highlights JSON not generated"
     highlights = json.loads(highlights_path.read_text())
     assert highlights, "Highlights JSON empty"
-    assert highlights.get("arbitrage_profit") == pytest.approx(0.25)
-    assert highlights.get("flash_loan_profit") == pytest.approx(0.1)
-    assert highlights.get("sniper_tokens") == ["demo_token"]
-    assert highlights.get("dex_new_pools") == ["pool_demo"]
+    assert highlights.get("arbitrage_profit") == pytest.approx(0.51)
+    assert highlights.get("flash_loan_profit") == pytest.approx(0.001482213438735234)
+    assert highlights.get("sniper_tokens") == ["token_2023-01-01"]
+    assert highlights.get("dex_new_pools") == ["pool_2023-01-02"]
     assert highlights.get("rl_reward") == expected_rl
     assert highlights.get("key_correlations")
     assert highlights.get("hedged_weights")

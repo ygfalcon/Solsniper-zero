@@ -181,13 +181,15 @@ def load_prices(
 async def _demo_arbitrage() -> None:
     """Invoke arbitrage detection with stub inputs."""
 
+    prices, _ = load_prices(preset="short")
+    profit = abs(prices[1] - prices[0]) if len(prices) > 1 else 0.0
+
     mod_name = f"{__package__}.arbitrage"
     orig = sys.modules.get(mod_name)
     arb_stub = types.ModuleType(mod_name)
 
     async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        # Simulate a small arbitrage profit
-        return {"profit": 0.25}
+        return {"profit": profit}
 
     arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
     sys.modules[mod_name] = arb_stub
@@ -210,6 +212,10 @@ async def _demo_arbitrage() -> None:
 
 async def _demo_flash_loan() -> float:
     """Invoke flash loan borrow/repay with stub inputs and return profit."""
+    prices, _ = load_prices(preset="short")
+    profit = (
+        abs(prices[2] - prices[1]) / prices[1] if len(prices) > 2 and prices[1] else 0.0
+    )
 
     mod_name = f"{__package__}.flash_loans"
     orig = sys.modules.get(mod_name)
@@ -235,18 +241,20 @@ async def _demo_flash_loan() -> float:
             del sys.modules[mod_name]
 
     used_trade_types.add("flash_loan")
-    return 0.1
+    return profit
 
 
 async def _demo_sniper() -> List[str]:
     """Invoke sniper evaluate with stub inputs and return discovered tokens."""
+    prices, dates = load_prices(preset="short")
+    token = f"token_{dates[0]}" if dates else "token_demo"
 
     mod_name = f"{__package__}.sniper"
     orig = sys.modules.get(mod_name)
     sni_stub = types.ModuleType(mod_name)
 
     async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": "demo_token"}]
+        return [{"token": token}]
 
     sni_stub.evaluate = evaluate
     sys.modules[mod_name] = sni_stub
@@ -265,13 +273,15 @@ async def _demo_sniper() -> List[str]:
 
 async def _demo_dex_scanner() -> List[str]:
     """Invoke DEX pool scanning with stub inputs and return discovered pools."""
+    prices, dates = load_prices(preset="short")
+    pool = f"pool_{dates[1]}" if len(dates) > 1 else "pool_demo"
 
     mod_name = f"{__package__}.dex_scanner"
     orig = sys.modules.get(mod_name)
     dex_stub = types.ModuleType(mod_name)
 
     async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return ["pool_demo"]
+        return [pool]
 
     dex_stub.scan_new_pools = scan_new_pools
     sys.modules[mod_name] = dex_stub
