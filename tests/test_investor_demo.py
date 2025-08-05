@@ -160,8 +160,8 @@ def test_investor_demo(tmp_path, monkeypatch):
         for name in ["buy_hold", "momentum", "mean_reversion", "mixed"]:
             assert (tmp_path / f"{name}.png").exists(), f"Missing plot {name}.png"
 
-    # Demo should exercise arbitrage and flash loan trade types
-    assert {"arbitrage", "flash_loan"} <= investor_demo.used_trade_types
+    # Demo should exercise arbitrage, flash loan, sniper and DEX scanner trade types
+    assert {"arbitrage", "flash_loan", "sniper", "dex_scanner"} <= investor_demo.used_trade_types
 
     # Memory and portfolio helpers should have been invoked
     assert calls.get("mem_init")
@@ -182,13 +182,21 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
     async def fake_flash() -> None:
         investor_demo.used_trade_types.add("flash_loan")
 
+    async def fake_sniper() -> None:
+        investor_demo.used_trade_types.add("sniper")
+
+    async def fake_dex() -> None:
+        investor_demo.used_trade_types.add("dex_scanner")
+
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
     monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
+    monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
+    monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
 
     investor_demo.main(["--reports", str(tmp_path)])
 
     assert seen_before == [set()]
-    assert investor_demo.used_trade_types == {"arbitrage", "flash_loan"}
+    assert investor_demo.used_trade_types == {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
 
 
 def test_investor_demo_custom_data_length(tmp_path):
