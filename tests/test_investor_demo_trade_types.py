@@ -13,7 +13,13 @@ def clear_used_trade_types():
     investor_demo.used_trade_types.clear()
 
 
-def test_demo_arbitrage():
+def test_demo_arbitrage(monkeypatch):
+    from solhunter_zero import arbitrage
+
+    def fake_best_route(*a, **k):
+        return ["dex1", "dex2"], 4.795
+
+    monkeypatch.setattr(arbitrage, "_best_route", fake_best_route)
     res = asyncio.run(investor_demo._demo_arbitrage())
     assert res["path"] == ["dex1", "dex2"]
     assert res["profit"] == pytest.approx(4.795)
@@ -36,3 +42,15 @@ def test_demo_dex_scanner():
     pools = asyncio.run(investor_demo._demo_dex_scanner())
     assert pools == ["mintA", "mintB"]
     assert investor_demo.used_trade_types == {"dex_scanner"}
+
+
+def test_demo_route_ffi(monkeypatch):
+    from solhunter_zero import routeffi as rffi
+
+    monkeypatch.setattr(
+        rffi, "_best_route_json", lambda *a, **k: (["x", "y"], 2.0)
+    )
+    res = asyncio.run(investor_demo._demo_route_ffi())
+    assert res["path"] == ["x", "y"]
+    assert res["profit"] == pytest.approx(2.0)
+    assert investor_demo.used_trade_types == {"route_ffi"}

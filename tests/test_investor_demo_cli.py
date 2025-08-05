@@ -66,6 +66,8 @@ def _run_and_check(
     trade_results = json.loads(match.group(1))
     assert trade_results["arbitrage_profit"] == pytest.approx(4.795)
     assert trade_results["arbitrage_path"] == ["dex1", "dex2"]
+    assert trade_results["route_ffi_path"] == ["dex1", "dex2"]
+    assert trade_results["route_ffi_profit"] == pytest.approx(5.0)
     assert trade_results["flash_loan_signature"] == "demo_sig"
     assert trade_results["sniper_tokens"] == ["TKN"]
     assert trade_results["dex_new_pools"] == ["mintA", "mintB"]
@@ -148,6 +150,8 @@ def _run_and_check(
     highlights_data = json.loads(highlights_json.read_text())
     assert highlights_data.get("arbitrage_profit") == pytest.approx(4.795)
     assert highlights_data.get("arbitrage_path") == ["dex1", "dex2"]
+    assert highlights_data.get("route_ffi_path") == ["dex1", "dex2"]
+    assert highlights_data.get("route_ffi_profit") == pytest.approx(5.0)
     assert highlights_data.get("flash_loan_signature") == "demo_sig"
     assert highlights_data.get("sniper_tokens") == ["TKN"]
     assert highlights_data.get("dex_new_pools") == ["mintA", "mintB"]
