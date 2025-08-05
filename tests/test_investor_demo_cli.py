@@ -18,7 +18,10 @@ def _run_and_check(
     repo_root: Path,
     env: dict[str, str],
     data_path: Path,
+    extra_flags: list[str] | None = None,
 ) -> None:
+    if extra_flags:
+        cmd = cmd + list(extra_flags)
     result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "Wrote reports" in result.stdout
@@ -66,6 +69,10 @@ def _run_and_check(
     assert trade_results["flash_loan_signature"] == "demo_sig"
     assert trade_results["sniper_tokens"] == ["TKN"]
     assert trade_results["dex_new_pools"] == ["mintA", "mintB"]
+    if extra_flags and "--rl-demo" in extra_flags:
+        rl_metrics = reports_dir / "rl_metrics.json"
+        assert rl_metrics.is_file()
+        assert "rl_reward" in result.stdout
 
     summary_json = reports_dir / "summary.json"
     summary_csv = reports_dir / "summary.csv"
@@ -175,7 +182,8 @@ def _run_and_check(
     "data_file",
     ["prices_short.json", "prices_multitoken.json"],
 )
-def test_investor_demo_cli(base_cmd, data_file, tmp_path):
+@pytest.mark.parametrize("extra_flags", [[], ["--rl-demo"]])
+def test_investor_demo_cli(base_cmd, data_file, extra_flags, tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
     if base_cmd == ["solhunter-demo"]:
@@ -197,4 +205,4 @@ def test_investor_demo_cli(base_cmd, data_file, tmp_path):
         "--reports",
         str(out),
     ]
-    _run_and_check(cmd, out, repo_root, env, data_path)
+    _run_and_check(cmd, out, repo_root, env, data_path, extra_flags=extra_flags)
