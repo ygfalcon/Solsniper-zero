@@ -1,7 +1,7 @@
-birdeye_api_key = "EXAMPLE_BIRDEYE_KEY"
-solana_rpc_url = "https://solana.mycustomrpc.com"
-dex_base_url = "https://dex.myhost.com/api"
-dex_testnet_url = "https://testnet.dex.myhost.com/api"
+birdeye_api_key = "YOUR_BIRDEYE_API_KEY"
+solana_rpc_url = "https://solana-mainnet.example.com"
+dex_base_url = "https://dex.mainnet.example/api"
+dex_testnet_url = "https://dex.testnet.example/api"
 orca_api_url = "https://api.orca.so"
 raydium_api_url = "https://api.raydium.io"
 phoenix_api_url = "https://api.phoenix.trade"
@@ -18,19 +18,25 @@ depth_service = false  # start the Rust depth_service automatically when true
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
 # depth_update_threshold = 0.0  # minimum relative change before broadcasting
 # depth_min_send_interval = 100 # min interval between snapshots in ms
-compress_events = true
+compress_events = true  # set to false to disable protobuf compression
 event_compression = "zstd"
 use_depth_stream = true  # set to false to disable depth-stream IPC
 use_depth_feed = false  # deprecated, depth snapshots are sent over websocket
 use_rust_exec = true  # set to false to execute swaps in Python
 use_service_exec = true  # set to false to bypass depth_service execution
 use_service_route = true  # set to false to compute routes in Python
+# USE_FFI_ROUTE = 0       # uncomment to disable FFI route search when the
+#                         # route_ffi library is present
 orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
 phoenix_dex_url = "https://dex.phoenix.trade"
 meteora_dex_url = "https://dex.meteora.ag"
 metrics_base_url = "https://metrics.example.com/api"
 metrics_url = ""
+# Optional paths to trained ML models
+# PRICE_MODEL_PATH = "models/price.pt"   # LSTM or transformer
+# ACTIVITY_MODEL_PATH = "models/activity.pt"
+# VAR_MODEL_PATH = "models/var.pt"   # VaR forecaster
 news_feeds = "https://news.example.com/rss"
 twitter_feeds = ""
 discord_feeds = ""
@@ -58,8 +64,8 @@ min_delay = 10
 max_delay = 300
 cpu_low_threshold = 30.0  # raise concurrency when below this percent
 cpu_high_threshold = 70.0  # reduce concurrency when above this percent
-max_concurrency = 0
-cpu_usage_threshold = 0
+max_concurrency = 0  # use half the available CPUs when 0
+cpu_usage_threshold = 0  # reduce concurrency when above this percent
 concurrency_smoothing = 0.3
 concurrency_ki = 0.5
 # scanners use CPU from system_metrics_combined when available
@@ -68,7 +74,8 @@ max_rate = 1.0
 depth_freq_low = 1.0
 depth_freq_high = 10.0
 offline_data_limit_gb = 50
-offline_data_interval = 3600
+offline_data_interval = 3600  # seconds between offline data syncs
+tick_dataset = "solhunter_zero/data/sample_ticks.json"  # sample tick history for advanced agents
 min_portfolio_value = 20.0
 arbitrage_threshold = 0.0
 arbitrage_amount = 0.0
@@ -79,7 +86,7 @@ dex_priorities = "phoenix,meteora,orca,raydium,jupiter"
 dex_fees = "{}"
 dex_gas = "{}"
 dex_latency = "{}"
-dex_latency_refresh_interval = 60
+dex_latency_refresh_interval = 60  # seconds between latency measurements
 use_mev_bundles = true  # submit swap bundles via MEVExecutor when true
 max_hops = 3  # maximum hops to consider when searching arbitrage paths
 path_algorithm = "graph"  # "graph" or "permutation"
@@ -93,18 +100,28 @@ fee_weight = 1.0  # weight applied to per-venue fees during rebalances
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
-priority_rpc = "https://priority.rpc.myhost.com"
-jito_rpc_url = "https://jito.myhost.com"  # Jito block-engine endpoint
-jito_auth = "jito-auth-token"  # authentication token for Jito
-jito_ws_url = "wss://jito.myhost.com/ws"  # Jito searcher websocket
+jito_rpc_url = "https://block-engine.jito.example.com"  # Jito block-engine endpoint
+jito_auth = "YOUR_JITO_AUTH_TOKEN"  # authentication token for Jito
+priority_rpc = "https://rpc.mainnet.example.com"
+jito_ws_url = ""  # Jito searcher websocket
 jito_ws_auth = ""  # websocket auth token
 event_bus_url = ""  # external event bus websocket
 event_bus_peers = []  # additional event bus peer URLs
-# EVENT_BUS_MMAP = "/tmp/events.mmap"
-# EVENT_BUS_MMAP_SIZE = 1048576
+# EVENT_BUS_MMAP = "/tmp/events.mmap"  # optional shared memory ring buffer
+# EVENT_BUS_MMAP_SIZE = 1048576        # size in bytes
+ws_ping_interval = 20  # websocket ping interval in seconds
+ws_ping_timeout = 20  # seconds to wait for pong before closing
+broker_url = ""  # optional Redis or NATS endpoint
+# Point to your lowest-latency broker(s). Multiple entries may be comma
+# separated. Redis or NATS are both supported.
+broker_urls = "redis://localhost:6379"  # comma-separated list of broker URLs
+replicate_trades = false  # subscribe to trade_logged events when true
+memory_sync_interval = 5.0  # seconds between trade sync requests
 weights_path = "weights.json"
 evolve_interval = 1
 mutation_threshold = 0.0
+strategy_rotation_interval = 0
+weight_config_paths = []
 
 token_suffix = "bonk"
 token_keywords = ""
@@ -133,6 +150,7 @@ agents = [
     "mev_sandwich",
     "flashloan_sandwich",
     "sac",
+    "artifact_math",  # example custom agent
 ]
 
 [agent_weights]
@@ -161,7 +179,7 @@ rl_prefetch_buffer = 0
 multi_rl = false
 rl_population_size = 2
 rl_live = false
-# Policy network type
+# Policy network type: "mlp" or "transformer"
 rl_policy = "mlp"
 # Use RLWeightAgent for dynamic agent weights
 use_rl_weights = false
@@ -169,5 +187,6 @@ rl_weights_path = "rl_weights.json"
 rl_weight_population = 4
 # Enable FAISS GPU index for faster memory search
 gpu_memory_index = false
+distributed_rl = false
 hierarchical_rl = true
 hierarchical_model_path = "hier_policy.json"
