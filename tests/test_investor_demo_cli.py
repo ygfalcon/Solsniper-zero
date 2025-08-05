@@ -3,7 +3,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
+
+if getattr(np, "_STUB", False):
+    pytest.skip("numpy required for investor demo", allow_module_level=True)
 
 
 @pytest.mark.integration

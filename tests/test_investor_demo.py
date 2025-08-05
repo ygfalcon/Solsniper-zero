@@ -2,6 +2,12 @@ import csv
 import json
 import importlib
 
+import numpy as np
+import pytest
+
+if getattr(np, "_STUB", False):
+    pytest.skip("numpy required for investor demo", allow_module_level=True)
+
 from solhunter_zero import investor_demo
 
 
