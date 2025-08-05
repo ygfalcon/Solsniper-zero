@@ -354,6 +354,8 @@ def main(argv: List[str] | None = None) -> None:
     else:
         # Default token name for single-token datasets
         price_map = {"demo": loaded}
+    if not price_map:
+        raise ValueError("price data must contain at least one token")
     multi_token = len(price_map) > 1
 
     first_token, (prices, dates) = next(iter(price_map.items()))

@@ -101,3 +101,15 @@ def test_investor_demo_empty_dataset(tmp_path):
             "--reports",
             str(tmp_path),
         ])
+
+
+def test_investor_demo_empty_token_map(tmp_path):
+    data_file = tmp_path / "prices.json"
+    data_file.write_text("{}")
+    with pytest.raises(ValueError, match="price data must contain at least one token"):
+        investor_demo.main([
+            "--data",
+            str(data_file),
+            "--reports",
+            str(tmp_path),
+        ])
