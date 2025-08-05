@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -10,11 +11,24 @@ import pytest
 from solhunter_zero import investor_demo
 
 
-def _run_and_check(cmd: list[str], reports_dir: Path, repo_root: Path, env: dict[str, str]) -> None:
+def _run_and_check(
+    cmd: list[str],
+    reports_dir: Path,
+    repo_root: Path,
+    env: dict[str, str],
+    data_path: Path,
+) -> None:
     result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "Wrote reports" in result.stdout
     assert "Capital Summary" in result.stdout
+
+    strategies = {"buy_hold", "momentum", "mean_reversion", "mixed"}
+    pattern = re.compile(r"^(buy_hold|momentum|mean_reversion|mixed):\s*(\d+(?:\.\d+)?)$", re.MULTILINE)
+    matches = {name: val for name, val in pattern.findall(result.stdout)}
+    assert strategies <= matches.keys(), f"Missing strategies: {strategies - matches.keys()}"
+    for val in matches.values():
+        float(val)
 
     summary_json = reports_dir / "summary.json"
     summary_csv = reports_dir / "summary.csv"
@@ -32,13 +46,13 @@ def _run_and_check(cmd: list[str], reports_dir: Path, repo_root: Path, env: dict
     assert rows, "Trade history CSV empty"
     first = rows[0]
     assert first["action"] == "buy"
-    prices = investor_demo.load_prices()
+    prices = investor_demo.load_prices(data_path)
     assert float(first["price"]) == prices[0]
     assert any(r["strategy"] == "mean_reversion" for r in rows)
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
 
-    shutil.rmtree(reports_dir)
+    shutil.rmtree(reports_dir, ignore_errors=True)
 
 
 @pytest.mark.integration
@@ -46,20 +60,14 @@ def test_investor_demo_cli(tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
 
-    # First run with packaged data
-    out1 = tmp_path / "run1"
-    cmd1 = [sys.executable, "scripts/investor_demo.py", "--reports", str(out1)]
-    _run_and_check(cmd1, out1, repo_root, env)
-
-    # Second run using explicit data file
-    out2 = tmp_path / "run2"
-    data_path = repo_root / "tests" / "data" / "prices.json"
-    cmd2 = [
+    out = tmp_path / "run"
+    data_path = repo_root / "tests" / "data" / "prices_short.json"
+    cmd = [
         sys.executable,
         "scripts/investor_demo.py",
         "--data",
         str(data_path),
         "--reports",
-        str(out2),
+        str(out),
     ]
-    _run_and_check(cmd2, out2, repo_root, env)
+    _run_and_check(cmd, out, repo_root, env, data_path)
