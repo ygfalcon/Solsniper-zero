@@ -419,6 +419,20 @@ def main(argv: List[str] | None = None) -> None:
         json.dump(corr_out, cf, indent=2)
     with open(args.reports / "hedged_weights.json", "w", encoding="utf-8") as hf:
         json.dump(hedged_weights, hf, indent=2)
+
+    # Produce concise summaries for stdout and later highlights.json
+    top_corr = sorted(corr_pairs.items(), key=lambda kv: abs(kv[1]), reverse=True)[:3]
+    corr_summary = {f"{a}-{b}": c for (a, b), c in top_corr}
+    if corr_summary:
+        print(
+            "Key correlations:",
+            ", ".join(f"{pair}: {val:.2f}" for pair, val in corr_summary.items()),
+        )
+    if hedged_weights:
+        print(
+            "Hedged weights:",
+            ", ".join(f"{k}: {v:.2f}" for k, v in hedged_weights.items()),
+        )
     summary: List[Dict[str, float | int | str]] = []
     trade_history: List[Dict[str, float | str]] = []
 
@@ -665,6 +679,10 @@ def main(argv: List[str] | None = None) -> None:
         if mem_pct is not None:
             highlights["memory_percent"] = mem_pct
         highlights.update(trade_outputs)
+        if corr_summary:
+            highlights["key_correlations"] = corr_summary
+        if hedged_weights:
+            highlights["hedged_weights"] = hedged_weights
         with open(args.reports / "highlights.json", "w", encoding="utf-8") as hf:
             json.dump(highlights, hf, indent=2)
 
