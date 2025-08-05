@@ -112,8 +112,8 @@ def max_drawdown(returns: List[float]) -> float:
     return max(drawdowns) if drawdowns else 0.0
 
 
-def load_prices(path: Path | None = None) -> List[float]:
-    """Load a JSON price dataset into a list of floats."""
+def load_prices(path: Path | None = None) -> Tuple[List[float], List[str]]:
+    """Load a JSON price dataset into price and date lists."""
     if path is None:
         data_text = DATA_FILE.read_text()
     else:
@@ -122,14 +122,19 @@ def load_prices(path: Path | None = None) -> List[float]:
     if not isinstance(data, list):
         raise ValueError("Price data must be a list")
     prices: List[float] = []
+    dates: List[str] = []
     for entry in data:
-        if not isinstance(entry, dict) or "price" not in entry:
-            raise ValueError("Each entry must contain a numeric 'price'")
+        if not isinstance(entry, dict) or "price" not in entry or "date" not in entry:
+            raise ValueError("Each entry must contain 'date' and numeric 'price'")
         price = entry["price"]
+        date = entry["date"]
         if not isinstance(price, (int, float)):
             raise ValueError("Each entry must contain a numeric 'price'")
+        if not isinstance(date, str):
+            raise ValueError("Each entry must contain a string 'date'")
         prices.append(float(price))
-    return prices
+        dates.append(date)
+    return prices, dates
 
 
 async def _demo_arbitrage() -> None:
@@ -263,7 +268,7 @@ def main(argv: List[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    prices = load_prices(args.data)
+    prices, dates = load_prices(args.data)
 
     # Demonstrate Memory usage and portfolio hedging
     mem = Memory("sqlite:///:memory:")
@@ -382,6 +387,7 @@ def main(argv: List[str] | None = None) -> None:
             {
                 "strategy": name,
                 "period": 0,
+                "date": dates[0],
                 "action": "buy",
                 "price": prices[0],
                 "capital": capital,
@@ -395,6 +401,7 @@ def main(argv: List[str] | None = None) -> None:
                 {
                     "strategy": name,
                     "period": i,
+                    "date": dates[i],
                     "action": action,
                     "price": prices[i],
                     "capital": capital,
@@ -405,6 +412,7 @@ def main(argv: List[str] | None = None) -> None:
                 {
                     "strategy": name,
                     "period": i,
+                    "date": dates[i],
                     "action": "hold",
                     "price": prices[i],
                     "capital": capital,
@@ -445,7 +453,15 @@ def main(argv: List[str] | None = None) -> None:
             json.dump(trade_history, jf, indent=2)
         with open(hist_csv, "w", newline="", encoding="utf-8") as cf:
             writer = csv.DictWriter(
-                cf, fieldnames=["strategy", "period", "action", "price", "capital"]
+                cf,
+                fieldnames=[
+                    "strategy",
+                    "period",
+                    "date",
+                    "action",
+                    "price",
+                    "capital",
+                ],
             )
             writer.writeheader()
             for row in trade_history:

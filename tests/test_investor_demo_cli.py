@@ -77,8 +77,9 @@ def _run_and_check(
     assert rows, "Trade history CSV empty"
     first = rows[0]
     assert first["action"] == "buy"
-    prices = investor_demo.load_prices(data_path)
+    prices, dates = investor_demo.load_prices(data_path)
     assert float(first["price"]) == prices[0]
+    assert first["date"] == dates[0]
     assert any(r["strategy"] == "mean_reversion" for r in rows)
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0

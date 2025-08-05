@@ -3,7 +3,7 @@ from solhunter_zero import investor_demo
 
 
 def _manual_corr() -> dict[tuple[str, str], float]:
-    prices = investor_demo.load_prices()
+    prices, _ = investor_demo.load_prices()
     strategy_returns = {name: strat(prices) for name, strat in investor_demo.DEFAULT_STRATEGIES}
     keys = list(strategy_returns.keys())
     out: dict[tuple[str, str], float] = {}
