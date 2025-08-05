@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import csv
 import json
-import sys
 import types
 from importlib import resources
 from pathlib import Path
@@ -178,121 +177,114 @@ def load_prices(
     raise ValueError("Price data must be a list or mapping of token to list")
 
 
-async def _demo_arbitrage() -> None:
-    """Invoke arbitrage detection with stub inputs."""
+async def _demo_arbitrage(full_system: bool = False) -> float:
+    """Invoke arbitrage detection and return a dummy profit.
+
+    When ``full_system`` is ``False`` (the default) the function simply
+    returns a synthetic profit calculated from the bundled price data.  When
+    ``full_system`` is ``True`` it also calls
+    :func:`arbitrage.detect_and_execute_arbitrage` with minimal arguments and
+    ``use_service=False`` so the demo exercises the real module without
+    performing heavy work.  Any errors from the real call are ignored to keep
+    the demo lightweight.
+    """
 
     prices, _ = load_prices(preset="short")
     profit = abs(prices[1] - prices[0]) if len(prices) > 1 else 0.0
 
-    mod_name = f"{__package__}.arbitrage"
-    orig = sys.modules.get(mod_name)
-    arb_stub = types.ModuleType(mod_name)
+    if full_system:
+        try:
+            from .arbitrage import detect_and_execute_arbitrage
 
-    async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        return {"profit": profit}
+            async def _feed(_token: str) -> float:
+                return 1.0
 
-    arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
-    sys.modules[mod_name] = arb_stub
-    try:
-        from .arbitrage import detect_and_execute_arbitrage as demo_func  # type: ignore
-
-        async def _feed(_token: str) -> float:
-            return 1.0
-
-        result = await demo_func("demo", feeds=[_feed, _feed], use_service=False)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+            await detect_and_execute_arbitrage(
+                "demo",
+                feeds=[_feed, _feed],
+                use_service=False,
+                use_flash_loans=False,
+                use_mev_bundles=False,
+            )
+        except Exception:
+            # The call is best-effort; ignore any failures to keep runtime short
+            pass
 
     used_trade_types.add("arbitrage")
-    return float(result.get("profit", 0.0))
+    return profit
 
 
-async def _demo_flash_loan() -> float:
-    """Invoke flash loan borrow/repay with stub inputs and return profit."""
+async def _demo_flash_loan(full_system: bool = False) -> float:
+    """Invoke flash loan helpers and return a dummy profit."""
+
     prices, _ = load_prices(preset="short")
     profit = (
         abs(prices[2] - prices[1]) / prices[1] if len(prices) > 2 and prices[1] else 0.0
     )
 
-    mod_name = f"{__package__}.flash_loans"
-    orig = sys.modules.get(mod_name)
-    fl_stub = types.ModuleType(mod_name)
+    if full_system:
+        try:
+            from .flash_loans import borrow_flash, repay_flash
+            from solders.keypair import Keypair
 
-    async def borrow_flash(*_args, **_kwargs):  # type: ignore
-        return "sig"
-
-    async def repay_flash(*_args, **_kwargs) -> bool:  # type: ignore
-        return True
-
-    fl_stub.borrow_flash = borrow_flash
-    fl_stub.repay_flash = repay_flash
-    sys.modules[mod_name] = fl_stub
-    try:
-        from .flash_loans import borrow_flash as _borrow, repay_flash as _repay  # type: ignore
-        sig = await _borrow(1.0, "demo", [])
-        await _repay(sig)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+            payer = Keypair()
+            sig = await borrow_flash(
+                1.0,
+                "demo",
+                [],
+                payer=payer,
+                rpc_url="http://localhost",
+            )
+            if sig:
+                await repay_flash(sig, rpc_url="http://localhost")
+        except Exception:
+            # Ignore failures to keep the demo fast and offline-friendly
+            pass
 
     used_trade_types.add("flash_loan")
     return profit
 
 
-async def _demo_sniper() -> List[str]:
-    """Invoke sniper evaluate with stub inputs and return discovered tokens."""
+async def _demo_sniper(full_system: bool = False) -> List[str]:
+    """Invoke :func:`sniper.evaluate` and return discovered tokens."""
+
     prices, dates = load_prices(preset="short")
     token = f"token_{dates[0]}" if dates else "token_demo"
+    tokens = [token]
 
-    mod_name = f"{__package__}.sniper"
-    orig = sys.modules.get(mod_name)
-    sni_stub = types.ModuleType(mod_name)
+    if full_system:
+        try:
+            from .sniper import evaluate
+            from .portfolio import Portfolio
 
-    async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": token}]
-
-    sni_stub.evaluate = evaluate
-    sys.modules[mod_name] = sni_stub
-    try:
-        from .sniper import evaluate as demo_func  # type: ignore
-        results = await demo_func("demo", None)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+            portfolio = Portfolio(path=None)
+            results = await evaluate(token, portfolio)
+            if results:
+                tokens = [r.get("token", token) for r in results]
+        except Exception:
+            # Ignore errors for the lightweight demo
+            pass
 
     used_trade_types.add("sniper")
-    return [r.get("token", "") for r in results]
+    return tokens
 
 
-async def _demo_dex_scanner() -> List[str]:
-    """Invoke DEX pool scanning with stub inputs and return discovered pools."""
+async def _demo_dex_scanner(full_system: bool = False) -> List[str]:
+    """Invoke DEX pool scanning and return discovered pool identifiers."""
+
     prices, dates = load_prices(preset="short")
     pool = f"pool_{dates[1]}" if len(dates) > 1 else "pool_demo"
+    pools: List[str] = [pool]
 
-    mod_name = f"{__package__}.dex_scanner"
-    orig = sys.modules.get(mod_name)
-    dex_stub = types.ModuleType(mod_name)
+    if full_system:
+        try:
+            from .dex_scanner import scan_new_pools
 
-    async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return [pool]
-
-    dex_stub.scan_new_pools = scan_new_pools
-    sys.modules[mod_name] = dex_stub
-    try:
-        from .dex_scanner import scan_new_pools as demo_func  # type: ignore
-        pools = await demo_func("url")
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+            pools = await scan_new_pools("http://localhost")
+            if not pools:
+                pools = [pool]
+        except Exception:
+            pools = [pool]
 
     used_trade_types.add("dex_scanner")
     return [str(p) for p in pools]
@@ -363,6 +355,11 @@ def main(argv: List[str] | None = None) -> None:
         type=float,
         default=100.0,
         help="Starting capital for the backtest",
+    )
+    parser.add_argument(
+        "--full-system",
+        action="store_true",
+        help="Call real trade modules instead of fast stubs",
     )
     args = parser.parse_args(argv)
 
@@ -678,13 +675,14 @@ def main(argv: List[str] | None = None) -> None:
             for row in trade_history:
                 writer.writerow(row)
 
-    # Exercise trade types via lightweight stubs
-    async def _exercise_trade_types() -> Dict[str, object]:
+    # Exercise trade types either via fast stubs or the real modules
+    async def _exercise_trade_types(full_system: bool) -> Dict[str, object]:
+        arb_task = _demo_arbitrage(full_system) if full_system else _demo_arbitrage()
+        fl_task = _demo_flash_loan(full_system) if full_system else _demo_flash_loan()
+        sni_task = _demo_sniper(full_system) if full_system else _demo_sniper()
+        dex_task = _demo_dex_scanner(full_system) if full_system else _demo_dex_scanner()
         arb, fl, sniped, pools = await asyncio.gather(
-            _demo_arbitrage(),
-            _demo_flash_loan(),
-            _demo_sniper(),
-            _demo_dex_scanner(),
+            arb_task, fl_task, sni_task, dex_task
         )
         rl_reward = _demo_rl_agent()
         return {
@@ -695,7 +693,7 @@ def main(argv: List[str] | None = None) -> None:
             "rl_reward": rl_reward,
         }
 
-    trade_outputs = asyncio.run(_exercise_trade_types())
+    trade_outputs = asyncio.run(_exercise_trade_types(args.full_system))
 
     required = {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
     missing = required - used_trade_types

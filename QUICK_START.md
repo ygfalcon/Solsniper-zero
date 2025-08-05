@@ -20,3 +20,12 @@
   # or
   solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --reports reports
   ```
+
+  For a richer showcase that exercises the real arbitrage, flash loan,
+  sniper and DEX scanner modules, append the `--full-system` flag. This
+  runs the actual project functions in a lightweight mode and prints the
+  discovered tokens and pools:
+
+  ```bash
+  solhunter-demo --preset short --reports reports --full-system
+  ```

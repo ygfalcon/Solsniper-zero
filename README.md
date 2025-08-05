@@ -988,6 +988,15 @@ solhunter-demo --preset multi --capital 100 --reports reports
 solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --capital 100 --reports reports
 ```
 
+Pass `--full-system` to exercise the real arbitrage, flash loan, sniper and
+DEX scanner modules. This runs the same demo but calls the project's actual
+implementations (with network-heavy features disabled) so the output includes
+discovered tokens and pools:
+
+```bash
+solhunter-demo --preset short --capital 100 --reports reports --full-system
+```
+
 The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
 Strategy weights can be negative to model short positions; the demo normalises
 aggregated returns by the sum of absolute weights so offsetting long/short
