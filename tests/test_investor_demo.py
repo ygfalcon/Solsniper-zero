@@ -196,7 +196,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     assert hedged_path.exists(), "Hedged weights JSON not generated"
     corr_data = json.loads(corr_path.read_text())
     hedged_data = json.loads(hedged_path.read_text())
-    assert "buy_hold-momentum" in corr_data
+    assert "('buy_hold', 'momentum')" in corr_data
     assert {"buy_hold", "momentum"} <= hedged_data.keys()
     assert hedged_data["buy_hold"] + hedged_data["momentum"] == pytest.approx(1.0)
 

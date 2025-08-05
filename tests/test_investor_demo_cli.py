@@ -90,7 +90,7 @@ def _run_and_check(
     assert hedged_json.is_file()
     corr_data = json.loads(corr_json.read_text())
     hedged_data = json.loads(hedged_json.read_text())
-    assert "buy_hold-momentum" in corr_data
+    assert "('buy_hold', 'momentum')" in corr_data
     assert {"buy_hold", "momentum"} <= hedged_data.keys()
 
     shutil.rmtree(reports_dir, ignore_errors=True)
