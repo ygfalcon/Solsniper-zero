@@ -206,7 +206,7 @@ def main(argv: List[str] | None = None) -> None:
 
     args.reports.mkdir(parents=True, exist_ok=True)
     summary: List[Dict[str, float]] = []
-    trade_history: List[Dict[str, float]] = []
+    trade_history: List[Dict[str, float | str]] = []
 
     for name, weights in configs.items():
         returns = compute_weighted_returns(prices, weights)
@@ -238,10 +238,27 @@ def main(argv: List[str] | None = None) -> None:
 
         # record per-period capital history for this strategy
         capital = args.capital
-        trade_history.append({"strategy": name, "period": 0, "capital": capital})
+        trade_history.append(
+            {
+                "strategy": name,
+                "period": 0,
+                "action": "buy",
+                "price": prices[0],
+                "capital": capital,
+            }
+        )
         for i, r in enumerate(returns, start=1):
             capital *= 1 + r
-            trade_history.append({"strategy": name, "period": i, "capital": capital})
+            action = "buy" if r > 0 else "sell" if r < 0 else "hold"
+            trade_history.append(
+                {
+                    "strategy": name,
+                    "period": i,
+                    "action": action,
+                    "price": prices[i],
+                    "capital": capital,
+                }
+            )
 
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore
@@ -276,7 +293,9 @@ def main(argv: List[str] | None = None) -> None:
         with open(hist_json, "w", encoding="utf-8") as jf:
             json.dump(trade_history, jf, indent=2)
         with open(hist_csv, "w", newline="", encoding="utf-8") as cf:
-            writer = csv.DictWriter(cf, fieldnames=["strategy", "period", "capital"])
+            writer = csv.DictWriter(
+                cf, fieldnames=["strategy", "period", "action", "price", "capital"]
+            )
             writer.writeheader()
             for row in trade_history:
                 writer.writerow(row)
