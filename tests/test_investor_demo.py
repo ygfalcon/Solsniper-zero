@@ -2,6 +2,8 @@ import csv
 import json
 import importlib
 
+import pytest
+
 from solhunter_zero import investor_demo
 
 
@@ -55,8 +57,50 @@ def test_investor_demo(tmp_path, monkeypatch):
         for key in ["roi", "sharpe", "drawdown", "final_capital"]:
             assert key in entry
 
-    # Trade history and highlight files should be generated
+    # Compute expected metrics for the built-in price dataset
     prices = investor_demo.load_prices()
+    start_capital = 100.0
+    strat_configs = {
+        "buy_hold": {"buy_hold": 1.0},
+        "momentum": {"momentum": 1.0},
+        "mixed": {"buy_hold": 0.5, "momentum": 0.5},
+    }
+    expected: dict[str, dict[str, float]] = {}
+    for name, weights in strat_configs.items():
+        returns = investor_demo.compute_weighted_returns(prices, weights)
+        if returns:
+            total = 1.0
+            cum: list[float] = []
+            for r in returns:
+                total *= 1 + r
+                cum.append(total)
+            roi = cum[-1] - 1
+            mean = sum(returns) / len(returns)
+            variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+            vol = variance ** 0.5
+            sharpe = mean / vol if vol else 0.0
+        else:
+            roi = 0.0
+            sharpe = 0.0
+        dd = investor_demo.max_drawdown(returns)
+        final_capital = start_capital * (1 + roi)
+        expected[name] = {
+            "roi": roi,
+            "sharpe": sharpe,
+            "drawdown": dd,
+            "final_capital": final_capital,
+        }
+
+    for entry in content:
+        exp = expected[entry["config"]]
+        assert entry["roi"] == pytest.approx(exp["roi"], rel=1e-6)
+        assert entry["sharpe"] == pytest.approx(exp["sharpe"], rel=1e-6)
+        assert entry["drawdown"] == pytest.approx(exp["drawdown"], rel=1e-6)
+        assert entry["final_capital"] == pytest.approx(
+            exp["final_capital"], rel=1e-6
+        )
+
+    # Trade history and highlight files should be generated
     trade_csv = tmp_path / "trade_history.csv"
     trade_json = tmp_path / "trade_history.json"
     assert trade_csv.exists() or trade_json.exists(), "Trade history not generated"
