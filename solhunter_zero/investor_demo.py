@@ -24,6 +24,9 @@ from .risk import correlation_matrix
 # Track which trade types have been exercised by the demo
 used_trade_types: set[str] = set()
 
+# Toggle for heavier demo features such as real RL training
+FULL_SYSTEM: bool = False
+
 # Simple strategy functions used for demonstration
 
 
@@ -299,37 +302,84 @@ async def _demo_dex_scanner() -> List[str]:
 
 
 def _demo_rl_agent() -> float:
-    """Run a tiny RL training step using a lightweight PPO stub.
+    """Train a tiny RL model using the real pipeline and return reward.
 
-    The real project includes a much more sophisticated reinforcement
-    learning setup.  For the purposes of this demo we import a very small
-    module (``solhunter_zero.ppo_agent``) and invoke a single training
-    step on dummy data.  The function returns the cumulative reward from
-    that step so it can be recorded in the demo highlights.
+    When :data:`FULL_SYSTEM` is ``False`` this function exits immediately so
+    the demo remains lightweight.  When enabled it invokes the genuine
+    reinforcement learning utilities to fit a minimal PPO model on a static
+    dataset and reports the resulting reward for correctly predicted actions.
     """
 
-    mod_name = f"{__package__}.ppo_agent"
-    try:
-        rl_mod = __import__(mod_name, fromlist=["train_step"])
-    except Exception:  # pragma: no cover - fallback when module missing
-        # Provide a tiny fallback implementation that simply echoes the
-        # reward passed to ``train_step``.  Tests can monkeypatch the
-        # module in ``sys.modules`` to provide custom behaviour.
-        def train_step(_s, _a, reward, _ns, _d):
-            return reward
+    if not FULL_SYSTEM:
+        return 0.0
 
-        rl_mod = types.SimpleNamespace(train_step=train_step)
-
-    state = [0.0]
-    action = 0
-    reward = 1.0
-    next_state = [0.0]
-    done = True
     try:
-        metric = rl_mod.train_step(state, action, reward, next_state, done)  # type: ignore[attr-defined]
-    except Exception:  # pragma: no cover - extremely defensive
-        metric = reward
-    return float(metric)
+        from datetime import datetime
+        from types import SimpleNamespace
+        import tempfile
+        from pathlib import Path
+
+        import torch  # type: ignore[import-untyped]
+        from torch.utils.data import DataLoader  # type: ignore[import-untyped]
+
+        from . import rl_training, simulation
+        from .rl_training import _TradeDataset, LightningPPO
+    except Exception:  # pragma: no cover - optional deps
+        return 0.0
+
+    # Avoid network calls for price prediction during dataset construction
+    orig_predict = simulation.predict_price_movement
+    simulation.predict_price_movement = lambda *a, **k: 0.0  # type: ignore
+    try:
+        now = datetime.utcnow()
+        trades = [
+            SimpleNamespace(
+                token="demo",
+                side="buy",
+                price=1.0,
+                amount=1.0,
+                timestamp=now,
+            ),
+            SimpleNamespace(
+                token="demo",
+                side="sell",
+                price=1.1,
+                amount=1.0,
+                timestamp=now,
+            ),
+        ]
+        snaps = [
+            SimpleNamespace(
+                token="demo",
+                depth=1.0,
+                slippage=0.0,
+                imbalance=0.0,
+                tx_rate=0.0,
+                timestamp=now,
+            )
+        ]
+
+        with tempfile.TemporaryDirectory() as td:
+            model_path = Path(td) / "demo_rl.pt"
+            rl_training.fit(trades, snaps, model_path=model_path, algo="ppo")
+            model = LightningPPO()
+            model.load_state_dict(torch.load(model_path))
+            dataset = _TradeDataset(trades, snaps, sims_per_token=0)
+            loader = DataLoader(dataset, batch_size=len(dataset))
+            model.eval()
+            total = 0.0
+            with torch.no_grad():
+                for states, actions, rewards in loader:
+                    logits = model.actor(states)
+                    preds = logits.argmax(dim=1)
+                    mask = preds == actions
+                    if mask.any():
+                        total += float(rewards[mask].sum())
+            return float(total)
+    except Exception:  # pragma: no cover - best effort
+        return 0.0
+    finally:
+        simulation.predict_price_movement = orig_predict
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -364,7 +414,15 @@ def main(argv: List[str] | None = None) -> None:
         default=100.0,
         help="Starting capital for the backtest",
     )
+    parser.add_argument(
+        "--full-system",
+        action="store_true",
+        help="Run the heavier RL components",
+    )
     args = parser.parse_args(argv)
+
+    global FULL_SYSTEM
+    FULL_SYSTEM = bool(args.full_system)
 
     loaded = load_prices(args.data, args.preset)
     if isinstance(loaded, dict):
