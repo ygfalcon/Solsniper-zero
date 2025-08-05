@@ -38,9 +38,26 @@ def _momentum(prices: List[float]) -> List[float]:
     return returns
 
 
+def _mean_reversion(prices: List[float]) -> List[float]:
+    """Simple mean-reversion strategy.
+
+    This toy implementation buys after price drops and assumes an immediate
+    rebound. Negative returns are flipped to positive gains while positive
+    moves are ignored.
+    """
+
+    returns: List[float] = []
+    for i in range(1, len(prices)):
+        r = (prices[i] - prices[i - 1]) / prices[i - 1]
+        if r < 0:
+            returns.append(-r)
+    return returns
+
+
 DEFAULT_STRATEGIES: List[Tuple[str, Callable[[List[float]], List[float]]]] = [
     ("buy_hold", _buy_and_hold),
     ("momentum", _momentum),
+    ("mean_reversion", _mean_reversion),
 ]
 
 # Packaged price data for the demo
@@ -192,7 +209,12 @@ def main(argv: List[str] | None = None) -> None:
     configs = {
         "buy_hold": {"buy_hold": 1.0},
         "momentum": {"momentum": 1.0},
-        "mixed": {"buy_hold": 0.5, "momentum": 0.5},
+        "mean_reversion": {"mean_reversion": 1.0},
+        "mixed": {
+            "buy_hold": 1 / 3,
+            "momentum": 1 / 3,
+            "mean_reversion": 1 / 3,
+        },
     }
 
     args.reports.mkdir(parents=True, exist_ok=True)
