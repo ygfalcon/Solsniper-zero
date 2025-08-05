@@ -49,6 +49,14 @@ def _run_and_check(
         }
     assert strategies <= matches.keys(), f"Missing strategies: {strategies - matches.keys()}"
 
+    match = re.search(r"Trade type results: (\{.*\})", result.stdout)
+    assert match, "Trade type results not reported"
+    trade_results = json.loads(match.group(1))
+    assert trade_results["arbitrage_profit"] == pytest.approx(0.25)
+    assert trade_results["flash_loan_profit"] == pytest.approx(0.1)
+    assert trade_results["sniper_tokens"] == ["demo_token"]
+    assert trade_results["dex_new_pools"] == ["pool_demo"]
+
     summary_json = reports_dir / "summary.json"
     summary_csv = reports_dir / "summary.csv"
     assert summary_json.is_file()
@@ -87,6 +95,11 @@ def _run_and_check(
     assert any(r["strategy"] == "mean_reversion" for r in rows)
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
+    highlights_data = json.loads(highlights_json.read_text())
+    assert highlights_data.get("arbitrage_profit") == pytest.approx(0.25)
+    assert highlights_data.get("flash_loan_profit") == pytest.approx(0.1)
+    assert highlights_data.get("sniper_tokens") == ["demo_token"]
+    assert highlights_data.get("dex_new_pools") == ["pool_demo"]
 
     # Correlation and hedged weight outputs should exist
     corr_json = reports_dir / "correlations.json"

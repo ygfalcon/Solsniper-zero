@@ -145,15 +145,18 @@ async def _demo_arbitrage() -> None:
     arb_stub = types.ModuleType(mod_name)
 
     async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        return None
+        # Simulate a small arbitrage profit
+        return {"profit": 0.25}
 
     arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
     sys.modules[mod_name] = arb_stub
     try:
         from .arbitrage import detect_and_execute_arbitrage as demo_func  # type: ignore
+
         async def _feed(_token: str) -> float:
             return 1.0
-        await demo_func("demo", feeds=[_feed, _feed], use_service=False)
+
+        result = await demo_func("demo", feeds=[_feed, _feed], use_service=False)
     finally:
         if orig is not None:
             sys.modules[mod_name] = orig
@@ -161,10 +164,11 @@ async def _demo_arbitrage() -> None:
             del sys.modules[mod_name]
 
     used_trade_types.add("arbitrage")
+    return float(result.get("profit", 0.0))
 
 
-async def _demo_flash_loan() -> None:
-    """Invoke flash loan borrow/repay with stub inputs."""
+async def _demo_flash_loan() -> float:
+    """Invoke flash loan borrow/repay with stub inputs and return profit."""
 
     mod_name = f"{__package__}.flash_loans"
     orig = sys.modules.get(mod_name)
@@ -190,23 +194,24 @@ async def _demo_flash_loan() -> None:
             del sys.modules[mod_name]
 
     used_trade_types.add("flash_loan")
+    return 0.1
 
 
-async def _demo_sniper() -> None:
-    """Invoke sniper evaluate with stub inputs."""
+async def _demo_sniper() -> List[str]:
+    """Invoke sniper evaluate with stub inputs and return discovered tokens."""
 
     mod_name = f"{__package__}.sniper"
     orig = sys.modules.get(mod_name)
     sni_stub = types.ModuleType(mod_name)
 
     async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": "demo"}]
+        return [{"token": "demo_token"}]
 
     sni_stub.evaluate = evaluate
     sys.modules[mod_name] = sni_stub
     try:
         from .sniper import evaluate as demo_func  # type: ignore
-        await demo_func("demo", None)
+        results = await demo_func("demo", None)
     finally:
         if orig is not None:
             sys.modules[mod_name] = orig
@@ -214,23 +219,24 @@ async def _demo_sniper() -> None:
             del sys.modules[mod_name]
 
     used_trade_types.add("sniper")
+    return [r.get("token", "") for r in results]
 
 
-async def _demo_dex_scanner() -> None:
-    """Invoke DEX pool scanning with stub inputs."""
+async def _demo_dex_scanner() -> List[str]:
+    """Invoke DEX pool scanning with stub inputs and return discovered pools."""
 
     mod_name = f"{__package__}.dex_scanner"
     orig = sys.modules.get(mod_name)
     dex_stub = types.ModuleType(mod_name)
 
     async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return ["demo"]
+        return ["pool_demo"]
 
     dex_stub.scan_new_pools = scan_new_pools
     sys.modules[mod_name] = dex_stub
     try:
         from .dex_scanner import scan_new_pools as demo_func  # type: ignore
-        await demo_func("url")
+        pools = await demo_func("url")
     finally:
         if orig is not None:
             sys.modules[mod_name] = orig
@@ -238,6 +244,7 @@ async def _demo_dex_scanner() -> None:
             del sys.modules[mod_name]
 
     used_trade_types.add("dex_scanner")
+    return [str(p) for p in pools]
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -477,6 +484,30 @@ def main(argv: List[str] | None = None) -> None:
             for row in trade_history:
                 writer.writerow(row)
 
+    # Exercise trade types via lightweight stubs
+    async def _exercise_trade_types() -> Dict[str, object]:
+        arb, fl, sniped, pools = await asyncio.gather(
+            _demo_arbitrage(),
+            _demo_flash_loan(),
+            _demo_sniper(),
+            _demo_dex_scanner(),
+        )
+        return {
+            "arbitrage_profit": arb,
+            "flash_loan_profit": fl,
+            "sniper_tokens": sniped,
+            "dex_new_pools": pools,
+        }
+
+    trade_outputs = asyncio.run(_exercise_trade_types())
+
+    required = {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
+    missing = required - used_trade_types
+    if missing:
+        raise RuntimeError(
+            f"Demo did not exercise trade types: {', '.join(sorted(missing))}"
+        )
+
     # Collect resource usage metrics if available
     cpu_usage = None
     mem_pct = None
@@ -487,7 +518,7 @@ def main(argv: List[str] | None = None) -> None:
         except Exception:
             pass
 
-    # Write highlights summarising top performing strategy
+    # Write highlights summarising top performing strategy and trade results
     top = None
     if summary:
         top = max(summary, key=lambda e: e["final_capital"])
@@ -500,6 +531,7 @@ def main(argv: List[str] | None = None) -> None:
             highlights["cpu_usage"] = cpu_usage
         if mem_pct is not None:
             highlights["memory_percent"] = mem_pct
+        highlights.update(trade_outputs)
         with open(args.reports / "highlights.json", "w", encoding="utf-8") as hf:
             json.dump(highlights, hf, indent=2)
 
@@ -520,26 +552,11 @@ def main(argv: List[str] | None = None) -> None:
         print(
             f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
         )
+    print("Trade type results:", json.dumps(trade_outputs))
     if cpu_usage is not None and mem_pct is not None:
         print(
             f"Resource usage - CPU: {cpu_usage:.2f}% Memory: {mem_pct:.2f}%"
         )
-
-    # Exercise trade types via lightweight stubs
-    async def _exercise_trade_types() -> None:
-        await asyncio.gather(
-            _demo_arbitrage(),
-            _demo_flash_loan(),
-            _demo_sniper(),
-            _demo_dex_scanner(),
-        )
-
-    asyncio.run(_exercise_trade_types())
-
-    required = {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
-    missing = required - used_trade_types
-    if missing:
-        raise RuntimeError(f"Demo did not exercise trade types: {', '.join(sorted(missing))}")
 
     print(f"Wrote reports to {args.reports}")
 
