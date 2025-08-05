@@ -26,10 +26,23 @@ def _run_and_check(
 
     strategies = {"buy_hold", "momentum", "mean_reversion", "mixed"}
     pattern = re.compile(
-        r"^(buy_hold|momentum|mean_reversion|mixed):\s*(\d+(?:\.\d+)?)$",
+        r"^(buy_hold|momentum|mean_reversion|mixed):\s*"
+        r"(?P<capital>-?\d+(?:\.\d+)?)\s+"
+        r"ROI\s+(?P<roi>-?\d+(?:\.\d+)?)\s+"
+        r"Sharpe\s+(?P<sharpe>-?\d+(?:\.\d+)?)\s+"
+        r"Drawdown\s+(?P<drawdown>-?\d+(?:\.\d+)?)\s+"
+        r"Win rate\s+(?P<win_rate>-?\d+(?:\.\d+)?)$",
         re.MULTILINE,
     )
-    matches = {name: float(val) for name, val in pattern.findall(result.stdout)}
+    matches: dict[str, dict[str, float]] = {}
+    for m in pattern.finditer(result.stdout):
+        matches[m.group(1)] = {
+            "final_capital": float(m.group("capital")),
+            "roi": float(m.group("roi")),
+            "sharpe": float(m.group("sharpe")),
+            "drawdown": float(m.group("drawdown")),
+            "win_rate": float(m.group("win_rate")),
+        }
     assert strategies <= matches.keys(), f"Missing strategies: {strategies - matches.keys()}"
 
     summary_json = reports_dir / "summary.json"
@@ -44,10 +57,17 @@ def _run_and_check(
         float(row["win_rate"])
 
     summary_data = json.loads(summary_json.read_text())
-    capital_map = {row["config"]: row["final_capital"] for row in summary_data}
-    assert strategies <= capital_map.keys()
+    summary_map = {row["config"]: row for row in summary_data}
+    assert strategies <= summary_map.keys()
     for name, printed in matches.items():
-        assert printed == pytest.approx(capital_map[name], abs=0.01)
+        exp = summary_map[name]
+        assert printed["final_capital"] == pytest.approx(
+            exp["final_capital"], abs=0.01
+        )
+        assert printed["roi"] == pytest.approx(exp["roi"], abs=1e-4)
+        assert printed["sharpe"] == pytest.approx(exp["sharpe"], abs=1e-4)
+        assert printed["drawdown"] == pytest.approx(exp["drawdown"], abs=1e-4)
+        assert printed["win_rate"] == pytest.approx(exp["win_rate"], abs=1e-4)
 
     trade_history_csv = reports_dir / "trade_history.csv"
     highlights_json = reports_dir / "highlights.json"
