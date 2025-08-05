@@ -5,7 +5,25 @@ from typing import Mapping, Sequence
 
 import logging
 import os
-import numpy as np
+import math
+try:  # pragma: no cover - optional dependency
+    import numpy as _np  # type: ignore
+    if not hasattr(_np, "sort"):
+        raise ImportError
+    np = _np  # type: ignore
+except Exception:  # pragma: no cover - numpy not available or incomplete
+    np = None  # type: ignore
+
+if np is None:
+    class _Matrix(list):  # pragma: no cover - simple matrix fallback
+        @property
+        def shape(self) -> tuple[int, int]:
+            if not self:
+                return (0, 0)
+            return (len(self), len(self[0]))
+
+        def tolist(self) -> list[list[float]]:
+            return [row[:] for row in self]
 
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
@@ -54,6 +72,18 @@ def hedge_ratio(a: Sequence[float], b: Sequence[float]) -> float:
     if len(a) < 2 or len(b) < 2:
         return 0.0
     n = min(len(a), len(b))
+    if np is None:
+        arr_a = [float(x) for x in a[-n:]]
+        arr_b = [float(x) for x in b[-n:]]
+        ret_a = [arr_a[i + 1] / arr_a[i] - 1 for i in range(n - 1)]
+        ret_b = [arr_b[i + 1] / arr_b[i] - 1 for i in range(n - 1)]
+        mean_b = sum(ret_b) / len(ret_b)
+        var_b = sum((x - mean_b) ** 2 for x in ret_b) / len(ret_b)
+        if var_b == 0:
+            return 0.0
+        mean_a = sum(ret_a) / len(ret_a)
+        cov = sum((ra - mean_a) * (rb - mean_b) for ra, rb in zip(ret_a, ret_b)) / len(ret_a)
+        return cov / var_b
     arr_a = np.asarray(a[-n:], dtype=float)
     arr_b = np.asarray(b[-n:], dtype=float)
     ret_a = arr_a[1:] / arr_a[:-1] - 1
@@ -157,6 +187,13 @@ def conditional_value_at_risk(
 
     if len(returns) == 0:
         return 0.0
+    if np is None:
+        arr = sorted(float(x) for x in returns)
+        cutoff = int((1 - confidence) * len(arr))
+        cutoff = max(1, cutoff)
+        tail = arr[:cutoff]
+        cvar = -sum(tail) / len(tail)
+        return max(cvar, 0.0)
     arr = np.sort(np.asarray(returns, dtype=float))
     cutoff = int((1 - confidence) * len(arr))
     cutoff = max(1, cutoff)
@@ -179,6 +216,22 @@ def entropic_value_at_risk(
 
     if len(returns) == 0:
         return 0.0
+    if np is None:
+        arr = [float(x) for x in returns]
+        losses = [-x for x in arr]
+        if all(abs(l) < 1e-12 for l in losses):
+            return 0.0
+        if steps <= 1:
+            ts = [10 ** -3]
+        else:
+            ts = [10 ** (-3 + (4) * i / (steps - 1)) for i in range(steps)]
+        bound = float("inf")
+        for t in ts:
+            mean_exp = sum(math.exp(t * l) for l in losses) / len(losses)
+            val = (math.log(mean_exp) - math.log(1 - confidence)) / t
+            if val < bound:
+                bound = val
+        return max(bound, 0.0)
 
     arr = np.asarray(returns, dtype=float)
     losses = -arr
@@ -200,15 +253,34 @@ def covariance_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
 
     series = []
     for seq in prices.values():
-        arr = np.asarray(seq, dtype=float)
-        if len(arr) < 2:
-            continue
-        rets = arr[1:] / arr[:-1] - 1
+        if np is None:
+            arr = [float(x) for x in seq]
+            if len(arr) < 2:
+                continue
+            rets = [arr[i + 1] / arr[i] - 1 for i in range(len(arr) - 1)]
+        else:
+            arr = np.asarray(seq, dtype=float)
+            if len(arr) < 2:
+                continue
+            rets = arr[1:] / arr[:-1] - 1
         series.append(rets)
     if not series:
-        return np.empty((0, 0))
+        return np.empty((0, 0)) if np is not None else []
     min_len = min(len(s) for s in series)
-    mat = np.vstack([s[:min_len] for s in series])
+    trimmed = [s[:min_len] for s in series]
+    if np is None:
+        n = len(trimmed)
+        means = [sum(t) / min_len for t in trimmed]
+        cov = [[0.0] * n for _ in range(n)]
+        for i in range(n):
+            for j in range(n):
+                cov_ij = sum(
+                    (trimmed[i][k] - means[i]) * (trimmed[j][k] - means[j])
+                    for k in range(min_len)
+                ) / min_len
+                cov[i][j] = cov_ij
+        return _Matrix(cov)
+    mat = np.vstack(trimmed)
     return np.cov(mat)
 
 
@@ -226,16 +298,27 @@ def portfolio_cvar(
         seq = prices.get(tok)
         if seq is None or len(seq) < 2:
             continue
-        arr = np.asarray(seq, dtype=float)
-        rets = arr[1:] / arr[:-1] - 1
+        if np is None:
+            arr = [float(x) for x in seq]
+            rets = [arr[i + 1] / arr[i] - 1 for i in range(len(arr) - 1)]
+        else:
+            arr = np.asarray(seq, dtype=float)
+            rets = arr[1:] / arr[:-1] - 1
         series.append(rets)
         w_list.append(w)
     if not series:
         return 0.0
     min_len = min(len(s) for s in series)
-    mat = np.vstack([s[:min_len] for s in series]).T
-    w = np.asarray(w_list, dtype=float)
-    port_rets = mat @ w
+    series = [s[:min_len] for s in series]
+    if np is None:
+        port_rets = [
+            sum(series[j][i] * w_list[j] for j in range(len(w_list)))
+            for i in range(min_len)
+        ]
+    else:
+        mat = np.vstack(series).T
+        w = np.asarray(w_list, dtype=float)
+        port_rets = mat @ w
     return conditional_value_at_risk(port_rets, confidence)
 
 
@@ -255,16 +338,27 @@ def portfolio_evar(
         seq = prices.get(tok)
         if seq is None or len(seq) < 2:
             continue
-        arr = np.asarray(seq, dtype=float)
-        rets = arr[1:] / arr[:-1] - 1
+        if np is None:
+            arr = [float(x) for x in seq]
+            rets = [arr[i + 1] / arr[i] - 1 for i in range(len(arr) - 1)]
+        else:
+            arr = np.asarray(seq, dtype=float)
+            rets = arr[1:] / arr[:-1] - 1
         series.append(rets)
         w_list.append(w)
     if not series:
         return 0.0
     min_len = min(len(s) for s in series)
-    mat = np.vstack([s[:min_len] for s in series]).T
-    w = np.asarray(w_list, dtype=float)
-    port_rets = mat @ w
+    series = [s[:min_len] for s in series]
+    if np is None:
+        port_rets = [
+            sum(series[j][i] * w_list[j] for j in range(len(w_list)))
+            for i in range(min_len)
+        ]
+    else:
+        mat = np.vstack(series).T
+        w = np.asarray(w_list, dtype=float)
+        port_rets = mat @ w
     return entropic_value_at_risk(port_rets, confidence, steps=steps)
 
 
@@ -275,6 +369,18 @@ PORTFOLIO_EVAR_FUNC = portfolio_evar
 def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
     """Return portfolio variance given covariance ``cov`` and ``weights``."""
 
+    if np is None:
+        if not cov:
+            return 0.0
+        w = [float(x) for x in weights]
+        n = len(w)
+        if len(cov) != n or any(len(row) != n for row in cov):
+            return 0.0
+        total = 0.0
+        for i in range(n):
+            for j in range(n):
+                total += w[i] * cov[i][j] * w[j]
+        return float(total)
     if cov.size == 0:
         return 0.0
     w = np.asarray(list(weights), dtype=float)
@@ -286,18 +392,41 @@ def portfolio_variance(cov: np.ndarray, weights: Sequence[float]) -> float:
 @njit
 def correlation_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
     """Return correlation matrix of token returns."""
-
     series = []
     for seq in prices.values():
-        arr = np.asarray(seq, dtype=float)
-        if len(arr) < 2:
-            continue
-        rets = arr[1:] / arr[:-1] - 1
+        if np is None:
+            arr = [float(x) for x in seq]
+            if len(arr) < 2:
+                continue
+            rets = [arr[i + 1] / arr[i] - 1 for i in range(len(arr) - 1)]
+        else:
+            arr = np.asarray(seq, dtype=float)
+            if len(arr) < 2:
+                continue
+            rets = arr[1:] / arr[:-1] - 1
         series.append(rets)
     if not series:
-        return np.empty((0, 0))
+        return np.empty((0, 0)) if np is not None else []
     min_len = min(len(s) for s in series)
-    mat = np.vstack([s[:min_len] for s in series])
+    series = [s[:min_len] for s in series]
+    if np is None:
+        n = len(series)
+        means = [sum(s) / min_len for s in series]
+        stds = [math.sqrt(sum((s[k] - means[i]) ** 2 for k in range(min_len)) / min_len) for i, s in enumerate(series)]
+        corr = [[0.0] * n for _ in range(n)]
+        for i in range(n):
+            for j in range(n):
+                denom = stds[i] * stds[j]
+                if denom == 0:
+                    corr[i][j] = 0.0
+                else:
+                    cov_ij = sum(
+                        (series[i][k] - means[i]) * (series[j][k] - means[j])
+                        for k in range(min_len)
+                    ) / min_len
+                    corr[i][j] = cov_ij / denom
+        return _Matrix(corr)
+    mat = np.vstack(series)
     return np.corrcoef(mat)
 
 
@@ -305,6 +434,18 @@ def average_correlation(prices: Mapping[str, Sequence[float]]) -> float:
     """Return average pairwise correlation for ``prices``."""
 
     corr = correlation_matrix(prices)
+    if np is None:
+        if not corr:
+            return 0.0
+        n = len(corr)
+        if n <= 1:
+            return 0.0
+        total = 0.0
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    total += corr[i][j]
+        return float(total / (n * (n - 1)))
     if corr.size == 0:
         return 0.0
     n = corr.shape[0]
@@ -489,7 +630,7 @@ class RiskManager:
                 var_model = _get_var_model(var_model_path)
             except Exception:
                 var_model = None
-            if var_model is not None:
+            if var_model is not None and np is not None:
                 seq_len = getattr(var_model, "seq_len", len(prices))
                 if len(prices) >= seq_len:
                     seq = np.asarray(prices[-seq_len:], dtype=float)
