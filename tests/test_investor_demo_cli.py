@@ -34,14 +34,18 @@ def _run_and_check(
         r"Win rate\s+(?P<win_rate>-?\d+(?:\.\d+)?)$",
         re.MULTILINE,
     )
+    metric_groups = {
+        "final_capital": "capital",
+        "roi": "roi",
+        "sharpe": "sharpe",
+        "drawdown": "drawdown",
+        "win_rate": "win_rate",
+    }
     matches: dict[str, dict[str, float]] = {}
     for m in pattern.finditer(result.stdout):
         matches[m.group(1)] = {
-            "final_capital": float(m.group("capital")),
-            "roi": float(m.group("roi")),
-            "sharpe": float(m.group("sharpe")),
-            "drawdown": float(m.group("drawdown")),
-            "win_rate": float(m.group("win_rate")),
+            metric: float(m.group(group))
+            for metric, group in metric_groups.items()
         }
     assert strategies <= matches.keys(), f"Missing strategies: {strategies - matches.keys()}"
 
