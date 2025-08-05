@@ -175,6 +175,7 @@ async def _demo_flash_loan() -> None:
 
 
 def main(argv: List[str] | None = None) -> None:
+    used_trade_types.clear()
     parser = argparse.ArgumentParser(description="Investor demo backtest")
     parser.add_argument(
         "--data",
