@@ -73,6 +73,33 @@ PRESET_DATA_FILES: Dict[str, Path] = {
 }
 
 
+def _fetch_live_prices(token: str = "bitcoin", days: int = 30) -> Tuple[List[float], List[str]]:
+    """Fetch recent prices for ``token`` from a public API.
+
+    Uses the CoinGecko ``market_chart`` endpoint which returns a list of
+    ``[timestamp, price]`` pairs.  Timestamps are converted to ISO date strings
+    to mirror the structure of the bundled datasets.
+    """
+
+    import datetime as _dt
+    import json as _json
+    from urllib import request as _request
+
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/{token}/market_chart?vs_currency=usd&days={days}"
+    )
+    with _request.urlopen(url, timeout=10) as resp:  # nosec B310 - trusted API
+        payload = _json.load(resp)
+    prices: List[float] = []
+    dates: List[str] = []
+    for ts, price in payload.get("prices", []):
+        prices.append(float(price))
+        dates.append(_dt.datetime.utcfromtimestamp(ts / 1000).date().isoformat())
+    if not prices:
+        raise ValueError("No price data returned from API")
+    return prices, dates
+
+
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> List[float]:
     """Aggregate strategy returns weighted by ``weights``.
 
@@ -125,8 +152,10 @@ def max_drawdown(returns: List[float]) -> float:
 def load_prices(
     path: Path | None = None,
     preset: str | None = None,
+    *,
+    fetch: bool = False,
 ) -> Union[Tuple[List[float], List[str]], Dict[str, Tuple[List[float], List[str]]]]:
-    """Load a JSON price dataset.
+    """Load a JSON price dataset or fetch recent data.
 
     The legacy dataset format is a list of ``{"date", "price"}`` objects which
     represents a single token.  To support scenarios with multiple tokens this
@@ -138,6 +167,15 @@ def load_prices(
 
     if path is not None and preset is not None:
         raise ValueError("Provide only one of 'path' or 'preset'")
+
+    if fetch:
+        try:
+            return _fetch_live_prices()
+        except Exception as exc:  # pragma: no cover - network failures
+            print(
+                f"Failed to fetch live prices: {exc}. Falling back to bundled data",
+                file=sys.stderr,
+            )
 
     if preset is not None:
         data_path = PRESET_DATA_FILES.get(preset)
@@ -353,6 +391,11 @@ def main(argv: List[str] | None = None) -> None:
         help="Load a bundled price dataset",
     )
     parser.add_argument(
+        "--live-data",
+        action="store_true",
+        help="Fetch recent prices from an external API",
+    )
+    parser.add_argument(
         "--reports",
         type=Path,
         default=Path("reports"),
@@ -366,7 +409,7 @@ def main(argv: List[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    loaded = load_prices(args.data, args.preset)
+    loaded = load_prices(args.data, args.preset, fetch=args.live_data)
     if isinstance(loaded, dict):
         price_map = loaded
     else:

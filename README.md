@@ -988,6 +988,14 @@ solhunter-demo --preset multi --capital 100 --reports reports
 solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --capital 100 --reports reports
 ```
 
+To fetch recent prices from an external API instead of the bundled datasets,
+pass ``--live-data``.  The demo falls back to the packaged data if the
+request fails:
+
+```bash
+solhunter-demo --live-data --capital 100 --reports reports
+```
+
 The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
 Strategy weights can be negative to model short positions; the demo normalises
 aggregated returns by the sum of absolute weights so offsetting long/short

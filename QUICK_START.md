@@ -20,3 +20,10 @@
   # or
   solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --reports reports
   ```
+
+  Fetch recent prices from a public API with ``--live-data``.  If the request
+  fails the demo falls back to the bundled dataset:
+
+  ```bash
+  solhunter-demo --live-data --reports reports
+  ```
