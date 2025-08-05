@@ -134,6 +134,7 @@ def main(argv: List[str] | None = None) -> None:
             "final_capital": final_capital,
         }
         summary.append(metrics)
+        print(f"Config {name}: start={args.capital}, end={final_capital}")
 
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore
