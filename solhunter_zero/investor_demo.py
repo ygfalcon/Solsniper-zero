@@ -531,6 +531,67 @@ def main(argv: List[str] | None = None) -> None:
         for row in summary:
             writer.writerow(row)
 
+    # Derive an aggregate view across tokens using the best strategy for each
+    # token.  ``summary`` holds a row for every (token, strategy) pair so we
+    # select the strategy with the highest final capital per token and compute
+    # global metrics from those winners.
+    per_token_best: Dict[str, Dict[str, float | int | str]] = {}
+    for row in summary:
+        tok = str(row["token"])
+        existing = per_token_best.get(tok)
+        if existing is None or float(row["final_capital"]) > float(existing["final_capital"]):
+            per_token_best[tok] = row
+
+    agg_rows = [
+        {
+            "token": t,
+            "strategy": r["config"],
+            "roi": r["roi"],
+            "sharpe": r["sharpe"],
+            "final_capital": r["final_capital"],
+        }
+        for t, r in per_token_best.items()
+    ]
+
+    global_roi = (
+        sum(float(r["roi"]) for r in agg_rows) / len(agg_rows) if agg_rows else 0.0
+    )
+    global_sharpe = (
+        sum(float(r["sharpe"]) for r in agg_rows) / len(agg_rows)
+        if agg_rows
+        else 0.0
+    )
+
+    top = max(summary, key=lambda e: e["final_capital"]) if summary else None
+
+    aggregate: Dict[str, object] = {
+        "global_roi": global_roi,
+        "global_sharpe": global_sharpe,
+        "per_token": agg_rows,
+    }
+    if top is not None:
+        aggregate.update(
+            {
+                "top_token": top["token"],
+                "top_strategy": top["config"],
+                "top_final_capital": top["final_capital"],
+                "top_roi": top["roi"],
+                "top_sharpe": top["sharpe"],
+            }
+        )
+
+    agg_json = args.reports / "aggregate_summary.json"
+    agg_csv = args.reports / "aggregate_summary.csv"
+    with open(agg_json, "w", encoding="utf-8") as af:
+        json.dump(aggregate, af, indent=2)
+    with open(agg_csv, "w", newline="", encoding="utf-8") as cf:
+        writer = csv.DictWriter(
+            cf, fieldnames=["token", "strategy", "roi", "sharpe", "final_capital"]
+        )
+        writer.writeheader()
+        for row in agg_rows:
+            writer.writerow(row)
+
     # Write trade history in CSV and JSON for inspection
     hist_csv = args.reports / "trade_history.csv"
     hist_json = args.reports / "trade_history.json"
@@ -591,9 +652,7 @@ def main(argv: List[str] | None = None) -> None:
             pass
 
     # Write highlights summarising top performing strategy and trade results
-    top = None
-    if summary:
-        top = max(summary, key=lambda e: e["final_capital"])
+    if top is not None:
         highlights = {
             "top_strategy": top["config"],
             "top_final_capital": top["final_capital"],
