@@ -7,6 +7,9 @@ import pytest
 from solhunter_zero import investor_demo
 
 
+pytestmark = pytest.mark.timeout(30)
+
+
 def test_investor_demo(tmp_path, monkeypatch):
     calls: dict[str, object] = {}
 

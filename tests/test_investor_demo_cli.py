@@ -41,6 +41,7 @@ def _run_and_check(cmd: list[str], reports_dir: Path, repo_root: Path, env: dict
     shutil.rmtree(reports_dir)
 
 
+@pytest.mark.timeout(30)
 @pytest.mark.integration
 def test_investor_demo_cli(tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
