@@ -33,8 +33,7 @@ def _momentum(prices: List[float]) -> List[float]:
     returns: List[float] = []
     for i in range(1, len(prices)):
         r = (prices[i] - prices[i - 1]) / prices[i - 1]
-        if r > 0:
-            returns.append(r)
+        returns.append(r if r > 0 else 0.0)
     return returns
 
 
@@ -49,8 +48,7 @@ def _mean_reversion(prices: List[float]) -> List[float]:
     returns: List[float] = []
     for i in range(1, len(prices)):
         r = (prices[i] - prices[i - 1]) / prices[i - 1]
-        if r < 0:
-            returns.append(-r)
+        returns.append(-r if r < 0 else 0.0)
     return returns
 
 
@@ -218,7 +216,7 @@ def main(argv: List[str] | None = None) -> None:
     }
 
     args.reports.mkdir(parents=True, exist_ok=True)
-    summary: List[Dict[str, float]] = []
+    summary: List[Dict[str, float | int]] = []
     trade_history: List[Dict[str, float | str]] = []
 
     for name, weights in configs.items():
@@ -234,10 +232,15 @@ def main(argv: List[str] | None = None) -> None:
             variance = sum((r - mean) ** 2 for r in returns) / len(returns)
             vol = variance ** 0.5
             sharpe = mean / vol if vol else 0.0
+            trades = sum(1 for r in returns if r != 0)
+            wins = sum(1 for r in returns if r > 0)
+            losses = sum(1 for r in returns if r < 0)
         else:
             cum = []
             roi = 0.0
             sharpe = 0.0
+            vol = 0.0
+            trades = wins = losses = 0
         dd = max_drawdown(returns)
         final_capital = args.capital * (1 + roi)
         metrics = {
@@ -245,6 +248,10 @@ def main(argv: List[str] | None = None) -> None:
             "roi": roi,
             "sharpe": sharpe,
             "drawdown": dd,
+            "volatility": vol,
+            "trades": trades,
+            "wins": wins,
+            "losses": losses,
             "final_capital": final_capital,
         }
         summary.append(metrics)
