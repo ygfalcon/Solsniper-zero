@@ -227,10 +227,14 @@ async def _demo_flash_loan() -> str | None:
     except ImportError as exc:
         print(f"Flash loan demo skipped: {exc}")
         return None
-    from solders.keypair import Keypair
-    from solders.instruction import Instruction, AccountMeta
-    from solders.pubkey import Pubkey
-    from solders.hash import Hash
+    try:
+        from solders.keypair import Keypair
+        from solders.instruction import Instruction, AccountMeta
+        from solders.pubkey import Pubkey
+        from solders.hash import Hash
+    except ImportError as exc:
+        print(f"Flash loan demo skipped: {exc}")
+        return None
     import types
 
     class DummyClient:
