@@ -980,7 +980,7 @@ Run a lightweight backtest to showcase strategy performance for potential invest
 python scripts/investor_demo.py --data tests/data/prices.json --capital 100 --reports reports
 ```
 
-The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. It writes a summary JSON and CSV and prints a confirmation like `Wrote reports to reports`.
+The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. It writes a summary JSON and CSV, a per‑period `trade_history.csv`, and a `highlights.json` with standout metrics. The CLI prints a capital summary including the top performer and finishes with a confirmation like `Wrote reports to reports`.
 
 Sample `summary.json`:
 
@@ -997,6 +997,15 @@ Sample `summary.json`:
 config,roi,sharpe,drawdown,final_capital
 buy_hold,0.021,0.478,0.009,102.14
 ...
+```
+
+`trade_history.csv` tracks capital over each period for every strategy, while `highlights.json` captures the configurations with the highest ROI and the largest drawdown:
+
+```json
+{
+  "highest_roi": {"config": "buy_hold", "roi": 0.021, "final_capital": 102.14},
+  "largest_drawdown": {"config": "momentum", "drawdown": 0.015}
+}
 ```
 
 ## Additional Metrics

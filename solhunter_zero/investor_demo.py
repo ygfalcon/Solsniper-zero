@@ -205,16 +205,19 @@ def main(argv: List[str] | None = None) -> None:
     }
 
     args.reports.mkdir(parents=True, exist_ok=True)
-    summary: List[Dict[str, float]] = []
+    summary: List[Dict[str, float | str]] = []
+    trade_history: List[Dict[str, float | int | str]] = []
 
     for name, weights in configs.items():
         returns = compute_weighted_returns(prices, weights)
         if returns:
             cum: List[float] = []
+            capitals: List[float] = []
             total = 1.0
             for r in returns:
                 total *= 1 + r
                 cum.append(total)
+                capitals.append(args.capital * total)
             roi = cum[-1] - 1
             mean = sum(returns) / len(returns)
             variance = sum((r - mean) ** 2 for r in returns) / len(returns)
@@ -222,6 +225,7 @@ def main(argv: List[str] | None = None) -> None:
             sharpe = mean / vol if vol else 0.0
         else:
             cum = []
+            capitals = []
             roi = 0.0
             sharpe = 0.0
         dd = max_drawdown(returns)
@@ -234,6 +238,9 @@ def main(argv: List[str] | None = None) -> None:
             "final_capital": final_capital,
         }
         summary.append(metrics)
+
+        for period, cap in enumerate(capitals, start=1):
+            trade_history.append({"config": name, "period": period, "capital": cap})
 
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore
@@ -253,6 +260,7 @@ def main(argv: List[str] | None = None) -> None:
 
     json_path = args.reports / "summary.json"
     csv_path = args.reports / "summary.csv"
+    trade_path = args.reports / "trade_history.csv"
     with open(json_path, "w", encoding="utf-8") as jf:
         json.dump(summary, jf, indent=2)
     with open(csv_path, "w", newline="", encoding="utf-8") as cf:
@@ -260,6 +268,29 @@ def main(argv: List[str] | None = None) -> None:
         writer.writeheader()
         for row in summary:
             writer.writerow(row)
+    with open(trade_path, "w", newline="", encoding="utf-8") as tf:
+        writer = csv.DictWriter(tf, fieldnames=["config", "period", "capital"])
+        writer.writeheader()
+        for row in trade_history:
+            writer.writerow(row)
+
+    highlights: Dict[str, Dict[str, float | str]] = {}
+    if summary:
+        top_roi = max(summary, key=lambda r: r["roi"])
+        worst_dd = max(summary, key=lambda r: r["drawdown"])
+        highlights = {
+            "highest_roi": {
+                "config": top_roi["config"],
+                "roi": top_roi["roi"],
+                "final_capital": top_roi["final_capital"],
+            },
+            "largest_drawdown": {
+                "config": worst_dd["config"],
+                "drawdown": worst_dd["drawdown"],
+            },
+        }
+    with open(args.reports / "highlights.json", "w", encoding="utf-8") as hf:
+        json.dump(highlights, hf, indent=2)
 
     # Exercise trade types via lightweight stubs
     asyncio.run(_demo_arbitrage())
@@ -269,6 +300,15 @@ def main(argv: List[str] | None = None) -> None:
     missing = required - used_trade_types
     if missing:
         raise RuntimeError(f"Demo did not exercise trade types: {', '.join(sorted(missing))}")
+
+    print("Capital summary:")
+    for row in summary:
+        print(f"  {row['config']}: {row['final_capital']:.2f}")
+    if summary:
+        best = max(summary, key=lambda r: r["final_capital"])
+        print(
+            f"Top performer: {best['config']} with final capital {best['final_capital']:.2f}"
+        )
 
     print(f"Wrote reports to {args.reports}")
 
