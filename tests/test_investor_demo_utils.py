@@ -111,7 +111,8 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
 
 def test_demo_trade_recorded(monkeypatch, tmp_path):
     prices = [1.0, 2.0]
-    monkeypatch.setattr(investor_demo, "load_prices", lambda _=None: prices)
+    dates = ["2024-01-01", "2024-01-02"]
+    monkeypatch.setattr(investor_demo, "load_prices", lambda _=None: (prices, dates))
 
     class DummyMem:
         def __init__(self, *a, **k):

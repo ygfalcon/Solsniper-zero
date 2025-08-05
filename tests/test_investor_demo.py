@@ -152,7 +152,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     for row in csv_rows:
         parsed: dict[str, float | int | str] = {}
         for key, val in row.items():
-            if key == "config":
+            if key in {"config", "token"}:
                 parsed[key] = val
             elif key in {"trades", "wins", "losses"}:
                 parsed[key] = int(val)
