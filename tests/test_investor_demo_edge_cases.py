@@ -105,3 +105,15 @@ def test_load_prices_invalid_data(tmp_path, data):
     data_file.write_text(json.dumps(data))
     with pytest.raises(ValueError):
         investor_demo.load_prices(data_file)
+
+
+def test_investor_demo_empty_dataset(tmp_path):
+    data_file = tmp_path / "prices.json"
+    data_file.write_text("[]")
+    with pytest.raises(ValueError, match="price data must contain at least one entry"):
+        investor_demo.main([
+            "--data",
+            str(data_file),
+            "--reports",
+            str(tmp_path),
+        ])

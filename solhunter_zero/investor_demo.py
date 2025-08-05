@@ -340,6 +340,8 @@ def main(argv: List[str] | None = None) -> None:
     multi_token = len(price_map) > 1
 
     first_token, (prices, dates) = next(iter(price_map.items()))
+    if not prices or not dates:
+        raise ValueError("price data must contain at least one entry")
 
     # Demonstrate Memory usage and portfolio hedging using the first token
     mem = Memory("sqlite:///:memory:")
@@ -437,6 +439,8 @@ def main(argv: List[str] | None = None) -> None:
     trade_history: List[Dict[str, float | str]] = []
 
     for token, (prices, dates) in price_map.items():
+        if not prices or not dates:
+            raise ValueError("price data must contain at least one entry")
         for name, weights in configs.items():
             returns = compute_weighted_returns(prices, weights)
             if returns:
