@@ -14,6 +14,7 @@ from typing import Callable, Dict, List, Tuple
 
 from .memory import Memory
 from .portfolio import hedge_allocation
+from .risk import correlation_matrix
 
 
 # Track which trade types have been exercised by the demo
@@ -255,7 +256,49 @@ def main(argv: List[str] | None = None) -> None:
     mem.log_var(0.0)
     asyncio.run(mem.close())
 
-    _ = hedge_allocation({"buy_hold": 1.0, "momentum": 0.0}, {})
+    # Compute correlations between strategy returns
+    strategy_returns: Dict[str, List[float]] = {
+        name: strat(prices) for name, strat in DEFAULT_STRATEGIES
+    }
+    series: Dict[str, List[float]] = {}
+    for name, rets in strategy_returns.items():
+        if not rets:
+            continue
+        pseudo_prices = [1.0]
+        for r in rets:
+            pseudo_prices.append(pseudo_prices[-1] * (1 + r))
+        series[name] = pseudo_prices
+    corr_pairs: Dict[tuple[str, str], float] = {}
+    if len(series) >= 2:
+        try:
+            corr_mat = correlation_matrix(series)
+            keys = list(series.keys())
+            for i in range(len(keys)):
+                for j in range(i + 1, len(keys)):
+                    corr_pairs[(keys[i], keys[j])] = float(corr_mat[i, j])
+        except Exception:
+            keys = list(strategy_returns.keys())
+            for i in range(len(keys)):
+                for j in range(i + 1, len(keys)):
+                    a = strategy_returns[keys[i]]
+                    b = strategy_returns[keys[j]]
+                    n = min(len(a), len(b))
+                    if n == 0:
+                        continue
+                    a = a[:n]
+                    b = b[:n]
+                    ma = sum(a) / n
+                    mb = sum(b) / n
+                    va = sum((x - ma) ** 2 for x in a) / n
+                    vb = sum((y - mb) ** 2 for y in b) / n
+                    if va <= 0 or vb <= 0:
+                        c = 0.0
+                    else:
+                        cov = sum((a[k] - ma) * (b[k] - mb) for k in range(n)) / n
+                        c = cov / (va ** 0.5 * vb ** 0.5)
+                    corr_pairs[(keys[i], keys[j])] = c
+
+    _ = hedge_allocation({"buy_hold": 1.0, "momentum": 0.0}, corr_pairs)
 
     configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -320,7 +363,8 @@ def main(argv: List[str] | None = None) -> None:
                 "capital": capital,
             }
         )
-        for i, r in enumerate(returns, start=1):
+        for i in range(1, len(prices)):
+            r = returns[i - 1] if i - 1 < len(returns) else 0.0
             capital *= 1 + r
             action = "buy" if r > 0 else "sell" if r < 0 else "hold"
             trade_history.append(

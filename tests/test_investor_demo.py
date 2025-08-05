@@ -206,6 +206,8 @@ def test_investor_demo(tmp_path, monkeypatch):
     assert calls.get("mem_log_var") == 0.0
     assert calls.get("mem_closed")
     assert "hedge_called" in calls
+    _, corr_map = calls["hedge_called"]
+    assert corr_map, "hedge_allocation should receive correlations"
 
 
 def test_used_trade_types_reset(tmp_path, monkeypatch):
