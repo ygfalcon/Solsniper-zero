@@ -471,21 +471,21 @@ def main(argv: List[str] | None = None) -> None:
                     }
                 )
 
-        try:  # plotting hook
-            import matplotlib.pyplot as plt  # type: ignore
+            try:  # plotting hook
+                import matplotlib.pyplot as plt  # type: ignore
 
-            plt.figure()
-            if cum:
-                plt.plot(cum, label="Cumulative Return")
-            plt.title(f"Performance - {name}")
-            plt.xlabel("Period")
-            plt.ylabel("Growth")
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig(args.reports / f"{name}.png")
-            plt.close()
-        except Exception as exc:  # pragma: no cover - plotting optional
-            print(f"Plotting failed for {name}: {exc}")
+                plt.figure()
+                if cum:
+                    plt.plot(cum, label="Cumulative Return")
+                plt.title(f"Performance - {name}")
+                plt.xlabel("Period")
+                plt.ylabel("Growth")
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(args.reports / f"{token}_{name}.png")
+                plt.close()
+            except Exception as exc:  # pragma: no cover - plotting optional
+                print(f"Plotting failed for {token} {name}: {exc}")
 
     json_path = args.reports / "summary.json"
     csv_path = args.reports / "summary.csv"
