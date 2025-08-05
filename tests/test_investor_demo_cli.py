@@ -26,7 +26,8 @@ def _run_and_check(
 
     strategies = {"buy_hold", "momentum", "mean_reversion", "mixed"}
     pattern = re.compile(
-        r"^(buy_hold|momentum|mean_reversion|mixed):\s*"
+        r"^(?:(?P<token>\w+)\s+)?"
+        r"(?P<strategy>buy_hold|momentum|mean_reversion|mixed):\s*"
         r"(?P<capital>-?\d+(?:\.\d+)?)\s+"
         r"ROI\s+(?P<roi>-?\d+(?:\.\d+)?)\s+"
         r"Sharpe\s+(?P<sharpe>-?\d+(?:\.\d+)?)\s+"
@@ -41,13 +42,21 @@ def _run_and_check(
         "drawdown": "drawdown",
         "win_rate": "win_rate",
     }
-    matches: dict[str, dict[str, float]] = {}
+    matches: dict[tuple[str | None, str], dict[str, float]] = {}
     for m in pattern.finditer(result.stdout):
-        matches[m.group(1)] = {
+        matches[(m.group("token"), m.group("strategy"))] = {
             metric: float(m.group(group))
             for metric, group in metric_groups.items()
         }
-    assert strategies <= matches.keys(), f"Missing strategies: {strategies - matches.keys()}"
+
+    loaded_prices = investor_demo.load_prices(data_path)
+    if isinstance(loaded_prices, dict):
+        tokens = set(loaded_prices.keys())
+        for token in tokens:
+            for strat in strategies:
+                assert (token, strat) in matches, f"Missing {strat} for {token}"
+    else:
+        assert strategies <= {s for (_, s) in matches.keys()}
 
     match = re.search(r"Trade type results: (\{.*\})", result.stdout)
     assert match, "Trade type results not reported"
@@ -69,17 +78,43 @@ def _run_and_check(
         float(row["win_rate"])
 
     summary_data = json.loads(summary_json.read_text())
-    summary_map = {row["config"]: row for row in summary_data}
-    assert strategies <= summary_map.keys()
-    for name, printed in matches.items():
-        exp = summary_map[name]
-        assert printed["final_capital"] == pytest.approx(
-            exp["final_capital"], abs=0.01
-        )
-        assert printed["roi"] == pytest.approx(exp["roi"], abs=1e-4)
-        assert printed["sharpe"] == pytest.approx(exp["sharpe"], abs=1e-4)
-        assert printed["drawdown"] == pytest.approx(exp["drawdown"], abs=1e-4)
-        assert printed["win_rate"] == pytest.approx(exp["win_rate"], abs=1e-4)
+    if isinstance(loaded_prices, dict):
+        summary_map = {
+            (row["token"], row["config"]): row for row in summary_data
+        }
+        for key, printed in matches.items():
+            if key in summary_map:
+                exp = summary_map[key]
+                assert printed["final_capital"] == pytest.approx(
+                    exp["final_capital"], abs=0.01
+                )
+                assert printed["roi"] == pytest.approx(exp["roi"], abs=1e-4)
+                assert printed["sharpe"] == pytest.approx(exp["sharpe"], abs=1e-4)
+                assert printed["drawdown"] == pytest.approx(
+                    exp["drawdown"], abs=1e-4
+                )
+                assert printed["win_rate"] == pytest.approx(
+                    exp["win_rate"], abs=1e-4
+                )
+    else:
+        summary_map = {row["config"]: row for row in summary_data}
+        assert strategies <= summary_map.keys()
+        for (_, name), printed in matches.items():
+            if name in summary_map:
+                exp = summary_map[name]
+                assert printed["final_capital"] == pytest.approx(
+                    exp["final_capital"], abs=0.01
+                )
+                assert printed["roi"] == pytest.approx(exp["roi"], abs=1e-4)
+                assert printed["sharpe"] == pytest.approx(
+                    exp["sharpe"], abs=1e-4
+                )
+                assert printed["drawdown"] == pytest.approx(
+                    exp["drawdown"], abs=1e-4
+                )
+                assert printed["win_rate"] == pytest.approx(
+                    exp["win_rate"], abs=1e-4
+                )
 
     trade_history_csv = reports_dir / "trade_history.csv"
     highlights_json = reports_dir / "highlights.json"
@@ -89,9 +124,16 @@ def _run_and_check(
     assert rows, "Trade history CSV empty"
     first = rows[0]
     assert first["action"] == "buy"
-    prices, dates = investor_demo.load_prices(data_path)
-    assert float(first["price"]) == prices[0]
-    assert first["date"] == dates[0]
+    if isinstance(loaded_prices, dict):
+        tokens = set(loaded_prices.keys())
+        assert first["token"] in tokens
+        prices0, dates0 = loaded_prices[first["token"]]
+        assert float(first["price"]) == prices0[0]
+        assert first["date"] == dates0[0]
+    else:
+        prices0, dates0 = loaded_prices
+        assert float(first["price"]) == prices0[0]
+        assert first["date"] == dates0[0]
     assert any(r["strategy"] == "mean_reversion" for r in rows)
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
@@ -100,6 +142,10 @@ def _run_and_check(
     assert highlights_data.get("flash_loan_profit") == pytest.approx(0.1)
     assert highlights_data.get("sniper_tokens") == ["demo_token"]
     assert highlights_data.get("dex_new_pools") == ["pool_demo"]
+    if isinstance(loaded_prices, dict):
+        assert highlights_data.get("top_token") in tokens
+        assert "SOL buy_hold" in result.stdout
+        assert "ETH buy_hold" in result.stdout
 
     # Correlation and hedged weight outputs should exist
     corr_json = reports_dir / "correlations.json"
@@ -123,7 +169,11 @@ def _run_and_check(
         ["solhunter-demo"],
     ],
 )
-def test_investor_demo_cli(base_cmd, tmp_path):
+@pytest.mark.parametrize(
+    "data_file",
+    ["prices_short.json", "prices_multitoken.json"],
+)
+def test_investor_demo_cli(base_cmd, data_file, tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
     if base_cmd == ["solhunter-demo"]:
@@ -138,7 +188,7 @@ def test_investor_demo_cli(base_cmd, tmp_path):
         env = {**env, "PATH": f"{tmp_path}{os.pathsep}{env['PATH']}"}
 
     out = tmp_path / "run"
-    data_path = repo_root / "tests" / "data" / "prices_short.json"
+    data_path = repo_root / "tests" / "data" / data_file
     cmd = base_cmd + [
         "--data",
         str(data_path),
