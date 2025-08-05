@@ -58,9 +58,21 @@ def test_investor_demo(tmp_path):
     assert highlights, "Highlights JSON empty"
 
     # Highlight metrics should identify the top performing strategy
-    top_summary = max(content, key=lambda e: e["final_capital"])
-    assert highlights.get("top_strategy") == top_summary["config"]
-    assert highlights.get("top_final_capital") == top_summary["final_capital"]
+    top_strategy = highlights.get("top_strategy")
+    top_final_capital = highlights.get("top_final_capital")
+
+    # The highlighted strategy/capital pair must exist within the summary data
+    assert any(
+        entry["config"] == top_strategy
+        and entry["final_capital"] == top_final_capital
+        for entry in content
+    ), "Highlighted top_strategy/top_final_capital mismatch with summary.json"
+
+    # The highlighted final capital must equal the maximum from the summary
+    max_final_capital = max(entry["final_capital"] for entry in content)
+    assert (
+        top_final_capital == max_final_capital
+    ), "Highlighted top_final_capital does not match summary.json maximum"
 
     # Plot files are produced when matplotlib is installed
     if importlib.util.find_spec("matplotlib") is not None:
