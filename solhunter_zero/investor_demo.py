@@ -480,13 +480,16 @@ def main(argv: List[str] | None = None) -> None:
     # Display a simple capital summary on stdout
     print("Capital Summary:")
     for row in summary:
-        print(
+        # Include ROI and Sharpe ratio alongside final capital so that the CLI
+        # output mirrors the contents of ``summary.json``.
+        line = (
             f"{row['config']}: {row['final_capital']:.2f} "
             f"ROI {row['roi']:.4f} "
             f"Sharpe {row['sharpe']:.4f} "
             f"Drawdown {row['drawdown']:.4f} "
             f"Win rate {row['win_rate']:.4f}"
         )
+        print(line)
     if top:
         print(
             f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
