@@ -974,13 +974,22 @@ curl -X POST http://localhost:5000/memory/query \
 
 ## Investor Demo
 
-Run a lightweight backtest to showcase strategy performance for potential investors:
+Run a lightweight backtest to showcase strategy performance for potential investors. The demo now emits a trade-history file, a highlights summary and a console capital table alongside the existing CSV and JSON reports:
 
 ```bash
 python scripts/investor_demo.py --data tests/data/prices.json --capital 100 --reports reports
 ```
 
-The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. It writes a summary JSON and CSV and prints a confirmation like `Wrote reports to reports`.
+The script accepts `--data` for the historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
+It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.md` then prints a capital summary such as:
+
+```text
+Capital summary
+buy_hold : 102.14
+momentum : 103.88
+mixed    : 102.97
+Wrote reports to reports
+```
 
 Sample `summary.json`:
 
@@ -997,6 +1006,22 @@ Sample `summary.json`:
 config,roi,sharpe,drawdown,final_capital
 buy_hold,0.021,0.478,0.009,102.14
 ...
+```
+
+`trade_history.csv` lists the backtest trades for each strategy:
+
+```csv
+strategy,period,action,price,capital
+buy_hold,0,buy,1.00,100.00
+momentum,3,sell,1.12,112.00
+...
+```
+
+The `highlights.md` file summarizes key results:
+
+```text
+Top ROI: momentum
+Largest drawdown: buy_hold
 ```
 
 ## Additional Metrics
