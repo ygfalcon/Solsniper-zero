@@ -3,6 +3,12 @@ import pytest
 from solhunter_zero import investor_demo
 
 
+def test_default_price_data_size() -> None:
+    """ensure bundled investor demo data stays reasonably small"""
+    prices = investor_demo.load_prices()
+    assert len(prices) <= 2000
+
+
 def test_compute_weighted_returns_synthetic():
     prices = [10.0, 11.0, 9.0, 12.0]
     weights = {"buy_hold": 0.5, "momentum": 0.5}
