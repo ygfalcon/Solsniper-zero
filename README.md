@@ -545,6 +545,31 @@ to load token addresses from a file.
 Use `--strategy-rotation-interval N` with one or more `--weight-config` files
 to automatically test and switch weight presets every `N` iterations.
 
+## Investor Demo
+
+Run a small rolling backtest and generate lightweight reports:
+
+```bash
+python scripts/investor_demo.py --reports reports
+```
+
+This writes `summary.json`, `trade_history.csv` and `highlights.json` to the
+specified reports directory and prints brief snippets to the console.
+
+Enable a lightweight reinforcement‑learning stub:
+
+```bash
+python scripts/investor_demo.py --rl-demo --reports reports
+```
+
+Exercise the full system with heavier dependencies:
+
+```bash
+python scripts/investor_demo.py --full-system --reports reports
+```
+
+All modes emit the same report files along with console summaries.
+
 ## MEV Bundles
 
 When `use_mev_bundles` is enabled (the default), swaps are submitted
