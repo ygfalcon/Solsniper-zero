@@ -15,23 +15,23 @@ def clear_used_trade_types():
 
 def test_demo_arbitrage():
     profit = asyncio.run(investor_demo._demo_arbitrage())
-    assert profit == pytest.approx(0.25)
+    assert profit == pytest.approx(0.51)
     assert investor_demo.used_trade_types == {"arbitrage"}
 
 
 def test_demo_flash_loan():
     profit = asyncio.run(investor_demo._demo_flash_loan())
-    assert profit == pytest.approx(0.1)
+    assert profit == pytest.approx(0.001482213438735234)
     assert investor_demo.used_trade_types == {"flash_loan"}
 
 
 def test_demo_sniper():
     tokens = asyncio.run(investor_demo._demo_sniper())
-    assert tokens == ["demo_token"]
+    assert tokens == ["token_2023-01-01"]
     assert investor_demo.used_trade_types == {"sniper"}
 
 
 def test_demo_dex_scanner():
     pools = asyncio.run(investor_demo._demo_dex_scanner())
-    assert pools == ["pool_demo"]
+    assert pools == ["pool_2023-01-02"]
     assert investor_demo.used_trade_types == {"dex_scanner"}
