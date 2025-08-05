@@ -180,6 +180,17 @@ def test_investor_demo(tmp_path, monkeypatch):
     highlights = json.loads(highlights_path.read_text())
     assert highlights, "Highlights JSON empty"
 
+    # Correlation and hedged weight outputs should be generated
+    corr_path = tmp_path / "correlations.json"
+    hedged_path = tmp_path / "hedged_weights.json"
+    assert corr_path.exists(), "Correlations JSON not generated"
+    assert hedged_path.exists(), "Hedged weights JSON not generated"
+    corr_data = json.loads(corr_path.read_text())
+    hedged_data = json.loads(hedged_path.read_text())
+    assert "buy_hold-momentum" in corr_data
+    assert {"buy_hold", "momentum"} <= hedged_data.keys()
+    assert hedged_data["buy_hold"] + hedged_data["momentum"] == pytest.approx(1.0)
+
     # Highlight metrics should identify the top performing strategy
     top_strategy = highlights.get("top_strategy")
     top_final_capital = highlights.get("top_final_capital")
