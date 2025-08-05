@@ -781,20 +781,22 @@ settings.
 - [Poetry](https://python-poetry.org/) (optional but recommended)
 - [PyYAML](https://pyyaml.org/) for YAML configuration files
 - [solders](https://pypi.org/project/solders/) for Solana keypair operations
-- Optional: `faiss`, `sentence-transformers` and `torch` for advanced features
-  like semantic memory search, transformer-based models and deep reinforcement
-  learning. These packages are not required for the lightweight tests or
-  baseline trading functionality. Install them manually with:
-  ```bash
-  pip install faiss-cpu sentence-transformers torch pytorch-lightning
-  ```
-
-Install Python dependencies:
+Install Python dependencies for the investor demo and other lightweight
+examples:
 ```bash
-pip install .
+pip install .[demo]
 ```
 This uses the pinned dependency ranges defined in `pyproject.toml` for
 consistent installations.
+
+Heavy features such as semantic memory search, transformer models and
+reinforcement learning rely on additional libraries including `torch`,
+`pytorch-lightning`, `faiss-cpu`, `sentence-transformers`, `transformers` and
+`psutil`. Install them with:
+
+```bash
+pip install .[full]
+```
 
 For development you can also install the package in editable mode so changes are
 picked up automatically and the test suite has all required tools:
