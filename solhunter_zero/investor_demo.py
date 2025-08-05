@@ -39,7 +39,6 @@ from .risk import RiskManager
 
 # Packaged price data for the demo
 DATA_FILE = resources.files(__package__) / "data" / "investor_demo_prices.json"
-DEFAULT_DATA_PATH = Path(DATA_FILE)
 
 
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> np.ndarray:
@@ -79,9 +78,13 @@ def max_drawdown(returns: np.ndarray) -> float:
     return float(np.max(drawdowns))
 
 
-def load_prices(path: Path) -> List[float]:
+def load_prices(path: Path | None = None) -> List[float]:
     """Load a JSON price dataset into a list of floats."""
-    data = json.loads(path.read_text())
+    if path is None:
+        data_text = DATA_FILE.read_text()
+    else:
+        data_text = path.read_text()
+    data = json.loads(data_text)
     prices = [float(entry["price"]) for entry in data]
     return prices
 
@@ -91,7 +94,7 @@ def main(argv: List[str] | None = None) -> None:
     parser.add_argument(
         "--data",
         type=Path,
-        default=DEFAULT_DATA_PATH,
+        default=None,
         help="Path to JSON price history",
     )
     parser.add_argument(
