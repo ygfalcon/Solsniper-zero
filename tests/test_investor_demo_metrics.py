@@ -1,3 +1,4 @@
+import csv
 import json
 import sys
 import types
@@ -98,3 +99,19 @@ def test_aggregate_summary(tmp_path, monkeypatch):
     assert agg["top_final_capital"] == pytest.approx(top_row["final_capital"])
     assert agg["top_roi"] == pytest.approx(top_row["roi"])
     assert agg["top_sharpe"] == pytest.approx(top_row["sharpe"])
+
+    with (tmp_path / "aggregate_summary.csv").open() as f:
+        csv_rows = list(csv.DictReader(f))
+
+    assert len(csv_rows) == len(expected)
+
+    csv_map = {row["token"]: row for row in csv_rows}
+    exp_map = {r["token"]: r for r in expected}
+    assert set(csv_map) == set(exp_map)
+
+    for token, exp in exp_map.items():
+        row = csv_map[token]
+        assert row["strategy"] == exp["strategy"]
+        assert float(row["roi"]) == pytest.approx(exp["roi"])
+        assert float(row["sharpe"]) == pytest.approx(exp["sharpe"])
+        assert float(row["final_capital"]) == pytest.approx(exp["final_capital"])
