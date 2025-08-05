@@ -36,6 +36,32 @@ def test_investor_demo(tmp_path):
         for key in ["roi", "sharpe", "drawdown", "final_capital"]:
             assert key in entry
 
+    # Trade history and highlight files should be generated
+    trade_csv = tmp_path / "trade_history.csv"
+    trade_json = tmp_path / "trade_history.json"
+    assert trade_csv.exists() or trade_json.exists(), "Trade history not generated"
+    if trade_csv.exists():
+        trade_rows = list(csv.DictReader(trade_csv.open()))
+        assert trade_rows, "Trade history CSV empty"
+        assert all("capital" in r for r in trade_rows)
+        # Should record capital for periods beyond the starting point
+        assert any(int(r["period"]) > 0 for r in trade_rows)
+    else:
+        trade_data = json.loads(trade_json.read_text())
+        assert trade_data, "Trade history JSON empty"
+        assert all("capital" in r for r in trade_data)
+        assert any(r["period"] > 0 for r in trade_data)
+
+    highlights_path = tmp_path / "highlights.json"
+    assert highlights_path.exists(), "Highlights JSON not generated"
+    highlights = json.loads(highlights_path.read_text())
+    assert highlights, "Highlights JSON empty"
+
+    # Highlight metrics should identify the top performing strategy
+    top_summary = max(content, key=lambda e: e["final_capital"])
+    assert highlights.get("top_strategy") == top_summary["config"]
+    assert highlights.get("top_final_capital") == top_summary["final_capital"]
+
     # Plot files are produced when matplotlib is installed
     if importlib.util.find_spec("matplotlib") is not None:
         for name in ["buy_hold", "momentum", "mixed"]:
