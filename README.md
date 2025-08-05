@@ -1049,6 +1049,24 @@ Run a lightweight backtest to showcase strategy performance for potential invest
    `highlights.json` to the `reports` directory. This folder is ignored by Git
    so the generated reports remain local.
 
+### Demo helper script
+
+Run the complete setup with a single command:
+
+```bash
+scripts/run_demo.sh --reports reports
+```
+
+Append `--full-system` to install the heavy optional dependencies and exercise
+the full arbitrage and reinforcement‑learning pipeline:
+
+```bash
+scripts/run_demo.sh --full-system --reports reports
+```
+
+After completion the script prints the tail of `reports/summary.json` and
+`reports/highlights.json` so you can quickly review the results.
+
 The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. Strategy weights can be negative to model short positions; the demo normalises aggregated returns by the sum of absolute weights so offsetting long/short exposures still yield meaningful sequences. It prints trade type results, correlation stats and a capital summary such as:
 
 ```text
