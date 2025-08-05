@@ -32,9 +32,17 @@ def _manual_corr() -> dict[tuple[str, str], float]:
 def test_correlation_matrix_fallback(tmp_path, monkeypatch):
     class DummyMem:
         def __init__(self, *a, **k):
-            pass
+            self.trade: dict | None = None
+
+        async def log_trade(self, **kwargs):
+            self.trade = kwargs
+
+        async def list_trades(self, token: str):
+            return [self.trade] if self.trade else []
+
         def log_var(self, v: float) -> None:
             pass
+
         async def close(self) -> None:  # pragma: no cover - simple stub
             pass
 

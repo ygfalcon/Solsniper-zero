@@ -9,7 +9,13 @@ pytestmark = pytest.mark.timeout(30)
 def test_investor_demo_missing_types(tmp_path, monkeypatch):
     class DummyMem:
         def __init__(self, *a, **k):
-            pass
+            self.trade: dict | None = None
+
+        async def log_trade(self, **kwargs):
+            self.trade = kwargs
+
+        async def list_trades(self, token: str):
+            return [self.trade] if self.trade else []
 
         def log_var(self, value: float) -> None:
             pass

@@ -1,0 +1,33 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from solhunter_zero import investor_demo
+
+pytestmark = pytest.mark.timeout(30)
+
+
+def test_investor_demo_multitoken(tmp_path, capsys):
+    data_path = Path(__file__).resolve().parent / "data" / "prices_multitoken.json"
+    # Ensure loader returns mapping
+    loaded = investor_demo.load_prices(data_path)
+    assert isinstance(loaded, dict)
+    assert {"SOL", "ETH"} <= loaded.keys()
+
+    investor_demo.main(["--data", str(data_path), "--reports", str(tmp_path)])
+    out = capsys.readouterr().out
+    # Output should include token prefixes for strategies
+    assert "SOL buy_hold" in out
+    assert "ETH buy_hold" in out
+
+    summary = json.loads((tmp_path / "summary.json").read_text())
+    tokens = {row["token"] for row in summary}
+    assert {"SOL", "ETH"} <= tokens
+
+    trade_hist = json.loads((tmp_path / "trade_history.json").read_text())
+    hist_tokens = {row["token"] for row in trade_hist}
+    assert {"SOL", "ETH"} <= hist_tokens
+    # Every trade entry should be tagged by token
+    assert all("token" in row for row in trade_hist)
+

@@ -10,7 +10,7 @@ import sys
 import types
 from importlib import resources
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Union
 
 from .memory import Memory
 from .portfolio import hedge_allocation
@@ -112,29 +112,51 @@ def max_drawdown(returns: List[float]) -> float:
     return max(drawdowns) if drawdowns else 0.0
 
 
-def load_prices(path: Path | None = None) -> Tuple[List[float], List[str]]:
-    """Load a JSON price dataset into price and date lists."""
+def load_prices(
+    path: Path | None = None,
+) -> Union[Tuple[List[float], List[str]], Dict[str, Tuple[List[float], List[str]]]]:
+    """Load a JSON price dataset.
+
+    The legacy dataset format is a list of ``{"date", "price"}`` objects which
+    represents a single token.  To support scenarios with multiple tokens this
+    function also accepts a mapping of token name to such a list.  When a
+    mapping is provided the return value is a dictionary keyed by token whose
+    values are ``(prices, dates)`` tuples.  For backwards compatibility a list
+    input continues to return a single ``(prices, dates)`` tuple.
+    """
+
     if path is None:
         data_text = DATA_FILE.read_text()
     else:
         data_text = path.read_text()
     data = json.loads(data_text)
-    if not isinstance(data, list):
-        raise ValueError("Price data must be a list")
-    prices: List[float] = []
-    dates: List[str] = []
-    for entry in data:
-        if not isinstance(entry, dict) or "price" not in entry or "date" not in entry:
-            raise ValueError("Each entry must contain 'date' and numeric 'price'")
-        price = entry["price"]
-        date = entry["date"]
-        if not isinstance(price, (int, float)):
-            raise ValueError("Each entry must contain a numeric 'price'")
-        if not isinstance(date, str):
-            raise ValueError("Each entry must contain a string 'date'")
-        prices.append(float(price))
-        dates.append(date)
-    return prices, dates
+
+    def _parse(entries: List[object]) -> Tuple[List[float], List[str]]:
+        prices: List[float] = []
+        dates: List[str] = []
+        for entry in entries:
+            if not isinstance(entry, dict) or "price" not in entry or "date" not in entry:
+                raise ValueError("Each entry must contain 'date' and numeric 'price'")
+            price = entry["price"]
+            date = entry["date"]
+            if not isinstance(price, (int, float)):
+                raise ValueError("Each entry must contain a numeric 'price'")
+            if not isinstance(date, str):
+                raise ValueError("Each entry must contain a string 'date'")
+            prices.append(float(price))
+            dates.append(date)
+        return prices, dates
+
+    if isinstance(data, list):
+        return _parse(data)
+    if isinstance(data, dict):
+        out: Dict[str, Tuple[List[float], List[str]]] = {}
+        for token, entries in data.items():
+            if not isinstance(token, str) or not isinstance(entries, list):
+                raise ValueError("Price data mapping must be token -> list of entries")
+            out[token] = _parse(entries)
+        return out
+    raise ValueError("Price data must be a list or mapping of token to list")
 
 
 async def _demo_arbitrage() -> None:
@@ -275,16 +297,24 @@ def main(argv: List[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    prices, dates = load_prices(args.data)
+    loaded = load_prices(args.data)
+    if isinstance(loaded, dict):
+        price_map = loaded
+    else:
+        # Default token name for single-token datasets
+        price_map = {"demo": loaded}
+    multi_token = len(price_map) > 1
 
-    # Demonstrate Memory usage and portfolio hedging
+    first_token, (prices, dates) = next(iter(price_map.items()))
+
+    # Demonstrate Memory usage and portfolio hedging using the first token
     mem = Memory("sqlite:///:memory:")
 
     async def _record_demo_trade() -> None:
         await mem.log_trade(
-            token="demo", direction="buy", amount=1.0, price=prices[0]
+            token=first_token, direction="buy", amount=1.0, price=prices[0]
         )
-        trades = await mem.list_trades(token="demo")
+        trades = await mem.list_trades(token=first_token)
         assert len(trades) == 1
 
     asyncio.run(_record_demo_trade())
@@ -292,7 +322,7 @@ def main(argv: List[str] | None = None) -> None:
     mem.log_var(0.0)
     asyncio.run(mem.close())
 
-    # Compute correlations between strategy returns
+    # Compute correlations between strategy returns for the first token
     strategy_returns: Dict[str, List[float]] = {
         name: strat(prices) for name, strat in DEFAULT_STRATEGIES
     }
@@ -355,86 +385,91 @@ def main(argv: List[str] | None = None) -> None:
         json.dump(corr_out, cf, indent=2)
     with open(args.reports / "hedged_weights.json", "w", encoding="utf-8") as hf:
         json.dump(hedged_weights, hf, indent=2)
-    summary: List[Dict[str, float | int]] = []
+    summary: List[Dict[str, float | int | str]] = []
     trade_history: List[Dict[str, float | str]] = []
 
-    for name, weights in configs.items():
-        returns = compute_weighted_returns(prices, weights)
-        if returns:
-            cum: List[float] = []
-            total = 1.0
-            for r in returns:
-                total *= 1 + r
-                cum.append(total)
-            roi = cum[-1] - 1
-            mean = sum(returns) / len(returns)
-            variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-            vol = variance ** 0.5
-            sharpe = mean / vol if vol else 0.0
-            trades = sum(1 for r in returns if r != 0)
-            wins = sum(1 for r in returns if r > 0)
-            losses = sum(1 for r in returns if r < 0)
-            win_rate = wins / trades if trades else 0.0
-        else:
-            cum = []
-            roi = 0.0
-            sharpe = 0.0
-            vol = 0.0
-            trades = wins = losses = 0
-            win_rate = 0.0
-        dd = max_drawdown(returns)
-        final_capital = args.capital * (1 + roi)
-        metrics = {
-            "config": name,
-            "roi": roi,
-            "sharpe": sharpe,
-            "drawdown": dd,
-            "volatility": vol,
-            "trades": trades,
-            "wins": wins,
-            "losses": losses,
-            "win_rate": win_rate,
-            "final_capital": final_capital,
-        }
-        summary.append(metrics)
-
-        # record per-period capital history for this strategy
-        capital = args.capital
-        trade_history.append(
-            {
-                "strategy": name,
-                "period": 0,
-                "date": dates[0],
-                "action": "buy",
-                "price": prices[0],
-                "capital": capital,
+    for token, (prices, dates) in price_map.items():
+        for name, weights in configs.items():
+            returns = compute_weighted_returns(prices, weights)
+            if returns:
+                cum: List[float] = []
+                total = 1.0
+                for r in returns:
+                    total *= 1 + r
+                    cum.append(total)
+                roi = cum[-1] - 1
+                mean = sum(returns) / len(returns)
+                variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+                vol = variance ** 0.5
+                sharpe = mean / vol if vol else 0.0
+                trades = sum(1 for r in returns if r != 0)
+                wins = sum(1 for r in returns if r > 0)
+                losses = sum(1 for r in returns if r < 0)
+                win_rate = wins / trades if trades else 0.0
+            else:
+                cum = []
+                roi = 0.0
+                sharpe = 0.0
+                vol = 0.0
+                trades = wins = losses = 0
+                win_rate = 0.0
+            dd = max_drawdown(returns)
+            final_capital = args.capital * (1 + roi)
+            metrics = {
+                "token": token,
+                "config": name,
+                "roi": roi,
+                "sharpe": sharpe,
+                "drawdown": dd,
+                "volatility": vol,
+                "trades": trades,
+                "wins": wins,
+                "losses": losses,
+                "win_rate": win_rate,
+                "final_capital": final_capital,
             }
-        )
-        for i in range(1, len(prices)):
-            r = returns[i - 1] if i - 1 < len(returns) else 0.0
-            capital *= 1 + r
-            action = "buy" if r > 0 else "sell" if r < 0 else "hold"
+            summary.append(metrics)
+
+            # record per-period capital history for this strategy/token
+            capital = args.capital
             trade_history.append(
                 {
+                    "token": token,
                     "strategy": name,
-                    "period": i,
-                    "date": dates[i],
-                    "action": action,
-                    "price": prices[i],
+                    "period": 0,
+                    "date": dates[0],
+                    "action": "buy",
+                    "price": prices[0],
                     "capital": capital,
                 }
             )
-        for i in range(len(returns) + 1, len(prices)):
-            trade_history.append(
-                {
-                    "strategy": name,
-                    "period": i,
-                    "date": dates[i],
-                    "action": "hold",
-                    "price": prices[i],
-                    "capital": capital,
-                }
-            )
+            for i in range(1, len(prices)):
+                r = returns[i - 1] if i - 1 < len(returns) else 0.0
+                capital *= 1 + r
+                action = "buy" if r > 0 else "sell" if r < 0 else "hold"
+                trade_history.append(
+                    {
+                        "token": token,
+                        "strategy": name,
+                        "period": i,
+                        "date": dates[i],
+                        "action": action,
+                        "price": prices[i],
+                        "capital": capital,
+                    }
+                )
+            for i in range(len(returns) + 1, len(prices)):
+                trade_history.append(
+                    {
+                        "token": token,
+                        "strategy": name,
+                        "period": i,
+                        "date": dates[i],
+                        "action": "hold",
+                        "price": prices[i],
+                        "capital": capital,
+                    }
+                )
 
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore
@@ -472,6 +507,7 @@ def main(argv: List[str] | None = None) -> None:
             writer = csv.DictWriter(
                 cf,
                 fieldnames=[
+                    "token",
                     "strategy",
                     "period",
                     "date",
@@ -527,6 +563,8 @@ def main(argv: List[str] | None = None) -> None:
             "top_final_capital": top["final_capital"],
             "top_roi": top["roi"],
         }
+        if multi_token:
+            highlights["top_token"] = top["token"]
         if cpu_usage is not None:
             highlights["cpu_usage"] = cpu_usage
         if mem_pct is not None:
@@ -540,8 +578,9 @@ def main(argv: List[str] | None = None) -> None:
     for row in summary:
         # Include ROI and Sharpe ratio alongside final capital so that the CLI
         # output mirrors the contents of ``summary.json``.
+        prefix = f"{row['token']} {row['config']}" if multi_token else row["config"]
         line = (
-            f"{row['config']}: {row['final_capital']:.2f} "
+            f"{prefix}: {row['final_capital']:.2f} "
             f"ROI {row['roi']:.4f} "
             f"Sharpe {row['sharpe']:.4f} "
             f"Drawdown {row['drawdown']:.4f} "
@@ -549,8 +588,11 @@ def main(argv: List[str] | None = None) -> None:
         )
         print(line)
     if top:
+        top_prefix = (
+            f"{top['token']} {top['config']}" if multi_token else top["config"]
+        )
         print(
-            f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
+            f"Top strategy: {top_prefix} with final capital {top['final_capital']:.2f}"
         )
     print("Trade type results:", json.dumps(trade_outputs))
     if cpu_usage is not None and mem_pct is not None:
