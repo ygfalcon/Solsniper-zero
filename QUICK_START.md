@@ -14,6 +14,14 @@
   # or
   solhunter-demo --preset short --reports reports
   ```
+  
+  The command writes several report files to the chosen directory:
+
+  - `summary.json`: aggregated performance metrics for each strategy.
+  - `summary.csv`: the same metrics in CSV format for spreadsheets.
+  - `trade_history.csv`: tabular log of every executed trade.
+  - `trade_history.json`: structured trade log for programmatic analysis.
+  - `highlights.json`: key correlations, hedged weights and top results.
 
   The `reports/` directory is ignored by Git so these generated files stay
   local.
