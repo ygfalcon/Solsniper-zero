@@ -26,23 +26,32 @@ pytest
 
 ## Investor demo
 
-The investor demo performs a small rolling backtest and writes a JSON and CSV
-summary for each strategy. Run its test directly to generate these reports:
+The investor demo performs a small rolling backtest and writes lightweight
+reports for each strategy. Run its test directly to generate these files:
 
 ```bash
 pytest tests/test_investor_demo.py
 ```
 
-The test stores `summary.json` and `summary.csv` in a temporary reports
-directory. Each entry lists the configuration name along with metrics such as
-ROI, Sharpe ratio, maximum drawdown and final capital for strategies like
-`buy_hold`, `momentum` and `mixed`. Inspect either file to compare strategy
-performance.
+The test stores `summary.json`, `summary.csv`, `trade_history.csv` and
+`highlights.json` in a temporary reports directory. Each entry lists the
+configuration name along with metrics such as ROI, Sharpe ratio, maximum
+drawdown and final capital for strategies like `buy_hold`, `momentum` and
+`mixed`. Inspect any of the files to compare strategy performance.
 
-To run the demo from the command line specify an output folder:
+To run the demo from the command line specify an output folder. It is designed
+to run quickly even in restricted environments and accepts additional options to
+control the input data and starting capital:
 
 ```bash
-python scripts/investor_demo.py --reports reports
+python scripts/investor_demo.py --reports reports --data data.csv --capital 1000
+```
+
+After it finishes, inspect the generated reports:
+
+```bash
+head reports/trade_history.csv
+python -m json.tool reports/highlights.json
 ```
 
 To run the static analysis checks used in CI, execute:
