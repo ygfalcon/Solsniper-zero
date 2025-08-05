@@ -480,7 +480,13 @@ def main(argv: List[str] | None = None) -> None:
     # Display a simple capital summary on stdout
     print("Capital Summary:")
     for row in summary:
-        print(f"{row['config']}: {row['final_capital']:.2f}")
+        print(
+            f"{row['config']}: {row['final_capital']:.2f} "
+            f"ROI {row['roi']:.4f} "
+            f"Sharpe {row['sharpe']:.4f} "
+            f"Drawdown {row['drawdown']:.4f} "
+            f"Win rate {row['win_rate']:.4f}"
+        )
     if top:
         print(
             f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
