@@ -5,7 +5,11 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, Mapping
 
 from .risk import RiskManager
-import aiofiles
+
+try:  # Optional dependency
+    import aiofiles  # type: ignore
+except ImportError:  # pragma: no cover - fallback when aiofiles is missing
+    aiofiles = None  # type: ignore
 
 from .event_bus import publish
 from .schemas import PortfolioUpdated
@@ -73,6 +77,11 @@ class Portfolio:
     async def save_async(self) -> None:
         if not self.path:
             return
+
+        if aiofiles is None:  # pragma: no cover - fallback to sync save
+            self.save()
+            return
+
         data = {
             token: {
                 "amount": pos.amount,
@@ -81,7 +90,7 @@ class Portfolio:
             }
             for token, pos in self.balances.items()
         }
-        async with aiofiles.open(self.path, "w", encoding="utf-8") as f:
+        async with aiofiles.open(self.path, "w", encoding="utf-8") as f:  # type: ignore
             await f.write(dumps(data))
         publish(
             "portfolio_updated",
