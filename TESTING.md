@@ -24,6 +24,27 @@ Then run the tests from the project root:
 pytest
 ```
 
+## Investor demo
+
+The investor demo performs a small rolling backtest and writes a JSON and CSV
+summary for each strategy. Run its test directly to generate these reports:
+
+```bash
+pytest tests/test_investor_demo.py
+```
+
+The test stores `summary.json` and `summary.csv` in a temporary reports
+directory. Each entry lists the configuration name along with metrics such as
+ROI, Sharpe ratio, maximum drawdown and final capital for strategies like
+`buy_hold`, `momentum` and `mixed`. Inspect either file to compare strategy
+performance.
+
+To run the demo from the command line specify an output folder:
+
+```bash
+python scripts/investor_demo.py --reports reports
+```
+
 To run the static analysis checks used in CI, execute:
 
 ```bash
