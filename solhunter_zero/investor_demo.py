@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import csv
 import json
-import sys
 import types
 from importlib import resources
 from pathlib import Path
@@ -159,114 +158,78 @@ def load_prices(
     raise ValueError("Price data must be a list or mapping of token to list")
 
 
-async def _demo_arbitrage() -> None:
-    """Invoke arbitrage detection with stub inputs."""
+async def _demo_arbitrage(prices: List[float]) -> float:
+    """Compute a trivial arbitrage profit from ``prices``.
 
-    mod_name = f"{__package__}.arbitrage"
-    orig = sys.modules.get(mod_name)
-    arb_stub = types.ModuleType(mod_name)
-
-    async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        # Simulate a small arbitrage profit
-        return {"profit": 0.25}
-
-    arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
-    sys.modules[mod_name] = arb_stub
-    try:
-        from .arbitrage import detect_and_execute_arbitrage as demo_func  # type: ignore
-
-        async def _feed(_token: str) -> float:
-            return 1.0
-
-        result = await demo_func("demo", feeds=[_feed, _feed], use_service=False)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+    The profit is the normalised difference between the maximum and minimum
+    observed price.  No external calls are performed so the function remains
+    fast and deterministic.
+    """
 
     used_trade_types.add("arbitrage")
-    return float(result.get("profit", 0.0))
+    if not prices:
+        return 0.0
+    mx = max(prices)
+    mn = min(prices)
+    return (mx - mn) / mx
 
 
-async def _demo_flash_loan() -> float:
-    """Invoke flash loan borrow/repay with stub inputs and return profit."""
+async def _demo_flash_loan(prices: List[float]) -> float:
+    """Return a toy flash-loan profit derived from ``prices``.
 
-    mod_name = f"{__package__}.flash_loans"
-    orig = sys.modules.get(mod_name)
-    fl_stub = types.ModuleType(mod_name)
-
-    async def borrow_flash(*_args, **_kwargs):  # type: ignore
-        return "sig"
-
-    async def repay_flash(*_args, **_kwargs) -> bool:  # type: ignore
-        return True
-
-    fl_stub.borrow_flash = borrow_flash
-    fl_stub.repay_flash = repay_flash
-    sys.modules[mod_name] = fl_stub
-    try:
-        from .flash_loans import borrow_flash as _borrow, repay_flash as _repay  # type: ignore
-        sig = await _borrow(1.0, "demo", [])
-        await _repay(sig)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+    Positive price jumps are summed and scaled to simulate a tiny profit from a
+    flash-loan based strategy.
+    """
 
     used_trade_types.add("flash_loan")
-    return 0.1
+    if len(prices) < 2:
+        return 0.0
+    profit = 0.0
+    for i in range(len(prices) - 1):
+        diff = prices[i + 1] - prices[i]
+        if diff > 0:
+            profit += diff
+    return profit * 0.001
 
 
-async def _demo_sniper() -> List[str]:
-    """Invoke sniper evaluate with stub inputs and return discovered tokens."""
+async def _demo_sniper(prices: List[float]) -> List[str]:
+    """Derive demo sniper "discovered" tokens from ``prices``.
 
-    mod_name = f"{__package__}.sniper"
-    orig = sys.modules.get(mod_name)
-    sni_stub = types.ModuleType(mod_name)
-
-    async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": "demo_token"}]
-
-    sni_stub.evaluate = evaluate
-    sys.modules[mod_name] = sni_stub
-    try:
-        from .sniper import evaluate as demo_func  # type: ignore
-        results = await demo_func("demo", None)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+    We simply return identifiers for the three periods with the largest
+    positive returns.  This keeps the function deterministic and completely
+    offline.
+    """
 
     used_trade_types.add("sniper")
-    return [r.get("token", "") for r in results]
+    if len(prices) < 2:
+        return []
+    returns = [
+        (prices[i] - prices[i - 1]) / prices[i - 1]
+        for i in range(1, len(prices))
+    ]
+    pairs = sorted(
+        ((r, i) for i, r in enumerate(returns, start=1) if r > 0),
+        reverse=True,
+    )[:3]
+    return [f"token_{i}" for _, i in pairs]
 
 
-async def _demo_dex_scanner() -> List[str]:
-    """Invoke DEX pool scanning with stub inputs and return discovered pools."""
+async def _demo_dex_scanner(prices: List[float]) -> List[str]:
+    """Return identifiers for large negative price moves.
 
-    mod_name = f"{__package__}.dex_scanner"
-    orig = sys.modules.get(mod_name)
-    dex_stub = types.ModuleType(mod_name)
-
-    async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return ["pool_demo"]
-
-    dex_stub.scan_new_pools = scan_new_pools
-    sys.modules[mod_name] = dex_stub
-    try:
-        from .dex_scanner import scan_new_pools as demo_func  # type: ignore
-        pools = await demo_func("url")
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+    This simulates discovering new DEX pools experiencing sharp drops.  The
+    two worst one-period returns are reported as pool identifiers.
+    """
 
     used_trade_types.add("dex_scanner")
-    return [str(p) for p in pools]
+    if len(prices) < 2:
+        return []
+    returns = [
+        (prices[i] - prices[i - 1]) / prices[i - 1]
+        for i in range(1, len(prices))
+    ]
+    pairs = sorted((r, i) for i, r in enumerate(returns, start=1) if r < 0)[:2]
+    return [f"pool_{i}" for _, i in pairs]
 
 
 def _demo_rl_agent() -> float:
@@ -629,13 +592,13 @@ def main(argv: List[str] | None = None) -> None:
             for row in trade_history:
                 writer.writerow(row)
 
-    # Exercise trade types via lightweight stubs
+    # Exercise trade types using the provided price series
     async def _exercise_trade_types() -> Dict[str, object]:
         arb, fl, sniped, pools = await asyncio.gather(
-            _demo_arbitrage(),
-            _demo_flash_loan(),
-            _demo_sniper(),
-            _demo_dex_scanner(),
+            _demo_arbitrage(prices),
+            _demo_flash_loan(prices),
+            _demo_sniper(prices),
+            _demo_dex_scanner(prices),
         )
         rl_reward = _demo_rl_agent()
         return {

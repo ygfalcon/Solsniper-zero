@@ -29,7 +29,7 @@ def test_investor_demo_missing_trade_types(tmp_path, monkeypatch):
     monkeypatch.setattr(investor_demo, "Memory", DummyMem)
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
 
-    async def noop() -> None:
+    async def noop(_prices):
         return None
 
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", noop)

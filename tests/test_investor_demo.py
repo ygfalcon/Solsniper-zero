@@ -58,10 +58,41 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     match = re.search(r"Trade type results: (\{.*\})", out)
     assert match, "Trade type results not printed"
     trade_results = json.loads(match.group(1))
-    assert trade_results["arbitrage_profit"] == pytest.approx(0.25)
-    assert trade_results["flash_loan_profit"] == pytest.approx(0.1)
-    assert trade_results["sniper_tokens"] == ["demo_token"]
-    assert trade_results["dex_new_pools"] == ["pool_demo"]
+    prices, dates = investor_demo.load_prices()
+
+    def expected_outputs(prices: list[float]):
+        if not prices:
+            return 0.0, 0.0, [], []
+        arb = (max(prices) - min(prices)) / max(prices)
+        fl = sum(
+            max(prices[i + 1] - prices[i], 0.0)
+            for i in range(len(prices) - 1)
+        ) * 0.001
+        returns = [
+            (prices[i] - prices[i - 1]) / prices[i - 1]
+            for i in range(1, len(prices))
+        ]
+        tokens = [
+            f"token_{i}"
+            for _, i in sorted(
+                ((r, idx) for idx, r in enumerate(returns, start=1) if r > 0),
+                reverse=True,
+            )[:3]
+        ]
+        pools = [
+            f"pool_{i}"
+            for _, i in sorted(
+                ((r, idx) for idx, r in enumerate(returns, start=1) if r < 0)
+            )[:2]
+        ]
+        return arb, fl, tokens, pools
+
+    exp_arb, exp_fl, exp_tokens, exp_pools = expected_outputs(prices)
+
+    assert trade_results["arbitrage_profit"] == pytest.approx(exp_arb)
+    assert trade_results["flash_loan_profit"] == pytest.approx(exp_fl)
+    assert trade_results["sniper_tokens"] == exp_tokens
+    assert trade_results["dex_new_pools"] == exp_pools
 
     summary_json = tmp_path / "summary.json"
     summary_csv = tmp_path / "summary.csv"
@@ -208,10 +239,10 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     assert highlights_path.exists(), "Highlights JSON not generated"
     highlights = json.loads(highlights_path.read_text())
     assert highlights, "Highlights JSON empty"
-    assert highlights.get("arbitrage_profit") == pytest.approx(0.25)
-    assert highlights.get("flash_loan_profit") == pytest.approx(0.1)
-    assert highlights.get("sniper_tokens") == ["demo_token"]
-    assert highlights.get("dex_new_pools") == ["pool_demo"]
+    assert highlights.get("arbitrage_profit") == pytest.approx(exp_arb)
+    assert highlights.get("flash_loan_profit") == pytest.approx(exp_fl)
+    assert highlights.get("sniper_tokens") == exp_tokens
+    assert highlights.get("dex_new_pools") == exp_pools
 
     # Correlation and hedged weight outputs should be generated
     corr_path = tmp_path / "correlations.json"
@@ -265,18 +296,22 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
 
     seen_before: list[set[str]] = []
 
-    async def fake_arbitrage() -> None:
+    async def fake_arbitrage(_prices):
         seen_before.append(set(investor_demo.used_trade_types))
         investor_demo.used_trade_types.add("arbitrage")
+        return 0.0
 
-    async def fake_flash() -> None:
+    async def fake_flash(_prices):
         investor_demo.used_trade_types.add("flash_loan")
+        return 0.0
 
-    async def fake_sniper() -> None:
+    async def fake_sniper(_prices):
         investor_demo.used_trade_types.add("sniper")
+        return []
 
-    async def fake_dex() -> None:
+    async def fake_dex(_prices):
         investor_demo.used_trade_types.add("dex_scanner")
+        return []
 
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
     monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)

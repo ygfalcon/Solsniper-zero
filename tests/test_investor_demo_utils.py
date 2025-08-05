@@ -73,17 +73,21 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
 
     monkeypatch.setattr(investor_demo, "Memory", DummyMem)
 
-    async def fake_arbitrage() -> None:
+    async def fake_arbitrage(_prices):
         investor_demo.used_trade_types.add("arbitrage")
+        return 0.0
 
-    async def fake_flash() -> None:
+    async def fake_flash(_prices):
         investor_demo.used_trade_types.add("flash_loan")
+        return 0.0
 
-    async def fake_sniper() -> None:
+    async def fake_sniper(_prices):
         investor_demo.used_trade_types.add("sniper")
+        return []
 
-    async def fake_dex() -> None:
+    async def fake_dex(_prices):
         investor_demo.used_trade_types.add("dex_scanner")
+        return []
 
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
     monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
@@ -133,17 +137,21 @@ def test_demo_trade_recorded(monkeypatch, tmp_path):
     dummy = DummyMem()
     monkeypatch.setattr(investor_demo, "Memory", lambda *a, **k: dummy)
 
-    async def fake_arbitrage() -> None:
+    async def fake_arbitrage(_prices):
         investor_demo.used_trade_types.add("arbitrage")
+        return 0.0
 
-    async def fake_flash() -> None:
+    async def fake_flash(_prices):
         investor_demo.used_trade_types.add("flash_loan")
+        return 0.0
 
-    async def fake_sniper() -> None:
+    async def fake_sniper(_prices):
         investor_demo.used_trade_types.add("sniper")
+        return []
 
-    async def fake_dex() -> None:
+    async def fake_dex(_prices):
         investor_demo.used_trade_types.add("dex_scanner")
+        return []
 
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
     monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
