@@ -84,7 +84,7 @@ def test_investor_demo_metrics(tmp_path, monkeypatch, dummy_mem, capital):
 
 
 @pytest.mark.timeout(30)
-def test_resource_usage_logging(tmp_path, monkeypatch, dummy_mem):
+def test_resource_usage_logging(tmp_path, monkeypatch, dummy_mem, capsys):
     async def fake_arbitrage():
         investor_demo.used_trade_types.add("arbitrage")
 
@@ -111,6 +111,10 @@ def test_resource_usage_logging(tmp_path, monkeypatch, dummy_mem):
     monkeypatch.setitem(sys.modules, "psutil", psutil_stub)
 
     investor_demo.main(["--reports", str(tmp_path)])
+    captured = capsys.readouterr()
+    assert (
+        "Resource usage - CPU: 11.00% Memory: 22.00%" in captured.out
+    )
 
     highlights = json.loads((tmp_path / "highlights.json").read_text())
     assert highlights.get("cpu_usage") == 11.0
