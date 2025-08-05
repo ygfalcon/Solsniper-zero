@@ -38,3 +38,13 @@
   Expect extra outputs like `correlations.json`, `hedged_weights.json` and an
   RL reward entry in `highlights.json`. This mode depends on heavier packages
   including `torch`, `pytorch-lightning`, `sqlalchemy` and `psutil`.
+
+  For a lightweight reinforcement-learning demonstration without these
+  dependencies, use the RL stub:
+
+  ```bash
+  solhunter-demo --preset multi --reports reports --rl-demo
+  ```
+
+  The `--rl-demo` flag enables a minimal RL stub that runs in environments
+  without the extra packages required by `--full-system`.

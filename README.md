@@ -996,7 +996,16 @@ Run a lightweight backtest to showcase strategy performance for potential invest
 
    Provide a custom dataset with `--data PATH` if desired.
 
-4. **Enable the full system**
+4. **Try the RL stub (no extra dependencies)**
+
+   ```bash
+   solhunter-demo --preset multi --capital 100 --reports reports --rl-demo
+   ```
+
+   The `--rl-demo` flag enables a lightweight reinforcement-learning stub and
+   runs without the additional packages required by the full system.
+
+5. **Enable the full system**
 
    ```bash
    solhunter-demo --preset multi --capital 100 --reports reports --full-system
@@ -1007,7 +1016,7 @@ Run a lightweight backtest to showcase strategy performance for potential invest
    sniper discovery and DEX pool scanning. These paths require additional
    packages such as `torch`, `pytorch-lightning`, `sqlalchemy` and `psutil`.
 
-5. **Inspect the output**
+6. **Inspect the output**
 
    The command writes `summary.json`, `summary.csv`, `trade_history.csv` and
    `highlights.json` to the `reports` directory.
