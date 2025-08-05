@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 import csv
+import json
 
 import pytest
 
@@ -24,11 +25,12 @@ def _run_and_check(
     assert "Capital Summary" in result.stdout
 
     strategies = {"buy_hold", "momentum", "mean_reversion", "mixed"}
-    pattern = re.compile(r"^(buy_hold|momentum|mean_reversion|mixed):\s*(\d+(?:\.\d+)?)$", re.MULTILINE)
-    matches = {name: val for name, val in pattern.findall(result.stdout)}
+    pattern = re.compile(
+        r"^(buy_hold|momentum|mean_reversion|mixed):\s*(\d+(?:\.\d+)?)$",
+        re.MULTILINE,
+    )
+    matches = {name: float(val) for name, val in pattern.findall(result.stdout)}
     assert strategies <= matches.keys(), f"Missing strategies: {strategies - matches.keys()}"
-    for val in matches.values():
-        float(val)
 
     summary_json = reports_dir / "summary.json"
     summary_csv = reports_dir / "summary.csv"
@@ -40,6 +42,12 @@ def _run_and_check(
     for row in summary_rows:
         assert "win_rate" in row
         float(row["win_rate"])
+
+    summary_data = json.loads(summary_json.read_text())
+    capital_map = {row["config"]: row["final_capital"] for row in summary_data}
+    assert strategies <= capital_map.keys()
+    for name, printed in matches.items():
+        assert printed == pytest.approx(capital_map[name], abs=0.01)
 
     trade_history_csv = reports_dir / "trade_history.csv"
     highlights_json = reports_dir / "highlights.json"
