@@ -17,7 +17,7 @@ def _run_and_check(
     repo_root: Path,
     env: dict[str, str],
     data_path: Path,
-) -> None:
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(cmd, cwd=repo_root, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "Wrote reports" in result.stdout
@@ -53,13 +53,34 @@ def _run_and_check(
     assert highlights_json.stat().st_size > 0
 
     shutil.rmtree(reports_dir, ignore_errors=True)
+    return result
 
 
 @pytest.mark.timeout(30)
 @pytest.mark.integration
 def test_investor_demo_cli(tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
-    env = {**os.environ, "PYTHONPATH": str(repo_root)}
+
+    psutil_stub = tmp_path / "psutil.py"
+    psutil_stub.write_text(
+        "class Process:\n"
+        "    def cpu_percent(self, interval=None):\n"
+        "        return 0.0\n"
+        "\n"
+        "def cpu_percent(interval=None):\n"
+        "    return 11.0\n"
+        "\n"
+        "class _VM:\n"
+        "    percent = 22.0\n"
+        "\n"
+        "def virtual_memory():\n"
+        "    return _VM()\n"
+    )
+
+    env = {
+        **os.environ,
+        "PYTHONPATH": f"{tmp_path}{os.pathsep}{repo_root}",
+    }
 
     out = tmp_path / "run"
     data_path = repo_root / "tests" / "data" / "prices_short.json"
@@ -71,4 +92,5 @@ def test_investor_demo_cli(tmp_path):
         "--reports",
         str(out),
     ]
-    _run_and_check(cmd, out, repo_root, env, data_path)
+    result = _run_and_check(cmd, out, repo_root, env, data_path)
+    assert "Resource usage - CPU: 11.00% Memory: 22.00%" in result.stdout
