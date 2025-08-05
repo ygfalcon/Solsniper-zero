@@ -181,42 +181,197 @@ def load_prices(
     raise ValueError("Price data must be a list or mapping of token to list")
 
 
-async def _demo_arbitrage() -> float:
-    """Demonstrate a simple arbitrage opportunity and return the profit."""
+async def _demo_arbitrage() -> Dict[str, object]:
+    """Exercise the real :mod:`arbitrage` module with static prices."""
 
-    prices, _ = load_prices(preset="short")
-    profit = abs(prices[1] - prices[0]) if len(prices) > 1 else 0.0
-    used_trade_types.add("arbitrage")
-    return profit
+    from . import arbitrage
 
-
-async def _demo_flash_loan() -> float:
-    """Simulate a flash loan trade and return the profit."""
-
-    prices, _ = load_prices(preset="short")
-    profit = (
-        abs(prices[2] - prices[1]) / prices[1] if len(prices) > 2 and prices[1] else 0.0
+    prices = {"dex1": 100.0, "dex2": 105.0}
+    fees = {"dex1": 0.0, "dex2": 0.0}
+    gas = {"dex1": 0.0, "dex2": 0.0}
+    latency = {"dex1": 0.0, "dex2": 0.0}
+    depth = {
+        "dex1": {"bids": 1_000.0, "asks": 1_000.0},
+        "dex2": {"bids": 1_000.0, "asks": 1_000.0},
+    }
+    path, profit = arbitrage._best_route(  # type: ignore[attr-defined]
+        prices,
+        1.0,
+        fees=fees,
+        gas=gas,
+        latency=latency,
+        depth=depth,
+        use_flash_loans=False,
+        max_flash_amount=0.0,
+        max_hops=2,
+        use_gnn_routing=False,
     )
+    used_trade_types.add("arbitrage")
+    return {"path": path, "profit": float(profit)}
+
+
+async def _demo_flash_loan() -> str | None:
+    """Invoke :mod:`flash_loans.borrow_flash` with stubbed network calls."""
+
+    from . import flash_loans, depth_client
+    from solders.keypair import Keypair
+    from solders.instruction import Instruction, AccountMeta
+    from solders.pubkey import Pubkey
+    from solders.hash import Hash
+    import types
+
+    class DummyClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get_latest_blockhash(self):
+            return types.SimpleNamespace(
+                value=types.SimpleNamespace(blockhash=Hash.default())
+            )
+
+        async def confirm_transaction(self, _sig: str) -> None:
+            return None
+
+    async def dummy_submit(_tx: str) -> str:
+        return "demo_sig"
+
+    orig_client = flash_loans.AsyncClient
+    orig_submit = depth_client.submit_raw_tx
+    flash_loans.AsyncClient = lambda _url: DummyClient()  # type: ignore[assignment]
+    depth_client.submit_raw_tx = dummy_submit  # type: ignore[assignment]
+    try:
+        payer = Keypair()
+        ix = Instruction(
+            Pubkey.default(), b"demo", [AccountMeta(payer.pubkey(), True, True)]
+        )
+        sig = await flash_loans.borrow_flash(
+            1.0,
+            "USDC",
+            [ix],
+            payer=payer,
+            program_accounts={},
+            rpc_url="http://offline",
+        )
+    finally:
+        flash_loans.AsyncClient = orig_client  # type: ignore[assignment]
+        depth_client.submit_raw_tx = orig_submit  # type: ignore[assignment]
     used_trade_types.add("flash_loan")
-    return profit
+    return sig
 
 
 async def _demo_sniper() -> List[str]:
-    """Return a deterministic token discovered by the sniper demo."""
+    """Run :mod:`sniper.evaluate` on deterministic inputs."""
 
-    _, dates = load_prices(preset="short")
-    token = f"token_{dates[0]}" if dates else "token_demo"
+    import sys
+    import types
+    from .decision import should_buy, should_sell
+    from .simulation import SimulationResult
+
+    mem_mod = types.ModuleType("solhunter_zero.memory")
+    mem_mod.Memory = type("Memory", (), {})  # minimal stub
+    sys.modules.setdefault("solhunter_zero.memory", mem_mod)
+
+    main_mod = types.ModuleType("solhunter_zero.main")
+
+    async def fetch_prices(tokens: set[str]) -> Dict[str, float]:
+        return {t: 1.0 for t in tokens}
+
+    def run_sims(_token: str, count: int = 100) -> List[SimulationResult]:
+        return [
+            SimulationResult(
+                success_prob=0.9,
+                expected_roi=1.2,
+                volume=1.0,
+                liquidity=1.0,
+                slippage=0.1,
+                volatility=0.1,
+                volume_spike=1.1,
+                depth_change=0.1,
+                whale_activity=0.1,
+                tx_rate=1.0,
+            ),
+            SimulationResult(
+                success_prob=0.8,
+                expected_roi=1.1,
+                volume=1.0,
+                liquidity=1.0,
+                slippage=0.1,
+                volatility=0.1,
+                volume_spike=1.1,
+                depth_change=0.1,
+                whale_activity=0.1,
+                tx_rate=1.0,
+            ),
+        ]
+
+    main_mod.run_simulations = run_sims  # type: ignore[attr-defined]
+    main_mod.should_buy = should_buy  # type: ignore[attr-defined]
+    main_mod.should_sell = should_sell  # type: ignore[attr-defined]
+    main_mod.fetch_token_prices_async = fetch_prices  # type: ignore[attr-defined]
+    sys.modules.setdefault("solhunter_zero.main", main_mod)
+
+    from . import sniper
+    from .portfolio import Portfolio, Position
+
+    orig_predict = sniper.predict_price_movement
+    sniper.predict_price_movement = lambda _t: 0.1
+    try:
+        port = Portfolio(path=None)
+        port.balances["USD"] = Position("USD", 100.0, 1.0, 1.0)
+        actions = await sniper.evaluate("TKN", port)
+    finally:
+        sniper.predict_price_movement = orig_predict
     used_trade_types.add("sniper")
-    return [token]
+    return [a["token"] for a in actions]
 
 
 async def _demo_dex_scanner() -> List[str]:
-    """Return a deterministic pool discovered by the DEX scanner demo."""
+    """Scan for new pools using :mod:`dex_scanner` with stubbed RPC."""
 
-    _, dates = load_prices(preset="short")
-    pool = f"pool_{dates[1]}" if len(dates) > 1 else "pool_demo"
+    from . import dex_scanner
+
+    class DummyClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get_program_accounts(self, *_a, **_k):
+            return {
+                "result": [
+                    {
+                        "account": {
+                            "data": {
+                                "parsed": {
+                                    "info": {
+                                        "tokenA": {
+                                            "mint": "mintA",
+                                            "name": "AlphaBonk",
+                                        },
+                                        "tokenB": {
+                                            "mint": "mintB",
+                                            "name": "BetaBonk",
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+
+    orig_client = dex_scanner.AsyncClient
+    dex_scanner.AsyncClient = lambda _url: DummyClient()  # type: ignore[assignment]
+    try:
+        tokens = await dex_scanner.scan_new_pools("http://offline")
+    finally:
+        dex_scanner.AsyncClient = orig_client  # type: ignore[assignment]
     used_trade_types.add("dex_scanner")
-    return [pool]
+    return tokens
 
 
 def _demo_rl_agent() -> float:
@@ -662,16 +817,19 @@ def main(argv: List[str] | None = None) -> None:
 
     # Exercise trade types via lightweight stubs
     async def _exercise_trade_types() -> Dict[str, object]:
-        arb, fl, sniped, pools = await asyncio.gather(
+        arb, fl_sig, sniped, pools = await asyncio.gather(
             _demo_arbitrage(),
             _demo_flash_loan(),
             _demo_sniper(),
             _demo_dex_scanner(),
         )
         rl_reward = _demo_rl_agent()
+        arb_path = arb.get("path") if isinstance(arb, dict) else None
+        arb_profit = arb.get("profit") if isinstance(arb, dict) else None
         return {
-            "arbitrage_profit": arb,
-            "flash_loan_profit": fl,
+            "arbitrage_path": arb_path,
+            "arbitrage_profit": arb_profit,
+            "flash_loan_signature": fl_sig,
             "sniper_tokens": sniped,
             "dex_new_pools": pools,
             "rl_reward": rl_reward,
