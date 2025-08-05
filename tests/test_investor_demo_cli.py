@@ -61,10 +61,11 @@ def _run_and_check(
     match = re.search(r"Trade type results: (\{.*\})", result.stdout)
     assert match, "Trade type results not reported"
     trade_results = json.loads(match.group(1))
-    assert trade_results["arbitrage_profit"] == pytest.approx(0.51)
-    assert trade_results["flash_loan_profit"] == pytest.approx(0.001482213438735234)
-    assert trade_results["sniper_tokens"] == ["token_2023-01-01"]
-    assert trade_results["dex_new_pools"] == ["pool_2023-01-02"]
+    assert trade_results["arbitrage_profit"] == pytest.approx(4.795)
+    assert trade_results["arbitrage_path"] == ["dex1", "dex2"]
+    assert trade_results["flash_loan_signature"] == "demo_sig"
+    assert trade_results["sniper_tokens"] == ["TKN"]
+    assert trade_results["dex_new_pools"] == ["mintA", "mintB"]
 
     summary_json = reports_dir / "summary.json"
     summary_csv = reports_dir / "summary.csv"
@@ -138,10 +139,11 @@ def _run_and_check(
     assert highlights_json.is_file()
     assert highlights_json.stat().st_size > 0
     highlights_data = json.loads(highlights_json.read_text())
-    assert highlights_data.get("arbitrage_profit") == pytest.approx(0.51)
-    assert highlights_data.get("flash_loan_profit") == pytest.approx(0.001482213438735234)
-    assert highlights_data.get("sniper_tokens") == ["token_2023-01-01"]
-    assert highlights_data.get("dex_new_pools") == ["pool_2023-01-02"]
+    assert highlights_data.get("arbitrage_profit") == pytest.approx(4.795)
+    assert highlights_data.get("arbitrage_path") == ["dex1", "dex2"]
+    assert highlights_data.get("flash_loan_signature") == "demo_sig"
+    assert highlights_data.get("sniper_tokens") == ["TKN"]
+    assert highlights_data.get("dex_new_pools") == ["mintA", "mintB"]
     if isinstance(loaded_prices, dict):
         assert highlights_data.get("top_token") in tokens
         assert "SOL buy_hold" in result.stdout

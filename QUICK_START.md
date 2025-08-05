@@ -15,7 +15,12 @@
   solhunter-demo --preset short --reports reports
   ```
 
-  To try multiple tokens, use the bundled `multi` preset or pass the dataset path explicitly:
+  The demo now exercises the real arbitrage, flash loan, sniper and
+  DEX-scanning modules using bundled deterministic data so it can run fully
+  offline.
+
+  To try multiple tokens, use the bundled `multi` preset or pass the dataset
+  path explicitly:
 
   ```bash
   solhunter-demo --preset multi --reports reports
