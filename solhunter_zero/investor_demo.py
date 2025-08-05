@@ -204,18 +204,22 @@ async def _demo_arbitrage() -> Dict[str, object]:
         "dex1": {"bids": 1_000.0, "asks": 1_000.0},
         "dex2": {"bids": 1_000.0, "asks": 1_000.0},
     }
-    path, profit = arbitrage._best_route(  # type: ignore[attr-defined]
-        prices,
-        1.0,
-        fees=fees,
-        gas=gas,
-        latency=latency,
-        depth=depth,
-        use_flash_loans=False,
-        max_flash_amount=0.0,
-        max_hops=2,
-        use_gnn_routing=False,
-    )
+    try:
+        path, profit = arbitrage._best_route(  # type: ignore[attr-defined]
+            prices,
+            1.0,
+            fees=fees,
+            gas=gas,
+            latency=latency,
+            depth=depth,
+            use_flash_loans=False,
+            max_flash_amount=0.0,
+            max_hops=2,
+            use_gnn_routing=False,
+        )
+    except Exception as exc:  # pragma: no cover - best effort
+        print(f"Arbitrage demo skipped: {exc}")
+        path, profit = [], 0.0
     used_trade_types.add("arbitrage")
     return {"path": path, "profit": float(profit)}
 
