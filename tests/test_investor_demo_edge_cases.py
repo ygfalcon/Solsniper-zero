@@ -48,6 +48,9 @@ def test_investor_demo_single_price(tmp_path, monkeypatch):
     with trade_csv_path.open() as cf:
         trade_csv = list(csv.DictReader(cf))
 
+    assert all("date" in e for e in trade_json)
+    assert all("date" in r for r in trade_csv)
+
     pairs_json = {(e["strategy"], e["period"]) for e in trade_json}
     pairs_csv = {(r["strategy"], int(r["period"])) for r in trade_csv}
     assert len(pairs_json) == len(trade_json)

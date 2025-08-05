@@ -6,7 +6,7 @@ from solhunter_zero import investor_demo
 
 def test_default_price_data_size() -> None:
     """ensure bundled investor demo data stays reasonably small"""
-    prices = investor_demo.load_prices()
+    prices, _ = investor_demo.load_prices()
     assert len(prices) <= 2000
 
 
@@ -49,7 +49,11 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
     """Correlation pairs from synthetic price data."""
 
     prices = [1.0, 2.0, 1.0, 2.0]
-    monkeypatch.setattr(investor_demo, "load_prices", lambda _=None: prices)
+    monkeypatch.setattr(
+        investor_demo,
+        "load_prices",
+        lambda _=None: (prices, ["2024-01-01"] * len(prices)),
+    )
 
     class DummyMem:
         def __init__(self, *a, **k):

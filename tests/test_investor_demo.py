@@ -91,7 +91,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
             assert key in row
 
     # Compute expected metrics for the built-in price dataset
-    prices = investor_demo.load_prices()
+    prices, dates = investor_demo.load_prices()
     start_capital = 100.0
     strat_configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -170,10 +170,11 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
 
     trade_rows = list(csv.DictReader(trade_csv.open()))
     assert trade_rows, "Trade history CSV empty"
-    assert all({"capital", "action", "price"} <= set(r.keys()) for r in trade_rows)
+    assert all({"capital", "action", "price", "date"} <= set(r.keys()) for r in trade_rows)
     first = trade_rows[0]
     assert first["action"] == "buy"
     assert float(first["price"]) == prices[0]
+    assert first["date"] == dates[0]
     # Should record capital for periods beyond the starting point
     assert any(int(r["period"]) > 0 for r in trade_rows)
     # Expect at least one sell action in the history
@@ -183,10 +184,14 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
 
     trade_data = json.loads(trade_json.read_text())
     assert trade_data, "Trade history JSON empty"
-    assert all("capital" in r and "action" in r and "price" in r for r in trade_data)
+    assert all(
+        "capital" in r and "action" in r and "price" in r and "date" in r
+        for r in trade_data
+    )
     first = trade_data[0]
     assert first["action"] == "buy"
     assert first["price"] == prices[0]
+    assert first["date"] == dates[0]
     assert any(r["period"] > 0 for r in trade_data)
     assert any(r["action"] == "sell" for r in trade_data)
     assert any(r["strategy"] == "mean_reversion" for r in trade_data)
@@ -271,7 +276,10 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
 
 
 def test_investor_demo_custom_data_length(tmp_path):
-    price_data = [{"price": p} for p in [1.0, 2.0, 3.0, 4.0]]
+    price_data = [
+        {"date": f"2024-01-0{i}", "price": p}
+        for i, p in enumerate([1.0, 2.0, 3.0, 4.0], start=1)
+    ]
     data_path = tmp_path / "prices.json"
     data_path.write_text(json.dumps(price_data))
 
