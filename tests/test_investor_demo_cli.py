@@ -57,15 +57,30 @@ def _run_and_check(
 
 @pytest.mark.timeout(30)
 @pytest.mark.integration
-def test_investor_demo_cli(tmp_path):
+@pytest.mark.parametrize(
+    "base_cmd",
+    [
+        [sys.executable, "scripts/investor_demo.py"],
+        ["solhunter-demo"],
+    ],
+)
+def test_investor_demo_cli(base_cmd, tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
+    if base_cmd == ["solhunter-demo"]:
+        wrapper = tmp_path / "solhunter-demo"
+        wrapper.write_text(
+            "#!/usr/bin/env python3\n"
+            "from scripts.investor_demo import main\n"
+            "if __name__ == '__main__':\n"
+            "    main()\n"
+        )
+        wrapper.chmod(0o755)
+        env = {**env, "PATH": f"{tmp_path}{os.pathsep}{env['PATH']}"}
 
     out = tmp_path / "run"
     data_path = repo_root / "tests" / "data" / "prices_short.json"
-    cmd = [
-        sys.executable,
-        "scripts/investor_demo.py",
+    cmd = base_cmd + [
         "--data",
         str(data_path),
         "--reports",
