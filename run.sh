@@ -32,54 +32,68 @@ for dep in deps:
         missing_required.append(mod)
 optional = ['faiss', 'sentence_transformers', 'torch']
 missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
-print(json.dumps(missing_optional))
-sys.exit(1 if missing_required or missing_optional else 0)
+print(json.dumps({'required': missing_required, 'optional': missing_optional}))
+sys.exit(0 if not missing_required else 1)
 PY
 }
 
-missing_opt_json=$(check_deps)
-if [ $? -ne 0 ]; then
-    missing_opt=$(python - "$missing_opt_json" <<'PY'
+set +e
+deps_json=$(check_deps)
+status=$?
+set -e
+if [ $status -ne 0 ]; then
+    missing_req=$(python - "$deps_json" <<'PY'
 import json,sys
-print(' '.join(json.loads(sys.argv[1])))
+print(' '.join(json.loads(sys.argv[1])['required']))
 PY
 )
-    echo "Installing dependencies..."
-    if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
-        python - <<'EOF'
-import importlib.util, sys
-sys.exit(0 if importlib.util.find_spec('torch') else 1)
-EOF
-        if [ $? -ne 0 ]; then
-            pip install torch==2.1.0 torchvision==0.16.0 \
-              --extra-index-url https://download.pytorch.org/whl/metal
-        fi
-    fi
-    pip install .
+    echo "Error: missing required Python modules: $missing_req" >&2
+    echo "Install them manually, e.g. 'pip install .', then re-run." >&2
+    exit 1
+else
+    missing_opt=$(python - "$deps_json" <<'PY'
+import json,sys
+print(' '.join(json.loads(sys.argv[1])['optional']))
+PY
+)
     if [ -n "$missing_opt" ]; then
-        echo "Installed optional modules: $missing_opt"
+        echo "Warning: optional Python modules not found: $missing_opt" >&2
+        echo "Install them manually for additional features." >&2
     fi
 fi
 
-if command -v cargo >/dev/null 2>&1; then
-    if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-        cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-        cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null || true
-    fi
+if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+    echo "Error: missing required Rust library 'solhunter_zero/libroute_ffi.so'." >&2
+    echo "Install Rust from https://www.rust-lang.org/tools/install and build manually:" >&2
+    echo "  cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel" >&2
+    echo "  cp route_ffi/target/release/libroute_ffi.so solhunter_zero/" >&2
+    exit 1
 fi
 
 if [ "${DEPTH_SERVICE,,}" = "true" ]; then
-    if ! command -v cargo >/dev/null 2>&1; then
-        echo "Error: DEPTH_SERVICE requested but 'cargo' is not installed." >&2
-        echo "Install Rust from https://www.rust-lang.org/tools/install" >&2
+    if [ ! -x depth_service/target/release/depth_service ]; then
+        echo "Error: DEPTH_SERVICE requested but depth service binary is missing." >&2
+        echo "Install Rust from https://www.rust-lang.org/tools/install and build manually:" >&2
+        echo "  cargo build --manifest-path depth_service/Cargo.toml --release" >&2
         exit 1
     fi
-    cargo build --manifest-path depth_service/Cargo.toml --release
 fi
 
-python -m solhunter_zero.metrics_aggregator &
-AGG_PID=$!
-trap 'kill $AGG_PID 2>/dev/null' EXIT
+RUN_AGG=false
+args=()
+for arg in "$@"; do
+    if [ "$arg" = "--with-aggregator" ]; then
+        RUN_AGG=true
+    else
+        args+=("$arg")
+    fi
+done
+if $RUN_AGG; then
+    python -m solhunter_zero.metrics_aggregator &
+    AGG_PID=$!
+    trap 'kill $AGG_PID 2>/dev/null' EXIT
+fi
+set -- "${args[@]}"
 
 if [ "$1" = "--daemon" ]; then
     shift
