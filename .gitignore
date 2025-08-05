@@ -3,6 +3,9 @@ solhunter_zero/__pycache__/
 keypair.json
 depth_service/target/
 
+# Local investor demo reports
+reports/
+
 # Ignore build artifacts
 depth_service/Cargo.lock
 depth_service/src/solhunter_zero.rs

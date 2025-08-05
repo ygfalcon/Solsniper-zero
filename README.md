@@ -1010,7 +1010,8 @@ Run a lightweight backtest to showcase strategy performance for potential invest
 5. **Inspect the output**
 
    The command writes `summary.json`, `summary.csv`, `trade_history.csv` and
-   `highlights.json` to the `reports` directory.
+   `highlights.json` to the `reports` directory. This folder is ignored by Git
+   so the generated reports remain local.
 
 The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. Strategy weights can be negative to model short positions; the demo normalises aggregated returns by the sum of absolute weights so offsetting long/short exposures still yield meaningful sequences. It prints trade type results, correlation stats and a capital summary such as:
 
