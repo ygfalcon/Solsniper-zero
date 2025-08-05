@@ -214,34 +214,47 @@ async def _demo_arbitrage() -> None:
 
 
 async def _demo_flash_loan() -> float:
-    """Invoke flash loan borrow/repay with stub inputs and return profit."""
+    """Invoke real flash loan helpers with mocked network calls."""
     prices, _ = load_prices(preset="short")
+
+    class _MockAsyncClient:
+        def __init__(self, *_args, **_kwargs) -> None:  # pragma: no cover - simple mock
+            pass
+
+        async def __aenter__(self) -> "_MockAsyncClient":
+            return self
+
+        async def __aexit__(self, *_exc_info) -> None:
+            return None
+
+        async def get_latest_blockhash(self):
+            from solders.hash import Hash
+
+            return types.SimpleNamespace(value=types.SimpleNamespace(blockhash=Hash.default()))
+
+        async def confirm_transaction(self, *_args, **_kwargs) -> bool:
+            return True
+
+    async def _submit_raw_tx(_tx: str) -> str:
+        return "sig"
+
+    from solders.keypair import Keypair
+    from unittest.mock import patch
+
+    with patch("solana.rpc.async_api.AsyncClient", _MockAsyncClient), patch(
+        "solhunter_zero.depth_client.submit_raw_tx", _submit_raw_tx
+    ):
+        from . import flash_loans
+
+        with patch.object(flash_loans, "AsyncClient", _MockAsyncClient):
+            payer = Keypair()
+            sig = await flash_loans.borrow_flash(1.0, "demo", [], payer=payer)
+            if sig:
+                await flash_loans.repay_flash(sig)
+
     profit = (
         abs(prices[2] - prices[1]) / prices[1] if len(prices) > 2 and prices[1] else 0.0
     )
-
-    mod_name = f"{__package__}.flash_loans"
-    orig = sys.modules.get(mod_name)
-    fl_stub = types.ModuleType(mod_name)
-
-    async def borrow_flash(*_args, **_kwargs):  # type: ignore
-        return "sig"
-
-    async def repay_flash(*_args, **_kwargs) -> bool:  # type: ignore
-        return True
-
-    fl_stub.borrow_flash = borrow_flash
-    fl_stub.repay_flash = repay_flash
-    sys.modules[mod_name] = fl_stub
-    try:
-        from .flash_loans import borrow_flash as _borrow, repay_flash as _repay  # type: ignore
-        sig = await _borrow(1.0, "demo", [])
-        await _repay(sig)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
 
     used_trade_types.add("flash_loan")
     return profit
