@@ -141,6 +141,10 @@ def test_investor_demo(tmp_path, monkeypatch):
     # Highlight metrics should identify the top performing strategy
     top_strategy = highlights.get("top_strategy")
     top_final_capital = highlights.get("top_final_capital")
+    best_roi_strategy = highlights.get("best_roi_strategy")
+    best_roi_val = highlights.get("best_roi")
+    worst_dd_strategy = highlights.get("worst_drawdown_strategy")
+    worst_dd_val = highlights.get("worst_drawdown")
 
     # The highlighted strategy/capital pair must exist within the summary data
     assert any(
@@ -154,6 +158,20 @@ def test_investor_demo(tmp_path, monkeypatch):
     assert (
         top_final_capital == max_final_capital
     ), "Highlighted top_final_capital does not match summary.json maximum"
+
+    # Highlighted ROI and drawdown metrics should be consistent with the summary
+    assert any(
+        entry["config"] == best_roi_strategy and entry["roi"] == best_roi_val
+        for entry in content
+    ), "Highlighted ROI strategy/value mismatch with summary.json"
+    assert best_roi_val == max(entry["roi"] for entry in content)
+
+    assert any(
+        entry["config"] == worst_dd_strategy
+        and entry["drawdown"] == worst_dd_val
+        for entry in content
+    ), "Highlighted drawdown strategy/value mismatch with summary.json"
+    assert worst_dd_val == max(entry["drawdown"] for entry in content)
 
     # Plot files are produced when matplotlib is installed
     if importlib.util.find_spec("matplotlib") is not None:

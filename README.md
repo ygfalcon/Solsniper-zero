@@ -1019,9 +1019,16 @@ momentum,3,112.00
 
 The `highlights.json` file summarizes key results:
 
-```text
-Top ROI: momentum
-Largest drawdown: buy_hold
+```json
+{
+  "top_strategy": "momentum",
+  "top_final_capital": 103.88,
+  "top_roi": 0.0388,
+  "best_roi_strategy": "momentum",
+  "best_roi": 0.0388,
+  "worst_drawdown_strategy": "buy_hold",
+  "worst_drawdown": 0.012
+}
 ```
 
 ## Additional Metrics

@@ -260,7 +260,8 @@ def main(argv: List[str] | None = None) -> None:
                 "capital": capital,
             }
         )
-        for i, r in enumerate(returns, start=1):
+        for i in range(1, len(prices)):
+            r = returns[i - 1] if i - 1 < len(returns) else 0.0
             capital *= 1 + r
             action = "buy" if r > 0 else "sell" if r < 0 else "hold"
             trade_history.append(
@@ -313,14 +314,20 @@ def main(argv: List[str] | None = None) -> None:
             for row in trade_history:
                 writer.writerow(row)
 
-    # Write highlights summarising top performing strategy
+    # Write highlights summarising top performing strategy and other metrics
     top = None
     if summary:
         top = max(summary, key=lambda e: e["final_capital"])
+        best_roi = max(summary, key=lambda e: e["roi"])
+        worst_dd = max(summary, key=lambda e: e["drawdown"])
         highlights = {
             "top_strategy": top["config"],
             "top_final_capital": top["final_capital"],
             "top_roi": top["roi"],
+            "best_roi_strategy": best_roi["config"],
+            "best_roi": best_roi["roi"],
+            "worst_drawdown_strategy": worst_dd["config"],
+            "worst_drawdown": worst_dd["drawdown"],
         }
         with open(args.reports / "highlights.json", "w", encoding="utf-8") as hf:
             json.dump(highlights, hf, indent=2)
