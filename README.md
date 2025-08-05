@@ -974,16 +974,18 @@ curl -X POST http://localhost:5000/memory/query \
 
 ## Investor Demo
 
-Run a lightweight backtest to showcase strategy performance for potential investors. By default it uses the bundled single-token dataset at `solhunter_zero/data/investor_demo_prices.json`, so no `--data` flag is required. The demo emits a trade-history file, a highlights summary and a console capital table alongside the existing CSV and JSON reports:
+Run a lightweight backtest to showcase strategy performance for potential investors. The `solhunter-demo` CLI loads a bundled dataset and emits a trade-history file, a highlights summary and a console capital table alongside the existing CSV and JSON reports. Use the `short` preset for a quick run:
 
 ```bash
-python scripts/investor_demo.py --capital 100 --reports reports
+solhunter-demo --preset short --capital 100 --reports reports
 ```
 
-To experiment with multiple tokens, supply the multi-token sample dataset located at `tests/data/prices_multitoken.json`:
+To experiment with multiple tokens, load the bundled multi-token dataset via the `multi` preset (or pass its path explicitly):
 
 ```bash
-python scripts/investor_demo.py --data tests/data/prices_multitoken.json --capital 100 --reports reports
+solhunter-demo --preset multi --capital 100 --reports reports
+# or
+solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --capital 100 --reports reports
 ```
 
 The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.

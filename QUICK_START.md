@@ -7,16 +7,16 @@
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py`.
-- Run the investor demo to backtest bundled prices. It finishes in a few seconds
-  and writes summaries and trade history to the folder given by `--reports`:
+- Run the investor demo with the `solhunter-demo` CLI to backtest bundled prices. It finishes in a few seconds and writes summaries and trade history to the folder given by `--reports`:
 
   ```bash
-  python scripts/investor_demo.py --reports reports
+  solhunter-demo --preset short --reports reports
   ```
 
-  To try multiple tokens, supply the sample dataset in
-  `tests/data/prices_multitoken.json`:
+  To try multiple tokens, use the bundled `multi` preset or pass the dataset path explicitly:
 
   ```bash
-  python scripts/investor_demo.py --data tests/data/prices_multitoken.json --reports reports
+  solhunter-demo --preset multi --reports reports
+  # or
+  solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --reports reports
   ```
