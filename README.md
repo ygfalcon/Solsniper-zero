@@ -991,24 +991,55 @@ Strategy weights can be negative to model short positions; the demo normalises
 aggregated returns by the sum of absolute weights so offsetting long/short
 exposures still yield meaningful sequences.
 It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.json`
-then prints a capital summary such as:
+then prints trade type results, correlation stats and a capital summary such as:
 
 ```text
 Capital Summary:
-buy_hold: 107.06
-momentum: 235.04
-mean_reversion: 218.51
-mixed: 176.88
+buy_hold: 107.06 ROI 0.0706 Sharpe 0.0383 Drawdown 0.1143 Win rate 0.5041
+momentum: 235.04 ROI 1.3504 Sharpe 0.7750 Drawdown 0.0000 Win rate 1.0000
+mean_reversion: 218.51 ROI 1.1851 Sharpe 0.7516 Drawdown 0.0000 Win rate 1.0000
+mixed: 176.88 ROI 0.7688 Sharpe 0.7750 Drawdown 0.0000 Win rate 1.0000
 Top strategy: momentum with final capital 235.04
-Resource usage - CPU: 19.90% Memory: 3.80%
+Trade type results: {"arbitrage_profit": 0.25, "flash_loan_profit": 0.1, "sniper_tokens": ["demo_token"], "dex_new_pools": ["pool_demo"], "rl_reward": 1.0}
+Key correlations: buy_hold-momentum: 0.90, buy_hold-mean_reversion: -0.88, momentum-mean_reversion: -0.58
+Hedged weights: buy_hold: 0.10, momentum: 0.90
+Resource usage - CPU: 24.40% Memory: 3.60%
 Wrote reports to reports
+```
+
+`highlights.json` records the correlation matrix and hedged allocation details:
+
+```json
+{
+  "key_correlations": {
+    "buy_hold-momentum": 0.90,
+    "buy_hold-mean_reversion": -0.88,
+    "momentum-mean_reversion": -0.58
+  },
+  "hedged_weights": {
+    "buy_hold": 0.10,
+    "momentum": 0.90
+  }
+}
 ```
 
 Sample `summary.json`:
 
 ```json
 [
-  {"config": "buy_hold", "roi": 0.0706, "sharpe": 0.0383, "drawdown": 0.1143, "volatility": 0.0053, "trades": 363, "wins": 183, "losses": 180, "final_capital": 107.06},
+  {
+    "token": "demo",
+    "config": "buy_hold",
+    "roi": 0.0706,
+    "sharpe": 0.0383,
+    "drawdown": 0.1143,
+    "volatility": 0.0053,
+    "trades": 363,
+    "wins": 183,
+    "losses": 180,
+    "win_rate": 0.5041,
+    "final_capital": 107.06
+  },
   ...
 ]
 ```
@@ -1016,8 +1047,8 @@ Sample `summary.json`:
 `summary.csv` contains the same data in tabular form:
 
 ```csv
-config,roi,sharpe,drawdown,volatility,trades,wins,losses,final_capital
-buy_hold,0.0706,0.0383,0.1143,0.0053,363,183,180,107.06
+token,config,roi,sharpe,drawdown,volatility,trades,wins,losses,win_rate,final_capital
+demo,buy_hold,0.0706,0.0383,0.1143,0.0053,363,183,180,0.5041,107.06
 ...
 ```
 
@@ -1037,8 +1068,26 @@ The `highlights.json` file summarises the top strategy and resource usage:
   "top_strategy": "momentum",
   "top_final_capital": 235.04,
   "top_roi": 1.3503744758707135,
-  "cpu_usage": 19.9,
-  "memory_percent": 3.8
+  "cpu_usage": 24.4,
+  "memory_percent": 3.6,
+  "arbitrage_profit": 0.25,
+  "flash_loan_profit": 0.1,
+  "sniper_tokens": [
+    "demo_token"
+  ],
+  "dex_new_pools": [
+    "pool_demo"
+  ],
+  "rl_reward": 1.0,
+  "key_correlations": {
+    "buy_hold-momentum": 0.90,
+    "buy_hold-mean_reversion": -0.88,
+    "momentum-mean_reversion": -0.58
+  },
+  "hedged_weights": {
+    "buy_hold": 0.10,
+    "momentum": 0.90
+  }
 }
 ```
 
