@@ -114,7 +114,16 @@ def load_prices(path: Path | None = None) -> List[float]:
     else:
         data_text = path.read_text()
     data = json.loads(data_text)
-    prices = [float(entry["price"]) for entry in data]
+    if not isinstance(data, list):
+        raise ValueError("Price data must be a list")
+    prices: List[float] = []
+    for entry in data:
+        if not isinstance(entry, dict) or "price" not in entry:
+            raise ValueError("Each entry must contain a numeric 'price'")
+        price = entry["price"]
+        if not isinstance(price, (int, float)):
+            raise ValueError("Each entry must contain a numeric 'price'")
+        prices.append(float(price))
     return prices
 
 

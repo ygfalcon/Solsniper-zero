@@ -82,3 +82,17 @@ def test_investor_demo_single_price(tmp_path, monkeypatch):
     zero_weights = {"buy_hold": 0.0, "momentum": 0.0, "mean_reversion": 0.0}
     returns = investor_demo.compute_weighted_returns(prices, zero_weights)
     assert returns == []
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        [{"date": "2024-01-01"}],  # missing price
+        [{"date": "2024-01-01", "price": "not-a-number"}],  # non-numeric price
+    ],
+)
+def test_load_prices_invalid_data(tmp_path, data):
+    data_file = tmp_path / "prices.json"
+    data_file.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        investor_demo.load_prices(data_file)
