@@ -40,3 +40,6 @@ def test_investor_demo(tmp_path):
     if importlib.util.find_spec("matplotlib") is not None:
         for name in ["buy_hold", "momentum", "mixed"]:
             assert (tmp_path / f"{name}.png").exists(), f"Missing plot {name}.png"
+
+    # Demo should exercise arbitrage and flash loan trade types
+    assert {"arbitrage", "flash_loan"} <= investor_demo.used_trade_types

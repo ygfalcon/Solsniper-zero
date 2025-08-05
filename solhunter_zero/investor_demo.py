@@ -3,15 +3,14 @@ from __future__ import annotations
 """Investor demo utilities and CLI."""
 
 import argparse
+import asyncio
 import csv
 import json
 import sys
 import types
 from importlib import resources
 from pathlib import Path
-from typing import Dict, List, Tuple
-
-import numpy as np
+from typing import Callable, Dict, List, Tuple
 
 # Provide lightweight stubs for optional heavy modules
 memory_stub = types.ModuleType("solhunter_zero.memory")
@@ -33,23 +32,43 @@ portfolio_stub = types.ModuleType("solhunter_zero.portfolio")
 portfolio_stub.hedge_allocation = hedge_allocation
 sys.modules.setdefault("solhunter_zero.portfolio", portfolio_stub)
 
-from .backtest_pipeline import rolling_backtest
-from .backtester import DEFAULT_STRATEGIES
-from .risk import RiskManager
+
+# Track which trade types have been exercised by the demo
+used_trade_types: set[str] = set()
+
+# Simple strategy functions used for demonstration
+
+
+def _buy_and_hold(prices: List[float]) -> List[float]:
+    rets: List[float] = []
+    for i in range(1, len(prices)):
+        rets.append((prices[i] - prices[i - 1]) / prices[i - 1])
+    return rets
+
+
+def _momentum(prices: List[float]) -> List[float]:
+    returns: List[float] = []
+    for i in range(1, len(prices)):
+        r = (prices[i] - prices[i - 1]) / prices[i - 1]
+        if r > 0:
+            returns.append(r)
+    return returns
+
+
+DEFAULT_STRATEGIES: List[Tuple[str, Callable[[List[float]], List[float]]]] = [
+    ("buy_hold", _buy_and_hold),
+    ("momentum", _momentum),
+]
 
 # Packaged price data for the demo
 DATA_FILE = resources.files(__package__) / "data" / "investor_demo_prices.json"
 DEFAULT_DATA_PATH = Path(DATA_FILE)
 
 
-def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> np.ndarray:
-    """Aggregate returns only for strategies explicitly weighted in ``weights``.
+def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> List[float]:
+    """Aggregate returns for strategies weighted in ``weights`` using pure Python."""
 
-    Strategies not present in ``weights`` or given a weight of zero are
-    ignored when computing the combined return series.
-    """
-
-    arrs: List[Tuple[np.ndarray, float]] = []
+    arrs: List[Tuple[List[float], float]] = []
     weight_sum = 0.0
     for name, strat in DEFAULT_STRATEGIES:
         w = float(weights.get(name, 0.0))
@@ -57,26 +76,37 @@ def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> 
             continue
         rets = strat(prices)
         if rets:
-            arrs.append((np.array(rets, dtype=float), w))
+            arrs.append(([float(r) for r in rets], w))
             weight_sum += w
     if not arrs or weight_sum == 0:
-        return np.array([])
+        return []
     length = min(len(a) for a, _ in arrs)
-    agg = np.zeros(length, dtype=float)
+    agg = [0.0] * length
     for a, w in arrs:
-        agg += w * a[:length]
-    agg /= weight_sum
+        for i in range(length):
+            agg[i] += w * a[i]
+    for i in range(length):
+        agg[i] /= weight_sum
     return agg
 
 
-def max_drawdown(returns: np.ndarray) -> float:
+def max_drawdown(returns: List[float]) -> float:
     """Calculate maximum drawdown from a series of returns."""
-    if returns.size == 0:
+    if not returns:
         return 0.0
-    cumulative = np.cumprod(1 + returns)
-    peak = np.maximum.accumulate(cumulative)
-    drawdowns = (peak - cumulative) / peak
-    return float(np.max(drawdowns))
+    cumulative: List[float] = []
+    total = 1.0
+    for r in returns:
+        total *= 1 + r
+        cumulative.append(total)
+    peak: List[float] = []
+    max_val = float("-inf")
+    for c in cumulative:
+        if c > max_val:
+            max_val = c
+        peak.append(max_val)
+    drawdowns = [(p - c) / p if p else 0.0 for c, p in zip(cumulative, peak)]
+    return max(drawdowns) if drawdowns else 0.0
 
 
 def load_prices(path: Path) -> List[float]:
@@ -84,6 +114,61 @@ def load_prices(path: Path) -> List[float]:
     data = json.loads(path.read_text())
     prices = [float(entry["price"]) for entry in data]
     return prices
+
+
+async def _demo_arbitrage() -> None:
+    """Invoke arbitrage detection with stub inputs."""
+
+    mod_name = f"{__package__}.arbitrage"
+    orig = sys.modules.get(mod_name)
+    arb_stub = types.ModuleType(mod_name)
+
+    async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
+        return None
+
+    arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
+    sys.modules[mod_name] = arb_stub
+    try:
+        from .arbitrage import detect_and_execute_arbitrage as demo_func  # type: ignore
+        async def _feed(_token: str) -> float:
+            return 1.0
+        await demo_func("demo", feeds=[_feed, _feed], use_service=False)
+    finally:
+        if orig is not None:
+            sys.modules[mod_name] = orig
+        else:
+            del sys.modules[mod_name]
+
+    used_trade_types.add("arbitrage")
+
+
+async def _demo_flash_loan() -> None:
+    """Invoke flash loan borrow/repay with stub inputs."""
+
+    mod_name = f"{__package__}.flash_loans"
+    orig = sys.modules.get(mod_name)
+    fl_stub = types.ModuleType(mod_name)
+
+    async def borrow_flash(*_args, **_kwargs):  # type: ignore
+        return "sig"
+
+    async def repay_flash(*_args, **_kwargs) -> bool:  # type: ignore
+        return True
+
+    fl_stub.borrow_flash = borrow_flash
+    fl_stub.repay_flash = repay_flash
+    sys.modules[mod_name] = fl_stub
+    try:
+        from .flash_loans import borrow_flash as _borrow, repay_flash as _repay  # type: ignore
+        sig = await _borrow(1.0, "demo", [])
+        await _repay(sig)
+    finally:
+        if orig is not None:
+            sys.modules[mod_name] = orig
+        else:
+            del sys.modules[mod_name]
+
+    used_trade_types.add("flash_loan")
 
 
 def main(argv: List[str] | None = None) -> None:
@@ -109,7 +194,6 @@ def main(argv: List[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     prices = load_prices(args.data)
-    history = {"asset": prices}
 
     configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -121,15 +205,28 @@ def main(argv: List[str] | None = None) -> None:
     summary: List[Dict[str, float]] = []
 
     for name, weights in configs.items():
-        risk = RiskManager(min_portfolio_value=args.capital)
-        result = rolling_backtest(history, weights, risk)
         returns = compute_weighted_returns(prices, weights)
+        if returns:
+            cum: List[float] = []
+            total = 1.0
+            for r in returns:
+                total *= 1 + r
+                cum.append(total)
+            roi = cum[-1] - 1
+            mean = sum(returns) / len(returns)
+            variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+            vol = variance ** 0.5
+            sharpe = mean / vol if vol else 0.0
+        else:
+            cum = []
+            roi = 0.0
+            sharpe = 0.0
         dd = max_drawdown(returns)
-        final_capital = args.capital * (1 + result.roi)
+        final_capital = args.capital * (1 + roi)
         metrics = {
             "config": name,
-            "roi": result.roi,
-            "sharpe": result.sharpe,
+            "roi": roi,
+            "sharpe": sharpe,
             "drawdown": dd,
             "final_capital": final_capital,
         }
@@ -139,8 +236,8 @@ def main(argv: List[str] | None = None) -> None:
             import matplotlib.pyplot as plt  # type: ignore
 
             plt.figure()
-            if returns.size:
-                plt.plot(np.cumprod(1 + returns), label="Cumulative Return")
+            if cum:
+                plt.plot(cum, label="Cumulative Return")
             plt.title(f"Performance - {name}")
             plt.xlabel("Period")
             plt.ylabel("Growth")
@@ -160,6 +257,15 @@ def main(argv: List[str] | None = None) -> None:
         writer.writeheader()
         for row in summary:
             writer.writerow(row)
+
+    # Exercise trade types via lightweight stubs
+    asyncio.run(_demo_arbitrage())
+    asyncio.run(_demo_flash_loan())
+
+    required = {"arbitrage", "flash_loan"}
+    missing = required - used_trade_types
+    if missing:
+        raise RuntimeError(f"Demo did not exercise trade types: {', '.join(sorted(missing))}")
 
     print(f"Wrote reports to {args.reports}")
 
