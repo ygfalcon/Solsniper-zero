@@ -174,6 +174,54 @@ async def _demo_flash_loan() -> None:
     used_trade_types.add("flash_loan")
 
 
+async def _demo_sniper() -> None:
+    """Invoke sniper evaluate with stub inputs."""
+
+    mod_name = f"{__package__}.sniper"
+    orig = sys.modules.get(mod_name)
+    sni_stub = types.ModuleType(mod_name)
+
+    async def evaluate(*_args, **_kwargs):  # type: ignore
+        return [{"token": "demo"}]
+
+    sni_stub.evaluate = evaluate
+    sys.modules[mod_name] = sni_stub
+    try:
+        from .sniper import evaluate as demo_func  # type: ignore
+        await demo_func("demo", None)
+    finally:
+        if orig is not None:
+            sys.modules[mod_name] = orig
+        else:
+            del sys.modules[mod_name]
+
+    used_trade_types.add("sniper")
+
+
+async def _demo_dex_scanner() -> None:
+    """Invoke DEX pool scanning with stub inputs."""
+
+    mod_name = f"{__package__}.dex_scanner"
+    orig = sys.modules.get(mod_name)
+    dex_stub = types.ModuleType(mod_name)
+
+    async def scan_new_pools(*_args, **_kwargs):  # type: ignore
+        return ["demo"]
+
+    dex_stub.scan_new_pools = scan_new_pools
+    sys.modules[mod_name] = dex_stub
+    try:
+        from .dex_scanner import scan_new_pools as demo_func  # type: ignore
+        await demo_func("url")
+    finally:
+        if orig is not None:
+            sys.modules[mod_name] = orig
+        else:
+            del sys.modules[mod_name]
+
+    used_trade_types.add("dex_scanner")
+
+
 def main(argv: List[str] | None = None) -> None:
     used_trade_types.clear()
     from . import resource_monitor
@@ -277,6 +325,16 @@ def main(argv: List[str] | None = None) -> None:
                     "capital": capital,
                 }
             )
+        for i in range(len(returns) + 1, len(prices)):
+            trade_history.append(
+                {
+                    "strategy": name,
+                    "period": i,
+                    "action": "hold",
+                    "price": prices[i],
+                    "capital": capital,
+                }
+            )
 
         try:  # plotting hook
             import matplotlib.pyplot as plt  # type: ignore
@@ -360,8 +418,10 @@ def main(argv: List[str] | None = None) -> None:
     # Exercise trade types via lightweight stubs
     asyncio.run(_demo_arbitrage())
     asyncio.run(_demo_flash_loan())
+    asyncio.run(_demo_sniper())
+    asyncio.run(_demo_dex_scanner())
 
-    required = {"arbitrage", "flash_loan"}
+    required = {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
     missing = required - used_trade_types
     if missing:
         raise RuntimeError(f"Demo did not exercise trade types: {', '.join(sorted(missing))}")
