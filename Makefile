@@ -2,7 +2,7 @@
 
 PYTHON ?= python
 
-.PHONY: start test demo
+.PHONY: start test demo demo-full
 
 start:
 	$(PYTHON) scripts/startup.py $(ARGS)
@@ -12,4 +12,7 @@ test:
 
 demo:
 	$(PYTHON) scripts/investor_demo.py --preset short --reports reports $(ARGS)
+
+demo-full:
+	$(PYTHON) scripts/investor_demo.py --preset short --reports reports --full-system $(ARGS)
 
