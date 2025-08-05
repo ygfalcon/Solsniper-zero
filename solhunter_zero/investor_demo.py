@@ -181,36 +181,58 @@ def load_prices(
     raise ValueError("Price data must be a list or mapping of token to list")
 
 
-async def _demo_arbitrage() -> None:
-    """Invoke arbitrage detection with stub inputs."""
+async def _demo_arbitrage() -> float:
+    """Invoke arbitrage detection using the real implementation."""
 
     prices, _ = load_prices(preset="short")
-    profit = abs(prices[1] - prices[0]) if len(prices) > 1 else 0.0
+    if len(prices) < 2:
+        used_trade_types.add("arbitrage")
+        return 0.0
 
-    mod_name = f"{__package__}.arbitrage"
-    orig = sys.modules.get(mod_name)
-    arb_stub = types.ModuleType(mod_name)
+    buy_price = float(prices[0])
+    sell_price = float(prices[1])
 
-    async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        return {"profit": profit}
+    from . import arbitrage as arb
 
-    arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
-    sys.modules[mod_name] = arb_stub
+    async def _orc_feed(_token: str) -> float:
+        return buy_price
+
+    async def _ray_feed(_token: str) -> float:
+        return sell_price
+
+    async def _other_feed(_token: str) -> float:
+        return sell_price
+
+    orig_funcs = (
+        arb.fetch_orca_price_async,
+        arb.fetch_raydium_price_async,
+        arb.fetch_phoenix_price_async,
+        arb.fetch_meteora_price_async,
+        arb.fetch_jupiter_price_async,
+    )
     try:
-        from .arbitrage import detect_and_execute_arbitrage as demo_func  # type: ignore
+        arb.fetch_orca_price_async = _orc_feed  # type: ignore[assignment]
+        arb.fetch_raydium_price_async = _ray_feed  # type: ignore[assignment]
+        arb.fetch_phoenix_price_async = _other_feed  # type: ignore[assignment]
+        arb.fetch_meteora_price_async = _other_feed  # type: ignore[assignment]
+        arb.fetch_jupiter_price_async = _other_feed  # type: ignore[assignment]
 
-        async def _feed(_token: str) -> float:
-            return 1.0
-
-        result = await demo_func("demo", feeds=[_feed, _feed], use_service=False)
+        await arb.detect_and_execute_arbitrage(
+            "demo",
+            feeds=[arb.fetch_orca_price_async, arb.fetch_raydium_price_async],
+            use_service=False,
+        )
     finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
+        (
+            arb.fetch_orca_price_async,
+            arb.fetch_raydium_price_async,
+            arb.fetch_phoenix_price_async,
+            arb.fetch_meteora_price_async,
+            arb.fetch_jupiter_price_async,
+        ) = orig_funcs
 
     used_trade_types.add("arbitrage")
-    return float(result.get("profit", 0.0))
+    return abs(sell_price - buy_price)
 
 
 async def _demo_flash_loan() -> float:

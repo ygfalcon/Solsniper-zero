@@ -2,13 +2,28 @@ import csv
 import json
 import importlib
 import re
+import asyncio
 
 import pytest
 
 from solhunter_zero import investor_demo
+import solhunter_zero.arbitrage as arbitrage
 
 
 pytestmark = pytest.mark.timeout(30)
+
+
+def test_demo_arbitrage_invokes_real_function(monkeypatch):
+    called: dict[str, bool] = {}
+
+    async def fake_detect(*args, **kwargs):
+        called["called"] = True
+        return (0, 1)
+
+    monkeypatch.setattr(arbitrage, "detect_and_execute_arbitrage", fake_detect)
+    profit = asyncio.run(investor_demo._demo_arbitrage())
+    assert called.get("called")
+    assert profit == pytest.approx(0.51)
 
 
 def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):

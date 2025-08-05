@@ -8,8 +8,23 @@ import csv
 import json
 
 import pytest
+import asyncio
 
 from solhunter_zero import investor_demo
+import solhunter_zero.arbitrage as arbitrage
+
+
+def test_demo_arbitrage_invokes_real_function_cli(monkeypatch):
+    called: dict[str, bool] = {}
+
+    async def fake_detect(*args, **kwargs):
+        called["called"] = True
+        return (0, 1)
+
+    monkeypatch.setattr(arbitrage, "detect_and_execute_arbitrage", fake_detect)
+    profit = asyncio.run(investor_demo._demo_arbitrage())
+    assert called.get("called")
+    assert profit == pytest.approx(0.51)
 
 
 def _run_and_check(
