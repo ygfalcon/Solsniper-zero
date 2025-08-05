@@ -64,6 +64,7 @@ def test_investor_demo(tmp_path, monkeypatch):
         "trades",
         "wins",
         "losses",
+        "win_rate",
         "final_capital",
     ]
     for entry in content:
@@ -103,11 +104,13 @@ def test_investor_demo(tmp_path, monkeypatch):
             trades = sum(1 for r in returns if r != 0)
             wins = sum(1 for r in returns if r > 0)
             losses = sum(1 for r in returns if r < 0)
+            win_rate = wins / trades if trades else 0.0
         else:
             roi = 0.0
             sharpe = 0.0
             vol = 0.0
             trades = wins = losses = 0
+            win_rate = 0.0
         dd = investor_demo.max_drawdown(returns)
         final_capital = start_capital * (1 + roi)
         expected[name] = {
@@ -118,6 +121,7 @@ def test_investor_demo(tmp_path, monkeypatch):
             "trades": trades,
             "wins": wins,
             "losses": losses,
+            "win_rate": win_rate,
             "final_capital": final_capital,
         }
     csv_map: dict[str, dict[str, float | int | str]] = {}
@@ -135,7 +139,7 @@ def test_investor_demo(tmp_path, monkeypatch):
     for entry in content:
         exp = expected[entry["config"]]
         csv_entry = csv_map[entry["config"]]
-        for key in ["roi", "sharpe", "drawdown", "volatility", "final_capital"]:
+        for key in ["roi", "sharpe", "drawdown", "volatility", "win_rate", "final_capital"]:
             assert entry[key] == pytest.approx(exp[key], rel=1e-6)
             assert csv_entry[key] == pytest.approx(exp[key], rel=1e-6)
         for key in ["trades", "wins", "losses"]:
