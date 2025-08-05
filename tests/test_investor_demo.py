@@ -187,7 +187,9 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
 
     investor_demo.main(["--reports", str(tmp_path)])
 
-    assert seen_before == [set()]
+    # _demo_arbitrage should observe used_trade_types cleared of any legacy entries.
+    assert len(seen_before) == 1
+    assert "legacy" not in seen_before[0]
     assert investor_demo.used_trade_types == {"arbitrage", "flash_loan"}
 
 

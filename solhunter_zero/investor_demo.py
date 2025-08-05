@@ -334,9 +334,8 @@ def main(argv: List[str] | None = None) -> None:
             f"Top strategy: {top['config']} with final capital {top['final_capital']:.2f}"
         )
 
-    # Exercise trade types via lightweight stubs
-    asyncio.run(_demo_arbitrage())
-    asyncio.run(_demo_flash_loan())
+    # Exercise trade types via lightweight stubs concurrently
+    asyncio.run(asyncio.gather(_demo_arbitrage(), _demo_flash_loan()))
 
     required = {"arbitrage", "flash_loan"}
     missing = required - used_trade_types
