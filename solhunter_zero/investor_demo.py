@@ -181,124 +181,42 @@ def load_prices(
     raise ValueError("Price data must be a list or mapping of token to list")
 
 
-async def _demo_arbitrage() -> None:
-    """Invoke arbitrage detection with stub inputs."""
+async def _demo_arbitrage() -> float:
+    """Demonstrate a simple arbitrage opportunity and return the profit."""
 
     prices, _ = load_prices(preset="short")
     profit = abs(prices[1] - prices[0]) if len(prices) > 1 else 0.0
-
-    mod_name = f"{__package__}.arbitrage"
-    orig = sys.modules.get(mod_name)
-    arb_stub = types.ModuleType(mod_name)
-
-    async def detect_and_execute_arbitrage(*_args, **_kwargs):  # type: ignore
-        return {"profit": profit}
-
-    arb_stub.detect_and_execute_arbitrage = detect_and_execute_arbitrage
-    sys.modules[mod_name] = arb_stub
-    try:
-        from .arbitrage import detect_and_execute_arbitrage as demo_func  # type: ignore
-
-        async def _feed(_token: str) -> float:
-            return 1.0
-
-        result = await demo_func("demo", feeds=[_feed, _feed], use_service=False)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
-
     used_trade_types.add("arbitrage")
-    return float(result.get("profit", 0.0))
+    return profit
 
 
 async def _demo_flash_loan() -> float:
-    """Invoke flash loan borrow/repay with stub inputs and return profit."""
+    """Simulate a flash loan trade and return the profit."""
+
     prices, _ = load_prices(preset="short")
     profit = (
         abs(prices[2] - prices[1]) / prices[1] if len(prices) > 2 and prices[1] else 0.0
     )
-
-    mod_name = f"{__package__}.flash_loans"
-    orig = sys.modules.get(mod_name)
-    fl_stub = types.ModuleType(mod_name)
-
-    async def borrow_flash(*_args, **_kwargs):  # type: ignore
-        return "sig"
-
-    async def repay_flash(*_args, **_kwargs) -> bool:  # type: ignore
-        return True
-
-    fl_stub.borrow_flash = borrow_flash
-    fl_stub.repay_flash = repay_flash
-    sys.modules[mod_name] = fl_stub
-    try:
-        from .flash_loans import borrow_flash as _borrow, repay_flash as _repay  # type: ignore
-        sig = await _borrow(1.0, "demo", [])
-        await _repay(sig)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
-
     used_trade_types.add("flash_loan")
     return profit
 
 
 async def _demo_sniper() -> List[str]:
-    """Invoke sniper evaluate with stub inputs and return discovered tokens."""
-    prices, dates = load_prices(preset="short")
+    """Return a deterministic token discovered by the sniper demo."""
+
+    _, dates = load_prices(preset="short")
     token = f"token_{dates[0]}" if dates else "token_demo"
-
-    mod_name = f"{__package__}.sniper"
-    orig = sys.modules.get(mod_name)
-    sni_stub = types.ModuleType(mod_name)
-
-    async def evaluate(*_args, **_kwargs):  # type: ignore
-        return [{"token": token}]
-
-    sni_stub.evaluate = evaluate
-    sys.modules[mod_name] = sni_stub
-    try:
-        from .sniper import evaluate as demo_func  # type: ignore
-        results = await demo_func("demo", None)
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
-
     used_trade_types.add("sniper")
-    return [r.get("token", "") for r in results]
+    return [token]
 
 
 async def _demo_dex_scanner() -> List[str]:
-    """Invoke DEX pool scanning with stub inputs and return discovered pools."""
-    prices, dates = load_prices(preset="short")
+    """Return a deterministic pool discovered by the DEX scanner demo."""
+
+    _, dates = load_prices(preset="short")
     pool = f"pool_{dates[1]}" if len(dates) > 1 else "pool_demo"
-
-    mod_name = f"{__package__}.dex_scanner"
-    orig = sys.modules.get(mod_name)
-    dex_stub = types.ModuleType(mod_name)
-
-    async def scan_new_pools(*_args, **_kwargs):  # type: ignore
-        return [pool]
-
-    dex_stub.scan_new_pools = scan_new_pools
-    sys.modules[mod_name] = dex_stub
-    try:
-        from .dex_scanner import scan_new_pools as demo_func  # type: ignore
-        pools = await demo_func("url")
-    finally:
-        if orig is not None:
-            sys.modules[mod_name] = orig
-        else:
-            del sys.modules[mod_name]
-
     used_trade_types.add("dex_scanner")
-    return [str(p) for p in pools]
+    return [pool]
 
 
 def _demo_rl_agent() -> float:
