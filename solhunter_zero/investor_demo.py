@@ -267,6 +267,16 @@ def main(argv: List[str] | None = None) -> None:
 
     # Demonstrate Memory usage and portfolio hedging
     mem = Memory("sqlite:///:memory:")
+
+    async def _record_demo_trade() -> None:
+        await mem.log_trade(
+            token="demo", direction="buy", amount=1.0, price=prices[0]
+        )
+        trades = await mem.list_trades(token="demo")
+        assert len(trades) == 1
+
+    asyncio.run(_record_demo_trade())
+
     mem.log_var(0.0)
     asyncio.run(mem.close())
 

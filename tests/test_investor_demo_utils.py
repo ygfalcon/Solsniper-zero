@@ -53,7 +53,13 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
 
     class DummyMem:
         def __init__(self, *a, **k):
-            pass
+            self.trade: dict | None = None
+
+        async def log_trade(self, **kwargs):
+            self.trade = kwargs
+
+        async def list_trades(self, token: str):
+            return [self.trade] if self.trade else []
 
         def log_var(self, value: float):
             pass
@@ -97,3 +103,53 @@ def test_correlations_synthetic(monkeypatch, tmp_path):
     assert captured[("momentum", "mean_reversion")] == pytest.approx(
         -1.0, rel=1e-6
     )
+
+
+def test_demo_trade_recorded(monkeypatch, tmp_path):
+    prices = [1.0, 2.0]
+    monkeypatch.setattr(investor_demo, "load_prices", lambda _=None: prices)
+
+    class DummyMem:
+        def __init__(self, *a, **k):
+            self.trades: list[dict] = []
+
+        async def log_trade(self, **kwargs):
+            self.trades.append(kwargs)
+
+        async def list_trades(self, token: str):
+            return self.trades
+
+        def log_var(self, value: float) -> None:  # pragma: no cover - simple stub
+            pass
+
+        async def close(self) -> None:  # pragma: no cover - simple stub
+            pass
+
+    dummy = DummyMem()
+    monkeypatch.setattr(investor_demo, "Memory", lambda *a, **k: dummy)
+
+    async def fake_arbitrage() -> None:
+        investor_demo.used_trade_types.add("arbitrage")
+
+    async def fake_flash() -> None:
+        investor_demo.used_trade_types.add("flash_loan")
+
+    async def fake_sniper() -> None:
+        investor_demo.used_trade_types.add("sniper")
+
+    async def fake_dex() -> None:
+        investor_demo.used_trade_types.add("dex_scanner")
+
+    monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arbitrage)
+    monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
+    monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
+    monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
+
+    investor_demo.main(["--reports", str(tmp_path)])
+
+    assert len(dummy.trades) == 1
+    trade = dummy.trades[0]
+    assert trade["token"] == "demo"
+    assert trade["direction"] == "buy"
+    assert trade["amount"] == 1.0
+    assert trade["price"] == prices[0]
