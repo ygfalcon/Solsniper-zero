@@ -13,6 +13,25 @@ def test_compute_weighted_returns_synthetic():
     assert returns[2] == pytest.approx(1 / 3, rel=1e-6)
 
 
+def test_compute_weighted_returns_negative_weights():
+    prices = [10.0, 11.0, 9.0, 12.0]
+    weights = {"buy_hold": 1.0, "mean_reversion": -0.5}
+    returns = investor_demo.compute_weighted_returns(prices, weights)
+    assert len(returns) == 3
+    assert returns[0] == pytest.approx(1 / 15, rel=1e-6)
+    assert returns[1] == pytest.approx(-2 / 11, rel=1e-6)
+    assert returns[2] == pytest.approx(2 / 9, rel=1e-6)
+
+
+def test_compute_weighted_returns_offsetting():
+    prices = [10.0, 11.0, 9.0, 12.0]
+    weights = {"buy_hold": 1.0, "momentum": -1.0}
+    returns = investor_demo.compute_weighted_returns(prices, weights)
+    assert returns[0] == pytest.approx(0.0, rel=1e-6)
+    assert returns[1] == pytest.approx(-1 / 11, rel=1e-6)
+    assert returns[2] == pytest.approx(0.0, rel=1e-6)
+
+
 def test_max_drawdown_synthetic():
     returns = [0.1, -0.2, 0.05]
     assert investor_demo.max_drawdown(returns) == pytest.approx(0.2, rel=1e-6)

@@ -64,10 +64,15 @@ DATA_FILE = resources.files(__package__) / "data" / "investor_demo_prices.json"
 
 
 def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> List[float]:
-    """Aggregate returns for strategies weighted in ``weights`` using pure Python."""
+    """Aggregate strategy returns weighted by ``weights``.
+
+    Negative weights represent short positions.  Returns are normalised by the
+    sum of absolute weights so that portfolios with offsetting long and short
+    allocations still produce meaningful values.
+    """
 
     arrs: List[Tuple[List[float], float]] = []
-    weight_sum = 0.0
+    abs_sum = 0.0
     for name, strat in DEFAULT_STRATEGIES:
         w = float(weights.get(name, 0.0))
         if not w:
@@ -75,8 +80,8 @@ def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> 
         rets = strat(prices)
         if rets:
             arrs.append(([float(r) for r in rets], w))
-            weight_sum += w
-    if not arrs or weight_sum == 0:
+            abs_sum += abs(w)
+    if not arrs or abs_sum == 0.0:
         return []
     length = min(len(a) for a, _ in arrs)
     agg = [0.0] * length
@@ -84,7 +89,7 @@ def compute_weighted_returns(prices: List[float], weights: Dict[str, float]) -> 
         for i in range(length):
             agg[i] += w * a[i]
     for i in range(length):
-        agg[i] /= weight_sum
+        agg[i] /= abs_sum
     return agg
 
 
