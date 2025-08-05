@@ -5,7 +5,26 @@ import importlib
 from solhunter_zero import investor_demo
 
 
-def test_investor_demo(tmp_path):
+def test_investor_demo(tmp_path, monkeypatch):
+    calls: dict[str, object] = {}
+
+    class DummyMem:
+        def __init__(self, *a, **k):
+            calls["mem_init"] = True
+
+        def log_var(self, value: float):
+            calls["mem_log_var"] = value
+
+        async def close(self) -> None:  # pragma: no cover - simple stub
+            calls["mem_closed"] = True
+
+    def fake_hedge(weights, corrs):
+        calls["hedge_called"] = (weights, corrs)
+        return weights
+
+    monkeypatch.setattr(investor_demo, "Memory", DummyMem)
+    monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
+
     investor_demo.main(
         [
             "--reports",
@@ -91,6 +110,12 @@ def test_investor_demo(tmp_path):
 
     # Demo should exercise arbitrage and flash loan trade types
     assert {"arbitrage", "flash_loan"} <= investor_demo.used_trade_types
+
+    # Memory and portfolio helpers should have been invoked
+    assert calls.get("mem_init")
+    assert calls.get("mem_log_var") == 0.0
+    assert calls.get("mem_closed")
+    assert "hedge_called" in calls
 
 
 def test_used_trade_types_reset(tmp_path, monkeypatch):
