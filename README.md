@@ -974,26 +974,34 @@ curl -X POST http://localhost:5000/memory/query \
 
 ## Investor Demo
 
-Run a lightweight backtest to showcase strategy performance for potential investors. The `solhunter-demo` CLI loads a bundled dataset and emits a trade-history file, a highlights summary and a console capital table alongside the existing CSV and JSON reports. Use the `short` preset for a quick run:
+Run a lightweight backtest to showcase strategy performance for potential investors. The `solhunter-demo` CLI loads a bundled dataset and emits a trade-history file, a highlights summary and a console capital table alongside CSV and JSON reports.
 
-```bash
-solhunter-demo --preset short --capital 100 --reports reports
-```
+1. **Install dependencies**
 
-To experiment with multiple tokens, load the bundled multi-token dataset via the `multi` preset (or pass its path explicitly):
+   ```bash
+   pip install .[uvloop]
+   ```
 
-```bash
-solhunter-demo --preset multi --capital 100 --reports reports
-# or
-solhunter-demo --data solhunter_zero/data/investor_demo_prices_multi.json --capital 100 --reports reports
-```
+2. **Run a quick single-token demo**
 
-The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory.
-Strategy weights can be negative to model short positions; the demo normalises
-aggregated returns by the sum of absolute weights so offsetting long/short
-exposures still yield meaningful sequences.
-It writes a summary JSON and CSV, a `trade_history.csv` and a `highlights.json`
-then prints trade type results, correlation stats and a capital summary such as:
+   ```bash
+   solhunter-demo --preset short --capital 100 --reports reports
+   ```
+
+3. **Demonstrate multi-token mode**
+
+   ```bash
+   solhunter-demo --preset multi --capital 100 --reports reports
+   ```
+
+   Provide a custom dataset with `--data PATH` if desired.
+
+4. **Inspect the output**
+
+   The command writes `summary.json`, `summary.csv`, `trade_history.csv` and
+   `highlights.json` to the `reports` directory.
+
+The script accepts `--data` for a custom historical price file, `--capital` for the starting funds and `--reports` to choose the output directory. Strategy weights can be negative to model short positions; the demo normalises aggregated returns by the sum of absolute weights so offsetting long/short exposures still yield meaningful sequences. It prints trade type results, correlation stats and a capital summary such as:
 
 ```text
 Capital Summary:
