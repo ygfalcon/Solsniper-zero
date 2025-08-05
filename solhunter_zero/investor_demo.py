@@ -350,7 +350,7 @@ def main(argv: List[str] | None = None) -> None:
     args.reports.mkdir(parents=True, exist_ok=True)
 
     # Persist correlation pairs and hedged weights for inspection
-    corr_out = {f"{a}-{b}": c for (a, b), c in corr_pairs.items()}
+    corr_out = {str((a, b)): c for (a, b), c in corr_pairs.items()}
     with open(args.reports / "correlations.json", "w", encoding="utf-8") as cf:
         json.dump(corr_out, cf, indent=2)
     with open(args.reports / "hedged_weights.json", "w", encoding="utf-8") as hf:
