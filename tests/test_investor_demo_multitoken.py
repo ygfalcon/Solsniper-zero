@@ -1,3 +1,4 @@
+import importlib
 import json
 from pathlib import Path
 
@@ -30,4 +31,12 @@ def test_investor_demo_multitoken(tmp_path, capsys):
     assert {"SOL", "ETH"} <= hist_tokens
     # Every trade entry should be tagged by token
     assert all("token" in row for row in trade_hist)
+
+    # Plot files should be produced for every token/strategy combination
+    if importlib.util.find_spec("matplotlib") is not None:
+        for token in ["SOL", "ETH"]:
+            for name in ["buy_hold", "momentum", "mean_reversion", "mixed"]:
+                assert (
+                    tmp_path / f"{token}_{name}.png"
+                ).exists(), f"Missing plot {token}_{name}.png"
 

@@ -244,7 +244,9 @@ def test_investor_demo(tmp_path, monkeypatch, capsys):
     # Plot files are produced when matplotlib is installed
     if importlib.util.find_spec("matplotlib") is not None:
         for name in ["buy_hold", "momentum", "mean_reversion", "mixed"]:
-            assert (tmp_path / f"{name}.png").exists(), f"Missing plot {name}.png"
+            assert (
+                tmp_path / f"demo_{name}.png"
+            ).exists(), f"Missing plot demo_{name}.png"
 
     # Demo should exercise arbitrage, flash loan, sniper and DEX scanner trade types
     assert {"arbitrage", "flash_loan", "sniper", "dex_scanner"} <= investor_demo.used_trade_types
