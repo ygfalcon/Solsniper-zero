@@ -181,3 +181,27 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
 
     assert seen_before == [set()]
     assert investor_demo.used_trade_types == {"arbitrage", "flash_loan"}
+
+
+def test_investor_demo_custom_data_length(tmp_path):
+    price_data = [{"price": p} for p in [1.0, 2.0, 3.0, 4.0]]
+    data_path = tmp_path / "prices.json"
+    data_path.write_text(json.dumps(price_data))
+
+    investor_demo.main(["--data", str(data_path), "--reports", str(tmp_path)])
+
+    trade_csv = tmp_path / "trade_history.csv"
+    assert trade_csv.exists()
+    rows = list(csv.DictReader(trade_csv.open()))
+    assert rows
+
+    periods_by_strategy: dict[str, set[int]] = {}
+    for row in rows:
+        periods_by_strategy.setdefault(row["strategy"], set()).add(
+            int(row["period"])
+        )
+
+    expected_last = len(price_data) - 1
+    for periods in periods_by_strategy.values():
+        assert max(periods) == expected_last
+        assert len(periods) == len(price_data)
