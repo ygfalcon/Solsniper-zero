@@ -6,13 +6,22 @@ import re
 import pytest
 
 from solhunter_zero import investor_demo
+from solhunter_zero.event_bus import subscribe, publish
+from solhunter_zero.schemas import TradeLogged
 
 
 pytestmark = pytest.mark.timeout(30)
 
 
 def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
+    monkeypatch.setenv("MEASURE_DEX_LATENCY", "0")
     calls = dummy_mem.calls
+
+    async def log_trade(self, **kwargs):
+        self.trade = kwargs
+        publish("trade_logged", TradeLogged(**kwargs))
+
+    monkeypatch.setattr(dummy_mem, "log_trade", log_trade)
 
     def fake_hedge(weights, corrs):
         calls["hedge_called"] = (weights, corrs)
@@ -23,14 +32,21 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     expected_rl = 7.0
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)
 
-    investor_demo.main(
-        [
-            "--reports",
-            str(tmp_path),
-            "--capital",
-            "100",
-        ]
-    )
+    events: list[TradeLogged] = []
+    unsub = subscribe("trade_logged", lambda p: events.append(p))
+    try:
+        investor_demo.main(
+            [
+                "--reports",
+                str(tmp_path),
+                "--capital",
+                "100",
+            ]
+        )
+    finally:
+        unsub()
+
+    assert events, "No trade_logged events captured"
 
     captured = capsys.readouterr()
     out = captured.out
