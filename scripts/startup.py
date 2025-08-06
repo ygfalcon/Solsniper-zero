@@ -89,6 +89,13 @@ def ensure_deps() -> None:
         if not torch.backends.mps.is_available():
             print("MPS backend not available; ensure Metal wheel is installed")
             raise SystemExit(1)
+        try:
+            torch.ones(1, device="mps")
+        except Exception:
+            print(
+                "MPS backend failed a simple tensor operation; reinstall the Metal wheel"
+            )
+            raise SystemExit(1)
 
     if opt:
         print("Installing optional dependencies...")
