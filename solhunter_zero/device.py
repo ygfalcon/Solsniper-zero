@@ -82,15 +82,15 @@ def ensure_torch_with_metal() -> None:
             )
 
 
-def detect_gpu(_attempt_install: bool = True) -> bool:
-    """Return ``True`` when a supported GPU backend is available.
+def detect_gpu(_attempt_install: bool = True) -> tuple[bool, str]:
+    """Return ``(available, reason)`` for supported GPU backends.
 
     The check prefers Apple's Metal backend (MPS) on macOS machines with
     Apple Silicon and falls back to CUDA on other platforms.  After the
     usual availability checks a tiny tensor is created and moved back to
     the CPU to ensure the backend is operational.  Any import errors,
     unsupported configurations or runtime failures are treated as absence
-    of a GPU.
+    of a GPU.  The ``reason`` string explains why detection failed.
     """
 
     if torch is None:
@@ -101,12 +101,12 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 logging.getLogger(__name__).exception(
                     "PyTorch installation failed; GPU unavailable"
                 )
-                return False
+                return False, "PyTorch installation failed"
             return detect_gpu(_attempt_install=False)
         logging.getLogger(__name__).warning(
             "PyTorch is not installed; GPU unavailable"
         )
-        return False
+        return False, "PyTorch is not installed"
     try:
         system = platform.system()
         if system == "Darwin":
@@ -115,13 +115,13 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 logging.getLogger(__name__).warning(
                     "Running under Rosetta (x86_64); GPU unavailable"
                 )
-                return False
+                return False, "Running under Rosetta (x86_64)"
             install_hint = (
                 "Install with: pip install torch==2.1.0 torchvision==0.16.0 "
                 "--extra-index-url https://download.pytorch.org/whl/metal"
             )
 
-            def _install_and_retry(reason: str) -> bool:
+            def _install_and_retry(reason: str) -> tuple[bool, str]:
                 logger = logging.getLogger(__name__)
                 logger.warning(
                     "%s; attempting to install MPS-enabled PyTorch", reason
@@ -133,9 +133,10 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                     raise RuntimeError(
                         "Failed to install MPS-enabled PyTorch"
                     )
-                if detect_gpu(_attempt_install=False):
+                ok, _ = detect_gpu(_attempt_install=False)
+                if ok:
                     logger.info("MPS backend detected after installation")
-                    return True
+                    return True, ""
                 logger.error("MPS backend unavailable after installation")
                 raise RuntimeError(
                     "MPS backend unavailable even after installing PyTorch"
@@ -147,14 +148,14 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 logging.getLogger(__name__).warning(
                     "MPS backend not present; GPU unavailable. %s", install_hint
                 )
-                return False
+                return False, "MPS backend not present"
             if not torch.backends.mps.is_built():
                 if _attempt_install:
                     return _install_and_retry("MPS backend not built")
                 logging.getLogger(__name__).warning(
                     "MPS backend not built; GPU unavailable. %s", install_hint
                 )
-                return False
+                return False, "MPS backend not built"
             if "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ:
                 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             elif os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
@@ -168,7 +169,7 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 logging.getLogger(__name__).warning(
                     "MPS backend not available; GPU unavailable. %s", install_hint
                 )
-                return False
+                return False, "MPS backend not available"
             try:
                 torch.ones(1, device="mps").cpu()
             except Exception:
@@ -179,22 +180,22 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                     return _install_and_retry(
                         "Tensor operation failed on mps backend"
                     )
-                return False
-            return True
+                return False, "Tensor operation failed on mps backend"
+            return True, ""
         if not torch.cuda.is_available():
             logging.getLogger(__name__).warning("CUDA backend not available")
-            return False
+            return False, "CUDA backend not available"
         try:
             torch.ones(1, device="cuda").cpu()
         except Exception:
             logging.getLogger(__name__).exception(
                 "Tensor operation failed on cuda backend"
             )
-            return False
-        return True
+            return False, "Tensor operation failed on cuda backend"
+        return True, ""
     except Exception:
         logging.getLogger(__name__).exception("Exception during GPU detection")
-        return False
+        return False, "Exception during GPU detection"
 
 
 def get_gpu_backend() -> str | None:
@@ -290,7 +291,8 @@ def _main() -> int:  # pragma: no cover - CLI helper
     )
     args = parser.parse_args()
     if args.check_gpu:
-        return 0 if detect_gpu() else 1
+        available, _ = detect_gpu()
+        return 0 if available else 1
     if args.setup_env:
         for k, v in ensure_gpu_env().items():
             print(f"export {k}={v}")

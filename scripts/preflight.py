@@ -154,8 +154,9 @@ def check_gpu() -> Check:
     try:
         from solhunter_zero import device
 
-        if not device.detect_gpu():
-            return False, "No GPU backend detected"
+        available, reason = device.detect_gpu()
+        if not available:
+            return False, reason or "No GPU backend detected"
 
         try:  # get_default_device may raise if torch is missing
             dev = device.get_default_device("auto")

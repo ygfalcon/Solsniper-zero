@@ -95,7 +95,7 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup.device, "ensure_gpu_env", lambda: None)
-    monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
+    monkeypatch.setattr(startup.device, "detect_gpu", lambda: (False, "no gpu"))
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
     monkeypatch.setattr(startup, "torch", dummy_torch, raising=False)

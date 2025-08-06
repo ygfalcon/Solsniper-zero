@@ -19,7 +19,9 @@ def test_detect_gpu_and_get_default_device_mps(monkeypatch):
         ones=lambda *a, **k: types.SimpleNamespace(cpu=lambda: None),
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
-    assert device_module.detect_gpu() is True
+    available, reason = device_module.detect_gpu()
+    assert available is True
+    assert reason == ""
     dev = device_module.get_default_device("auto")
     assert getattr(dev, "type", None) == "mps"
 
@@ -35,8 +37,10 @@ def test_detect_gpu_rosetta(monkeypatch, caplog):
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     with caplog.at_level("WARNING"):
-        assert device_module.detect_gpu() is False
+        available, reason = device_module.detect_gpu()
+        assert available is False
     assert "Rosetta" in caplog.text
+    assert "Rosetta" in reason
 
 
 def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
@@ -50,7 +54,8 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     with caplog.at_level("WARNING"):
-        assert device_module.detect_gpu() is False
+        available, reason = device_module.detect_gpu()
+        assert available is False
     assert (
         "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal"
         in caplog.text
@@ -73,8 +78,10 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     with caplog.at_level("ERROR"):
-        assert device_module.detect_gpu() is False
+        available, reason = device_module.detect_gpu()
+        assert available is False
     assert "Tensor operation failed" in caplog.text
+    assert "Tensor operation failed" in reason
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")

@@ -33,7 +33,8 @@ def _detect_gpu() -> bool:
         except Exception:
             pass
     try:
-        return detect_gpu()
+        available, _ = detect_gpu()
+        return available
     except Exception:
         return False
 
