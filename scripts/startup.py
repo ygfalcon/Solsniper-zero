@@ -396,8 +396,19 @@ def ensure_cargo() -> None:
                 )
             except subprocess.CalledProcessError:
                 print(
-                    "Xcode command line tools are required. Install them with 'xcode-select --install'.",
+                    "Xcode command line tools are required. Launching installer..."
                 )
+                try:
+                    subprocess.check_call(["xcode-select", "--install"])
+                except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+                    print(
+                        f"Failed to start Xcode command line tools installer: {exc}"
+                    )
+                else:
+                    print(
+                        "The installer may prompt for confirmation; "
+                        "after it finishes, re-run this script to resume."
+                    )
                 raise SystemExit(1)
         print("Installing Rust toolchain via rustup...")
         subprocess.check_call(
