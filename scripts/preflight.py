@@ -144,6 +144,12 @@ def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> C
 
 def check_gpu() -> Check:
     """Report GPU availability and the selected default device."""
+    env_available = os.environ.get("SOLHUNTER_GPU_AVAILABLE")
+    env_device = os.environ.get("SOLHUNTER_GPU_DEVICE")
+    if env_available is not None:
+        if env_available == "1":
+            return True, f"Using GPU device: {env_device or 'unknown'}"
+        return False, "No GPU backend detected"
 
     try:
         from solhunter_zero import device

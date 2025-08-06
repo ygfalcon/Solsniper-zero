@@ -768,6 +768,10 @@ def main(argv: list[str] | None = None) -> int:
     import torch
 
     torch.set_default_device(device.get_default_device())
+    gpu_available = device.detect_gpu()
+    gpu_device = str(device.get_default_device()) if gpu_available else "none"
+    os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
+    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
     config_path: str | None = None
     active_keypair: str | None = None
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
@@ -798,8 +802,6 @@ def main(argv: list[str] | None = None) -> int:
         rpc_status = "reachable"
     else:
         rpc_status = "skipped"
-
-    gpu_device = str(device.get_default_device()) if device.detect_gpu() else "none"
 
     ensure_cargo()
 
