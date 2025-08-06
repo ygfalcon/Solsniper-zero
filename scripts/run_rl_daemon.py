@@ -7,7 +7,7 @@ from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-from solhunter_zero.device import select_device
+from solhunter_zero.device import get_default_device
 
 
 async def main() -> None:
@@ -24,7 +24,7 @@ async def main() -> None:
     parser.add_argument("--no-hierarchical-rl", action="store_true")
     args = parser.parse_args()
 
-    device = select_device(args.device)
+    device = get_default_device(args.device)
     if args.event_bus:
         os.environ["EVENT_BUS_URL"] = args.event_bus
 

@@ -4,7 +4,7 @@ import asyncio
 from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-from solhunter_zero.device import select_device
+from solhunter_zero.device import get_default_device
 
 
 async def main() -> None:
@@ -16,7 +16,7 @@ async def main() -> None:
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 
-    device = select_device(args.device)
+    device = get_default_device(args.device)
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)

@@ -20,7 +20,7 @@ except Exception:  # pragma: no cover - psutil optional
     )
 from .multi_rl import PopulationRL
 from .advanced_memory import AdvancedMemory
-from .device import select_device
+from .device import get_default_device
 
 try:
     from numba import njit  # type: ignore
@@ -1040,7 +1040,7 @@ class RLTraining:
             if torch.backends.mps.is_available():
                 device = "mps"
             else:
-                device = select_device().type
+                device = get_default_device().type
         self.device = device
         from .models import load_compiled_model
 
@@ -1199,7 +1199,7 @@ def _train_model(
         if torch.backends.mps.is_available():
             device = "mps"
         else:
-            device = select_device().type
+            device = get_default_device().type
 
     acc = "gpu" if device == "cuda" else device
     kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
@@ -1400,7 +1400,7 @@ class MultiAgentRL:
 
     def _score(self, model: pl.LightningModule, dataset: Dataset) -> float:
         loader = DataLoader(dataset, batch_size=64)
-        device = self.device or select_device().type
+        device = self.device or get_default_device().type
         model.to(device)
         model.eval()
         total = 0.0

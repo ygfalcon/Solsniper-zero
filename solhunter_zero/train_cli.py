@@ -3,7 +3,7 @@ import asyncio
 from .rl_daemon import RLDaemon, parameter_server
 from .http import close_session
 from .util import install_uvloop
-from .device import select_device
+from .device import get_default_device
 
 install_uvloop()
 
@@ -22,7 +22,7 @@ async def main() -> None:
     p.add_argument("--parameter-server", action="store_true", help="Run parameter server")
     args = p.parse_args()
 
-    device = select_device(args.device)
+    device = get_default_device(args.device)
 
     if args.parameter_server:
         sub = parameter_server()

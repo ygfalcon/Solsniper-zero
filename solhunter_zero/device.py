@@ -29,7 +29,7 @@ def detect_gpu() -> bool:
         return False
 
 
-def get_default_backend() -> str | None:
+def get_gpu_backend() -> str | None:
     """Return the default GPU backend name if available."""
 
     if torch is not None:
@@ -59,17 +59,17 @@ def get_default_backend() -> str | None:
     return None
 
 
-def select_device(device: str | "torch.device" | None = "auto") -> "torch.device":
+def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.device":
     """Return a valid :class:`torch.device`.
 
     Parameters
     ----------
     device:
-        Desired device identifier. If ``"auto"`` or ``None`` the function
-        chooses ``"cuda"`` or ``"mps"`` when available, otherwise ``"cpu"``.
-        If a non-CPU device is requested but unavailable the call falls back
-        to the CPU.
+        Desired device identifier. If ``"auto"`` or ``None`` the function chooses
+        ``"cuda"`` or ``"mps"`` when available, otherwise ``"cpu"``. If a non-CPU
+        device is requested but unavailable the call falls back to the CPU.
     """
+
     if torch is None:
         raise RuntimeError("PyTorch is required for device selection")
     if device is None or (isinstance(device, str) and device == "auto"):
@@ -81,17 +81,6 @@ def select_device(device: str | "torch.device" | None = "auto") -> "torch.device
     if isinstance(device, str) and device not in ("cpu", "mps") and not torch.cuda.is_available():
         return torch.device("cpu")
     return torch.device(device) if isinstance(device, str) else device
-
-
-def get_default_device() -> "torch.device":
-    """Return the preferred accelerator device if available."""
-    if torch is None:
-        raise RuntimeError("PyTorch is required for device selection")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():  # pragma: no cover - optional backend
-        return torch.device("mps")
-    return torch.device("cpu")
 
 
 def _main() -> int:  # pragma: no cover - CLI helper

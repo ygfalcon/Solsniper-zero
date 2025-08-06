@@ -17,7 +17,7 @@ import numpy as np
 
 from ..regime import detect_regime
 from ..advanced_memory import AdvancedMemory
-from ..device import select_device, detect_gpu
+from ..device import get_default_device, detect_gpu
 
 
 class AttentionSwarm(nn.Module):
@@ -38,7 +38,7 @@ class AttentionSwarm(nn.Module):
         self.hidden_dim = int(hidden_dim)
         self.num_layers = int(num_layers)
 
-        self.device = select_device(device)
+        self.device = get_default_device(device)
 
         input_dim = num_agents + 2
         nhead = max(1, min(4, input_dim))

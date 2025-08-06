@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from solhunter_zero.device import select_device
+from solhunter_zero.device import get_default_device
 
 from solhunter_zero.offline_data import OfflineData
 from solhunter_zero import models
@@ -53,7 +53,7 @@ def main() -> None:
     p.add_argument("--lr", type=float, default=1e-4)
     args = p.parse_args()
 
-    device = select_device(args.device)
+    device = get_default_device(args.device)
 
     asyncio.run(train_loop(args.db, Path(args.model), device, args.seq_len, args.batch_size, args.interval, args.lr))
 
