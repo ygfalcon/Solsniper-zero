@@ -44,4 +44,11 @@ if [ ! -f "config.toml" ]; then
   echo "Created default config.toml from config.example.toml"
 fi
 
+if [ "$(uname -s)" = "Darwin" ]; then
+  if ! command -v brew >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
+    echo "Missing Homebrew or rustup. Running mac setup..."
+    scripts/mac_setup.sh
+  fi
+fi
+
 "$PY" scripts/startup.py --one-click
