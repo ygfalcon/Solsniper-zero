@@ -29,7 +29,15 @@ def check_deps() -> tuple[list[str], list[str]]:
         mod = re.split("[<=>]", dep)[0].replace("-", "_")
         if pkgutil.find_loader(mod) is None:
             missing_required.append(mod)
-    optional = ["faiss", "sentence_transformers", "torch"]
+    optional = [
+        "faiss",
+        "sentence_transformers",
+        "torch",
+        "orjson",
+        "lz4",
+        "zstandard",
+        "msgpack",
+    ]
     missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
     return missing_required, missing_optional
 
@@ -55,8 +63,35 @@ def ensure_deps() -> None:
             "faiss": "faiss-cpu",
             "sentence_transformers": "sentence-transformers",
             "torch": "torch",
+            "orjson": "orjson",
+            "lz4": "lz4",
+            "zstandard": "zstandard",
+            "msgpack": "msgpack",
         }
-        for name in opt:
+        mods = set(opt)
+        extras: list[str] = []
+        if "orjson" in mods:
+            extras.append("fastjson")
+        if {"lz4", "zstandard"} & mods:
+            extras.append("fastcompress")
+        if "msgpack" in mods:
+            extras.append("msgpack")
+        if extras:
+            try:
+                subprocess.check_call(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        f".[{','.join(extras)}]",
+                    ]
+                )
+            except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
+                print(f"Failed to install optional extras '{extras}': {exc}")
+                raise SystemExit(exc.returncode)
+        remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
+        for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
             try:
                 subprocess.check_call(
