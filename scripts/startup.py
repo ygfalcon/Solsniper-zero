@@ -550,9 +550,9 @@ def main(argv: list[str] | None = None) -> int:
         ensure_rpc()
     ensure_cargo()
     ensure_route_ffi()
-    run_sh = ROOT / "run.sh"
-    if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
-        os.execv(str(run_sh), [str(run_sh), "--auto", *rest])
+    start_py = ROOT / "start.py"
+    if start_py.is_file():
+        os.execv(sys.executable, [sys.executable, str(start_py), "--auto", *rest])
     else:
         os.execv(sys.executable, [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest])
 
