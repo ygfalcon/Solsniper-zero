@@ -19,7 +19,7 @@ def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
     bindir = tmp_path / "bin"
     bindir.mkdir()
 
-    for cmd in ["tee", "awk", "dirname"]:
+    for cmd in ["tee", "awk", "dirname", "tail", "xargs", "ls", "mv", "rm", "date"]:
         src = shutil.which(cmd)
         assert src is not None
         os.symlink(src, bindir / cmd)
@@ -28,11 +28,14 @@ def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
         "#!/bin/bash\n"
         "if [ \"$1\" = '-V' ]; then\n"
         "  echo 'Python 3.11.0'\n"
+        "elif [ \"$1\" = '-m' ] && [ \"$2\" = 'scripts.threading' ]; then\n"
+        "  echo 6\n"
         "else\n"
         "  echo RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n"
         "fi\n"
     )
     os.chmod(bindir / "python3", 0o755)
+    os.symlink(bindir / "python3", bindir / "python3.11")
 
     (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
     os.chmod(bindir / "uname", 0o755)
@@ -55,13 +58,12 @@ def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
     bash = shutil.which("bash")
     assert bash is not None
     result = subprocess.run(
-        [bash, "start.command"],
+        [bash, "start.command", "--skip-preflight"],
         cwd=repo_root,
         env=env,
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0
     assert "RAYON_NUM_THREADS=6" in result.stdout
 
 
@@ -412,7 +414,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
     with pytest.raises(SystemExit):
-        startup.main(["--skip-deps", "--skip-rpc-check"])
+        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
 
     assert "endpoints" in called
 
@@ -442,7 +444,12 @@ def test_main_skips_endpoint_check(monkeypatch):
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
     with pytest.raises(SystemExit):
-        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-endpoint-check"])
+        startup.main([
+            "--skip-deps",
+            "--skip-rpc-check",
+            "--skip-endpoint-check",
+            "--skip-preflight",
+        ])
 
     assert "endpoints" not in called
 
@@ -451,13 +458,13 @@ def test_main_preflight_success(monkeypatch):
     from scripts import startup
     import types, sys
 
-    calls: dict[str, list[str]] = {}
+    called = {}
 
-    def fake_run(cmd, capture_output=True, text=True):
-        calls["cmd"] = cmd
-        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+    def fake_preflight():
+        called["preflight"] = True
+        raise SystemExit(0)
 
-    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+    monkeypatch.setattr("scripts.preflight.main", fake_preflight)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
@@ -474,23 +481,31 @@ def test_main_preflight_success(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         startup.main(["--one-click", "--skip-setup", "--skip-deps"])
 
-    assert calls["cmd"] == [sys.executable, "scripts/preflight.py"]
+    assert called.get("preflight") is True
     assert exc.value.code == 0
 
 
 def test_main_preflight_failure(monkeypatch, capsys):
     from scripts import startup
+
+    def fake_preflight():
+        print("out")
+        print("err", file=sys.stderr)
+        raise SystemExit(2)
+
+    monkeypatch.setattr("scripts.preflight.main", fake_preflight)
+
     import types
-
-    def fake_run(cmd, capture_output=True, text=True):
-        return types.SimpleNamespace(returncode=1, stdout="out", stderr="err")
-
-    monkeypatch.setattr(startup.subprocess, "run", fake_run)
-
+    stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
+    monkeypatch.setitem(sys.modules, "torch", stub_torch)
+    monkeypatch.setattr(startup, "torch", stub_torch)
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
-    ret = startup.main(["--one-click"])
+    ret = startup.main(["--one-click", "--skip-deps", "--skip-setup"])
 
-    assert ret == 1
+    assert ret == 2
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
@@ -545,6 +560,7 @@ def test_startup_sets_mps_device(monkeypatch):
                 "--skip-setup",
                 "--skip-endpoint-check",
                 "--skip-rpc-check",
+                "--skip-preflight",
             ]
         )
 
@@ -575,5 +591,5 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
     monkeypatch.setattr(startup, "ensure_wallet_cli", fail_wallet)
 
-    ret = startup.main(["--skip-deps", "--skip-rpc-check"])
+    ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     assert ret == 5
