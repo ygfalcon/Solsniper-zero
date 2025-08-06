@@ -1,7 +1,7 @@
 # Simple Makefile to run SolHunter Zero
 # The `run` target uses the cross-platform Python entry point.
 
-PYTHON ?= python
+PYTHON ?= python3
 
 .RECIPEPREFIX := >
 
