@@ -77,10 +77,35 @@ def ensure_keypair() -> None:
     print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
 
 
+def ensure_rpc() -> None:
+    """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
+    rpc_url = os.environ.get("SOLANA_RPC_URL")
+    if not rpc_url:
+        print("SOLANA_RPC_URL environment variable is not set.")
+        raise SystemExit(1)
+
+    import json
+    import urllib.request
+
+    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getHealth"}).encode()
+    req = urllib.request.Request(
+        rpc_url, data=payload, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
+            resp.read()
+    except Exception as exc:  # pragma: no cover - network failure
+        print(f"Failed to contact Solana RPC at {rpc_url}: {exc}")
+        raise SystemExit(1)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
     parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
+    parser.add_argument(
+        "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
+    )
     args, rest = parser.parse_known_args(argv)
 
     if not args.skip_deps:
@@ -88,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_setup:
         ensure_config()
         ensure_keypair()
+
+    if not args.skip_rpc_check:
+        ensure_rpc()
 
     os.execv("./run.sh", ["./run.sh", "--auto", *rest])
 
