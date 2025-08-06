@@ -44,6 +44,30 @@ has_gpu() {
                 return 1
             fi
             ;;
+        apple)
+            # macOS: detect Apple GPUs with Metal support
+            if [ "$(uname -s)" = "Darwin" ]; then
+                if command -v system_profiler >/dev/null 2>&1; then
+                    sp_info=$(system_profiler SPDisplaysDataType 2>/dev/null || true)
+                    if echo "$sp_info" | grep -qE 'Chipset Model:.*Apple' && \
+                       echo "$sp_info" | grep -q 'Metal:.*Supported'; then
+                        return 0
+                    else
+                        return 1
+                    fi
+                elif command -v ioreg >/dev/null 2>&1; then
+                    if ioreg -l | grep -q 'Apple' && ioreg -l | grep -qi 'Metal'; then
+                        return 0
+                    else
+                        return 1
+                    fi
+                else
+                    return 1
+                fi
+            else
+                return 1
+            fi
+            ;;
     esac
 
     if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
@@ -54,6 +78,25 @@ has_gpu() {
         return 0
     elif [ -d /proc/driver/nvidia ]; then
         return 0
+    elif [ "$(uname -s)" = "Darwin" ]; then
+        # macOS fallback: probe for Metal-capable Apple GPU
+        if command -v system_profiler >/dev/null 2>&1; then
+            sp_info=$(system_profiler SPDisplaysDataType 2>/dev/null || true)
+            if echo "$sp_info" | grep -qE 'Chipset Model:.*Apple' && \
+               echo "$sp_info" | grep -q 'Metal:.*Supported'; then
+                return 0
+            else
+                return 1
+            fi
+        elif command -v ioreg >/dev/null 2>&1; then
+            if ioreg -l | grep -q 'Apple' && ioreg -l | grep -qi 'Metal'; then
+                return 0
+            else
+                return 1
+            fi
+        else
+            return 1
+        fi
     else
         return 1
     fi
