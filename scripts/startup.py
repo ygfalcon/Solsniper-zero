@@ -713,6 +713,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         config_path = find_config_file()
+        if config_path is None and args.one_click:
+            try:
+                from scripts import quick_setup
+
+                quick_setup.main(["--auto", "--non-interactive"])
+            except Exception:
+                pass
+            config_path = find_config_file()
         cfg = load_config(config_path)
         cfg = validate_config(cfg)
         if not args.skip_endpoint_check:
