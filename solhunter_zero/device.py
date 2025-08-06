@@ -1,6 +1,43 @@
 from __future__ import annotations
 
+import logging
+import os
+
 import torch
+
+
+def get_default_device() -> str | None:
+    """Return the default GPU backend if available.
+
+    This checks for a usable CUDA or MPS device via PyTorch first and then
+    falls back to CuPy. The function returns the backend name (``"torch"`` or
+    ``"cupy"``) when a GPU is detected, otherwise ``None``.
+    """
+
+    try:  # pragma: no cover - optional dependency
+        mps_available = (
+            hasattr(torch, "backends")
+            and hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_available()
+        )
+        if torch.cuda.is_available() or mps_available:
+            if mps_available and os.environ.setdefault(
+                "PYTORCH_ENABLE_MPS_FALLBACK", "1"
+            ) != "1":
+                logging.getLogger(__name__).warning(
+                    "MPS is available but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'"
+                )
+            return "torch"
+    except Exception:
+        pass
+    try:  # pragma: no cover - optional dependency
+        import cupy as cp  # type: ignore
+
+        if cp.cuda.runtime.getDeviceCount() > 0:
+            return "cupy"
+    except Exception:
+        pass
+    return None
 
 
 def select_device(device: str | torch.device | None = "auto") -> torch.device:
