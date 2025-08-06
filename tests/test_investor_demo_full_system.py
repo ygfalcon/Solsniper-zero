@@ -9,12 +9,16 @@ def test_investor_demo_full_system(tmp_path, monkeypatch, capsys, dummy_mem):
     """Ensure full-system mode uses run_rl_demo and records reward metrics."""
 
     reward = 5.0
+    expected_loss = [0.0]
+    expected_rewards = [reward]
     called = {"value": False}
 
     def stub_run_rl_demo(report_dir: Path) -> float:
         called["value"] = True
         metrics_file = Path(report_dir) / "rl_metrics.json"
-        metrics_file.write_text(json.dumps({"loss": [0.0], "rewards": [reward]}))
+        metrics_file.write_text(
+            json.dumps({"loss": expected_loss, "rewards": expected_rewards})
+        )
         return reward
 
     monkeypatch.setattr(investor_demo, "run_rl_demo", stub_run_rl_demo)
@@ -27,6 +31,9 @@ def test_investor_demo_full_system(tmp_path, monkeypatch, capsys, dummy_mem):
 
     metrics_path = tmp_path / "rl_metrics.json"
     assert metrics_path.exists()
+    metrics = json.loads(metrics_path.read_text())
+    assert metrics.get("loss") == expected_loss
+    assert metrics.get("rewards") == expected_rewards
 
     out = capsys.readouterr().out
     match = re.search(r"Trade type results: (\{.*\})", out)
