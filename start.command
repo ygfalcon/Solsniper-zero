@@ -24,4 +24,13 @@ if [ "$(uname -s)" = "Darwin" ]; then
   export PYTORCH_ENABLE_MPS_FALLBACK=1
 fi
 
+set +e
+PRE_OUTPUT=$("$PY" scripts/preflight.py 2>&1)
+PRE_STATUS=$?
+set -e
+printf '%s\n' "$PRE_OUTPUT"
+if [ $PRE_STATUS -ne 0 ]; then
+  exit $PRE_STATUS
+fi
+
 "$PY" scripts/startup.py --one-click
