@@ -54,9 +54,9 @@ retained only for reference. Use it only if you explicitly set
    [PyYAML](https://pyyaml.org/) and
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
-   The dependency [watchfiles](https://pypi.org/project/watchfiles/) is
-   also installed and is used by the order book utilities to watch the
-   depth mmap for changes.
+  The dependency [watchfiles](https://pypi.org/project/watchfiles/) is
+  also installed and is used by the order book utilities to watch the
+  depth mmap for changes.
 
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running
@@ -94,6 +94,18 @@ retained only for reference. Use it only if you explicitly set
    ```
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup.
+
+Developers embedding SolHunter Zero can initialize the environment
+programmatically:
+
+```python
+from solhunter_zero.bootstrap import bootstrap
+
+bootstrap(one_click=True)
+```
+
+The helper wraps the dependency checks and keypair/setup logic used by
+`scripts/startup.py` and the `solhunter_zero.main` entry point.
 
 
 ### One-Click macOS M1 Setup

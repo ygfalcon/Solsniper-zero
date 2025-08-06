@@ -33,6 +33,7 @@ from .config import (
 from .http import close_session
 from . import wallet
 from . import metrics_aggregator
+from .bootstrap import bootstrap
 
 _SERVICE_MANIFEST = (
     Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
@@ -964,6 +965,7 @@ def main(
 
 def run_auto(**kwargs) -> None:
     """Start trading with selected config or high-risk preset."""
+    bootstrap(one_click=True)
     cfg = load_selected_config()
     cfg_path = None
     if cfg:
@@ -984,21 +986,7 @@ def run_auto(**kwargs) -> None:
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
-    try:
-        active_name = wallet.get_active_keypair_name()
-        if active_name is None:
-            keys = wallet.list_keypairs()
-            if len(keys) == 1:
-                wallet.select_keypair(keys[0])
-                active_name = keys[0]
-    except Exception as exc:
-        print(
-            f"Wallet interaction failed: {exc}\n"
-            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-
+    active_name = wallet.get_active_keypair_name()
     if active_name and not os.getenv("KEYPAIR_PATH"):
         os.environ["KEYPAIR_PATH"] = os.path.join(
             wallet.KEYPAIR_DIR, active_name + ".json"
