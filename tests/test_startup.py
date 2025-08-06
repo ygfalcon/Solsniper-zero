@@ -148,7 +148,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     assert not results
 
 
-def test_ensure_deps_reinstalls_mps(monkeypatch, capsys):
+def test_ensure_deps_requires_mps(monkeypatch):
     from scripts import startup
 
     calls: list[list[str]] = []
@@ -157,10 +157,7 @@ def test_ensure_deps_reinstalls_mps(monkeypatch, capsys):
         calls.append(cmd)
         return 0
 
-    results = [
-        (["req"], []),
-        ([], []),
-    ]
+    results = [(["req"], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
@@ -175,7 +172,8 @@ def test_ensure_deps_reinstalls_mps(monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
     monkeypatch.setattr(importlib, "reload", lambda mod: mod)
 
-    startup.ensure_deps()
+    with pytest.raises(SystemExit) as excinfo:
+        startup.ensure_deps()
 
     assert calls[-1] == [
         sys.executable,
@@ -188,8 +186,7 @@ def test_ensure_deps_reinstalls_mps(monkeypatch, capsys):
         "--extra-index-url",
         "https://download.pytorch.org/whl/metal",
     ]
-    out = capsys.readouterr().out
-    assert "WARNING: MPS backend still not available" in out
+    assert "install the Metal wheel manually" in str(excinfo.value)
 
 
 def test_ensure_endpoints_success(monkeypatch):
