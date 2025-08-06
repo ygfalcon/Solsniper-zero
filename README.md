@@ -190,7 +190,7 @@ forwards to `./run.sh --auto` for a fully automated start.
 
 1. Install Homebrew packages with the helper script (installs the Xcode command line tools if needed). The script exits after starting the Xcode installation; re-run it once the tools finish installing:
    ```bash
-   ./scripts/mac_setup.sh
+   ./scripts/mac_setup.py
    ```
 2. Install the Metal-enabled PyTorch build (for Apple Silicon):
    ```bash

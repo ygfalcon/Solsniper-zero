@@ -338,7 +338,7 @@ def test_ensure_cargo_requires_brew_on_macos(monkeypatch, capsys):
         startup.ensure_cargo()
 
     out = capsys.readouterr().out.lower()
-    assert "homebrew" in out and "mac_setup.sh" in out
+    assert "homebrew" in out and "mac_setup.py" in out
 
 
 def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):

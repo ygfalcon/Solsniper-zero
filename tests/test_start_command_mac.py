@@ -2,6 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
+
 def test_homebrew_path_added(tmp_path, monkeypatch):
     repo_start = Path('start.command').read_text()
     start_cmd = tmp_path / 'start.command'
@@ -12,41 +13,44 @@ def test_homebrew_path_added(tmp_path, monkeypatch):
 
     scripts_dir = tmp_path / 'scripts'
     scripts_dir.mkdir()
-    mac_setup = scripts_dir / 'mac_setup.sh'
-    mac_setup.write_text("""#!/usr/bin/env bash
-set -e
-mkdir -p /opt/homebrew/bin
-cat >/opt/homebrew/bin/brew <<'EOF'
-#!/usr/bin/env bash
-if [ \"$1\" = shellenv ]; then
-  echo 'export PATH="/opt/homebrew/bin:$PATH"'
-fi
-EOF
-chmod +x /opt/homebrew/bin/brew
-cat >/opt/homebrew/bin/rustup <<'EOF'
-#!/usr/bin/env bash
-exit 0
-EOF
-chmod +x /opt/homebrew/bin/rustup
-cat >/opt/homebrew/bin/python3.11 <<'EOF'
-#!/usr/bin/env bash
-if [ \"$1\" = -V ]; then echo 'Python 3.11.0'; else echo "$PATH"; fi
-EOF
-chmod +x /opt/homebrew/bin/python3.11
-""")
+    mac_setup = scripts_dir / 'mac_setup.py'
+    mac_setup.write_text(
+        """#!/usr/bin/env python3
+import os
+from pathlib import Path
+
+
+def main(argv=None):
+    bin_dir = Path('/opt/homebrew/bin')
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    (bin_dir / 'brew').write_text('#!/usr/bin/env bash\nif [ "$1" = "shellenv" ]; then\n  echo "export PATH=\"/opt/homebrew/bin:$PATH\""\nfi\n')
+    (bin_dir / 'rustup').write_text('#!/usr/bin/env bash\nexit 0\n')
+    (bin_dir / 'python3.11').write_text('#!/usr/bin/env bash\nif [ "$1" = "-V" ]; then echo "Python 3.11.0"; else echo "$PATH"; fi\n')
+    for f in ['brew', 'rustup', 'python3.11']:
+        os.chmod(bin_dir / f, 0o755)
+    os.environ['PATH'] = f"{bin_dir}:{os.environ.get('PATH','')}"
+    print('mac setup')
+
+
+if __name__ == '__main__':
+    main()
+"""
+    )
     mac_setup.chmod(0o755)
     (scripts_dir / 'rotate_logs.sh').write_text('rotate_logs() { :; }\n')
 
     fakebin = tmp_path / 'fakebin'
     fakebin.mkdir()
     python3 = fakebin / 'python3'
-    python3.write_text("""#!/usr/bin/env bash
+    python3.write_text(
+        """#!/usr/bin/env bash
 if [ \"$1\" = -V ]; then
   echo 'Python 3.11.0'
 else
-  echo "$PATH"
+  echo \"$PATH\"
 fi
-""")
+"""
+    )
     python3.chmod(0o755)
     os.symlink(python3, fakebin / 'python3.11')
     uname = fakebin / 'uname'
