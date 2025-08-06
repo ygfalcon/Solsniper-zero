@@ -240,6 +240,22 @@ def test_ensure_endpoints_failure(monkeypatch, capsys):
     assert "dex_base_url" in out
 
 
+def test_ensure_cargo_requires_curl(monkeypatch, capsys):
+    from scripts import startup
+
+    def fake_which(cmd):
+        return None if cmd in {"cargo", "curl"} else "/usr/bin/" + cmd
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+
+    with pytest.raises(SystemExit):
+        startup.ensure_cargo()
+
+    out = capsys.readouterr().out.lower()
+    assert "curl is required" in out
+
+
 def test_main_calls_ensure_endpoints(monkeypatch):
     from scripts import startup
 

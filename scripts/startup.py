@@ -363,6 +363,12 @@ def ensure_rpc() -> None:
 
 def ensure_cargo() -> None:
     if shutil.which("cargo") is None:
+        if shutil.which("curl") is None:
+            print(
+                "curl is required to install the Rust toolchain. "
+                "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
+            )
+            raise SystemExit(1)
         if platform.system() == "Darwin":
             try:
                 subprocess.check_call(
@@ -372,7 +378,7 @@ def ensure_cargo() -> None:
                 )
             except subprocess.CalledProcessError:
                 print(
-                    "Xcode command line tools are required. Install them with 'xcode-select --install'."
+                    "Xcode command line tools are required. Install them with 'xcode-select --install'.",
                 )
                 raise SystemExit(1)
         print("Installing Rust toolchain via rustup...")
