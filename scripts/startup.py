@@ -418,9 +418,10 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
 def ensure_cargo() -> None:
     installed = False
     if platform.system() == "Darwin":
-        from scripts import mac_setup
+        from scripts.mac_setup import apply_brew_env, ensure_tools
 
-        mac_setup.ensure_tools()
+        ensure_tools()
+        apply_brew_env()
     if shutil.which("cargo") is None:
         if shutil.which("curl") is None:
             print(
