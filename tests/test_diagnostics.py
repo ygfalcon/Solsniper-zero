@@ -72,7 +72,16 @@ def test_collect_with_torch_and_keypair(monkeypatch, tmp_path):
     assert info["rustc"].startswith("rustc")
 
 
-def test_startup_diagnostics_flag(capsys):
+def test_startup_diagnostics_flag(monkeypatch, capsys):
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "ensure_torch_with_metal", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "ensure_gpu_env", lambda: None)
+    dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setattr(
+        startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False)
+    )
     code = startup.run(["--diagnostics"])
     out = capsys.readouterr().out.lower()
     assert code == 0
@@ -82,6 +91,15 @@ def test_startup_diagnostics_flag(capsys):
 def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
     monkeypatch.setattr(
         startup, "ensure_deps", lambda install_optional=False: (_ for _ in ()).throw(SystemExit(2))
+    )
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "ensure_torch_with_metal", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "ensure_gpu_env", lambda: None)
+    dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setattr(
+        startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False)
     )
     code = startup.run([])
     out = capsys.readouterr().out.lower()
@@ -95,6 +113,7 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "ensure_torch_with_metal", lambda: None)
     monkeypatch.setattr(bootstrap.device, "ensure_gpu_env", lambda: None)
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)

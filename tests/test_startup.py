@@ -506,12 +506,14 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_torch_with_metal", lambda: None)
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
 
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_torch_with_metal", lambda: None)
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
@@ -552,6 +554,8 @@ def test_main_skips_endpoint_check(monkeypatch):
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_torch_with_metal", lambda: None)
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
@@ -592,6 +596,10 @@ def test_main_preflight_success(monkeypatch):
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_torch_with_metal", lambda: None)
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
     with pytest.raises(SystemExit) as exc:
@@ -624,6 +632,10 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_torch_with_metal", lambda: None)
 
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
     if log_file.exists():
@@ -684,6 +696,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
+    monkeypatch.setattr(bootstrap.device, "ensure_torch_with_metal", lambda: None)
 
     bootstrap.bootstrap(one_click=True)
 
@@ -703,6 +716,10 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_torch_with_metal", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
