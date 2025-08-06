@@ -587,7 +587,13 @@ def main(
     if use_bundles and (not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")):
         logging.warning("MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing")
 
-    proc = _start_depth_service(cfg)
+    proc = None
+    try:
+        proc = _start_depth_service(cfg)
+    except Exception as exc:
+        logging.error("Failed to start depth_service: %s", exc)
+        cfg["depth_service"] = False
+        os.environ["DEPTH_SERVICE"] = "false"
 
     if risk_tolerance is not None:
         os.environ["RISK_TOLERANCE"] = str(risk_tolerance)
