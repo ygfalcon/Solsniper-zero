@@ -57,21 +57,24 @@ for dep in deps:
         missing_required.append(mod)
 optional = ['faiss', 'sentence_transformers', 'torch', 'orjson', 'lz4', 'zstandard', 'msgpack']
 missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
-print(json.dumps(missing_optional))
+print(json.dumps({"required": missing_required, "optional": missing_optional}))
 sys.exit(1 if missing_required or missing_optional else 0)
 PY
 }
 
+set +e
 missing_opt_json=$(check_deps)
-if [ $? -ne 0 ]; then
+deps_status=$?
+set -e
+if [ $deps_status -ne 0 ]; then
     missing_opt=$(python - "$missing_opt_json" <<'PY'
 import json,sys
-print(' '.join(json.loads(sys.argv[1])))
+print(' '.join(json.loads(sys.argv[1]).get("optional", [])))
 PY
 )
     missing_extras=$(python - "$missing_opt_json" <<'PY'
 import json,sys
-mods=set(json.loads(sys.argv[1]))
+mods=set(json.loads(sys.argv[1]).get("optional", []))
 extras=[]
 if 'orjson' in mods:
     extras.append('fastjson')
@@ -101,6 +104,24 @@ EOF
     if [ -n "$missing_opt" ]; then
         echo "Installed optional modules: $missing_opt"
     fi
+fi
+
+set +e
+post_check_json=$(check_deps)
+post_check_status=$?
+set -e
+if [ $post_check_status -ne 0 ]; then
+    python - "$post_check_json" <<'PY'
+import json,sys
+data=json.loads(sys.argv[1])
+req=data.get("required", [])
+opt=data.get("optional", [])
+if req:
+    print("Missing required modules: " + ' '.join(req))
+if opt:
+    print("Missing optional modules: " + ' '.join(opt))
+PY
+    exit 1
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
