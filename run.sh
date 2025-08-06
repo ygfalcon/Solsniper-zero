@@ -3,12 +3,14 @@
 
 set -euo pipefail
 
+PY=$(command -v python3 || command -v python)
+
 if [ ! -f "config.toml" ]; then
     cp config.example.toml config.toml
     echo "Created default config.toml from config.example.toml"
 fi
 
-python - <<'PY'
+"$PY" - <<'PY'
 import sys
 if sys.version_info < (3, 11):
     print("Error: Python 3.11 or higher is required.", file=sys.stderr)
@@ -18,7 +20,7 @@ PY
 export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 
 # Detect if a GPU is present before moving FAISS indexes to GPU memory
-if python -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
+if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
     export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
 else
     echo "No GPU detected; using CPU mode"
@@ -38,7 +40,7 @@ if [ -z "$RAYON_NUM_THREADS" ]; then
     elif command -v getconf >/dev/null 2>&1; then
         export RAYON_NUM_THREADS="$(getconf _NPROCESSORS_ONLN)"
     else
-        export RAYON_NUM_THREADS="$(python - <<'EOF'
+        export RAYON_NUM_THREADS="$("$PY" - <<'EOF'
 import os
 print(os.cpu_count() or 1)
 EOF
@@ -47,7 +49,7 @@ EOF
 fi
 
 check_deps() {
-  python - <<'PY'
+  "$PY" - <<'PY'
 import pkgutil, re, sys, tomllib, json
 with open('pyproject.toml', 'rb') as f:
     data = tomllib.load(f)
@@ -69,12 +71,12 @@ missing_opt_json=$(check_deps)
 deps_status=$?
 set -e
 if [ $deps_status -ne 0 ]; then
-    missing_opt=$(python - "$missing_opt_json" <<'PY'
+    missing_opt=$("$PY" - "$missing_opt_json" <<'PY'
 import json,sys
 print(' '.join(json.loads(sys.argv[1]).get("optional", [])))
 PY
 )
-    missing_extras=$(python - "$missing_opt_json" <<'PY'
+    missing_extras=$("$PY" - "$missing_opt_json" <<'PY'
 import json,sys
 mods=set(json.loads(sys.argv[1]).get("optional", []))
 extras=[]
@@ -90,19 +92,19 @@ PY
     echo "Installing dependencies..."
     command -v pip >/dev/null 2>&1 || { echo "pip not found" >&2; exit 1; }
     if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
-        python - <<'EOF'
+        "$PY" - <<'EOF'
 import importlib.util, sys
 sys.exit(0 if importlib.util.find_spec('torch') else 1)
 EOF
         if [ $? -ne 0 ]; then
-            pip install torch==2.1.0 torchvision==0.16.0 \
+            "$PY" -m pip install torch==2.1.0 torchvision==0.16.0 \
               --extra-index-url https://download.pytorch.org/whl/metal
         fi
     fi
     if [ -n "$missing_extras" ]; then
-        pip install ".[${missing_extras}]"
+        "$PY" -m pip install ".[${missing_extras}]"
     else
-        pip install .
+        "$PY" -m pip install .
     fi
     if [ -n "$missing_opt" ]; then
         echo "Installed optional modules: $missing_opt"
@@ -114,7 +116,7 @@ post_check_json=$(check_deps)
 post_check_status=$?
 set -e
 if [ $post_check_status -ne 0 ]; then
-    python - "$post_check_json" <<'PY'
+    "$PY" - "$post_check_json" <<'PY'
 import json,sys
 data=json.loads(sys.argv[1])
 req=data.get("required", [])
@@ -128,7 +130,7 @@ PY
 fi
 
 if [ -n "${SOLANA_RPC_URL:-}" ]; then
-    python - <<'PY'
+    "$PY" - <<'PY'
 import os, sys, urllib.request
 url = os.environ["SOLANA_RPC_URL"]
 if url.startswith("ws://"):
@@ -192,7 +194,7 @@ set -- "${args[@]}"
 
 if [ $NO_METRICS -eq 0 ]; then
     METRICS_LOG=$(mktemp)
-    python -m solhunter_zero.metrics_aggregator >"$METRICS_LOG" 2>&1 &
+    "$PY" -m solhunter_zero.metrics_aggregator >"$METRICS_LOG" 2>&1 &
     AGG_PID=$!
     sleep 1
     if ! kill -0 "$AGG_PID" 2>/dev/null; then
@@ -208,17 +210,17 @@ first_arg="${1-}"
 
 if [ "$first_arg" = "--daemon" ]; then
     shift
-    python -m solhunter_zero.train_cli --daemon "$@"
+    "$PY" -m solhunter_zero.train_cli --daemon "$@"
 elif [ "$first_arg" = "--start-all" ] || { [ "$#" -eq 0 ] && [ "$uname_s" = "Darwin" ]; }; then
     if [ "$first_arg" = "--start-all" ]; then
         shift
     fi
-    python scripts/start_all.py autopilot
+    "$PY" scripts/start_all.py autopilot
 elif [ "$#" -eq 0 ] || [ "$first_arg" = "--auto" ]; then
     if [ "$first_arg" = "--auto" ]; then
         shift
     fi
-    python -m solhunter_zero.main --auto "$@"
+    "$PY" -m solhunter_zero.main --auto "$@"
 else
-    python -m solhunter_zero.main "$@"
+    "$PY" -m solhunter_zero.main "$@"
 fi
