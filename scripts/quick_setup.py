@@ -53,7 +53,7 @@ AUTO_DEFAULTS = {
 }
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Interactive helper to create or update config.toml for basic setup."
     )
@@ -62,7 +62,7 @@ def main() -> None:
         action="store_true",
         help="Populate missing values with defaults without prompting.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     cfg = load_config()
     updated = False

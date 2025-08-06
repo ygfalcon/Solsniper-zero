@@ -43,11 +43,12 @@ def ensure_deps() -> None:
         subprocess.check_call([sys.executable, "-m", "pip", "install", ".[uvloop]"])
 
 
-def ensure_config() -> None:
+def ensure_config(interactive: bool = False) -> None:
     if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
         from scripts import quick_setup
 
-        quick_setup.main()
+        args = [] if interactive else ["--auto"]
+        quick_setup.main(args)
 
 
 def ensure_keypair() -> None:
@@ -130,12 +131,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Run quick setup in interactive mode instead of auto",
+    )
     args, rest = parser.parse_known_args(argv)
 
     if not args.skip_deps:
         ensure_deps()
     if not args.skip_setup:
-        ensure_config()
+        ensure_config(interactive=args.interactive)
         cfg = load_config()
         validate_config(cfg)
         ensure_keypair()
