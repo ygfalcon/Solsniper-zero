@@ -12,6 +12,7 @@ def test_detect_gpu_and_get_default_device_mps(monkeypatch):
         ),
         cuda=types.SimpleNamespace(is_available=lambda: True),
         device=lambda name: types.SimpleNamespace(type=name),
+        ones=lambda *a, **k: types.SimpleNamespace(cpu=lambda: None),
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     assert device_module.detect_gpu() is True
@@ -50,3 +51,23 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
         "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal"
         in caplog.text
     )
+
+
+def test_detect_gpu_tensor_failure(monkeypatch, caplog):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+
+    def failing_ones(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    torch_stub = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: True, is_built=lambda: True)
+        ),
+        cuda=types.SimpleNamespace(is_available=lambda: True),
+        ones=failing_ones,
+    )
+    monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    with caplog.at_level("ERROR"):
+        assert device_module.detect_gpu() is False
+    assert "Tensor operation failed" in caplog.text

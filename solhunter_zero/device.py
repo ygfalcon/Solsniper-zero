@@ -15,8 +15,11 @@ def detect_gpu() -> bool:
     """Return ``True`` when a supported GPU backend is available.
 
     The check prefers Apple's Metal backend (MPS) on macOS machines with
-    Apple Silicon and falls back to CUDA on other platforms.  Any import
-    errors or unsupported configurations are treated as absence of a GPU.
+    Apple Silicon and falls back to CUDA on other platforms.  After the
+    usual availability checks a tiny tensor is created and moved back to
+    the CPU to ensure the backend is operational.  Any import errors,
+    unsupported configurations or runtime failures are treated as absence
+    of a GPU.
     """
 
     if torch is None:
@@ -60,9 +63,23 @@ def detect_gpu() -> bool:
                     install_hint,
                 )
                 return False
+            try:
+                torch.ones(1, device="mps").cpu()
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Tensor operation failed on mps backend"
+                )
+                return False
             return True
         if not torch.cuda.is_available():
             logging.getLogger(__name__).warning("CUDA backend not available")
+            return False
+        try:
+            torch.ones(1, device="cuda").cpu()
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Tensor operation failed on cuda backend"
+            )
             return False
         return True
     except Exception:
