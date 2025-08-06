@@ -216,12 +216,21 @@ def ensure_keypair() -> None:
             f"Running '{script}' to generate a default keypair."
         )
         try:
-            subprocess.check_call([str(script)])
+            result = subprocess.run(
+                [str(script)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
         except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
             print(
                 "Automatic keypair setup failed. Set MNEMONIC or KEYPAIR_JSON and retry."
             )
             raise SystemExit(exc.returncode)
+        mnemonic_out = result.stdout.strip()
+        if mnemonic_out:
+            os.environ.setdefault("MNEMONIC", mnemonic_out)
+            print(f"Generated mnemonic: {mnemonic_out}")
         name = wallet.get_active_keypair_name() or "default"
         print(f"Automatically generated keypair '{name}' and selected it.")
         return
