@@ -132,7 +132,8 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
     return True, f"Active keypair {name} present"
 
 
-def check_network(url: str = "https://api.mainnet-beta.solana.com") -> Check:
+def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> Check:
+    url = os.environ.get("SOLANA_RPC_URL", default_url)
     try:
         req = request.Request(url, method="HEAD")
         with request.urlopen(req, timeout=5):
@@ -179,7 +180,14 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Xcode CLT", check_xcode_clt),
     ("Config", check_config_file),
     ("Keypair", check_keypair),
-    ("Network", check_network),
+    (
+        "Network",
+        lambda: check_network(
+            os.environ.get(
+                "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+            )
+        ),
+    ),
     ("GPU", check_gpu),
 ]
 
