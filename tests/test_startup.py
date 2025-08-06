@@ -14,6 +14,38 @@ def test_startup_help():
     assert 'usage' in out
 
 
+def test_mac_startup_prereqs(monkeypatch):
+    """Mac-specific startup helpers run without errors."""
+    import platform
+    import types, sys
+    from scripts import startup
+    from solhunter_zero import device
+
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+
+    monkeypatch.delenv("TORCH_DEVICE", raising=False)
+    monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+
+    # ensure_venv is a no-op when argv is provided
+    startup.ensure_venv([])
+
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
+    startup.ensure_deps()
+
+    dummy_torch = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: True)
+        ),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+    )
+    monkeypatch.setattr(device, "torch", dummy_torch)
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+
+    env = device.ensure_gpu_env()
+    assert env.get("TORCH_DEVICE") == "mps"
+
+
 def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     bindir = tmp_path / "bin"
