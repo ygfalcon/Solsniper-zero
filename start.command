@@ -19,4 +19,9 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
   exit 1
 fi
 
+# Enable MPS fallback when running on macOS
+if [ "$(uname -s)" = "Darwin" ]; then
+  export PYTORCH_ENABLE_MPS_FALLBACK=1
+fi
+
 "$PY" scripts/startup.py --one-click
