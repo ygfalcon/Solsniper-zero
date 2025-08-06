@@ -724,6 +724,8 @@ def ensure_depth_service() -> None:
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
+    report: dict[str, str] = {}
+    report_written = False
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument(
         "--skip-deps", action="store_true", help="Skip dependency check"
@@ -804,102 +806,117 @@ def main(argv: list[str] | None = None) -> int:
     if platform.system() == "Darwin":
         from scripts.mac_setup import prepare_macos_env
 
-        report = prepare_macos_env(non_interactive=True)
+        report_mac = prepare_macos_env(non_interactive=True)
         success = False
-        if isinstance(report, dict):
-            success = bool(report.get("success"))
+        if isinstance(report_mac, dict):
+            success = bool(report_mac.get("success"))
         else:
-            success = bool(report)
+            success = bool(report_mac)
         if not success:
             print(
                 "macOS environment preparation failed. Please address the issues above and re-run."
             )
             return 1
 
-    from solhunter_zero.bootstrap import bootstrap
-
-    bootstrap(one_click=args.one_click)
-
-    from solhunter_zero import device
-
-    device.ensure_gpu_env()
-    import torch
-
-    torch.set_default_device(device.get_default_device())
-    gpu_available = device.detect_gpu()
-    gpu_device = str(device.get_default_device()) if gpu_available else "none"
-    os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
-    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
-    config_path: str | None = None
-    active_keypair: str | None = None
-    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
-
-    if not args.skip_setup:
-        from solhunter_zero.config import (
-            load_config,
-            validate_config,
-            find_config_file,
-        )
-
-        config_path = find_config_file()
-        cfg = load_config(config_path)
-        cfg = validate_config(cfg)
-        if not args.skip_endpoint_check:
-            ensure_endpoints(cfg)
-        try:
-            ensure_wallet_cli()
-        except SystemExit as exc:
-            return exc.code if isinstance(exc.code, int) else 1
-        from solhunter_zero import wallet
-
-        active_keypair = wallet.get_active_keypair_name()
-
-    if not args.skip_rpc_check:
-        ensure_rpc(warn_only=args.one_click)
-        rpc_status = "reachable"
-    else:
-        rpc_status = "skipped"
-
-    ensure_cargo()
-
-    run_preflight = args.one_click or not args.skip_preflight
-    if run_preflight:
-        rotate_preflight_log()
-        from scripts import preflight
-
-        stdout_buf = io.StringIO()
-        stderr_buf = io.StringIO()
-        with (
-            contextlib.redirect_stdout(stdout_buf),
-            contextlib.redirect_stderr(stderr_buf),
-        ):
-            try:
-                preflight.main()
-            except SystemExit as exc:  # propagate non-zero exit codes
-                code = exc.code if isinstance(exc.code, int) else 1
-            else:
-                code = 0
-        out = stdout_buf.getvalue()
-        err = stderr_buf.getvalue()
-        sys.stdout.write(out)
-        sys.stderr.write(err)
-        try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.write(out)
-                log.write(err)
-        except OSError:
-            pass
-        if code:
-            return code
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
-
-    proc = subprocess.run(
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+    from solhunter_zero.bootstrap import (
+        STEP_NAMES,
+        bootstrap,
+        finalize_report,
+        record_step,
     )
+
+    report = {name: "skipped" for name in STEP_NAMES}
+    try:
+        bootstrap(one_click=args.one_click, report=report)
+
+        from solhunter_zero import device
+
+        device.ensure_gpu_env()
+        import torch
+
+        torch.set_default_device(device.get_default_device())
+        gpu_available = device.detect_gpu()
+        gpu_device = str(device.get_default_device()) if gpu_available else "none"
+        os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
+        os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
+        config_path: str | None = None
+        active_keypair: str | None = None
+        rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+
+        if not args.skip_setup:
+            from solhunter_zero.config import (
+                load_config,
+                validate_config,
+                find_config_file,
+            )
+
+            config_path = find_config_file()
+            cfg = load_config(config_path)
+            cfg = validate_config(cfg)
+            record_step(
+                report,
+                "endpoints",
+                lambda: ensure_endpoints(cfg),
+                skip=args.skip_endpoint_check,
+            )
+            record_step(report, "wallet_cli", ensure_wallet_cli)
+            from solhunter_zero import wallet
+
+            active_keypair = wallet.get_active_keypair_name()
+
+        if not args.skip_rpc_check:
+            record_step(report, "rpc", lambda: ensure_rpc(warn_only=args.one_click))
+            rpc_status = "reachable"
+        else:
+            report["rpc"] = "skipped"
+            rpc_status = "skipped"
+
+        record_step(report, "cargo", ensure_cargo)
+
+        run_preflight = args.one_click or not args.skip_preflight
+        if run_preflight:
+            rotate_preflight_log()
+            from scripts import preflight
+
+            def run_preflight_step() -> None:
+                stdout_buf = io.StringIO()
+                stderr_buf = io.StringIO()
+                try:
+                    with (
+                        contextlib.redirect_stdout(stdout_buf),
+                        contextlib.redirect_stderr(stderr_buf),
+                    ):
+                        preflight.main()
+                finally:
+                    out = stdout_buf.getvalue()
+                    err = stderr_buf.getvalue()
+                    sys.stdout.write(out)
+                    sys.stderr.write(err)
+                    try:
+                        with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
+                            log.write(out)
+                            log.write(err)
+                    except OSError:
+                        pass
+
+            record_step(report, "preflight", run_preflight_step)
+        else:
+            report["preflight"] = "skipped"
+
+        print("Startup summary:")
+        print(f"  Config file: {config_path or 'none'}")
+        print(f"  Active keypair: {active_keypair or 'none'}")
+        print(f"  GPU device: {gpu_device}")
+        print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+        finalize_report(report)
+        report_written = True
+
+        proc = subprocess.run(
+            [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+        )
+    finally:
+        if not report_written:
+            finalize_report(report)
 
     if not args.no_diagnostics:
         from scripts import diagnostics
