@@ -22,6 +22,7 @@ except Exception:  # pragma: no cover - optional dependency
 ENV_VARS = {
     "birdeye_api_key": "BIRDEYE_API_KEY",
     "solana_rpc_url": "SOLANA_RPC_URL",
+    "solana_keypair": "SOLANA_KEYPAIR",
     "dex_base_url": "DEX_BASE_URL",
     "dex_testnet_url": "DEX_TESTNET_URL",
     "orca_api_url": "ORCA_API_URL",

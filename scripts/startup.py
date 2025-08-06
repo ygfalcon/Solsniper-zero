@@ -10,11 +10,9 @@ import sys
 import shutil
 from pathlib import Path
 
-from solhunter_zero.config import load_config, validate_config
-
-
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
+sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 
 
@@ -135,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_deps:
         ensure_deps()
     if not args.skip_setup:
+        from solhunter_zero.config import load_config, validate_config
+
         ensure_config()
         cfg = load_config()
         validate_config(cfg)
@@ -143,7 +143,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_rpc_check:
         ensure_rpc()
     ensure_cargo()
-    os.execv("./run.sh", ["./run.sh", "--auto", *rest])
+    run_sh = ROOT / "run.sh"
+    if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
+        os.execv(str(run_sh), [str(run_sh), "--auto", *rest])
+    else:
+        os.execv(sys.executable, [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest])
 
 
 if __name__ == "__main__":  # pragma: no cover
