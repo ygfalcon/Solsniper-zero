@@ -216,6 +216,61 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     return report
 
 
+def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
+    """Ensure essential macOS development tools are present.
+
+    On Apple Silicon Macs this checks for Homebrew, Xcode command line tools,
+    Python 3.11 and rustup.  If any are missing ``prepare_macos_env`` is
+    invoked to install them.  A report dictionary is returned mirroring
+    ``prepare_macos_env``'s output.
+    """
+
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return {"steps": {}, "success": True}
+
+    missing_tools: list[str] = []
+    try:
+        if (
+            subprocess.run(
+                ["xcode-select", "-p"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ).returncode
+            != 0
+        ):
+            missing_tools.append("xcode-select")
+    except FileNotFoundError:
+        missing_tools.append("xcode-select")
+    for cmd in ("brew", "python3.11", "rustup"):
+        if shutil.which(cmd) is None:
+            missing_tools.append(cmd)
+    if not missing_tools:
+        return {"steps": {}, "success": True}
+
+    print(
+        "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
+    )
+    report = prepare_macos_env(non_interactive=non_interactive)
+    apply_brew_env()
+    for step, info in report["steps"].items():
+        msg = info.get("message", "")
+        if msg:
+            print(f"{step}: {info['status']} - {msg}")
+        else:
+            print(f"{step}: {info['status']}")
+    if not report.get("success"):
+        print(
+            "macOS environment preparation failed; continuing without required tools",
+            file=sys.stderr,
+        )
+        for step, info in report["steps"].items():
+            if info.get("status") == "error":
+                fix = MANUAL_FIXES.get(step)
+                if fix:
+                    print(f"Manual fix for {step}: {fix}")
+    return report
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--non-interactive", action="store_true")

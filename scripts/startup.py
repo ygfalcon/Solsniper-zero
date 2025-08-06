@@ -180,50 +180,10 @@ def _pip_install(*args: str, retries: int = 3) -> None:
 
 
 def ensure_deps(*, install_optional: bool = False) -> None:
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
-        missing_tools: list[str] = []
-        try:
-            if (
-                subprocess.run(
-                    ["xcode-select", "-p"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                ).returncode
-                != 0
-            ):
-                missing_tools.append("xcode-select")
-        except FileNotFoundError:
-            missing_tools.append("xcode-select")
-        for cmd in ("brew", "python3.11", "rustup"):
-            if shutil.which(cmd) is None:
-                missing_tools.append(cmd)
-        if missing_tools:
-            print(
-                "Missing macOS tools: "
-                + ", ".join(missing_tools)
-                + ". Running mac setup..."
-            )
-            from scripts import mac_setup
+    if platform.system() == "Darwin":
+        from scripts import mac_setup
 
-            report = mac_setup.prepare_macos_env(non_interactive=True)
-            mac_setup.apply_brew_env()
-            for step, info in report["steps"].items():
-                msg = info.get("message", "")
-                if msg:
-                    print(f"{step}: {info['status']} - {msg}")
-                else:
-                    print(f"{step}: {info['status']}")
-            if not report.get("success"):
-                print(
-                    "macOS environment preparation failed; continuing without required tools",
-                    file=sys.stderr,
-                )
-                for step, info in report["steps"].items():
-                    if info.get("status") == "error":
-                        fix = mac_setup.MANUAL_FIXES.get(step)
-                        if fix:
-                            print(f"Manual fix for {step}: {fix}")
-
+        mac_setup.ensure_tools()
     req, opt = deps.check_deps()
     if not req and not install_optional:
         if opt:
@@ -533,6 +493,10 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
 
 def ensure_cargo() -> None:
     installed = False
+    if platform.system() == "Darwin":
+        from scripts import mac_setup
+
+        mac_setup.ensure_tools()
     if shutil.which("cargo") is None:
         if shutil.which("curl") is None:
             print(
@@ -540,33 +504,6 @@ def ensure_cargo() -> None:
                 "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
             )
             raise SystemExit(1)
-        if platform.system() == "Darwin":
-            if shutil.which("brew") is None:
-                print(
-                    "Homebrew is required to install the Rust toolchain. "
-                    "Install it by running scripts/mac_setup.py and re-run this script.",
-                )
-                raise SystemExit(1)
-            try:
-                subprocess.check_call(
-                    ["xcode-select", "-p"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except subprocess.CalledProcessError:
-                print("Xcode command line tools are required. Launching installer...")
-                try:
-                    subprocess.check_call(["xcode-select", "--install"])
-                except (
-                    subprocess.CalledProcessError
-                ) as exc:  # pragma: no cover - hard failure
-                    print(f"Failed to start Xcode command line tools installer: {exc}")
-                else:
-                    print(
-                        "The installer may prompt for confirmation; "
-                        "after it finishes, re-run this script to resume."
-                    )
-                raise SystemExit(1)
         print("Installing Rust toolchain via rustup...")
         subprocess.check_call(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
@@ -802,15 +739,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if platform.system() == "Darwin":
-        from scripts.mac_setup import prepare_macos_env
+        from scripts import mac_setup
 
-        report = prepare_macos_env(non_interactive=True)
-        success = False
-        if isinstance(report, dict):
-            success = bool(report.get("success"))
-        else:
-            success = bool(report)
-        if not success:
+        report = mac_setup.ensure_tools()
+        if not report.get("success"):
             print(
                 "macOS environment preparation failed. Please address the issues above and re-run."
             )
