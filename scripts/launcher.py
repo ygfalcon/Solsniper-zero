@@ -19,6 +19,12 @@ from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
+
+ensure_venv(None)
+with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+    fh.write(f"Virtual environment: {sys.prefix}\n")
+
 from solhunter_zero import env  # noqa: E402
 
 env.load_env_file(ROOT / ".env")
