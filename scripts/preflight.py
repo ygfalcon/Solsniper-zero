@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import importlib
 import os
-import platform
 import re
 import shutil
 import subprocess
@@ -144,29 +143,19 @@ def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> C
 
 
 def check_gpu() -> Check:
+    """Report GPU availability and the selected default device."""
+
     try:
         from solhunter_zero import device
-        try:
-            import torch  # type: ignore[import]
-        except Exception:  # pragma: no cover - torch is optional
-            torch = None  # type: ignore
-        if (
-            platform.system() == "Darwin"
-            and os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1"
-        ):
-            return False, "PYTORCH_ENABLE_MPS_FALLBACK=1 not set"
+
         if not device.detect_gpu():
             return False, "No GPU backend detected"
-        if torch is not None and torch.backends.mps.is_available():
-            try:
-                import torch
-                torch.set_default_device("mps")
-            except Exception as exc:
-                return False, (
-                    f"Metal available but failed to set default device: {exc}"
-                )
-            return True, "Metal GPU available"
-        return True, "CUDA GPU available"
+
+        try:  # get_default_device may raise if torch is missing
+            dev = device.get_default_device("auto")
+            return True, f"Using GPU device: {dev}"
+        except Exception as exc:
+            return False, f"GPU detected but unusable: {exc}"
     except Exception as exc:  # pragma: no cover - defensive
         return False, str(exc)
 
