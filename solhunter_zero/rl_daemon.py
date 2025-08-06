@@ -447,7 +447,7 @@ class RLDaemon:
         self.live_dataset: rl_training.LiveTradeDataset | None = None
         self.last_train_time: float | None = None
         self.checkpoint_path: str = str(self.model_path)
-        self.device = torch.device(device) if device is not None else get_default_device()
+        self.device = get_default_device(device)
         device = self.device.type
         self.ray_trainer = None
         if self.distributed_backend == "ray":
