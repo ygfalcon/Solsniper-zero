@@ -431,6 +431,16 @@ def ensure_cargo() -> None:
         if "aarch64-apple-darwin" not in targets:
             subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
 
+    missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
+    if missing:
+        names = " and ".join(missing)
+        brew = " ".join(missing)
+        print(
+            f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
+            f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
+        )
+        raise SystemExit(1)
+
 
 def ensure_route_ffi() -> None:
     """Ensure the ``route_ffi`` Rust library is built and copied locally.

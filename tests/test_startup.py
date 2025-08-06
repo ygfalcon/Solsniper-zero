@@ -269,6 +269,23 @@ def test_ensure_cargo_requires_brew_on_macos(monkeypatch, capsys):
     assert "homebrew" in out and "mac_setup.sh" in out
 
 
+def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):
+    from scripts import startup
+
+    def fake_which(cmd):
+        return None if cmd in {"pkg-config", "cmake"} else "/usr/bin/" + cmd
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup.subprocess, "check_call", lambda *a, **k: None)
+
+    with pytest.raises(SystemExit):
+        startup.ensure_cargo()
+
+    out = capsys.readouterr().out.lower()
+    assert "pkg-config" in out and "cmake" in out
+
+
 def test_main_calls_ensure_endpoints(monkeypatch):
     from scripts import startup
 
