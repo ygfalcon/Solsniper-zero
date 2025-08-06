@@ -83,6 +83,7 @@ print(','.join(extras))
 PY
 )
     echo "Installing dependencies..."
+    command -v pip >/dev/null 2>&1 || { echo "pip not found" >&2; exit 1; }
     if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
         python - <<'EOF'
 import importlib.util, sys
