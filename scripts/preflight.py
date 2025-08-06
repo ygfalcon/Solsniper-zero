@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib
+import platform
 import re
 import shutil
 import subprocess
@@ -24,7 +25,9 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
     """Ensure the running Python interpreter meets the minimum version."""
     if sys.version_info < min_version:
         return False, f"Python {min_version[0]}.{min_version[1]}+ required"
-    return True, f"Python {sys.version_info.major}.{sys.version_info.minor} detected"
+    return True, (
+        f"Python {sys.version_info.major}.{sys.version_info.minor} detected"
+    )
 
 
 def _parse_dependencies() -> List[str]:
@@ -102,13 +105,19 @@ def check_network(url: str = "https://api.mainnet-beta.solana.com") -> Check:
 def check_gpu() -> Check:
     try:
         import torch
-        if not torch.cuda.is_available():
-            return False, "CUDA GPU not available"
+        system = platform.system()
+        has_gpu = torch.cuda.is_available()
+        if system == "Darwin":
+            mps_backend = getattr(torch.backends, "mps", None)
+            if mps_backend is not None and mps_backend.is_available():
+                has_gpu = True
+        if not has_gpu:
+            return False, "CUDA or MPS GPU not available"
     except ModuleNotFoundError:
         return False, "torch not installed"
     except Exception as exc:  # pragma: no cover - defensive
         return False, str(exc)
-    return True, "GPU available"
+    return True, "CUDA or MPS GPU available"
 
 
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
