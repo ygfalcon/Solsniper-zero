@@ -100,6 +100,19 @@ attention_swarm_model = "attention_swarm.pt"
 evolve_interval = 1
 mutation_threshold = 0.0
 
+# RL auto-training
+rl_auto_train = true
+rl_tune_interval = 1800
+regime_weight = 1.0
+rl_dynamic_workers = true
+rl_prioritized_replay = false
+rl_build_mmap_dataset = true
+rl_prefetch_buffer = 0
+# Enable FAISS GPU index for faster memory search
+gpu_memory_index = false
+hierarchical_rl = true
+hierarchical_model_path = "hier_policy.json"
+
 [agent_weights]
 simulation = 1.0
 conviction = 1.0
@@ -124,16 +137,4 @@ inferna = 1.0
 portfolio_optimizer = 1.0
 crossdex_rebalancer = 1.0
 flashloan_sandwich = 1.0
-
-# RL auto-training
-rl_auto_train = true
-rl_tune_interval = 1800
-regime_weight = 1.0
-rl_dynamic_workers = true
-rl_prioritized_replay = false
-rl_build_mmap_dataset = true
-rl_prefetch_buffer = 0
-# Enable FAISS GPU index for faster memory search
-gpu_memory_index = false
-hierarchical_rl = true
-hierarchical_model_path = "hier_policy.json"
+mev_sandwich = 1.0

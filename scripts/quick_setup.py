@@ -9,6 +9,8 @@ import sys
 import tomllib
 import argparse
 
+from solhunter_zero.config_schema import validate_config
+
 try:
     import tomli_w  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -43,6 +45,8 @@ PROMPTS = [
     ("orca_dex_url", "ORCA_DEX_URL", "Orca DEX URL"),
     ("raydium_dex_url", "RAYDIUM_DEX_URL", "Raydium DEX URL"),
 ]
+
+DEFAULT_AGENTS = ["simulation"]
 
 
 # Defaults applied when --auto is used. These point to public endpoints but
@@ -86,7 +90,26 @@ def main() -> None:
                 if key in cfg:
                     cfg.pop(key, None)
                     updated = True
+
+    if "agents" not in cfg:
+        cfg["agents"] = DEFAULT_AGENTS.copy()
+        updated = True
+    if "agent_weights" not in cfg:
+        cfg["agent_weights"] = {a: 1.0 for a in cfg["agents"]}
+        updated = True
+    else:
+        missing = [a for a in cfg.get("agents", []) if a not in cfg["agent_weights"]]
+        if missing:
+            for m in missing:
+                cfg["agent_weights"][m] = 1.0
+            updated = True
+
     if updated:
+        try:
+            validate_config(cfg)
+        except ValueError as exc:  # pragma: no cover - unlikely interactive failure
+            print(f"Invalid configuration: {exc}", file=sys.stderr)
+            sys.exit(1)
         save_config(cfg)
         print(f"Configuration saved to {CONFIG_PATH}")
     else:

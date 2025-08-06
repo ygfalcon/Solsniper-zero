@@ -12,29 +12,48 @@ from solhunter_zero.event_bus import subscribe
 
 def test_load_config_yaml(tmp_path):
     path = tmp_path / "my.yaml"
-    path.write_text("birdeye_api_key: KEY\nsolana_rpc_url: http://local\nevent_bus_url: ws://bus")
+    path.write_text(
+        "birdeye_api_key: KEY\n"
+        "solana_rpc_url: http://local\n"
+        "dex_base_url: http://dex\n"
+        "agents: [sim]\n"
+        "agent_weights:\n  sim: 1.0\n"
+        "event_bus_url: ws://bus\n"
+    )
     cfg = load_config(str(path))
-    assert cfg == {
-        "birdeye_api_key": "KEY",
-        "solana_rpc_url": "http://local",
-        "event_bus_url": "ws://bus",
-    }
+    assert cfg["birdeye_api_key"] == "KEY"
+    assert cfg["solana_rpc_url"] == "http://local"
+    assert cfg["dex_base_url"] == "http://dex"
+    assert cfg["agents"] == ["sim"]
+    assert cfg["agent_weights"] == {"sim": 1.0}
+    assert cfg["event_bus_url"] == "ws://bus"
 
 
 def test_load_config_toml(tmp_path):
     path = tmp_path / "my.toml"
-    path.write_text('birdeye_api_key="KEY"\nsolana_rpc_url="http://local"\nevent_bus_url="ws://bus"')
+    path.write_text(
+        'birdeye_api_key="KEY"\n'
+        'solana_rpc_url="http://local"\n'
+        'dex_base_url="http://dex"\n'
+        'event_bus_url="ws://bus"\n'
+        'agents=["sim"]\n'
+        '[agent_weights]\n'
+        'sim=1.0\n'
+    )
     cfg = load_config(str(path))
-    assert cfg == {
-        "birdeye_api_key": "KEY",
-        "solana_rpc_url": "http://local",
-        "event_bus_url": "ws://bus",
-    }
+    assert cfg["birdeye_api_key"] == "KEY"
+    assert cfg["solana_rpc_url"] == "http://local"
+    assert cfg["dex_base_url"] == "http://dex"
+    assert cfg["agents"] == ["sim"]
+    assert cfg["event_bus_url"] == "ws://bus"
+    assert cfg["agent_weights"] == {"sim": 1.0}
 
 
 def test_load_config_agents(tmp_path):
     path = tmp_path / "agents.toml"
     path.write_text(
+        'solana_rpc_url="http://local"\n'
+        'dex_base_url="http://dex"\n'
         'agents=["sim","exit"]\n[agent_weights]\nsim=0.5\nexit=1.0\n'
     )
     cfg = load_config(str(path))
@@ -44,9 +63,22 @@ def test_load_config_agents(tmp_path):
 
 def test_env_var_overrides_default_search(tmp_path, monkeypatch):
     default = tmp_path / "config.yaml"
-    default.write_text("birdeye_api_key: DEFAULT")
+    default.write_text(
+        "birdeye_api_key: DEFAULT\n"
+        "solana_rpc_url: http://local\n"
+        "dex_base_url: http://dex\n"
+        "agents: [sim]\n"
+        "agent_weights:\n  sim: 1.0\n"
+    )
     override = tmp_path / "ov.toml"
-    override.write_text('birdeye_api_key="OVR"')
+    override.write_text(
+        'birdeye_api_key="OVR"\n'
+        'solana_rpc_url="http://local"\n'
+        'dex_base_url="http://dex"\n'
+        'agents=["sim"]\n'
+        '[agent_weights]\n'
+        'sim=1.0\n'
+    )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SOLHUNTER_CONFIG", str(override))
     cfg = load_config()
@@ -57,6 +89,7 @@ def test_apply_env_overrides(monkeypatch):
     cfg = {
         "birdeye_api_key": "a",
         "solana_rpc_url": "b",
+        "dex_base_url": "http://dex",
         "risk_tolerance": 0.1,
         "token_suffix": "bonk",
         "agents": ["a"],
@@ -110,6 +143,7 @@ def test_set_env_from_config(monkeypatch):
     cfg = {
         "birdeye_api_key": "A",
         "solana_rpc_url": "RPC",
+        "dex_base_url": "http://dex",
         "risk_tolerance": 0.3,
         "token_suffix": "xyz",
         "agents": ["sim"],

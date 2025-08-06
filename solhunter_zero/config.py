@@ -5,12 +5,13 @@ from .jsonutil import loads, dumps
 import ast
 from typing import Mapping, Any
 from pathlib import Path
-from urllib.parse import urlparse
-
 from .dex_config import DEXConfig
 from importlib import import_module
 
 import tomllib
+from pydantic import ValidationError
+
+from .config_schema import ConfigModel
 
 try:
     import yaml  # type: ignore
@@ -158,7 +159,12 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
                     break
     if path is None:
         return {}
-    return _read_config_file(Path(path))
+    cfg = _read_config_file(Path(path))
+    try:
+        cfg = ConfigModel(**cfg).dict()
+    except ValidationError as exc:
+        raise ValueError(f"Invalid configuration: {exc}") from exc
+    return cfg
 
 
 def apply_env_overrides(config: dict) -> dict:
@@ -177,56 +183,15 @@ def set_env_from_config(config: dict) -> None:
         val = config.get(key)
         if val is not None and os.getenv(env) is None:
             os.environ[env] = str(val)
+def validate_config(cfg: Mapping[str, Any]) -> dict:
+    """Validate configuration against :class:`ConfigModel` schema.
 
-
-MANDATORY_KEYS: tuple[str, ...] = (
-    "solana_rpc_url",
-    "dex_base_url",
-    "agents",
-    "agent_weights",
-)
-
-
-def _valid_url(value: str) -> bool:
-    try:
-        parsed = urlparse(value)
-        return bool(parsed.scheme) and bool(parsed.netloc)
-    except Exception:
-        return False
-
-
-def validate_config(cfg: Mapping[str, Any]) -> None:
-    """Validate mandatory configuration options.
-
-    Raises ``ValueError`` if any required option is missing or malformed.
+    Returns the normalized configuration dictionary.
     """
-
-    for key in MANDATORY_KEYS:
-        if key not in cfg:
-            raise ValueError(f"missing required config key: {key}")
-
-    rpc = cfg.get("solana_rpc_url")
-    base = cfg.get("dex_base_url")
-    if not isinstance(rpc, str) or not _valid_url(rpc):
-        raise ValueError("solana_rpc_url must be a valid URL")
-    if not isinstance(base, str) or not _valid_url(base):
-        raise ValueError("dex_base_url must be a valid URL")
-
-    agents = cfg.get("agents")
-    if not isinstance(agents, list) or not all(
-        isinstance(a, str) and a for a in agents
-    ):
-        raise ValueError("agents must be a list of non-empty strings")
-
-    weights = cfg.get("agent_weights")
-    if not isinstance(weights, Mapping):
-        raise ValueError("agent_weights must be a mapping")
-    for name in agents:
-        if name not in weights:
-            raise ValueError(f"missing weight for agent '{name}'")
-        val = weights[name]
-        if not isinstance(val, (int, float)):
-            raise ValueError(f"weight for agent '{name}' must be numeric")
+    try:
+        return ConfigModel(**cfg).dict()
+    except ValidationError as exc:
+        raise ValueError(f"Invalid configuration: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
