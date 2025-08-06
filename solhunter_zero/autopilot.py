@@ -44,35 +44,10 @@ def _stop_all(*_: object) -> None:
 
 def _ensure_keypair() -> None:
     try:
-        active = wallet.get_active_keypair_name()
-        if active is None:
-            keys = wallet.list_keypairs()
-            if not keys:
-                kp = wallet.Keypair()
-                wallet.save_keypair("temp", list(kp.to_bytes()))
-                wallet.select_keypair("temp")
-                active = "temp"
-            else:
-                keys.sort()
-                choice = keys[0]
-                if len(keys) > 1 and sys.stdin.isatty():
-                    print("Available keypairs:")
-                    for idx, name in enumerate(keys, 1):
-                        print(f"{idx}. {name}")
-                    try:
-                        sel = input("Select keypair [1]: ").strip()
-                        if sel:
-                            i = int(sel) - 1
-                            if 0 <= i < len(keys):
-                                choice = keys[i]
-                    except Exception:
-                        pass
-                wallet.select_keypair(choice)
-                active = choice
-        if active:
-            path = os.path.join(wallet.KEYPAIR_DIR, active + ".json")
-            os.environ["KEYPAIR_PATH"] = path
-            print(f"Using keypair: {active}")
+        name, _ = wallet.ensure_default_keypair()
+        path = os.path.join(wallet.KEYPAIR_DIR, name + ".json")
+        os.environ["KEYPAIR_PATH"] = path
+        print(f"Using keypair: {name}")
     except Exception as exc:
         print(
             f"Wallet interaction failed: {exc}\n"

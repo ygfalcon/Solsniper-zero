@@ -183,3 +183,78 @@ def generate_default_keypair() -> tuple[str, Path]:
         f.write(mnemonic + "\n")
 
     return mnemonic, mnemonic_path
+
+
+def ensure_default_keypair() -> tuple[str, Path | None]:
+    """Ensure a usable keypair exists and is selected.
+
+    When no keypairs are present a new one is derived from a mnemonic using
+    :func:`generate_default_keypair`.  The mnemonic path is only returned when a
+    new keypair is generated.  If multiple keypairs exist and none are active the
+    user is prompted to select one unless ``AUTO_SELECT_KEYPAIR`` is set to ``1``
+    or standard input is not a TTY.
+
+    Returns
+    -------
+    tuple[str, Path | None]
+        The active keypair name and, when generated, the path to the mnemonic
+        file.  The path is ``None`` when an existing keypair is selected.
+    """
+
+    import json
+    import shutil
+    import subprocess
+    import sys
+
+    active = get_active_keypair_name()
+    if active:
+        return active, None
+
+    keypairs = list_keypairs()
+    if keypairs:
+        keypairs.sort()
+        choice = keypairs[0]
+        if (
+            len(keypairs) > 1
+            and sys.stdin.isatty()
+            and os.getenv("AUTO_SELECT_KEYPAIR") != "1"
+        ):
+            print("Available keypairs:")
+            for idx, name in enumerate(keypairs, 1):
+                print(f"{idx}. {name}")
+            try:
+                sel = input("Select keypair [1]: ").strip()
+                if sel:
+                    i = int(sel) - 1
+                    if 0 <= i < len(keypairs):
+                        choice = keypairs[i]
+            except Exception:
+                pass
+        select_keypair(choice)
+        return choice, None
+
+    keypair_json = os.environ.get("KEYPAIR_JSON")
+    if keypair_json:
+        try:
+            data = json.loads(keypair_json)
+            if isinstance(data, list):
+                save_keypair("default", data)
+            else:
+                raise ValueError
+        except Exception:
+            cmd = ["solhunter-wallet", "save", "default", keypair_json]
+            if shutil.which("solhunter-wallet") is None:
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "solhunter_zero.wallet_cli",
+                    "save",
+                    "default",
+                    keypair_json,
+                ]
+            subprocess.check_call(cmd)
+        select_keypair("default")
+        return "default", None
+
+    mnemonic, mnemonic_path = generate_default_keypair()
+    return "default", mnemonic_path
