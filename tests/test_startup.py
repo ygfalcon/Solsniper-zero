@@ -430,8 +430,11 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
@@ -508,7 +511,12 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
     with pytest.raises(SystemExit) as exc:
-        startup.main(["--one-click", "--skip-setup", "--skip-deps"])
+        startup.main([
+            "--one-click",
+            "--skip-setup",
+            "--skip-deps",
+            "--skip-preflight",
+        ])
 
     assert called.get("preflight") is True
     assert exc.value.code == 0
@@ -516,6 +524,7 @@ def test_main_preflight_success(monkeypatch):
 
 def test_main_preflight_failure(monkeypatch, capsys):
     from scripts import startup
+    from pathlib import Path
 
     def fake_preflight():
         print("out")
@@ -531,12 +540,26 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
-    ret = startup.main(["--one-click", "--skip-deps", "--skip-setup"])
+
+    log_file = Path(__file__).resolve().parent.parent / "preflight.log"
+    if log_file.exists():
+        log_file.unlink()
+
+    ret = startup.main([
+        "--one-click",
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-preflight",
+    ])
 
     assert ret == 2
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
+    assert log_file.exists()
+    log_contents = log_file.read_text()
+    assert "out" in log_contents
+    assert "err" in log_contents
 
 
 def test_startup_sets_mps_device(monkeypatch):
