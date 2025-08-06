@@ -282,17 +282,24 @@ fi
 
 run_cargo_build --manifest-path depth_service/Cargo.toml --release
 
-# Allow skipping the metrics aggregator for debugging
+# Allow skipping the metrics aggregator or preflight for debugging
 NO_METRICS=0
+SKIP_PREFLIGHT=0
 args=()
 for arg in "$@"; do
-    if [ "$arg" = "--no-metrics" ]; then
-        NO_METRICS=1
-    else
-        args+=("$arg")
-    fi
+    case "$arg" in
+        --no-metrics) NO_METRICS=1 ;;
+        --skip-preflight) SKIP_PREFLIGHT=1 ;;
+        *) args+=("$arg") ;;
+    esac
 done
 set -- "${args[@]}"
+
+if [ $SKIP_PREFLIGHT -eq 0 ]; then
+    if ! "$PY" -m scripts.preflight; then
+        exit 1
+    fi
+fi
 
 if [ $NO_METRICS -eq 0 ]; then
     METRICS_LOG=$(mktemp)

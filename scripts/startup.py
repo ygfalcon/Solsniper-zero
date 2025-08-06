@@ -587,6 +587,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip HTTP endpoint availability check",
     )
     parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip environment preflight checks",
+    )
+    parser.add_argument(
         "--one-click",
         action="store_true",
         help="Enable fully automated non-interactive startup",
@@ -611,17 +616,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.one_click:
         rest = ["--non-interactive", *rest]
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
-        preflight = subprocess.run(
-            [sys.executable, "scripts/preflight.py"],
-            capture_output=True,
-            text=True,
-        )
-        if preflight.returncode != 0:
-            if preflight.stdout:
-                print(preflight.stdout, end="")
-            if preflight.stderr:
-                print(preflight.stderr, end="", file=sys.stderr)
-            return preflight.returncode
 
     if sys.version_info < (3, 11):
         print(
@@ -681,6 +675,16 @@ def main(argv: list[str] | None = None) -> int:
 
     ensure_cargo()
     ensure_route_ffi()
+
+    if not args.skip_preflight:
+        from scripts import preflight
+
+        try:
+            preflight.main()
+        except SystemExit as exc:  # propagate non-zero exit codes
+            code = exc.code if isinstance(exc.code, int) else 1
+            if code:
+                return code
     print("Startup summary:")
     print(f"  Config file: {config_path or 'none'}")
     print(f"  Active keypair: {active_keypair or 'none'}")
@@ -688,9 +692,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
     run_sh = ROOT / "run.sh"
     if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
-        os.execv(str(run_sh), [str(run_sh), "--auto", *rest])
+        cmd = [str(run_sh), "--auto", "--skip-preflight", *rest]
+        os.execv(str(run_sh), cmd)
     else:
-        os.execv(sys.executable, [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest])
+        os.execv(
+            sys.executable,
+            [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
+        )
 
 
 def run(argv: list[str] | None = None) -> int:
