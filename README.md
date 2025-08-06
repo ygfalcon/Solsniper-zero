@@ -224,6 +224,8 @@ Install the Rust toolchain if `cargo` isn't available:
    Additional variables allow customization:
    - `DEPTH_WS_ADDR` / `DEPTH_WS_PORT` – address and port for the built-in
      websocket server (defaults to `0.0.0.0:8765`).
+   - `DEPTH_START_TIMEOUT` – seconds to wait for the depth service socket before
+     failing startup (defaults to `5`).
    - `SOLANA_RPC_URL` and `SOLANA_KEYPAIR` – RPC endpoint and keypair for
      transaction submission.
   - `EVENT_BUS_URL` – optional websocket endpoint of an external event bus.

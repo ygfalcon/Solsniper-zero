@@ -71,22 +71,34 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     proc = subprocess.Popen(args)
 
     socket_path = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
+    timeout = float(os.getenv("DEPTH_START_TIMEOUT", "5") or 5)
 
     async def wait_for_socket() -> None:
-        deadline = time.monotonic() + 5.0
+        deadline = time.monotonic() + timeout
         while True:
             try:
                 reader, writer = await asyncio.open_unix_connection(socket_path)
             except Exception:
                 if time.monotonic() > deadline:
-                    break
+                    raise RuntimeError(
+                        f"depth_service socket {socket_path} not available after {timeout}s"
+                    )
                 await asyncio.sleep(0.05)
             else:
                 writer.close()
                 await writer.wait_closed()
                 return
 
-    asyncio.run(wait_for_socket())
+    try:
+        asyncio.run(wait_for_socket())
+    except RuntimeError:
+        with contextlib.suppress(Exception):
+            proc.terminate()
+        with contextlib.suppress(Exception):
+            proc.wait(timeout=1)
+        raise RuntimeError(
+            f"Failed to start depth_service within {timeout}s"
+        )
     return proc
 
 
