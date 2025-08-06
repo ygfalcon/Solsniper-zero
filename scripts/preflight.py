@@ -75,6 +75,19 @@ def check_rust_toolchain() -> Check:
     return True, "Rust toolchain available"
 
 
+def check_xcode_clt() -> Check:
+    """Verify that the Xcode Command Line Tools are installed on macOS."""
+    if sys.platform != "darwin":
+        return True, "Not macOS"
+    try:
+        subprocess.run(["xcode-select", "-p"], check=True, capture_output=True)
+    except FileNotFoundError:
+        return False, "xcode-select not found"
+    except subprocess.CalledProcessError:
+        return False, "Xcode Command Line Tools not installed"
+    return True, "Xcode Command Line Tools available"
+
+
 def check_config_file(path: str = "config.toml") -> Check:
     if Path(path).exists():
         return True, f"Found {path}"
@@ -125,6 +138,7 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Python", check_python_version),
     ("Dependencies", check_dependencies),
     ("Rust", check_rust_toolchain),
+    ("Xcode CLT", check_xcode_clt),
     ("Config", check_config_file),
     ("Keypair", check_keypair),
     ("Network", check_network),
