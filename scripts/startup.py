@@ -12,12 +12,12 @@ import subprocess
 import shutil
 from pathlib import Path
 
-from scripts import deps
-
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
+
+from scripts import deps, preflight
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -354,6 +354,12 @@ def ensure_cargo() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        preflight.main()
+    except SystemExit as exc:
+        code = int(exc.code) if exc.code is not None else 0
+        if code != 0:
+            return code
     ensure_venv(argv)
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")

@@ -4,11 +4,15 @@ import sys
 import pytest
 
 
-def test_startup_help():
-    result = subprocess.run([sys.executable, 'scripts/startup.py', '--help'], capture_output=True, text=True)
-    assert result.returncode == 0
-    out = result.stdout.lower() + result.stderr.lower()
-    assert 'usage' in out
+def test_startup_help(monkeypatch, capsys):
+    from scripts import startup
+
+    monkeypatch.setattr(startup.preflight, "main", lambda: None)
+    with pytest.raises(SystemExit) as exc:
+        startup.main(["--help"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out.lower() + capsys.readouterr().err.lower()
+    assert "usage" in out
 
 
 def test_cluster_setup_assemble(tmp_path):
@@ -200,9 +204,14 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup.preflight, "main", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
-    monkeypatch.setattr(startup, "load_config", lambda: {"dex_base_url": "https://dex.example"})
-    monkeypatch.setattr(startup, "validate_config", lambda cfg: cfg)
+    import types, sys
+    cfg_module = types.SimpleNamespace(
+        load_config=lambda: {"dex_base_url": "https://dex.example"},
+        validate_config=lambda cfg: cfg,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", cfg_module)
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
     with pytest.raises(SystemExit):
