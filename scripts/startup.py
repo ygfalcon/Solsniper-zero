@@ -146,6 +146,7 @@ def ensure_endpoints(cfg: dict) -> None:
     unreachable.  BirdEye is only checked when an API key is configured.
     """
 
+    import asyncio
     import urllib.error
     from solhunter_zero.http import check_endpoint
 
@@ -159,16 +160,39 @@ def ensure_endpoints(cfg: dict) -> None:
             continue
         urls[key] = val
 
+    async def _check(name: str, url: str) -> tuple[str, Exception] | None:
+        # Each URL is checked with its own exponential backoff.
+        for attempt in range(3):
+            try:
+                # ``check_endpoint`` is synchronous; run it in a thread to avoid blocking.
+                await asyncio.to_thread(check_endpoint, url, retries=1)
+                return None
+            except urllib.error.URLError as exc:  # pragma: no cover - network failure
+                if attempt == 2:
+                    return name, exc
+                wait = 2**attempt
+                print(
+                    f"Attempt {attempt + 1} failed for {name} at {url}: {exc}. "
+                    f"Retrying in {wait} seconds..."
+                )
+                await asyncio.sleep(wait)
+
+    async def _run() -> list[tuple[str, Exception] | None]:
+        tasks = [_check(name, url) for name, url in urls.items()]
+        return await asyncio.gather(*tasks)
+
+    results = asyncio.run(_run())
     failed: list[str] = []
-    for name, url in urls.items():
-        try:
-            check_endpoint(url)
-        except urllib.error.URLError as exc:  # pragma: no cover - network failure
-            print(
-                f"Failed to reach {name} at {url} after 3 attempts: {exc}."
-                " Check your network connection or configuration."
-            )
-            failed.append(name)
+    for name_exc in results:
+        if name_exc is None:
+            continue
+        name, exc = name_exc
+        url = urls[name]
+        print(
+            f"Failed to reach {name} at {url} after 3 attempts: {exc}."
+            " Check your network connection or configuration."
+        )
+        failed.append(name)
 
     if failed:
         raise SystemExit(1)
