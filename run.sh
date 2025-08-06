@@ -32,7 +32,7 @@ for dep in deps:
     mod = re.split('[<=>]', dep)[0].replace('-', '_')
     if pkgutil.find_loader(mod) is None:
         missing_required.append(mod)
-optional = ['faiss', 'sentence_transformers', 'torch']
+optional = ['faiss', 'sentence_transformers', 'torch', 'psutil']
 missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
 print(json.dumps(missing_optional))
 sys.exit(1 if missing_required or missing_optional else 0)
