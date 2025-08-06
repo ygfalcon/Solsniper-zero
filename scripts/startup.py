@@ -343,12 +343,29 @@ def ensure_cargo() -> None:
                 )
                 raise SystemExit(1)
         print("Installing Rust toolchain via rustup...")
-        subprocess.check_call(
-            "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-            shell=True,
-        )
-        if platform.system() == "Darwin":
-            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+        try:
+            subprocess.run(
+                "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+                shell=True,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            if platform.system() == "Darwin":
+                subprocess.run(
+                    ["rustup", "target", "add", "aarch64-apple-darwin"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+        except subprocess.CalledProcessError as exc:
+            err = exc.stderr.strip() if exc.stderr else str(exc)
+            print(f"Failed to install rustup: {err}", file=sys.stderr)
+            print(
+                "Please install rustup manually by following the instructions at https://rustup.rs/",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
     cargo_bin = Path.home() / ".cargo" / "bin"
     os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
 
