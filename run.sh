@@ -14,7 +14,38 @@ export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 
 # Detect if a GPU is present before moving FAISS indexes to GPU memory
 has_gpu() {
+    # Allow manual override for custom setups
+    case "${FORCE_GPU,,}" in
+        1|true|yes)
+            return 0
+            ;;
+    esac
+
+    vendor="${GPU_VENDOR,,}"
+    case "$vendor" in
+        nvidia)
+            if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+        amd)
+            if command -v rocminfo >/dev/null 2>&1 && rocminfo >/dev/null 2>&1; then
+                return 0
+            elif command -v clinfo >/dev/null 2>&1 && clinfo >/dev/null 2>&1; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+    esac
+
     if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+        return 0
+    elif command -v rocminfo >/dev/null 2>&1 && rocminfo >/dev/null 2>&1; then
+        return 0
+    elif command -v clinfo >/dev/null 2>&1 && clinfo >/dev/null 2>&1; then
         return 0
     elif [ -d /proc/driver/nvidia ]; then
         return 0
@@ -24,7 +55,7 @@ has_gpu() {
 }
 
 if has_gpu; then
-    export GPU_MEMORY_INDEX="1"
+    export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
 else
     echo "No GPU detected; using CPU mode"
 fi
