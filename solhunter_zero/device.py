@@ -18,3 +18,12 @@ def select_device(device: str | torch.device | None = "auto") -> torch.device:
     if isinstance(device, str) and device != "cpu" and not torch.cuda.is_available():
         return torch.device("cpu")
     return torch.device(device) if isinstance(device, str) else device
+
+
+def get_default_device() -> torch.device:
+    """Return the preferred accelerator device if available."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():  # pragma: no cover - optional backend
+        return torch.device("mps")
+    return torch.device("cpu")

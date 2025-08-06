@@ -64,6 +64,7 @@ from .hierarchical_rl import (
 )
 from .resource_monitor import get_cpu_usage
 from .dynamic_limit import _step_limit
+from .device import get_default_device
 
 logger = logging.getLogger(__name__)
 
@@ -446,14 +447,8 @@ class RLDaemon:
         self.live_dataset: rl_training.LiveTradeDataset | None = None
         self.last_train_time: float | None = None
         self.checkpoint_path: str = str(self.model_path)
-        if device is None:
-            if torch.cuda.is_available():
-                device = "cuda"
-            elif torch.backends.mps.is_available():
-                device = "mps"
-            else:
-                device = "cpu"
-        self.device = torch.device(device)
+        self.device = torch.device(device) if device is not None else get_default_device()
+        device = self.device.type
         self.ray_trainer = None
         if self.distributed_backend == "ray":
             try:
@@ -929,11 +924,9 @@ class RLDaemon:
 
         # Auto-select accelerator if none was provided
         if self.device.type == "cpu":
-            if torch.cuda.is_available():
-                self.device = torch.device("cuda")
-            elif torch.backends.mps.is_available():
-                self.device = torch.device("mps")
-            if self.device.type != "cpu":
+            new_device = get_default_device()
+            if new_device.type != "cpu":
+                self.device = new_device
                 self.model.to(self.device)
                 for ag in self.agents:
                     try:
