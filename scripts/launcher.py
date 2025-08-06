@@ -30,6 +30,12 @@ from solhunter_zero.system import detect_cpu_count  # noqa: E402
 def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
 
+    if "--one-click" not in argv:
+        argv.insert(0, "--one-click")
+    if "--full-deps" not in argv:
+        idx = 1 if argv and argv[0] == "--one-click" else 0
+        argv.insert(idx, "--full-deps")
+
     python_exe = sys.executable
     venv = ROOT / ".venv"
     for candidate in (venv / "bin" / "python3", venv / "bin" / "python"):
