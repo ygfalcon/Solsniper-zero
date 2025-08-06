@@ -32,7 +32,7 @@ for dep in deps:
     mod = re.split('[<=>]', dep)[0].replace('-', '_')
     if pkgutil.find_loader(mod) is None:
         missing_required.append(mod)
-optional = ['faiss', 'sentence_transformers', 'torch']
+optional = ['faiss', 'sentence_transformers', 'torch', 'orjson', 'lz4', 'zstandard', 'msgpack']
 missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
 print(json.dumps(missing_optional))
 sys.exit(1 if missing_required or missing_optional else 0)
@@ -46,6 +46,19 @@ import json,sys
 print(' '.join(json.loads(sys.argv[1])))
 PY
 )
+    missing_extras=$(python - "$missing_opt_json" <<'PY'
+import json,sys
+mods=set(json.loads(sys.argv[1]))
+extras=[]
+if 'orjson' in mods:
+    extras.append('fastjson')
+if {'lz4','zstandard'} & mods:
+    extras.append('fastcompress')
+if 'msgpack' in mods:
+    extras.append('msgpack')
+print(','.join(extras))
+PY
+)
     echo "Installing dependencies..."
     if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
         python - <<'EOF'
@@ -57,7 +70,11 @@ EOF
               --extra-index-url https://download.pytorch.org/whl/metal
         fi
     fi
-    pip install .
+    if [ -n "$missing_extras" ]; then
+        pip install ".[${missing_extras}]"
+    else
+        pip install .
+    fi
     if [ -n "$missing_opt" ]; then
         echo "Installed optional modules: $missing_opt"
     fi
