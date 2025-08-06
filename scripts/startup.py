@@ -688,6 +688,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Enable fully automated non-interactive startup",
     )
     parser.add_argument(
+        "--launch-only",
+        action="store_true",
+        help="Skip setup checks and directly launch main services",
+    )
+    parser.add_argument(
         "--allow-rosetta",
         action="store_true",
         help="Allow running under Rosetta (no Metal acceleration)",
@@ -710,8 +715,14 @@ def main(argv: list[str] | None = None) -> int:
         diagnostics.main()
         return 0
     if args.one_click:
-        rest = ["--non-interactive", *rest]
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
+
+    if args.launch_only:
+        args.skip_deps = True
+        args.skip_setup = True
+        args.skip_endpoint_check = True
+        args.skip_rpc_check = True
+        args.skip_preflight = True
 
     if sys.version_info < (3, 11):
         print(
@@ -771,9 +782,10 @@ def main(argv: list[str] | None = None) -> int:
 
     gpu_device = str(device.get_default_device()) if device.detect_gpu() else "none"
 
-    ensure_cargo()
-    ensure_route_ffi()
-    ensure_depth_service()
+    if not args.launch_only:
+        ensure_cargo()
+        ensure_route_ffi()
+        ensure_depth_service()
 
     run_preflight = args.one_click or not args.skip_preflight
     if run_preflight:
@@ -806,9 +818,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  GPU device: {gpu_device}")
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
 
-    proc = subprocess.run(
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
-    )
+    if args.one_click or args.launch_only:
+        cmd = [sys.executable, "scripts/start_all.py", *rest]
+        try:
+            proc = subprocess.run(cmd, env=os.environ.copy())
+        except FileNotFoundError:
+            proc = subprocess.run(
+                [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
+                env=os.environ.copy(),
+            )
+    else:
+        proc = subprocess.run(
+            [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
+            env=os.environ.copy(),
+        )
 
     if not args.no_diagnostics:
         from scripts import diagnostics

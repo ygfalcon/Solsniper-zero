@@ -678,3 +678,40 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
     ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     assert ret == 5
+
+
+def test_launch_only_starts_services(monkeypatch):
+    import types, sys
+    from scripts import startup
+
+    called: dict[str, object] = {}
+
+    def fake_run(cmd, env=None):
+        called["cmd"] = cmd
+        called["env"] = env
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+    monkeypatch.setattr(startup, "ensure_deps", lambda *a, **k: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    dummy_device = types.SimpleNamespace(
+        ensure_gpu_env=lambda: None,
+        detect_gpu=lambda: False,
+        get_default_device=lambda: "cpu",
+    )
+    monkeypatch.setattr(startup, "device", dummy_device)
+    dummy_torch = types.SimpleNamespace(set_default_device=lambda *a, **k: None)
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+
+    monkeypatch.setenv("TORCH_DEVICE", "cpu")
+    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
+
+    code = startup.main(["--launch-only"])
+    assert code == 0
+    cmd = called.get("cmd")
+    assert cmd and cmd[1].endswith("scripts/start_all.py")
+    env = called.get("env")
+    assert env["TORCH_DEVICE"] == "cpu"
+    assert env["EVENT_BUS_URL"] == "ws://bus"
