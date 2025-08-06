@@ -31,14 +31,20 @@ def detect_gpu() -> bool:
                     "Running under Rosetta (x86_64); GPU unavailable"
                 )
                 return False
+            install_hint = (
+                "Install with: pip install torch==2.1.0 torchvision==0.16.0 "
+                "--extra-index-url https://download.pytorch.org/whl/metal"
+            )
             if not getattr(torch.backends, "mps", None):
                 logging.getLogger(__name__).warning(
-                    "MPS backend not present; GPU unavailable"
+                    "MPS backend not present; GPU unavailable. %s",
+                    install_hint,
                 )
                 return False
             if not torch.backends.mps.is_built():
                 logging.getLogger(__name__).warning(
-                    "MPS backend not built; GPU unavailable"
+                    "MPS backend not built; GPU unavailable. %s",
+                    install_hint,
                 )
                 return False
             if "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ:
@@ -50,7 +56,8 @@ def detect_gpu() -> bool:
                 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             if not torch.backends.mps.is_available():
                 logging.getLogger(__name__).warning(
-                    "MPS backend not available"
+                    "MPS backend not available; GPU unavailable. %s",
+                    install_hint,
                 )
                 return False
             return True
