@@ -446,8 +446,7 @@ def ensure_endpoints(cfg: dict) -> None:
     """
 
     import urllib.error
-    import urllib.request
-    import time
+    from solhunter_zero.http import check_endpoint
 
     urls: dict[str, str] = {}
     if cfg.get("birdeye_api_key"):
@@ -461,25 +460,14 @@ def ensure_endpoints(cfg: dict) -> None:
 
     failed: list[str] = []
     for name, url in urls.items():
-        req = urllib.request.Request(url, method="HEAD")
-        for attempt in range(3):
-            try:
-                with urllib.request.urlopen(req, timeout=5):  # nosec B310
-                    break
-            except urllib.error.URLError as exc:  # pragma: no cover - network failure
-                if attempt == 2:
-                    print(
-                        f"Failed to reach {name} at {url} after 3 attempts: {exc}."
-                        " Check your network connection or configuration."
-                    )
-                    failed.append(name)
-                else:
-                    wait = 2**attempt
-                    print(
-                        f"Attempt {attempt + 1} failed for {name} at {url}: {exc}."
-                        f" Retrying in {wait} seconds..."
-                    )
-                    time.sleep(wait)
+        try:
+            check_endpoint(url)
+        except urllib.error.URLError as exc:  # pragma: no cover - network failure
+            print(
+                f"Failed to reach {name} at {url} after 3 attempts: {exc}."
+                " Check your network connection or configuration."
+            )
+            failed.append(name)
 
     if failed:
         raise SystemExit(1)

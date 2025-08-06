@@ -28,6 +28,33 @@ def loads(data: str | bytes) -> object:
         data = data.decode()
     return _json.loads(data)
 
+
+def check_endpoint(url: str, retries: int = 3) -> None:
+    """Send a ``HEAD`` request to *url* ensuring it is reachable.
+
+    The request is attempted up to ``retries`` times using exponential backoff
+    (1s, 2s, ...).  If all attempts fail a :class:`urllib.error.URLError` is
+    raised.
+    """
+
+    import time
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(url, method="HEAD")
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=5):  # nosec B310
+                return
+        except urllib.error.URLError as exc:  # pragma: no cover - network failure
+            if attempt == retries - 1:
+                raise
+            wait = 2**attempt
+            print(
+                f"Attempt {attempt + 1} failed for {url}: {exc}. Retrying in {wait} seconds..."
+            )
+            time.sleep(wait)
+
 _session: aiohttp.ClientSession | None = None
 
 # Connector limits are configurable via environment variables.
