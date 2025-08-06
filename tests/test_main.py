@@ -525,7 +525,7 @@ def test_flashloan_amount_scales_with_portfolio(monkeypatch):
     assert amt2 > amt1
 
 
-def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
+def test_run_auto_uses_default_and_selects_key(monkeypatch, tmp_path):
     import solhunter_zero.config as cfg_mod
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(tmp_path / "cfg"))
     monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfg" / "active"))
@@ -557,7 +557,7 @@ def test_run_auto_uses_highrisk_and_selects_key(monkeypatch, tmp_path):
 
     main_module.run_auto()
 
-    assert called["path"].endswith("config.highrisk.toml")
+    assert called["path"].endswith("config/default.toml")
     assert (keys_dir / "active").read_text() == "only"
     assert os.getenv("KEYPAIR_PATH") == str(keys_dir / "only.json")
 

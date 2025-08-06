@@ -100,7 +100,7 @@ def test_live_trading(monkeypatch):
         from solhunter_zero import main as main_module
         from solhunter_zero.simulation import SimulationResult
         repo_root = Path(__file__).resolve().parent.parent
-        cfg_path = repo_root / "config.highrisk.toml"
+        cfg_path = repo_root / "config" / "default.toml"
         key_path = repo_root / "keypairs" / "default.json"
 
         # Load preset config and default keypair via environment

@@ -17,15 +17,14 @@ _existing = find_config_file()
 CONFIG_PATH = (
     Path(_existing) if _existing and _existing.endswith(".toml") else Path("config.toml")
 )
-EXAMPLE_PATH = Path("config.example.toml")
-MINIMAL_PATH = Path("config.minimal.toml")
+DEFAULT_PATH = Path("config" ) / "default.toml"
 
 
 def load_config(auto: bool = False) -> dict:
     if CONFIG_PATH.is_file():
         with CONFIG_PATH.open("rb") as fh:
             return tomllib.load(fh)
-    template = MINIMAL_PATH if auto and MINIMAL_PATH.is_file() else EXAMPLE_PATH
+    template = DEFAULT_PATH
     if template.is_file():
         shutil.copy(template, CONFIG_PATH)
         with CONFIG_PATH.open("rb") as fh:

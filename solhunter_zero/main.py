@@ -176,7 +176,7 @@ from .data_pipeline import start_depth_snapshot_listener
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
 
-_HIGH_RISK_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+_DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
 _level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
 logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
@@ -1007,15 +1007,15 @@ def main(
 
 
 def run_auto(**kwargs) -> None:
-    """Start trading with selected config or high-risk preset."""
+    """Start trading with selected config or default preset."""
     bootstrap(one_click=True)
     cfg = load_selected_config()
     cfg_path = None
     if cfg:
         name = get_active_config_name()
         cfg_path = os.path.join(CONFIG_DIR, name) if name else None
-    elif _HIGH_RISK_PRESET.is_file():
-        cfg_path = str(_HIGH_RISK_PRESET)
+    elif _DEFAULT_PRESET.is_file():
+        cfg_path = str(_DEFAULT_PRESET)
         cfg = load_config(cfg_path)
     cfg = apply_env_overrides(cfg)
     prev_agents = os.environ.get("AGENTS")

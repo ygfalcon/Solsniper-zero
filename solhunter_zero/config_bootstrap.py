@@ -13,19 +13,14 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def _copy_template(dst: Path) -> bool:
-    """Copy a config template to ``dst``.
+    """Copy the default config template to ``dst``.
 
-    Returns ``True`` if a template file was copied.
+    Returns ``True`` if the template file was copied.
     """
-    for name in (
-        "config.example.toml",
-        "config.minimal.toml",
-        "config.highrisk.toml",
-    ):
-        src = ROOT / name
-        if src.exists():
-            shutil.copy(src, dst)
-            return True
+    src = ROOT / "config" / "default.toml"
+    if src.exists():
+        shutil.copy(src, dst)
+        return True
     return False
 
 

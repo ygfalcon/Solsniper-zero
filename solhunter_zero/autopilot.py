@@ -64,7 +64,7 @@ def _get_config() -> tuple[str | None, dict]:
         if os.path.isfile(path):
             cfg_path = path
     else:
-        preset = Path(ROOT / "config.highrisk.toml")
+        preset = Path(ROOT / "config" / "default.toml")
         if preset.is_file():
             cfg_path = str(preset)
     cfg: dict = {}
