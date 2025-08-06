@@ -43,6 +43,18 @@ def check_deps() -> tuple[list[str], list[str]]:
     return missing_required, missing_optional
 
 
+def ensure_venv() -> None:
+    """Ensure a local virtual environment exists and re-exec inside it."""
+    venv_dir = ROOT / ".venv"
+    python = venv_dir / ("Scripts" if os.name == "nt" else "bin") / (
+        "python.exe" if os.name == "nt" else "python"
+    )
+    if not python.exists():
+        subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+    if Path(sys.executable).resolve() != python.resolve():
+        os.execv(str(python), [str(python), *sys.argv])
+
+
 def ensure_deps() -> None:
     req, opt = check_deps()
     if not req and not opt:
@@ -245,6 +257,7 @@ def ensure_cargo() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_venv()
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
     parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")

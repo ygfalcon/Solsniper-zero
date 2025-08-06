@@ -3,6 +3,12 @@
 
 set -euo pipefail
 
+if [ -x ".venv/bin/python" ]; then
+    export PATH="$PWD/.venv/bin:$PATH"
+elif [ -x ".venv/Scripts/python.exe" ]; then
+    export PATH="$PWD/.venv/Scripts:$PATH"
+fi
+
 if [ ! -f "config.toml" ]; then
     cp config.example.toml config.toml
     echo "Created default config.toml from config.example.toml"
