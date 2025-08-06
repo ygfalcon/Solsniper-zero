@@ -11,6 +11,8 @@ from scripts.startup import (
     ensure_depth_service,
 )
 
+from . import device
+
 
 def bootstrap(one_click: bool = False) -> None:
     """Initialize the runtime environment for SolHunter Zero.
@@ -27,6 +29,8 @@ def bootstrap(one_click: bool = False) -> None:
 
     if os.getenv("SOLHUNTER_SKIP_DEPS") != "1":
         ensure_deps(install_optional=os.getenv("SOLHUNTER_INSTALL_OPTIONAL") == "1")
+
+    device.ensure_gpu_env()
 
     if os.getenv("SOLHUNTER_SKIP_SETUP") != "1":
         ensure_config()

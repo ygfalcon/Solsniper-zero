@@ -8,6 +8,7 @@ import types
 import pytest
 
 from scripts import diagnostics, startup
+from solhunter_zero import bootstrap
 
 
 def test_collect_no_torch(monkeypatch, tmp_path):
@@ -94,7 +95,7 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr(startup.device, "ensure_gpu_env", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "ensure_gpu_env", lambda: None)
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)

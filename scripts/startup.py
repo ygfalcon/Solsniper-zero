@@ -46,8 +46,6 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
 
-device.ensure_gpu_env()
-
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
 
@@ -821,8 +819,6 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap(one_click=args.one_click)
 
     from solhunter_zero import device
-
-    device.ensure_gpu_env()
     import torch
 
     torch.set_default_device(device.get_default_device())

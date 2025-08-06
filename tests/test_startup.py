@@ -19,7 +19,7 @@ def test_mac_startup_prereqs(monkeypatch):
     import platform
     import types, sys
     from scripts import startup
-    from solhunter_zero import device
+    from solhunter_zero import bootstrap
 
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
@@ -39,10 +39,10 @@ def test_mac_startup_prereqs(monkeypatch):
         ),
         cuda=types.SimpleNamespace(is_available=lambda: False),
     )
-    monkeypatch.setattr(device, "torch", dummy_torch)
+    monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
-    env = device.ensure_gpu_env()
+    env = bootstrap.device.ensure_gpu_env()
     assert env.get("TORCH_DEVICE") == "mps"
 
 
