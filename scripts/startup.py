@@ -41,13 +41,26 @@ def ensure_venv(argv: list[str] | None) -> None:
     the script is not already executing from that interpreter, ``execv`` is used
     to restart the current process with ``.venv/bin/python`` (or the Windows
     equivalent).  When ``argv`` is not ``None`` the function assumes it is being
-    called from tests and does nothing to avoid spawning subprocesses.
+    called from tests and does nothing to avoid spawning subprocesses.  If the
+    environment exists but the interpreter is missing or not executable the
+    directory is removed and recreated before continuing.
     """
 
     if argv is not None:  # avoid side effects during tests
         return
 
     venv_dir = ROOT / ".venv"
+    python = (
+        venv_dir
+        / ("Scripts" if os.name == "nt" else "bin")
+        / ("python.exe" if os.name == "nt" else "python")
+    )
+
+    if venv_dir.exists():
+        if not python.exists() or not os.access(str(python), os.X_OK):
+            print("Virtual environment missing interpreter; recreating .venv...")
+            shutil.rmtree(venv_dir)
+
     if not venv_dir.exists():
         print("Creating virtual environment in .venv...")
         try:
@@ -57,9 +70,6 @@ def ensure_venv(argv: list[str] | None) -> None:
             raise SystemExit(1)
 
     if Path(sys.prefix) != venv_dir:
-        python = (
-            venv_dir / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
-        )
         os.execv(str(python), [str(python), *sys.argv])
 
 
