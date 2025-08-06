@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import subprocess
 import sys
 import shutil
@@ -56,6 +57,27 @@ def ensure_deps() -> None:
         except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
             print(f"Failed to install required dependencies: {exc}")
             raise SystemExit(exc.returncode)
+
+    if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
+        print("Installing torch for macOS arm64 with Metal support...")
+        try:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "torch",
+                    "torchvision",
+                    "--extra-index-url",
+                    "https://download.pytorch.org/whl/metal",
+                ]
+            )
+        except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
+            print(f"Failed to install torch with Metal wheels: {exc}")
+            raise SystemExit(exc.returncode)
+        else:
+            opt.remove("torch")
 
     if opt:
         print("Installing optional dependencies...")

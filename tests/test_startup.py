@@ -96,9 +96,45 @@ def test_ensure_deps_installs_optional(monkeypatch):
         "install",
         ".[fastjson,fastcompress,msgpack]",
     ]
-    assert [c[-1] for c in calls[1:]] == [
+    assert set(c[-1] for c in calls[1:]) == {
         "faiss-cpu",
         "sentence-transformers",
         "torch",
-    ]
+    }
     assert not results  # ensure check_deps called twice
+
+
+def test_ensure_deps_installs_torch_metal(monkeypatch):
+    from scripts import startup
+
+    calls: list[list[str]] = []
+
+    def fake_check_call(cmd):
+        calls.append(cmd)
+        return 0
+
+    results = [
+        ([], ["torch"]),
+        ([], []),
+    ]
+
+    monkeypatch.setattr(startup, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+
+    startup.ensure_deps()
+
+    assert calls == [
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "torch",
+            "torchvision",
+            "--extra-index-url",
+            "https://download.pytorch.org/whl/metal",
+        ]
+    ]
+    assert not results
