@@ -42,8 +42,8 @@ def ensure_xcode(non_interactive: bool) -> None:
                 print("Please re-run this script after the tools are installed.")
                 raise SystemExit(1)
 
-
-def _apply_brew_env() -> None:
+def apply_brew_env() -> None:
+    """Load Homebrew environment variables into ``os.environ``."""
     try:
         out = subprocess.check_output(["brew", "shellenv"], text=True)
     except Exception:
@@ -59,6 +59,10 @@ def _apply_brew_env() -> None:
             os.environ[key] = val
 
 
+# Backwards compatibility
+_apply_brew_env = apply_brew_env
+
+
 def ensure_homebrew() -> None:
     if shutil.which("brew") is None:
         print("Homebrew not found. Installing...")
@@ -67,7 +71,7 @@ def ensure_homebrew() -> None:
             "-c",
             "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
         ])
-    _apply_brew_env()
+    apply_brew_env()
 
 
 def install_brew_packages() -> None:
@@ -84,7 +88,7 @@ def install_brew_packages() -> None:
         ],
         check=False,
     )
-    _apply_brew_env()
+    apply_brew_env()
 
 
 def ensure_rustup() -> None:
@@ -148,19 +152,35 @@ def verify_tools() -> None:
         raise SystemExit(1)
 
 
+def prepare_macos_env(non_interactive: bool = True) -> bool:
+    """Ensure core macOS development tools are installed.
+
+    Returns ``True`` on success and ``False`` when any step fails.
+    """
+    try:
+        ensure_xcode(non_interactive)
+        ensure_homebrew()
+        install_brew_packages()
+        ensure_rustup()
+        upgrade_pip_and_torch()
+        verify_tools()
+        ensure_profile()
+    except SystemExit as exc:
+        if exc.code:
+            print(f"macOS setup failed: {exc}", file=sys.stderr)
+            return False
+    except Exception as exc:  # pragma: no cover - unexpected failure
+        print(f"macOS setup failed: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--non-interactive", action="store_true")
     args = parser.parse_args(argv)
-    if platform.system() != "Darwin":
-        raise SystemExit("mac_setup is only intended for macOS")
-    ensure_xcode(args.non_interactive)
-    ensure_homebrew()
-    install_brew_packages()
-    ensure_rustup()
-    upgrade_pip_and_torch()
-    verify_tools()
-    ensure_profile()
+    if not prepare_macos_env(args.non_interactive):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point
