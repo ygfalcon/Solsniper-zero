@@ -17,6 +17,20 @@ except Exception:  # pragma: no cover - optional dependency
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 
 
+def _torch_backend() -> str | None:
+    """Return available torch backend ("cuda" or "mps"), or ``None``."""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except Exception:
+        pass
+    return None
+
+
 def _detect_gpu() -> bool:
     """Return ``True`` if a CUDA or MPS device is available."""
     if _HAS_FAISS_GPU:
@@ -25,16 +39,7 @@ def _detect_gpu() -> bool:
             return True
         except Exception:
             pass
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            return True
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return True
-    except Exception:
-        pass
-    return False
+    return _torch_backend() is not None
 
 
 def _gpu_index_enabled() -> bool:
@@ -46,12 +51,7 @@ def _gpu_index_enabled() -> bool:
         return env.lower() in {"1", "true", "yes"}
     if not _HAS_FAISS_GPU:
         return False
-    try:
-        import torch
-
-        return bool(torch.cuda.is_available())
-    except Exception:
-        return False
+    return _torch_backend() == "cuda"
 from sqlalchemy import (
     create_engine,
     Column,
