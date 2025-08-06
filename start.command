@@ -44,4 +44,19 @@ if [ ! -f "config.toml" ]; then
   echo "Created default config.toml from config.example.toml"
 fi
 
+# On macOS ensure Homebrew, rustup and Xcode command-line tools are available
+if [ "$(uname -s)" = "Darwin" ]; then
+  missing=0
+  command -v brew >/dev/null 2>&1 || missing=1
+  command -v rustup >/dev/null 2>&1 || missing=1
+  command -v xcode-select >/dev/null 2>&1 || missing=1
+  xcode-select -p >/dev/null 2>&1 || missing=1
+
+  if [ $missing -ne 0 ]; then
+    echo "Missing required macOS tools. Running scripts/mac_setup.sh ..."
+    scripts/mac_setup.sh
+    exec "$0" "$@"
+  fi
+fi
+
 "$PY" scripts/startup.py --one-click
