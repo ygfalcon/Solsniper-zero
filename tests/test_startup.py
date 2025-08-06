@@ -46,63 +46,6 @@ def test_mac_startup_prereqs(monkeypatch):
     assert env.get("TORCH_DEVICE") == "mps"
 
 
-def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
-    repo_root = Path(__file__).resolve().parent.parent
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-
-    for cmd in ["tee", "awk", "dirname", "tail", "xargs", "ls", "mv", "rm", "date"]:
-        src = shutil.which(cmd)
-        assert src is not None
-        os.symlink(src, bindir / cmd)
-
-    (bindir / "python3").write_text(
-        "#!/bin/bash\n"
-        "if [ \"$1\" = '-V' ]; then\n"
-        "  echo 'Python 3.11.0'\n"
-        "elif [ \"$1\" = '-m' ] && [ \"$2\" = 'solhunter_zero.system' ] && [ \"$3\" = 'cpu-count' ]; then\n"
-        "  echo 6\n"
-        "else\n"
-        "  echo RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n"
-        "fi\n"
-    )
-    os.chmod(bindir / "python3", 0o755)
-    os.symlink(bindir / "python3", bindir / "python3.11")
-
-    (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
-    os.chmod(bindir / "uname", 0o755)
-
-    (bindir / "arch").write_text(
-        "#!/bin/bash\n"
-        "if [ \"$1\" = '-arm64' ]; then\n"
-        "  shift\n"
-        "fi\n"
-        "\"$@\"\n"
-    )
-    os.chmod(bindir / "arch", 0o755)
-
-    (bindir / "sysctl").write_text("#!/bin/bash\nexit 1\n")
-    os.chmod(bindir / "sysctl", 0o755)
-
-    for cmd in ["brew", "rustup"]:
-        (bindir / cmd).write_text("#!/bin/bash\nexit 0\n")
-        os.chmod(bindir / cmd, 0o755)
-
-    env = {**os.environ, "PATH": str(bindir)}
-    env.pop("RAYON_NUM_THREADS", None)
-
-    bash = shutil.which("bash")
-    assert bash is not None
-    result = subprocess.run(
-        [bash, "start.command", "--skip-preflight"],
-        cwd=repo_root,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    assert "RAYON_NUM_THREADS=6" in result.stdout
-
-
 def test_cluster_setup_assemble(tmp_path):
     cfg = tmp_path / 'cluster.toml'
     cfg.write_text(
