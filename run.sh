@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Requires Python 3.11 or higher.
 
-set -e
+set -euo pipefail
 
 python - <<'PY'
 import sys
