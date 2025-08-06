@@ -158,7 +158,10 @@ fi
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "Installing Rust toolchain via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh ||
+        { echo "rustup download failed" >&2; exit 1; }
+    sh /tmp/rustup.sh -y
+    rm /tmp/rustup.sh
     export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
