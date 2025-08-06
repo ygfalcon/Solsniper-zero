@@ -14,14 +14,16 @@ from solhunter_zero.config_schema import validate_config
 
 CONFIG_PATH = Path("config.toml")
 EXAMPLE_PATH = Path("config.example.toml")
+MINIMAL_PATH = Path("config.minimal.toml")
 
 
-def load_config() -> dict:
+def load_config(auto: bool = False) -> dict:
     if CONFIG_PATH.is_file():
         with CONFIG_PATH.open("rb") as fh:
             return tomllib.load(fh)
-    if EXAMPLE_PATH.is_file():
-        shutil.copy(EXAMPLE_PATH, CONFIG_PATH)
+    template = MINIMAL_PATH if auto and MINIMAL_PATH.is_file() else EXAMPLE_PATH
+    if template.is_file():
+        shutil.copy(template, CONFIG_PATH)
         with CONFIG_PATH.open("rb") as fh:
             return tomllib.load(fh)
     return {}
@@ -75,7 +77,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.non_interactive:
         args.auto = True
 
-    cfg = load_config()
+    cfg = load_config(args.auto)
     updated = False
     for key, env, desc in PROMPTS:
         val = os.getenv(env) or cfg.get(key)
