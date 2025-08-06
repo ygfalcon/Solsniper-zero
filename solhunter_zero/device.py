@@ -26,6 +26,7 @@ def detect_gpu() -> bool:
         logging.getLogger(__name__).warning("PyTorch is not installed; GPU unavailable")
         return False
     try:
+        ensure_gpu_env()
         system = platform.system()
         if system == "Darwin":
             machine = platform.machine()
@@ -50,13 +51,6 @@ def detect_gpu() -> bool:
                     install_hint,
                 )
                 return False
-            if "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ:
-                os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-            elif os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-                logging.getLogger(__name__).warning(
-                    "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; GPU unavailable",
-                )
-                os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             if not torch.backends.mps.is_available():
                 logging.getLogger(__name__).warning(
                     "MPS backend not available; GPU unavailable. %s",
@@ -71,7 +65,7 @@ def detect_gpu() -> bool:
                 )
                 return False
             return True
-        if not torch.cuda.is_available():
+        if not getattr(torch, "cuda", None) or not torch.cuda.is_available():
             logging.getLogger(__name__).warning("CUDA backend not available")
             return False
         try:
@@ -92,16 +86,10 @@ def get_gpu_backend() -> str | None:
 
     if torch is not None:
         try:  # pragma: no cover - optional dependency
+            ensure_gpu_env()
             mps_built = hasattr(torch, "backends") and hasattr(torch.backends, "mps")
             mps_available = mps_built and torch.backends.mps.is_available()
-            if mps_built and os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-                logging.getLogger(__name__).warning(
-                    "MPS support detected but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'. "
-                    "Export PYTORCH_ENABLE_MPS_FALLBACK=1 to enable CPU fallback for unsupported ops."
-                )
-            if mps_built:
-                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-            if torch.cuda.is_available() or mps_available:
+            if (getattr(torch, "cuda", None) and torch.cuda.is_available()) or mps_available:
                 return "torch"
         except Exception:
             pass
@@ -157,10 +145,21 @@ def ensure_gpu_env() -> dict[str, str]:
         return env
     try:
         system = platform.system()
-        if system == "Darwin" and torch.backends.mps.is_available():
-            env["TORCH_DEVICE"] = "mps"
-            env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-        elif torch.cuda.is_available():
+        mps_backend = getattr(torch.backends, "mps", None)
+        is_built = getattr(mps_backend, "is_built", lambda: True)
+        is_available = getattr(mps_backend, "is_available", lambda: False)
+        mps_built = bool(mps_backend) and is_built()
+        mps_available = mps_built and is_available()
+        if system == "Darwin" and mps_built:
+            if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
+                if "PYTORCH_ENABLE_MPS_FALLBACK" in os.environ:
+                    logging.getLogger(__name__).warning(
+                        "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; overriding"
+                    )
+                env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+            if mps_available:
+                env["TORCH_DEVICE"] = "mps"
+        elif getattr(torch, "cuda", None) and torch.cuda.is_available():
             env["TORCH_DEVICE"] = "cuda"
         for key, value in env.items():
             os.environ[key] = value
