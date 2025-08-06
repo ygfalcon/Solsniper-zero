@@ -67,11 +67,12 @@ def ensure_keypair() -> None:
     path = input("Path to keypair JSON (leave blank for mnemonic): ").strip()
     if path:
         subprocess.check_call(["solhunter-wallet", "save", "default", path])
-    else:
-        mnemonic = input("Enter mnemonic: ").strip()
-        if not mnemonic:
-            print("No mnemonic provided. Run scripts/setup_default_keypair.sh for automated setup.")
-            return
+        subprocess.check_call(["solhunter-wallet", "select", "default"])
+        print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
+        return
+
+    mnemonic = input("Enter mnemonic: ").strip()
+    if mnemonic:
         passphrase = input("Passphrase (leave blank if none): ").strip()
         subprocess.check_call([
             "solhunter-wallet",
@@ -81,8 +82,13 @@ def ensure_keypair() -> None:
             "--passphrase",
             passphrase,
         ])
-    subprocess.check_call(["solhunter-wallet", "select", "default"])
-    print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
+        subprocess.check_call(["solhunter-wallet", "select", "default"])
+        print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
+    else:
+        kp = wallet.Keypair()
+        wallet.save_keypair("temp", list(kp.to_bytes()))
+        wallet.select_keypair("temp")
+        print("Generated temporary keypair 'temp' and selected it.")
 
 
 def ensure_rpc() -> None:

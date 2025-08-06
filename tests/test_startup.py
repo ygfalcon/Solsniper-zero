@@ -39,3 +39,22 @@ solana_keypair = "kp2"
     assert env1['BROKER_URL'] == 'redis://host'
     assert env1['SOLANA_RPC_URL'] == 'url1'
     assert env1['SOLANA_KEYPAIR'] == 'kp1'
+
+
+def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
+    monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
+    import sys
+    sys.modules.pop("solhunter_zero.wallet", None)
+
+    inputs = iter(["", ""])  # path prompt, mnemonic prompt
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    from scripts.startup import ensure_keypair
+
+    ensure_keypair()
+
+    from solhunter_zero import wallet
+
+    assert wallet.list_keypairs() == ["temp"]
+    assert wallet.get_active_keypair_name() == "temp"
+    assert (tmp_path / "temp.json").exists()
