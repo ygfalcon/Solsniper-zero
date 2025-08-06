@@ -34,7 +34,7 @@ from .config import (
 from .http import close_session
 from . import wallet
 from . import metrics_aggregator
-from .bootstrap import bootstrap
+from .startup import prepare_environment
 
 _SERVICE_MANIFEST = (
     Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
@@ -966,7 +966,7 @@ def main(
 
 def run_auto(**kwargs) -> None:
     """Start trading with selected config or high-risk preset."""
-    bootstrap(one_click=True)
+    prepare_environment(one_click=True)
     cfg = load_selected_config()
     cfg_path = None
     if cfg:

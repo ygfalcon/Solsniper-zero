@@ -46,8 +46,6 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
 
-device.ensure_gpu_env()
-
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
 
@@ -816,20 +814,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-    from solhunter_zero.bootstrap import bootstrap
+from solhunter_zero.startup import prepare_environment
 
-    bootstrap(one_click=args.one_click)
+    prepare_environment(one_click=args.one_click)
 
-    from solhunter_zero import device
-
-    device.ensure_gpu_env()
-    import torch
-
-    torch.set_default_device(device.get_default_device())
-    gpu_available = device.detect_gpu()
-    gpu_device = str(device.get_default_device()) if gpu_available else "none"
-    os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
-    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
+    gpu_device = os.environ.get("SOLHUNTER_GPU_DEVICE", "none")
     config_path: str | None = None
     active_keypair: str | None = None
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
