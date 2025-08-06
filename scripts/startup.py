@@ -204,28 +204,22 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         _pip_install(".[uvloop]", *extra_index)
 
     if install_optional and "torch" in opt and extra_index:
-        print(
-            "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
-        )
-        _pip_install("torch==2.1.0", "torchvision==0.16.0", *extra_index)
-        opt.remove("torch")
+        if device.install_mps_torch():
+            opt.remove("torch")
+        else:
+            print("Failed to install torch with Metal wheels.")
 
     if install_optional and extra_index:
         import importlib
-        import torch
-
-        if not torch.backends.mps.is_available():
+        try:
+            import torch
+        except Exception:  # pragma: no cover - optional dependency
+            torch = None  # type: ignore
+        if torch is not None and not torch.backends.mps.is_available():
             print(
                 "MPS backend not available; attempting to reinstall Metal wheel..."
             )
-            try:
-                _pip_install(
-                    "--force-reinstall",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
-                    *extra_index,
-                )
-            except SystemExit:
+            if not device.install_mps_torch():
                 print("Failed to reinstall torch with Metal wheels.")
             importlib.reload(torch)
             if not torch.backends.mps.is_available():

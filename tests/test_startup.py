@@ -262,10 +262,11 @@ def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
 def test_ensure_deps_installs_torch_metal(monkeypatch):
     from scripts import startup
 
-    calls: list[list[str]] = []
+    calls: list[bool] = []
 
-    def fake_pip_install(*args):
-        calls.append([sys.executable, "-m", "pip", "install", *args])
+    def fake_install() -> bool:
+        calls.append(True)
+        return True
 
     results = [
         ([], ["torch"]),
@@ -273,47 +274,29 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     ]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(startup.device, "install_mps_torch", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
-    import types, sys
-    dummy_torch = types.SimpleNamespace()
-    dummy_torch.backends = types.SimpleNamespace()
-    dummy_torch.backends.mps = types.SimpleNamespace()
-    dummy_torch.backends.mps.is_available = lambda: True
-    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
     startup.ensure_deps(install_optional=True)
 
-    assert calls == [
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "torch==2.1.0",
-            "torchvision==0.16.0",
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/metal",
-        ]
-    ]
+    assert calls == [True]
     assert not results
 
 
 def test_ensure_deps_requires_mps(monkeypatch):
     from scripts import startup
 
-    calls: list[list[str]] = []
+    calls: list[bool] = []
 
-    def fake_pip_install(*args):
-        calls.append([sys.executable, "-m", "pip", "install", *args])
+    def fake_install() -> bool:
+        calls.append(True)
+        return False
 
     results = [(["req"], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(startup.device, "install_mps_torch", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
@@ -328,17 +311,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
     with pytest.raises(SystemExit) as excinfo:
         startup.ensure_deps(install_optional=True)
 
-    assert calls[-1] == [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--force-reinstall",
-        "torch==2.1.0",
-        "torchvision==0.16.0",
-        "--extra-index-url",
-        "https://download.pytorch.org/whl/metal",
-    ]
+    assert calls == [True]
     assert "install the Metal wheel manually" in str(excinfo.value)
 
 

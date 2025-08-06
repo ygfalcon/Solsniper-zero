@@ -49,6 +49,7 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
         cuda=types.SimpleNamespace(is_available=lambda: False),
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    monkeypatch.setattr(device_module, "install_mps_torch", lambda: True)
     with caplog.at_level("WARNING"):
         assert device_module.detect_gpu() is False
     assert (
@@ -72,6 +73,7 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
         ones=failing_ones,
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    monkeypatch.setattr(device_module, "install_mps_torch", lambda: False)
     with caplog.at_level("ERROR"):
         assert device_module.detect_gpu() is False
     assert "Tensor operation failed" in caplog.text
