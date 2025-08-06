@@ -16,6 +16,18 @@ rotate_logs() {
 
 rotate_logs
 exec > >(tee -a startup.log) 2>&1
+LOG_PATH="$(pwd)/startup.log"
+
+run_mac_setup() {
+  set +e
+  scripts/mac_setup.sh
+  local status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    echo "mac setup failed. See logs at $LOG_PATH" >&2
+    exit "$status"
+  fi
+}
 
 find_python() {
   if command -v python3 >/dev/null 2>&1; then
@@ -41,7 +53,7 @@ if ! find_python; then
   else
     echo "Python 3.11 or higher is required (found $PY_VERSION). Attempting installation..."
   fi
-  scripts/mac_setup.sh || true
+  run_mac_setup
   echo "Retrying Python interpreter discovery..."
   if ! find_python; then
     STATUS=$?
@@ -89,7 +101,7 @@ PY
 if [ "$(uname -s)" = "Darwin" ]; then
   if ! command -v brew >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
     echo "Missing Homebrew or rustup. Running mac setup..."
-    scripts/mac_setup.sh
+    run_mac_setup
     if command -v brew >/dev/null 2>&1; then
       eval "$(brew shellenv)"
     elif [ -x /opt/homebrew/bin/brew ]; then
@@ -98,7 +110,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
       eval "$(/usr/local/bin/brew shellenv)"
     else
       echo "Homebrew not found after mac setup. Re-running mac setup..."
-      exec scripts/mac_setup.sh
+      run_mac_setup
+      exit 0
     fi
   fi
 
