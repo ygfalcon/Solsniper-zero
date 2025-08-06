@@ -3,6 +3,13 @@
 
 set -e
 
+check_network() {
+    if ! curl --head --silent --fail https://www.google.com >/dev/null 2>&1; then
+        echo "No network connectivity detected"
+        exit 1
+    fi
+}
+
 python - <<'PY'
 import sys
 if sys.version_info < (3, 11):
@@ -89,13 +96,16 @@ import importlib.util, sys
 sys.exit(0 if importlib.util.find_spec('torch') else 1)
 EOF
         if [ $? -ne 0 ]; then
+            check_network
             pip install torch==2.1.0 torchvision==0.16.0 \
               --extra-index-url https://download.pytorch.org/whl/metal
         fi
     fi
     if [ -n "$missing_extras" ]; then
+        check_network
         pip install ".[${missing_extras}]"
     else
+        check_network
         pip install .
     fi
     if [ -n "$missing_opt" ]; then
@@ -105,6 +115,7 @@ fi
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "Installing Rust toolchain via rustup..."
+    check_network
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     export PATH="$HOME/.cargo/bin:$PATH"
 fi
