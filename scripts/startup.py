@@ -142,24 +142,25 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         else:  # pragma: no cover - unexpected failure
             print(f"Failed to invoke pip: {pip_check.stderr.strip()}")
             raise SystemExit(pip_check.returncode)
+    extra_index: list[str] = []
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        extra_index = [
+            "--extra-index-url",
+            "https://download.pytorch.org/whl/metal",
+        ]
 
     if req:
         print("Installing required dependencies...")
-        _pip_install(".[uvloop]")
+        _pip_install(".[uvloop]", *extra_index)
 
-    if install_optional and "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if install_optional and "torch" in opt and extra_index:
         print(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
-        _pip_install(
-            "torch==2.1.0",
-            "torchvision==0.16.0",
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/metal",
-        )
+        _pip_install("torch==2.1.0", "torchvision==0.16.0", *extra_index)
         opt.remove("torch")
 
-    if install_optional and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if install_optional and extra_index:
         import importlib
         import torch
 
@@ -172,8 +173,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                     "--force-reinstall",
                     "torch==2.1.0",
                     "torchvision==0.16.0",
-                    "--extra-index-url",
-                    "https://download.pytorch.org/whl/metal",
+                    *extra_index,
                 )
             except SystemExit:
                 print("Failed to reinstall torch with Metal wheels.")
@@ -205,11 +205,11 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         if "msgpack" in mods:
             extras.append("msgpack")
         if extras:
-            _pip_install(f".[{','.join(extras)}]")
+            _pip_install(f".[{','.join(extras)}]", *extra_index)
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
-            _pip_install(pkg)
+            _pip_install(pkg, *extra_index)
 
     req_after, opt_after = deps.check_deps()
     missing_opt = list(opt_after)

@@ -192,7 +192,7 @@ forwards to `./run.sh --auto` for a fully automated start.
    ```bash
    ./scripts/mac_setup.py
    ```
-2. Install the Metal-enabled PyTorch build (for Apple Silicon):
+2. The startup script automatically installs the Metal-enabled PyTorch build on Apple Silicon. To install manually, run:
    ```bash
    pip install torch==2.1.0 torchvision==0.16.0 \
      --extra-index-url https://download.pytorch.org/whl/metal
