@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
+from urllib import error, request
 
 try:
     import tomllib  # Python 3.11+
@@ -92,9 +93,10 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
 
 def check_network(url: str = "https://api.mainnet-beta.solana.com") -> Check:
     try:
-        import requests
-        requests.get(url, timeout=5)
-    except Exception as exc:
+        req = request.Request(url, method="HEAD")
+        with request.urlopen(req, timeout=5):
+            pass
+    except error.URLError as exc:
         return False, f"Network error: {exc}"
     return True, f"Network access to {url} OK"
 
