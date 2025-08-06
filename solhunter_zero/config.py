@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import sys
 from .jsonutil import loads, dumps
 import ast
-from typing import Mapping, Any
+from typing import Mapping, Any, Sequence
 from pathlib import Path
 from .dex_config import DEXConfig
 from importlib import import_module
@@ -202,6 +203,70 @@ def validate_config(cfg: Mapping[str, Any]) -> dict:
 CONFIG_DIR = os.getenv("CONFIG_DIR", "configs")
 ACTIVE_CONFIG_FILE = os.path.join(CONFIG_DIR, "active")
 os.makedirs(CONFIG_DIR, exist_ok=True)
+
+
+def find_config_file() -> str | None:
+    """Return path to configuration file if one exists."""
+    path = os.getenv("SOLHUNTER_CONFIG")
+    if path and Path(path).is_file():
+        return path
+    cfg_dir = Path(CONFIG_DIR)
+    active = cfg_dir / "active"
+    if active.is_file():
+        name = active.read_text().strip()
+        cfg = cfg_dir / name
+        if cfg.is_file():
+            return str(cfg)
+    for name in ("config.toml", "config.yaml", "config.yml"):
+        if Path(name).is_file():
+            return name
+    return None
+
+
+def ensure_config_file() -> str | None:
+    """Ensure a configuration file exists, generating a default if needed."""
+    path = find_config_file()
+    if path:
+        return path
+    try:
+        from scripts import quick_setup
+
+        quick_setup.main(["--auto"])
+    except Exception:
+        return None
+    return find_config_file()
+
+
+def validate_env(required: Sequence[str], cfg_path: str | None = None) -> dict:
+    """Ensure required environment variables are set.
+
+    Missing values are filled from the configuration file when possible.
+    Returns the loaded configuration dictionary.
+    """
+    cfg_data: dict[str, Any] = {}
+    if cfg_path is None:
+        cfg_path = ensure_config_file()
+    if cfg_path:
+        cfg_data = apply_env_overrides(load_config(cfg_path))
+    env_to_key = {v: k for k, v in ENV_VARS.items()}
+    missing: list[str] = []
+    for name in required:
+        if not os.getenv(name):
+            val = None
+            key = env_to_key.get(name)
+            if key:
+                val = cfg_data.get(key)
+            if val is None:
+                val = cfg_data.get(name)
+            if val is not None:
+                os.environ[name] = str(val)
+            if not os.getenv(name):
+                missing.append(name)
+    if missing:
+        for name in missing:
+            print(f"Required env var {name} is not set", file=sys.stderr)
+        raise SystemExit(1)
+    return cfg_data
 
 
 def list_configs() -> list[str]:
