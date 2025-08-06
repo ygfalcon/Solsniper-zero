@@ -86,7 +86,11 @@ up automatically. Select this file from the UI or set
    pip install .[fastcompress]
    ```
 
-For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live. You can also simply run `make start`.
+For a guided setup you can run `scripts/startup.py` which checks dependencies,
+prompts for configuration and wallet details and verifies that the active
+keypair holds SOL before launching the bot. Use the `--auto` flag to skip any
+prompts if the keypair exists but lacks funds; the script will log funding
+instructions and exit. You can also simply run `make start`.
 
 
 3. **Create a configuration file**
@@ -518,7 +522,10 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
    The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
-Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`. The `make start` target is a convenient shortcut.
+Running `scripts/startup.py` handles these steps interactively, verifies the
+selected keypair has a balance and forwards any options to `./run.sh --auto`.
+Pass `--auto` to the script for non‑interactive runs where missing funds should
+simply be reported. The `make start` target is a convenient shortcut.
 
    This loads the selected configuration (or the `config.highrisk.toml` preset
    when none is chosen). If there is exactly one keypair in `keypairs/`, `run.sh`

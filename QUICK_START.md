@@ -4,6 +4,9 @@
 - Run `cp config.example.toml config.toml` and edit the values.
 - Set `AUTO_SELECT_KEYPAIR=1` to always use a single keypair.
 - Execute `./run.sh --auto` to start trading automatically.
+- `scripts/startup.py` verifies the active keypair has SOL; it exits if the
+  balance is zero. Pass `--auto` to the script to skip interactive prompts and
+  simply log funding instructions when running headless.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py`.
