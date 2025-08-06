@@ -29,7 +29,7 @@ import numpy as np
 from . import onchain_metrics, models
 from .http import get_session
 from solhunter_zero.lru import TTLCache
-from .device import get_gpu_backend
+from solhunter_zero.device import get_gpu_backend, get_default_device
 
 # Optional GPU acceleration for simulations
 _use_gpu_env = os.getenv("USE_GPU_SIM")
@@ -732,8 +732,9 @@ async def run_simulations_async(
     sigma = max(0.0, sigma + bias.get("volatility", 0.0))
 
     if USE_GPU_SIM and _GPU_BACKEND == "torch":
-        t_mean = torch.full((count, days), predicted_mean, device="cuda")
-        t_std = torch.full((count, days), sigma, device="cuda")
+        dev = str(get_default_device())
+        t_mean = torch.full((count, days), predicted_mean, device=dev)
+        t_std = torch.full((count, days), sigma, device=dev)
         daily_returns = torch.normal(t_mean, t_std)
         rois = torch.prod(1 + daily_returns, dim=1) - 1
         rois = rois - gas_cost
