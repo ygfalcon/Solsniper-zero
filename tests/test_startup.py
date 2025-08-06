@@ -1,5 +1,8 @@
+import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +12,57 @@ def test_startup_help():
     assert result.returncode == 0
     out = result.stdout.lower() + result.stderr.lower()
     assert 'usage' in out
+
+
+def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
+    repo_root = Path(__file__).resolve().parent.parent
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+
+    for cmd in ["tee", "awk", "dirname"]:
+        src = shutil.which(cmd)
+        assert src is not None
+        os.symlink(src, bindir / cmd)
+
+    (bindir / "python3").write_text(
+        "#!/bin/bash\n"
+        "if [ \"$1\" = '-V' ]; then\n"
+        "  echo 'Python 3.11.0'\n"
+        "else\n"
+        "  echo RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n"
+        "fi\n"
+    )
+    os.chmod(bindir / "python3", 0o755)
+
+    (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
+    os.chmod(bindir / "uname", 0o755)
+
+    (bindir / "sysctl").write_text(
+        "#!/bin/bash\n"
+        "if [ \"$1\" = '-n' ] && [ \"$2\" = 'hw.ncpu' ]; then\n"
+        "  echo 6\n"
+        "fi\n"
+    )
+    os.chmod(bindir / "sysctl", 0o755)
+
+    for cmd in ["brew", "rustup"]:
+        (bindir / cmd).write_text("#!/bin/bash\nexit 0\n")
+        os.chmod(bindir / cmd, 0o755)
+
+    env = {**os.environ, "PATH": str(bindir)}
+    env.pop("RAYON_NUM_THREADS", None)
+
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "start.command"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "RAYON_NUM_THREADS=6" in result.stdout
 
 
 def test_cluster_setup_assemble(tmp_path):
