@@ -567,6 +567,24 @@ def ensure_route_ffi() -> None:
             )
 
 
+def ensure_depth_service() -> None:
+    """Build the ``depth_service`` binary if missing."""
+
+    bin_path = ROOT / "target" / "release" / "depth_service"
+    if bin_path.exists():
+        return
+
+    subprocess.check_call(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(ROOT / "depth_service" / "Cargo.toml"),
+            "--release",
+        ]
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     ensure_venv(argv)
 
@@ -633,8 +651,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_deps:
         ensure_deps(install_optional=args.full_deps)
 
-    import torch
     from solhunter_zero import device
+
+    device.ensure_gpu_env()
+    import torch
 
     torch.set_default_device(device.get_default_device())
     config_path: str | None = None
@@ -675,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ensure_cargo()
     ensure_route_ffi()
+    ensure_depth_service()
 
     if not args.skip_preflight:
         from scripts import preflight
@@ -690,15 +711,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Active keypair: {active_keypair or 'none'}")
     print(f"  GPU device: {gpu_device}")
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
-    run_sh = ROOT / "run.sh"
-    if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
-        cmd = [str(run_sh), "--auto", "--skip-preflight", *rest]
-        os.execv(str(run_sh), cmd)
-    else:
-        os.execv(
-            sys.executable,
-            [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
-        )
+    os.execv(
+        sys.executable,
+        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
+    )
 
 
 def run(argv: list[str] | None = None) -> int:
