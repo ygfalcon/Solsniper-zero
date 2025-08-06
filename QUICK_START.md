@@ -3,8 +3,8 @@
 - A default keypair (`keypairs/default.json`) and configuration (`config.toml`) are bundled for immediate runs.
 - Copy `config.example.toml` to `config.toml` if you need to customize the defaults.
 - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
-- Execute `./run.sh --auto` for a fully automated launch. It auto-selects the sole keypair and active config,
-  verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
+- Execute `./run.sh --auto` for a fully automated launch. On macOS, double-click `start.command` to run the same script.
+  It auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
 - Set `AUTO_SELECT_KEYPAIR=1` to have the Web UI pick the single keypair automatically.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.

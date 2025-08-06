@@ -11,6 +11,7 @@ The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
 2. Run `python -m solhunter_zero.main --auto` (or `./run.sh --auto` on Unix-like systems) or toggle **Full Auto Mode** in the GUI for a fully automated launch.
+   On macOS, double-click `start.command` to invoke `run.sh` from the Finder.
    The script auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
