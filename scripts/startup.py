@@ -155,6 +155,18 @@ def ensure_keypair() -> None:
     return
 
 
+def run_quick_setup() -> str | None:
+    """Run the quick setup non-interactively and return new config path."""
+    try:
+        from scripts import quick_setup
+        from solhunter_zero.config import find_config_file
+
+        quick_setup.main(["--auto", "--non-interactive"])
+        return find_config_file()
+    except Exception:
+        return None
+
+
 def ensure_endpoints(cfg: dict) -> None:
     """Ensure HTTP endpoints in ``cfg`` are reachable.
 
@@ -514,14 +526,8 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         config_path = find_config_file()
-        if config_path is None and args.one_click:
-            try:
-                from scripts import quick_setup
-
-                quick_setup.main(["--auto", "--non-interactive"])
-            except Exception:
-                pass
-            config_path = find_config_file()
+        if config_path is None:
+            config_path = run_quick_setup()
         cfg = load_config(config_path)
         cfg = validate_config(cfg)
         if not args.skip_endpoint_check:
