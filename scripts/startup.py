@@ -42,11 +42,12 @@ def ensure_deps() -> None:
         subprocess.check_call([sys.executable, "-m", "pip", "install", ".[uvloop]"])
 
 
-def ensure_config() -> None:
+def ensure_config(auto: bool = False) -> None:
     if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
         from scripts import quick_setup
 
-        quick_setup.main()
+        argv = ["--auto"] if auto else None
+        quick_setup.main(argv)
 
 
 def ensure_keypair() -> None:
@@ -81,15 +82,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
     parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
+    parser.add_argument("--auto", action="store_true", help="Use defaults for quick setup")
     args, rest = parser.parse_known_args(argv)
 
     if not args.skip_deps:
         ensure_deps()
     if not args.skip_setup:
-        ensure_config()
-        ensure_keypair()
+        ensure_config(auto=args.auto)
+        if not args.auto:
+            ensure_keypair()
 
-    os.execv("./run.sh", ["./run.sh", "--auto", *rest])
+    cmd = ["./run.sh"]
+    if args.auto:
+        cmd.append("--auto")
+    cmd.extend(rest)
+    os.execv("./run.sh", cmd)
 
 
 if __name__ == "__main__":  # pragma: no cover

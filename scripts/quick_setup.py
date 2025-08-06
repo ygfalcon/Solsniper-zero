@@ -2,6 +2,7 @@
 """Interactive helper to create or update config.toml for basic setup."""
 from __future__ import annotations
 
+import argparse
 import os
 import shutil
 from pathlib import Path
@@ -44,20 +45,41 @@ PROMPTS = [
 ]
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Fill missing values from environment or defaults without prompting",
+    )
+    args = parser.parse_args(argv)
+
     cfg = load_config()
+    example_cfg: dict[str, object] = {}
+    if args.auto and EXAMPLE_PATH.is_file():
+        with EXAMPLE_PATH.open("rb") as fh:
+            example_cfg = tomllib.load(fh)
+
     updated = False
     for key, env, desc in PROMPTS:
-        val = os.getenv(env) or cfg.get(key)
-        missing = val in (None, "", "YOUR_BIRDEYE_KEY")
-        if missing:
-            try:
-                inp = input(f"Enter {desc}: ").strip()
-            except EOFError:
-                inp = ""
-            if inp:
-                cfg[key] = inp
-                updated = True
+        env_val = os.getenv(env)
+        cfg_val = cfg.get(key)
+        missing = cfg_val in (None, "", "YOUR_BIRDEYE_KEY")
+        if args.auto:
+            if missing:
+                val = env_val or example_cfg.get(key, cfg_val or "")
+                if cfg_val != val:
+                    cfg[key] = val
+                    updated = True
+        else:
+            if missing:
+                try:
+                    inp = input(f"Enter {desc}: ").strip()
+                except EOFError:
+                    inp = ""
+                if inp:
+                    cfg[key] = inp
+                    updated = True
     if updated:
         save_config(cfg)
         print(f"Configuration saved to {CONFIG_PATH}")
