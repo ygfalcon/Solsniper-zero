@@ -1,5 +1,7 @@
 import os
 import platform
+import subprocess
+import sys
 import types
 
 import pytest
@@ -10,6 +12,26 @@ from solhunter_zero.device import (
     TORCH_METAL_VERSION,
     TORCHVISION_METAL_VERSION,
 )
+
+
+def test_run_with_timeout_success(monkeypatch):
+    def fake_run(cmd, check, timeout):  # pragma: no cover - simplified
+        return None
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = device_module._run_with_timeout(["echo"], timeout=1)
+    assert result.success is True
+    assert result.message == ""
+
+
+def test_run_with_timeout_timeout(monkeypatch):
+    def fake_run(cmd, check, timeout):  # pragma: no cover - simplified
+        raise subprocess.TimeoutExpired(cmd, timeout)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = device_module._run_with_timeout(["echo"], timeout=1)
+    assert result.success is False
+    assert "timed out" in result.message
 
 
 def test_detect_gpu_and_get_default_device_mps(monkeypatch):
@@ -83,6 +105,29 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
     with caplog.at_level("ERROR"):
         assert device_module.detect_gpu() is False
     assert "Tensor operation failed" in caplog.text
+
+
+def test_ensure_torch_with_metal_failure_marks_sentinel(monkeypatch, tmp_path, caplog):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    sentinel = tmp_path / "sentinel"
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
+    monkeypatch.setattr(device_module, "torch", None, raising=False)
+
+    def fake_run_with_timeout(cmd, timeout):
+        return device_module.InstallStatus(False, "boom")
+
+    monkeypatch.setattr(device_module, "_run_with_timeout", fake_run_with_timeout)
+    manual_cmd = (
+        f"{sys.executable} -m pip install "
+        f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
+        + " ".join(METAL_EXTRA_INDEX)
+    )
+    with caplog.at_level("ERROR"):
+        with pytest.raises(RuntimeError):
+            device_module.ensure_torch_with_metal()
+    assert manual_cmd in caplog.text
+    assert sentinel.exists()
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
