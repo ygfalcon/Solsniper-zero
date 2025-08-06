@@ -8,8 +8,13 @@ import time
 import asyncio
 from pathlib import Path
 
-from . import wallet, data_sync, main
-from .config import CONFIG_DIR, get_active_config_name, load_config, apply_env_overrides
+from . import wallet, data_sync, main as main_module
+from .config import (
+    CONFIG_DIR,
+    get_active_config_name,
+    load_config,
+    apply_env_overrides,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 PROCS: list[subprocess.Popen] = []
@@ -42,23 +47,27 @@ def _ensure_keypair() -> None:
     if active is None:
         keys = wallet.list_keypairs()
         if not keys:
-            return
-        keys.sort()
-        choice = keys[0]
-        if len(keys) > 1 and sys.stdin.isatty():
-            print("Available keypairs:")
-            for idx, name in enumerate(keys, 1):
-                print(f"{idx}. {name}")
-            try:
-                sel = input("Select keypair [1]: ").strip()
-                if sel:
-                    i = int(sel) - 1
-                    if 0 <= i < len(keys):
-                        choice = keys[i]
-            except Exception:
-                pass
-        wallet.select_keypair(choice)
-        active = choice
+            kp = wallet.Keypair()
+            wallet.save_keypair("temp", list(kp.to_bytes()))
+            wallet.select_keypair("temp")
+            active = "temp"
+        else:
+            keys.sort()
+            choice = keys[0]
+            if len(keys) > 1 and sys.stdin.isatty():
+                print("Available keypairs:")
+                for idx, name in enumerate(keys, 1):
+                    print(f"{idx}. {name}")
+                try:
+                    sel = input("Select keypair [1]: ").strip()
+                    if sel:
+                        i = int(sel) - 1
+                        if 0 <= i < len(keys):
+                            choice = keys[i]
+                except Exception:
+                    pass
+            wallet.select_keypair(choice)
+            active = choice
     if active:
         path = os.path.join(wallet.KEYPAIR_DIR, active + ".json")
         os.environ["KEYPAIR_PATH"] = path
@@ -106,7 +115,12 @@ def main() -> None:
     _ensure_keypair()
 
     cfg_path, cfg = _get_config()
-    interval = float(cfg.get("offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")))
+    interval = float(
+        cfg.get(
+            "offline_data_interval",
+            os.getenv("OFFLINE_DATA_INTERVAL", "3600"),
+        )
+    )
     db_path = cfg.get("rl_db_path", "offline_data.db")
     data_sync.start_scheduler(interval=interval, db_path=db_path)
 
@@ -121,7 +135,7 @@ def main() -> None:
     deadline = time.monotonic() + 30.0
     asyncio.run(_wait_depth(addr, port, deadline))
 
-    main.run_auto()
+    main_module.run_auto()
     _stop_all()
 
 
