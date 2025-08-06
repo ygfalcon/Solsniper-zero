@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -55,13 +56,24 @@ def main(argv: list[str] | None = None) -> "NoReturn":
     startup = ROOT / "scripts" / "startup.py"
     cmd = [python_exe, str(startup), *argv]
 
+    def _exec(cmd: list[str]) -> "NoReturn":
+        try:
+            os.execvp(cmd[0], cmd)
+        except OSError as exc:
+            print(f"Error executing {cmd[0]}: {exc}", file=sys.stderr)
+            sys.exit(1)
+
     if platform.system() == "Darwin":
         threads = _cpu_count(python_exe)
         os.environ["RAYON_NUM_THREADS"] = str(threads)
-        cmd = ["arch", "-arm64", *cmd]
-        os.execvp(cmd[0], cmd)
+        arch = shutil.which("arch")
+        if arch is None:
+            print("Error: 'arch' command not found", file=sys.stderr)
+            sys.exit(1)
+        cmd = [arch, "-arm64", *cmd]
+        _exec(cmd)
     else:
-        os.execvp(cmd[0], cmd)
+        _exec(cmd)
 
 
 if __name__ == "__main__":
