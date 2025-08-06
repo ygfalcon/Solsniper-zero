@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from solhunter_zero.config import load_config, validate_config
+
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -118,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         ensure_deps()
     if not args.skip_setup:
         ensure_config()
+        cfg = load_config()
+        validate_config(cfg)
         ensure_keypair()
 
     if not args.skip_rpc_check:
