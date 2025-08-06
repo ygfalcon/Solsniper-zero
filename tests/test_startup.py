@@ -99,23 +99,20 @@ solana_keypair = "kp2"
     assert env1['SOLANA_KEYPAIR'] == 'kp1'
 
 
-def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
+def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
     import sys
     sys.modules.pop("solhunter_zero.wallet", None)
 
-    inputs = iter(["", ""])  # path prompt, mnemonic prompt
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
-
-    from scripts.startup import ensure_keypair
+    from solhunter_zero.wallet import ensure_keypair
 
     ensure_keypair()
 
     from solhunter_zero import wallet
 
-    assert wallet.list_keypairs() == ["temp"]
-    assert wallet.get_active_keypair_name() == "temp"
-    assert (tmp_path / "temp.json").exists()
+    assert wallet.list_keypairs() == ["default"]
+    assert wallet.get_active_keypair_name() == "default"
+    assert (tmp_path / "default.json").exists()
 
 
 def test_ensure_deps_installs_optional(monkeypatch):
@@ -397,7 +394,9 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    from solhunter_zero import wallet as wallet_mod
+    monkeypatch.setattr(wallet_mod, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(wallet_mod, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
@@ -427,7 +426,9 @@ def test_main_skips_endpoint_check(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    from solhunter_zero import wallet as wallet_mod
+    monkeypatch.setattr(wallet_mod, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(wallet_mod, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
@@ -468,7 +469,9 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    from solhunter_zero import wallet as wallet_mod
+    monkeypatch.setattr(wallet_mod, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(wallet_mod, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     import types as _types, sys
@@ -536,7 +539,9 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    from solhunter_zero import wallet as wallet_mod
+    monkeypatch.setattr(wallet_mod, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(wallet_mod, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
@@ -574,7 +579,9 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: (_ for _ in ()).throw(Exception("should not run")))
+    from solhunter_zero import wallet as wallet_mod
+    monkeypatch.setattr(wallet_mod, "ensure_default_keypair", lambda: (_ for _ in ()).throw(Exception("should not run")))
+    monkeypatch.setattr(wallet_mod, "ensure_keypair", lambda: (_ for _ in ()).throw(Exception("should not run")))
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)

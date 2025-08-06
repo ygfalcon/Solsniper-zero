@@ -1,9 +1,15 @@
 import json
-from .http import loads
+import json
 import os
+import sys
+import subprocess
+import shutil
+from pathlib import Path
+
 import aiofiles
 from solders.keypair import Keypair
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
+from .http import loads
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
@@ -140,3 +146,84 @@ def load_keypair_from_mnemonic(mnemonic: str, passphrase: str = "") -> Keypair:
         .ToBytes()
     )
     return Keypair.from_seed(secret)
+
+
+def ensure_default_keypair() -> None:
+    """Create and select a default keypair if none is active."""
+
+    active_file = Path(ACTIVE_KEYPAIR_FILE)
+    if active_file.exists():
+        return
+
+    setup_script = Path(__file__).resolve().parent.parent / "scripts" / "setup_default_keypair.sh"
+    try:
+        result = subprocess.run(
+            ["bash", str(setup_script)], capture_output=True, text=True, check=True
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"Failed to run {setup_script}: {exc}")
+        raise SystemExit(1)
+
+    mnemonic = result.stdout.strip()
+    if mnemonic:
+        print(f"Generated mnemonic: {mnemonic}")
+        print("Please store this mnemonic securely; it will not be shown again.")
+
+
+def ensure_keypair() -> None:
+    try:
+        from bip_utils import Bip39MnemonicGenerator
+    except Exception:  # pragma: no cover - bip_utils optional
+        Bip39MnemonicGenerator = None  # type: ignore[assignment]
+
+    def _wallet_cmd(*args: str) -> list[str]:
+        if shutil.which("solhunter-wallet") is not None:
+            return ["solhunter-wallet", *args]
+        return [sys.executable, "-m", "solhunter_zero.wallet_cli", *args]
+
+    keypairs = list_keypairs()
+    active = get_active_keypair_name()
+    if keypairs:
+        if len(keypairs) == 1 and active is None:
+            name = keypairs[0]
+            select_keypair(name)
+            print(f"Automatically selected keypair '{name}'.")
+        return
+
+    mnemonic = os.environ.get("MNEMONIC")
+    keypair_json = os.environ.get("KEYPAIR_JSON")
+    if not mnemonic and not keypair_json:
+        if Bip39MnemonicGenerator is None:
+            kp = Keypair()
+            save_keypair("default", list(kp.to_bytes()))
+            select_keypair("default")
+            print("Automatically generated keypair 'default' and selected it.")
+            return
+        mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
+        passphrase = os.environ.get("PASSPHRASE", "")
+        subprocess.check_call(
+            _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
+        )
+        subprocess.check_call(_wallet_cmd("select", "default"))
+        os.environ.setdefault("MNEMONIC", mnemonic)
+        name = get_active_keypair_name() or "default"
+        print(f"Generated mnemonic: {mnemonic}")
+        print("Please store this mnemonic securely; it will not be shown again.")
+        print(f"Automatically generated keypair '{name}' and selected it.")
+        return
+
+    print("No keypairs found in 'keypairs/' directory.")
+    if keypair_json:
+        subprocess.check_call(_wallet_cmd("save", "default", keypair_json))
+        subprocess.check_call(_wallet_cmd("select", "default"))
+        print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
+        return
+
+    if mnemonic:
+        passphrase = os.environ.get("PASSPHRASE", "")
+        subprocess.check_call(
+            _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
+        )
+        subprocess.check_call(_wallet_cmd("select", "default"))
+        print("Keypair saved from MNEMONIC and selected as 'default'.")
+        return
