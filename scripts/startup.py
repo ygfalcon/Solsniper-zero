@@ -56,9 +56,17 @@ def ensure_deps() -> None:
             subprocess.check_call(
                 [sys.executable, "-m", "pip", "install", ".[uvloop]"]
             )
-        except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-            print(f"Failed to install required dependencies: {exc}")
-            raise SystemExit(exc.returncode)
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"Warning: failed to install uvloop: {exc}; continuing without uvloop"
+            )
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "."]
+                )
+            except subprocess.CalledProcessError as exc2:  # pragma: no cover - hard failure
+                print(f"Failed to install required dependencies: {exc2}")
+                raise SystemExit(exc2.returncode)
 
     if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
         print(

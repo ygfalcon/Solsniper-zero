@@ -142,6 +142,33 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     assert not results
 
 
+def test_ensure_deps_uvloop_failure(monkeypatch, capsys):
+    from scripts import startup
+
+    calls: list[list[str]] = []
+
+    def fake_check_call(cmd):
+        calls.append(cmd)
+        if cmd[-1] == ".[uvloop]":
+            raise subprocess.CalledProcessError(1, cmd)
+        return 0
+
+    results = [(["req"], []), ([], [])]
+
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+
+    startup.ensure_deps()
+
+    assert calls == [
+        [sys.executable, "-m", "pip", "install", ".[uvloop]"],
+        [sys.executable, "-m", "pip", "install", "."],
+    ]
+    out = capsys.readouterr().out.lower()
+    assert "warning" in out and "uvloop" in out
+    assert not results
+
+
 def test_ensure_endpoints_success(monkeypatch):
     from scripts.startup import ensure_endpoints
     import urllib.request
