@@ -57,7 +57,7 @@ from .config import (
     load_selected_config,
 )
 
-_DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+_DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
 cfg = load_config()
 if not cfg and _DEFAULT_PRESET.is_file():

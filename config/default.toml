@@ -14,3 +14,6 @@ agents = ["simulation"]
 
 [agent_weights]
 simulation = 1.0
+
+# This is the sole bundled preset and will be copied to ``config.toml``
+# when no user configuration is present.

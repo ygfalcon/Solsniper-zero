@@ -35,12 +35,6 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 - Use an external SSD for larger datasets.
 - Consider a workstation-grade GPU for model training.
 
-### High Risk Preset (deprecated)
-The legacy `config.highrisk.toml` preset enabled all built-in agents with dynamic
-weighting so risky trades are scaled up automatically. It is deprecated and
-retained only for reference. Use it only if you explicitly set
-`SOLHUNTER_CONFIG=config.highrisk.toml` before running the bot.
-
 ## Quick Start
 
 1. **Install Python 3.11+**
@@ -196,9 +190,7 @@ Key discovery options:
 
    A base configuration file named `config/default.toml` is provided in the
    project root. Copy it to `config.toml` (or `config.yaml`) and edit the values
-   to get started. Legacy example presets such as `config.example.toml`,
-   `config.minimal.toml` and `config.highrisk.toml` are deprecated and retained
-   only for reference. The default configuration loads several built‑in
+   to get started. The default configuration loads several built‑in
    **agents** that replace the previous static strategy modules.
 
 ## macOS Setup

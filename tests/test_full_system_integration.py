@@ -256,7 +256,7 @@ sys.modules["transformers"].pipeline = _trans_mod.pipeline
 
 def test_full_system_integration(monkeypatch, tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
-    cfg_path = repo_root / "config.highrisk.toml"
+    cfg_path = repo_root / "config" / "default.toml"
     key_path = repo_root / "keypairs" / "default.json"
 
     monkeypatch.setenv("SOLHUNTER_CONFIG", str(cfg_path))
