@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # This launcher finds a Python interpreter and ensures it is at least version 3.11.
-set -e
+set -euo pipefail
 cd "$(dirname "$0")"
 
 if command -v python3 >/dev/null; then
