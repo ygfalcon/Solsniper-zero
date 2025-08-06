@@ -210,6 +210,45 @@ def ensure_keypair() -> None:
         print("Generated temporary keypair 'temp' and selected it.")
 
 
+def ensure_endpoints(cfg: dict) -> None:
+    """Ensure HTTP endpoints in ``cfg`` are reachable.
+
+    The configuration may specify several service URLs such as
+    ``DEX_BASE_URL`` or custom metrics endpoints.  This function attempts a
+    ``HEAD`` request to each HTTP(S) URL and aborts startup if any service is
+    unreachable.  BirdEye is only checked when an API key is configured.
+    """
+
+    import urllib.error
+    import urllib.request
+
+    urls: dict[str, str] = {}
+    if cfg.get("birdeye_api_key"):
+        urls["BirdEye"] = "https://public-api.birdeye.so/defi/tokenlist"
+    for key, val in cfg.items():
+        if not isinstance(val, str):
+            continue
+        if not val.startswith("http://") and not val.startswith("https://"):
+            continue
+        urls[key] = val
+
+    failed: list[str] = []
+    for name, url in urls.items():
+        req = urllib.request.Request(url, method="HEAD")
+        try:
+            with urllib.request.urlopen(req, timeout=5):  # nosec B310
+                pass
+        except urllib.error.URLError as exc:  # pragma: no cover - network failure
+            print(
+                f"Failed to reach {name} at {url}: {exc}."
+                " Check your network connection or configuration."
+            )
+            failed.append(name)
+
+    if failed:
+        raise SystemExit(1)
+
+
 def ensure_rpc() -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get(
@@ -260,7 +299,8 @@ def main(argv: list[str] | None = None) -> int:
 
         ensure_config()
         cfg = load_config()
-        validate_config(cfg)
+        cfg = validate_config(cfg)
+        ensure_endpoints(cfg)
         ensure_keypair()
 
     if not args.skip_rpc_check:

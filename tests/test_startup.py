@@ -1,6 +1,8 @@
 import subprocess
 import sys
 
+import pytest
+
 
 def test_startup_help():
     result = subprocess.run([sys.executable, 'scripts/startup.py', '--help'], capture_output=True, text=True)
@@ -138,3 +140,72 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
         ]
     ]
     assert not results
+
+
+def test_ensure_endpoints_success(monkeypatch):
+    from scripts.startup import ensure_endpoints
+    import urllib.request
+
+    calls: list[tuple[str, str]] = []
+
+    class Dummy:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(req, timeout=5):
+        calls.append((req.full_url, req.get_method()))
+        return Dummy()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    cfg = {"dex_base_url": "https://dex.example", "birdeye_api_key": "k"}
+    ensure_endpoints(cfg)
+
+    urls = {u for u, _ in calls}
+    assert urls == {
+        "https://dex.example",
+        "https://public-api.birdeye.so/defi/tokenlist",
+    }
+    assert all(m == "HEAD" for _, m in calls)
+
+
+def test_ensure_endpoints_failure(monkeypatch, capsys):
+    from scripts.startup import ensure_endpoints
+    import urllib.request, urllib.error
+
+    def fake_urlopen(req, timeout=5):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    cfg = {"dex_base_url": "https://dex.example"}
+
+    with pytest.raises(SystemExit):
+        ensure_endpoints(cfg)
+
+    out = capsys.readouterr().out.lower()
+    assert "dex_base_url" in out
+
+
+def test_main_calls_ensure_endpoints(monkeypatch):
+    from scripts import startup
+
+    called: dict[str, object] = {}
+
+    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_config", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
+    monkeypatch.setattr(startup, "load_config", lambda: {"dex_base_url": "https://dex.example"})
+    monkeypatch.setattr(startup, "validate_config", lambda cfg: cfg)
+    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+
+    with pytest.raises(SystemExit):
+        startup.main(["--skip-deps", "--skip-rpc-check"])
+
+    assert "endpoints" in called
