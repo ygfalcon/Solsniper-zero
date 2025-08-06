@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover - psutil optional
     )
 from .multi_rl import PopulationRL
 from .advanced_memory import AdvancedMemory
+from .device import select_device
 
 try:
     from numba import njit  # type: ignore
@@ -1036,12 +1037,10 @@ class RLTraining:
             except Exception:  # pragma: no cover - corrupt file
                 pass
         if device is None:
-            if torch.cuda.is_available():
-                device = "cuda"
-            elif torch.backends.mps.is_available():
+            if torch.backends.mps.is_available():
                 device = "mps"
             else:
-                device = "cpu"
+                device = select_device().type
         self.device = device
         from .models import load_compiled_model
 
@@ -1197,12 +1196,10 @@ def _train_model(
             pass
 
     if device is None:
-        if torch.cuda.is_available():
-            device = "cuda"
-        elif torch.backends.mps.is_available():
+        if torch.backends.mps.is_available():
             device = "mps"
         else:
-            device = "cpu"
+            device = select_device().type
 
     acc = "gpu" if device == "cuda" else device
     kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
@@ -1403,7 +1400,7 @@ class MultiAgentRL:
 
     def _score(self, model: pl.LightningModule, dataset: Dataset) -> float:
         loader = DataLoader(dataset, batch_size=64)
-        device = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        device = self.device or select_device().type
         model.to(device)
         model.eval()
         total = 0.0
