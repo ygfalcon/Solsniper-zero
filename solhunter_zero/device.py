@@ -125,12 +125,48 @@ def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.d
     return torch.device(device) if isinstance(device, str) else device
 
 
+def ensure_gpu_env() -> dict[str, str]:
+    """Configure environment variables for GPU execution.
+
+    If a GPU backend is available, ``TORCH_DEVICE`` is set to the preferred
+    device (``"mps"`` on macOS with Apple Silicon or ``"cuda"`` elsewhere).
+    When the Metal backend is used, ``PYTORCH_ENABLE_MPS_FALLBACK`` is set to
+    ``"1"`` to allow CPU fallback for unsupported operations.  The function
+    returns a dictionary of variables that were modified.
+    """
+
+    env: dict[str, str] = {}
+    if torch is None:
+        return env
+    try:
+        system = platform.system()
+        if system == "Darwin" and torch.backends.mps.is_available():
+            env["TORCH_DEVICE"] = "mps"
+            env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+        elif torch.cuda.is_available():
+            env["TORCH_DEVICE"] = "cuda"
+        for key, value in env.items():
+            os.environ[key] = value
+        return env
+    except Exception:  # pragma: no cover - best effort only
+        logging.getLogger(__name__).exception("Exception during GPU env setup")
+        return env
+
+
 def _main() -> int:  # pragma: no cover - CLI helper
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-gpu", action="store_true", help="exit 0 if a GPU is available")
+    parser.add_argument(
+        "--setup-env",
+        action="store_true",
+        help="print export commands configuring GPU environment variables",
+    )
     args = parser.parse_args()
     if args.check_gpu:
         return 0 if detect_gpu() else 1
+    if args.setup_env:
+        for k, v in ensure_gpu_env().items():
+            print(f"export {k}={v}")
     return 0
 
 
