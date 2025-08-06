@@ -439,7 +439,31 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Suppress post-run diagnostics collection",
     )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help="Force macOS setup and clear dependency caches",
+    )
     args, rest = parser.parse_known_args(argv)
+
+    if args.repair and platform.system() == "Darwin":
+        from scripts import mac_setup
+
+        report = mac_setup.prepare_macos_env(non_interactive=True)
+        mac_setup.apply_brew_env()
+        for step, info in report.get("steps", {}).items():
+            msg = info.get("message", "")
+            if msg:
+                print(f"{step}: {info['status']} - {msg}")
+            else:
+                print(f"{step}: {info['status']}")
+            if info.get("status") == "error":
+                fix = mac_setup.MANUAL_FIXES.get(step)
+                if fix:
+                    print(f"Manual fix for {step}: {fix}")
+        # Clear cache markers so subsequent steps rerun fully
+        (ROOT / ".cache" / "cargo-installed").unlink(missing_ok=True)
+        device.MPS_SENTINEL.unlink(missing_ok=True)
 
     if args.self_test:
         from solhunter_zero.bootstrap import bootstrap
