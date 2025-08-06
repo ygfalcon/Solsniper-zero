@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+
+# Start Solhunter Zero via the bootstrap module in one-click mode.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -10,8 +12,9 @@ else
 fi
 
 if [[ "$(uname)" == "Darwin" ]]; then
-  exec arch -arm64 "$PYTHON" scripts/startup.py --one-click "$@"
+  # Ensure macOS uses the ARM64 architecture
+  exec arch -arm64 "$PYTHON" -m solhunter_zero.bootstrap --one-click "$@"
 else
-  exec "$PYTHON" scripts/startup.py --one-click "$@"
+  exec "$PYTHON" -m solhunter_zero.bootstrap --one-click "$@"
 fi
 
