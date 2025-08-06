@@ -66,7 +66,11 @@ fi
 if command -v cargo >/dev/null 2>&1; then
     if [ ! -f solhunter_zero/libroute_ffi.so ]; then
         cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-        cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null || true
+        cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null
+        if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+            echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
+            exit 1
+        fi
     fi
 fi
 
