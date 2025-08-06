@@ -19,6 +19,13 @@ if ! command -v brew >/dev/null 2>&1; then
   elif [ -d /usr/local/bin ]; then
     eval "$(/usr/local/bin/brew shellenv)"
   fi
+  if [[ $SHELL == *bash* ]]; then
+    profile_file="$HOME/.bash_profile"
+  else
+    profile_file="$HOME/.zprofile"
+  fi
+  brew shellenv >> "$profile_file"
+  echo "Updated $profile_file with Homebrew environment."
 fi
 
 # Update Homebrew and install packages
