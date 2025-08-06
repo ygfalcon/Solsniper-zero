@@ -151,14 +151,7 @@ def _read_config_file(path: Path) -> dict:
 def load_config(path: str | os.PathLike | None = None) -> dict:
     """Load configuration from ``path`` or default locations."""
     if path is None:
-        env_path = os.getenv("SOLHUNTER_CONFIG")
-        if env_path:
-            path = env_path
-        else:
-            for name in ("config.yaml", "config.yml", "config.toml"):
-                if Path(name).is_file():
-                    path = name
-                    break
+        path = find_config_file()
     if path is None:
         return {}
     cfg = _read_config_file(Path(path))
@@ -206,20 +199,19 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 
 
 def find_config_file() -> str | None:
-    """Return path to configuration file if one exists."""
+    """Return the first existing configuration file path.
+
+    The search order is ``config.toml``, ``config.yaml`` and ``config.yml``.
+    The ``SOLHUNTER_CONFIG`` environment variable, when set, takes precedence.
+    """
+
     path = os.getenv("SOLHUNTER_CONFIG")
     if path and Path(path).is_file():
         return path
-    cfg_dir = Path(CONFIG_DIR)
-    active = cfg_dir / "active"
-    if active.is_file():
-        name = active.read_text().strip()
-        cfg = cfg_dir / name
-        if cfg.is_file():
-            return str(cfg)
     for name in ("config.toml", "config.yaml", "config.yml"):
-        if Path(name).is_file():
-            return name
+        p = Path(name)
+        if p.is_file():
+            return str(p)
     return None
 
 
