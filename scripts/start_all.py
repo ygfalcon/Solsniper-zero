@@ -9,7 +9,9 @@ import subprocess
 import sys
 import time
 import socket
+import threading
 from pathlib import Path
+from typing import IO
 from solhunter_zero.config import load_config, apply_env_overrides
 from solhunter_zero import data_sync
 
@@ -36,10 +38,19 @@ ENV_VARS = [
 ]
 
 
-def start(cmd: list[str]) -> subprocess.Popen:
+def _stream_stderr(pipe: IO[bytes]) -> None:
+    for line in iter(pipe.readline, b""):
+        sys.stderr.buffer.write(line)
+    pipe.close()
+
+
+def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
     env = os.environ.copy()
-    proc = subprocess.Popen(cmd, env=env)
+    stderr = subprocess.PIPE if stream_stderr else None
+    proc = subprocess.Popen(cmd, env=env, stderr=stderr)
     PROCS.append(proc)
+    if stream_stderr and proc.stderr is not None:
+        threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True).start()
     return proc
 
 
@@ -89,7 +100,7 @@ data_sync.start_scheduler(interval=interval, db_path=db_path)
 cmd = ["./target/release/depth_service"]
 if cfg:
     cmd += ["--config", cfg]
-start(cmd)
+depth_proc = start(cmd, stream_stderr=True)
 start([sys.executable, "scripts/run_rl_daemon.py"])
 
 # Wait for the websocket to come online before starting the bot
@@ -97,6 +108,12 @@ addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
 port = int(os.getenv("DEPTH_WS_PORT", "8765"))
 deadline = time.monotonic() + 30.0
 while True:
+    if depth_proc.poll() is not None:
+        print(
+            f"depth_service exited with code {depth_proc.returncode}",
+            file=sys.stderr,
+        )
+        stop_all()
     try:
         with socket.create_connection((addr, port), timeout=1):
             break
