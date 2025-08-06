@@ -178,9 +178,9 @@ forwards to `./run.sh --auto` for a fully automated start.
    ```bash
    xcode-select --install
    ```
-2. Install Homebrew packages:
+2. Install Homebrew packages with the helper script:
    ```bash
-   brew install python@3.11 pkg-config cmake rust protobuf
+   ./scripts/mac_setup.sh
    ```
 3. Install the Metal-enabled PyTorch build (for Apple Silicon):
    ```bash
