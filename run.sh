@@ -112,6 +112,22 @@ EOF
             "$PY" -m pip install torch==2.1.0 torchvision==0.16.0 \
               --extra-index-url https://download.pytorch.org/whl/metal
         fi
+        "$PY" - <<'EOF'
+import torch, sys
+sys.exit(0 if torch.backends.mps.is_available() else 1)
+EOF
+        if [ $? -ne 0 ]; then
+            echo "MPS unavailable. Reinstalling Metal wheel..."
+            "$PY" -m pip install --force-reinstall torch==2.1.0 torchvision==0.16.0 \
+              --extra-index-url https://download.pytorch.org/whl/metal
+            "$PY" - <<'EOF'
+import torch, sys
+sys.exit(0 if torch.backends.mps.is_available() else 1)
+EOF
+            if [ $? -ne 0 ]; then
+                echo "Warning: MPS backend remains unavailable" >&2
+            fi
+        fi
     fi
     if [ -n "$missing_extras" ]; then
         "$PY" -m pip install ".[${missing_extras}]"
