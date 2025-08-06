@@ -157,6 +157,11 @@ PY
     exit 1
 fi
 
+if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
+    [ "$(uname -s)" = "Darwin" ] && export TORCH_DEVICE="mps"
+    export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
+fi
+
 if [ -n "${SOLANA_RPC_URL:-}" ]; then
     "$PY" - <<'PY'
 import os, sys, urllib.request, time
