@@ -1,6 +1,9 @@
 import importlib
 import sys
 import types
+import importlib
+import sys
+import types
 import asyncio
 
 import pytest
@@ -40,3 +43,24 @@ def test_simulation_env_disables_gpu(monkeypatch):
     import solhunter_zero.simulation as sim
     importlib.reload(sim)
     assert sim.USE_GPU_SIM is False
+
+
+def test_mps_detected_disables_gpu_index(monkeypatch):
+    monkeypatch.delenv("FORCE_CPU_INDEX", raising=False)
+    monkeypatch.delenv("GPU_MEMORY_INDEX", raising=False)
+
+    torch_mod = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+        backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: True)),
+    )
+    monkeypatch.setitem(sys.modules, "torch", torch_mod)
+    faiss_stub = types.ModuleType("faiss")
+    monkeypatch.setitem(sys.modules, "faiss", faiss_stub)
+    st_stub = types.ModuleType("sentence_transformers")
+    st_stub.SentenceTransformer = object
+    monkeypatch.setitem(sys.modules, "sentence_transformers", st_stub)
+    import solhunter_zero.advanced_memory as am
+    importlib.reload(am)
+    assert am._detect_gpu() is True
+    assert am._gpu_index_enabled() is False
+    monkeypatch.delitem(sys.modules, "solhunter_zero.advanced_memory", raising=False)

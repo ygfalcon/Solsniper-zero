@@ -18,7 +18,7 @@ _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 
 
 def _detect_gpu() -> bool:
-    """Return ``True`` if a CUDA device is available."""
+    """Return ``True`` if a CUDA or MPS device is available."""
     if _HAS_FAISS_GPU:
         try:
             faiss.StandardGpuResources()
@@ -28,9 +28,13 @@ def _detect_gpu() -> bool:
     try:
         import torch
 
-        return bool(torch.cuda.is_available())
+        if torch.cuda.is_available():
+            return True
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return True
     except Exception:
-        return False
+        pass
+    return False
 
 
 def _gpu_index_enabled() -> bool:
@@ -40,7 +44,14 @@ def _gpu_index_enabled() -> bool:
     env = os.getenv("GPU_MEMORY_INDEX")
     if env is not None:
         return env.lower() in {"1", "true", "yes"}
-    return _detect_gpu()
+    if not _HAS_FAISS_GPU:
+        return False
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
 from sqlalchemy import (
     create_engine,
     Column,
