@@ -54,9 +54,15 @@ if ! find_python; then
   fi
 fi
 
-# Detect available GPU and set Torch device accordingly
-if "$PY" -m solhunter_zero.device --check-gpu; then
-  export TORCH_DEVICE=mps
+# Detect available device and set Torch device accordingly
+DEVICE=$("$PY" - <<'EOF'
+from solhunter_zero.device import get_default_device
+print(get_default_device())
+EOF
+)
+echo "$DEVICE"
+if [ "$DEVICE" != "cpu" ]; then
+  export TORCH_DEVICE="$DEVICE"
 fi
 
 # Configure Rayon thread pool if not already set
