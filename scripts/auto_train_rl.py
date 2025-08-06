@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.rl_daemon import _PPO, _TradeDataset, _metrics
-from solhunter_zero.device import get_default_device
+from solhunter_zero.device import select_device
 
 
 def _train(model: _PPO, data: _TradeDataset, device: torch.device, lr: float) -> None:
@@ -92,7 +92,7 @@ def main() -> None:
     p.add_argument("--device", default=None)
     args = p.parse_args()
 
-    device = get_default_device(args.device)
+    device = select_device(args.device)
 
     model_path = Path(args.model)
     while True:
