@@ -144,18 +144,22 @@ def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> C
 
 def check_gpu() -> Check:
     """Report GPU availability and the selected default device."""
+    hint = (
+        "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
+        "scripts/mac_setup.py to enable GPU support"
+    )
     env_available = os.environ.get("SOLHUNTER_GPU_AVAILABLE")
     env_device = os.environ.get("SOLHUNTER_GPU_DEVICE")
     if env_available is not None:
         if env_available == "1":
             return True, f"Using GPU device: {env_device or 'unknown'}"
-        return False, "No GPU backend detected"
+        return False, hint
 
     try:
         from solhunter_zero import device
 
         if not device.detect_gpu():
-            return False, "No GPU backend detected"
+            return False, hint
 
         try:  # get_default_device may raise if torch is missing
             dev = device.get_default_device("auto")
