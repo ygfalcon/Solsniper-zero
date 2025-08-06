@@ -19,6 +19,9 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 
+if platform.system() == "Darwin" and platform.machine() == "arm64":
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
 
 def ensure_venv(argv: list[str] | None) -> None:
     """Create a local virtual environment and re-invoke the script inside it.
