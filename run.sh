@@ -238,11 +238,18 @@ if [ $NO_METRICS -eq 0 ]; then
     trap 'kill $AGG_PID 2>/dev/null; rm -f "$METRICS_LOG"' EXIT
 fi
 
-if [ "$1" = "--daemon" ]; then
+first_arg="${1-}"
+
+if [ "$first_arg" = "--daemon" ]; then
     shift
     python -m solhunter_zero.train_cli --daemon "$@"
-elif [ "$#" -eq 0 ] || [ "$1" = "--auto" ]; then
-    if [ "$1" = "--auto" ]; then
+elif [ "$first_arg" = "--start-all" ] || { [ "$#" -eq 0 ] && [ "$uname_s" = "Darwin" ]; }; then
+    if [ "$first_arg" = "--start-all" ]; then
+        shift
+    fi
+    python scripts/start_all.py autopilot
+elif [ "$#" -eq 0 ] || [ "$first_arg" = "--auto" ]; then
+    if [ "$first_arg" = "--auto" ]; then
         shift
     fi
     python -m solhunter_zero.main --auto "$@"
