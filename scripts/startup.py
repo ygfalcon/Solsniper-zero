@@ -21,6 +21,19 @@ from scripts import deps
 ROOT = Path(__file__).resolve().parent.parent
 
 
+if platform.system() == "Darwin" and platform.machine() == "x86_64":
+    script = Path(__file__).resolve()
+    cmd = ["arch", "-arm64", sys.executable, str(script), *sys.argv[1:]]
+    try:
+        os.execvp(cmd[0], cmd)
+    except OSError as exc:  # pragma: no cover - hard failure
+        msg = (
+            f"Failed to re-exec {script.name} via 'arch -arm64': {exc}\n"
+            "Please use the unified entry point (scripts/launcher.py or start.command)."
+        )
+        raise SystemExit(msg)
+
+
 def _load_env_file(path: Path) -> None:
     """Load ``KEY=VALUE`` pairs from ``path`` into ``os.environ``.
 
