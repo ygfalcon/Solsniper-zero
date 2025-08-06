@@ -114,6 +114,35 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     return proc
 
 
+async def _depth_service_watchdog(cfg: dict, proc_ref: list[subprocess.Popen | None]) -> None:
+    """Monitor the depth_service process and attempt a single restart."""
+    proc = proc_ref[0]
+    if not proc:
+        return
+    restarted = False
+    try:
+        while True:
+            await asyncio.sleep(1.0)
+            if proc.poll() is None:
+                continue
+            if restarted:
+                logging.error("depth_service exited after restart; aborting")
+                raise RuntimeError("depth_service terminated")
+            logging.warning("depth_service exited; attempting restart")
+            try:
+                proc = await asyncio.to_thread(_start_depth_service, cfg)
+            except Exception as exc:
+                logging.error("Failed to restart depth_service: %s", exc)
+                raise
+            if not proc:
+                logging.error("depth_service restart returned None; aborting")
+                raise RuntimeError("depth_service restart failed")
+            proc_ref[0] = proc
+            restarted = True
+    except asyncio.CancelledError:
+        pass
+
+
 # Load configuration at startup so modules relying on environment variables
 # pick up the values from config files or environment.
 _cfg = apply_env_overrides(load_config())
@@ -599,13 +628,14 @@ def main(
     if use_bundles and (not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")):
         logging.warning("MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing")
 
-    proc = None
+    proc: subprocess.Popen | None = None
     try:
         proc = _start_depth_service(cfg)
     except Exception as exc:
         logging.error("Failed to start depth_service: %s", exc)
         cfg["depth_service"] = False
         os.environ["DEPTH_SERVICE"] = "false"
+    proc_ref = [proc]
 
     if risk_tolerance is not None:
         os.environ["RISK_TOLERANCE"] = str(risk_tolerance)
@@ -716,6 +746,7 @@ def main(
         book_task = None
         arb_task = None
         depth_task = None
+        watch_task = None
         depth_updates = 0
         prev_count = 0
         prev_ts = time.monotonic()
@@ -740,6 +771,8 @@ def main(
         if collect_data:
             db_path = cfg.get("rl_db_path", "offline_data.db")
             stop_collector = start_depth_snapshot_listener(db_path)
+        if proc_ref[0]:
+            watch_task = asyncio.create_task(_depth_service_watchdog(cfg, proc_ref))
         prev_activity = 0.0
         iteration_idx = 0
 
@@ -941,6 +974,10 @@ def main(
             depth_task.cancel()
             with contextlib.suppress(Exception):
                 await depth_task
+        if watch_task:
+            watch_task.cancel()
+            with contextlib.suppress(Exception):
+                await watch_task
         if rl_task:
             rl_task.cancel()
             with contextlib.suppress(Exception):
@@ -954,6 +991,11 @@ def main(
     try:
         asyncio.run(loop())
     finally:
+        if proc_ref[0]:
+            with contextlib.suppress(Exception):
+                proc_ref[0].terminate()
+            with contextlib.suppress(Exception):
+                proc_ref[0].wait(timeout=1)
         if prev_agents is None:
             os.environ.pop("AGENTS", None)
         else:
