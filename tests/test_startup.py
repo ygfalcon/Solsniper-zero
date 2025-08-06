@@ -86,7 +86,7 @@ def test_ensure_deps_installs_optional(monkeypatch):
         ),
         ([], []),
     ]
-    monkeypatch.setattr(startup, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
 
     startup.ensure_deps()
@@ -120,7 +120,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
         ([], []),
     ]
 
-    monkeypatch.setattr(startup, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")

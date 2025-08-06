@@ -42,21 +42,7 @@ EOF
 fi
 
 check_deps() {
-  "$PY" - <<'PY'
-import pkgutil, re, sys, tomllib, json
-with open('pyproject.toml', 'rb') as f:
-    data = tomllib.load(f)
-deps = data.get('project', {}).get('dependencies', [])
-missing_required = []
-for dep in deps:
-    mod = re.split('[<=>]', dep)[0].replace('-', '_')
-    if pkgutil.find_loader(mod) is None:
-        missing_required.append(mod)
-optional = ['faiss', 'sentence_transformers', 'torch', 'orjson', 'lz4', 'zstandard', 'msgpack']
-missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
-print(json.dumps({"required": missing_required, "optional": missing_optional}))
-sys.exit(1 if missing_required or missing_optional else 0)
-PY
+    "$PY" scripts/deps.py "$@"
 }
 
 set +e

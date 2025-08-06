@@ -12,6 +12,8 @@ import subprocess
 import shutil
 from pathlib import Path
 
+from scripts import deps
+
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
@@ -43,34 +45,8 @@ def ensure_venv(argv: list[str] | None) -> None:
         os.execv(str(python), [str(python), *sys.argv])
 
 
-def check_deps() -> tuple[list[str], list[str]]:
-    import pkgutil
-    import re
-    import tomllib
-
-    with open("pyproject.toml", "rb") as fh:
-        data = tomllib.load(fh)
-    deps = data.get("project", {}).get("dependencies", [])
-    missing_required: list[str] = []
-    for dep in deps:
-        mod = re.split("[<=>]", dep)[0].replace("-", "_")
-        if pkgutil.find_loader(mod) is None:
-            missing_required.append(mod)
-    optional = [
-        "faiss",
-        "sentence_transformers",
-        "torch",
-        "orjson",
-        "lz4",
-        "zstandard",
-        "msgpack",
-    ]
-    missing_optional = [m for m in optional if pkgutil.find_loader(m) is None]
-    return missing_required, missing_optional
-
-
 def ensure_deps() -> None:
-    req, opt = check_deps()
+    req, opt = deps.check_deps()
     if not req and not opt:
         return
 
@@ -158,7 +134,7 @@ def ensure_deps() -> None:
                 print(f"Failed to install optional dependency '{pkg}': {exc}")
                 raise SystemExit(exc.returncode)
 
-    req_after, opt_after = check_deps()
+    req_after, opt_after = deps.check_deps()
     if req_after or opt_after:
         if req_after:
             print(
