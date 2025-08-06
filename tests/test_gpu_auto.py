@@ -1,18 +1,22 @@
 import importlib
 import sys
 import types
-import importlib
-import sys
-import types
 import asyncio
 
 import pytest
 
 
-def _make_torch(available=True):
-    import importlib
-    torch_mod = importlib.import_module("torch")
-    torch_mod.cuda.is_available = lambda: available
+def _make_torch(available=True, mps_available=False):
+    """Return a minimal torch stub."""
+
+    torch_mod = types.ModuleType("torch")
+    torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
+    torch_mod.cuda = types.SimpleNamespace(is_available=lambda: available)
+    torch_mod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_available=lambda: mps_available, is_built=lambda: True)
+    )
+    torch_mod.ones = lambda *a, **k: types.SimpleNamespace(cpu=lambda: None)
+    torch_mod.Tensor = type("Tensor", (), {})
     return torch_mod
 
 
@@ -28,6 +32,7 @@ def test_simulation_auto_enables_gpu(monkeypatch):
     monkeypatch.delenv("USE_GPU_SIM", raising=False)
     torch_mod = _make_torch(True)
     monkeypatch.setitem(sys.modules, "torch", torch_mod)
+    monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)
     monkeypatch.setitem(sys.modules, "cupy", _make_cupy(False))
     import solhunter_zero.simulation as sim
     importlib.reload(sim)
@@ -39,6 +44,7 @@ def test_simulation_env_disables_gpu(monkeypatch):
     monkeypatch.setenv("USE_GPU_SIM", "0")
     torch_mod = _make_torch(True)
     monkeypatch.setitem(sys.modules, "torch", torch_mod)
+    monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)
     monkeypatch.setitem(sys.modules, "cupy", _make_cupy(True))
     import solhunter_zero.simulation as sim
     importlib.reload(sim)
@@ -49,10 +55,7 @@ def test_mps_detected_disables_gpu_index(monkeypatch):
     monkeypatch.delenv("FORCE_CPU_INDEX", raising=False)
     monkeypatch.delenv("GPU_MEMORY_INDEX", raising=False)
 
-    torch_mod = types.SimpleNamespace(
-        cuda=types.SimpleNamespace(is_available=lambda: False),
-        backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: True)),
-    )
+    torch_mod = _make_torch(available=False, mps_available=True)
     monkeypatch.setitem(sys.modules, "torch", torch_mod)
     monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)
     monkeypatch.setattr("solhunter_zero.device.platform.system", lambda: "Darwin")
