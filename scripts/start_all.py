@@ -12,21 +12,26 @@ import threading
 import logging
 from pathlib import Path
 from typing import IO
-from solhunter_zero.config import (
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from solhunter_zero import env  # noqa: E402
+
+env.load_env_file(ROOT / ".env")
+os.chdir(ROOT)
+
+from solhunter_zero.config import (  # noqa: E402
     set_env_from_config,
     ensure_config_file,
     validate_env,
     REQUIRED_ENV_VARS,
 )
-from solhunter_zero import data_sync
-from solhunter_zero.service_launcher import (
+from solhunter_zero import data_sync  # noqa: E402
+from solhunter_zero.service_launcher import (  # noqa: E402
     start_depth_service,
     start_rl_daemon,
     wait_for_depth_ws,
 )
-
-ROOT = Path(__file__).resolve().parent.parent
-os.chdir(ROOT)
 
 if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     from solhunter_zero import autopilot
