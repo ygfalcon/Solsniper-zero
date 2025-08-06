@@ -134,42 +134,33 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]")
 
-    if install_optional and "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
-        print(
-            "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
-        )
-        _pip_install(
-            "torch==2.1.0",
-            "torchvision==0.16.0",
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/metal",
-        )
-        opt.remove("torch")
 
     if install_optional and platform.system() == "Darwin" and platform.machine() == "arm64":
-        import importlib
-        import torch
+        try:  # pragma: no cover - torch may be missing
+            import torch as _torch
+            has_mps = _torch.backends.mps.is_available()
+        except Exception:  # pragma: no cover - torch is optional
+            _torch = None
+            has_mps = False
 
-        if not torch.backends.mps.is_available():
-            print(
-                "MPS backend not available; attempting to reinstall Metal wheel..."
-            )
+        if not has_mps:
+            print("Installing torch and torchvision with Metal support for macOS arm64...")
+            args = ["torch", "torchvision", "--extra-index-url", "https://download.pytorch.org/whl/metal"]
+            if _torch is not None:
+                args.insert(0, "--force-reinstall")
+            _pip_install(*args)
+            if "torch" in opt:
+                opt.remove("torch")
             try:
-                _pip_install(
-                    "--force-reinstall",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
-                    "--extra-index-url",
-                    "https://download.pytorch.org/whl/metal",
-                )
-            except SystemExit:
-                print("Failed to reinstall torch with Metal wheels.")
-            importlib.reload(torch)
-            if not torch.backends.mps.is_available():
+                import importlib
+                import torch as _torch
+                importlib.reload(_torch)
+            except Exception:  # pragma: no cover - import failure
+                pass
+            if not _torch.backends.mps.is_available():
                 raise SystemExit(
                     "MPS backend still not available. Please install the Metal wheel manually:\n"
-                    "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url "
-                    "https://download.pytorch.org/whl/metal"
+                    "pip install torch torchvision --extra-index-url https://download.pytorch.org/whl/metal"
                 )
 
     if install_optional and opt:
