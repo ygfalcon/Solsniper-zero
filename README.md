@@ -311,7 +311,9 @@ observed when CPU usage dropped sharply.
   ```bash
   cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
   ```
-  Python automatically loads the compiled library from
+  After building, ensure the shared library was copied to
+  ``solhunter_zero/libroute_ffi.so``—the start script now exits if the file is
+  missing. Python automatically loads the compiled library from
   ``solhunter_zero/libroute_ffi.so`` and uses it by default when
   present. When built with the parallel feature the FFI exposes a
   multithreaded route search which the bot enables automatically.
