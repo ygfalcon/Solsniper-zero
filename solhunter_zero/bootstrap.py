@@ -11,7 +11,7 @@ from scripts.startup import (
 )
 from .config_bootstrap import ensure_config
 
-from . import device
+import solhunter_zero.device as device
 
 
 def bootstrap(one_click: bool = False) -> None:
@@ -21,6 +21,8 @@ def bootstrap(one_click: bool = False) -> None:
     be used by entry points that need to guarantee the project is ready to run
     programmatically.
     """
+    device.ensure_gpu_env()
+
     if one_click:
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
 
@@ -29,8 +31,6 @@ def bootstrap(one_click: bool = False) -> None:
 
     if os.getenv("SOLHUNTER_SKIP_DEPS") != "1":
         ensure_deps(install_optional=os.getenv("SOLHUNTER_INSTALL_OPTIONAL") == "1")
-
-    device.ensure_gpu_env()
 
     if os.getenv("SOLHUNTER_SKIP_SETUP") != "1":
         ensure_config()

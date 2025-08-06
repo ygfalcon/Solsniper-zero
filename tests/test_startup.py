@@ -50,6 +50,7 @@ def test_mac_startup_prereqs(monkeypatch):
 
     env = bootstrap.device.ensure_gpu_env()
     assert env.get("TORCH_DEVICE") == "mps"
+    assert env.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1"
 
 
 def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
@@ -486,6 +487,19 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
+    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
+
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
@@ -632,9 +646,11 @@ def test_preflight_log_rotation(tmp_path):
 
 def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.delenv("TORCH_DEVICE", raising=False)
+    monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
 
     import platform
-    import types, sys, importlib, os
+    import types, sys
+    from solhunter_zero import bootstrap
 
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
@@ -643,47 +659,22 @@ def test_startup_sets_mps_device(monkeypatch):
     dummy_torch.backends = types.SimpleNamespace()
     dummy_torch.backends.mps = types.SimpleNamespace()
     dummy_torch.backends.mps.is_available = lambda: True
+    dummy_torch.cuda = types.SimpleNamespace(is_available=lambda: False)
     dummy_torch.set_default_device = lambda dev: None
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
-    monkeypatch.setattr("solhunter_zero.device.detect_gpu", lambda: True)
-    monkeypatch.setattr("solhunter_zero.device.get_default_device", lambda: "mps")
+    monkeypatch.setattr(bootstrap, "ensure_venv", lambda *a, **k: None)
+    monkeypatch.setattr(bootstrap, "ensure_deps", lambda install_optional=False: None)
+    monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
 
-    import scripts.startup as startup
-    startup = importlib.reload(startup)
-
-    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
-    monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
-    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-
-    monkeypatch.setattr(
-        startup.subprocess,
-        "run",
-        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""),
-    )
-    monkeypatch.setattr(
-        startup.os,
-        "execv",
-        lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)),
-    )
-
-    with pytest.raises(SystemExit):
-        startup.main(
-            [
-                "--one-click",
-                "--skip-deps",
-                "--skip-setup",
-                "--skip-endpoint-check",
-                "--skip-rpc-check",
-                "--skip-preflight",
-            ]
-        )
+    bootstrap.bootstrap(one_click=True)
 
     assert os.environ.get("TORCH_DEVICE") == "mps"
+    assert os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1"
 
 
 def test_wallet_cli_failure_propagates(monkeypatch):
