@@ -90,7 +90,7 @@ up automatically. Select this file from the UI or set
    pip install .[fastcompress]
    ```
 
-For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live. You can also simply run `make start`.
+For a guided setup you can run `scripts/startup.py` which checks dependencies, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup.
 
 
 3. **Create a configuration file**
