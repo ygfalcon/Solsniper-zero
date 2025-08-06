@@ -65,14 +65,17 @@ def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.d
     Parameters
     ----------
     device:
-        Desired device identifier. If ``"auto"`` or ``None`` the function chooses
-        ``"cuda"`` or ``"mps"`` when available, otherwise ``"cpu"``. If a non-CPU
-        device is requested but unavailable the call falls back to the CPU.
+        Desired device identifier. If ``"auto"`` or ``None`` the function prefers
+        Apple's Metal backend (``"mps"``) on macOS when available, then
+        ``"cuda"`` or finally ``"cpu"``. If a non-CPU device is requested but
+        unavailable the call falls back to the CPU.
     """
 
     if torch is None:
         raise RuntimeError("PyTorch is required for device selection")
     if device is None or (isinstance(device, str) and device == "auto"):
+        if platform.system() == "Darwin" and torch.backends.mps.is_available():
+            return torch.device("mps")
         if torch.cuda.is_available():
             return torch.device("cuda")
         if torch.backends.mps.is_available():
