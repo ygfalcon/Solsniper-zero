@@ -14,5 +14,5 @@ else
     exit 1
 fi
 
-exec "$PYTHON" scripts/launcher.py --one-click --full-deps "$@"
+exec "$PYTHON" start.py --one-click --full-deps "$@"
 
