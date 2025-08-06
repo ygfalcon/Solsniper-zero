@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
 
-device.ensure_gpu_env()
+device.configure_gpu_env()
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -731,7 +731,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from solhunter_zero import device
 
-    device.ensure_gpu_env()
+    gpu_available = device.configure_gpu_env()
     import torch
 
     torch.set_default_device(device.get_default_device())
@@ -769,7 +769,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         rpc_status = "skipped"
 
-    gpu_device = str(device.get_default_device()) if device.detect_gpu() else "none"
+    gpu_device = str(device.get_default_device()) if gpu_available else "none"
 
     ensure_cargo()
     ensure_route_ffi()

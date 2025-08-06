@@ -19,7 +19,7 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - torch is optional
     torch = None  # type: ignore
 
-from .device import detect_gpu, get_gpu_backend
+from .device import configure_gpu_env, get_gpu_backend
 
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 
@@ -33,7 +33,7 @@ def _detect_gpu() -> bool:
         except Exception:
             pass
     try:
-        return detect_gpu()
+        return configure_gpu_env()
     except Exception:
         return False
 

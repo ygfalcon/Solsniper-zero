@@ -42,8 +42,8 @@ def test_mac_startup_prereqs(monkeypatch):
     monkeypatch.setattr(device, "torch", dummy_torch)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
-    env = device.ensure_gpu_env()
-    assert env.get("TORCH_DEVICE") == "mps"
+    device.configure_gpu_env()
+    assert os.environ.get("TORCH_DEVICE") == "mps"
 
 
 def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
@@ -474,7 +474,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", configure_gpu_env=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
@@ -503,7 +503,7 @@ def test_main_skips_endpoint_check(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", configure_gpu_env=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
@@ -542,7 +542,7 @@ def test_main_preflight_success(monkeypatch):
     import types as _types, sys
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", configure_gpu_env=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
     with pytest.raises(SystemExit) as exc:
@@ -571,7 +571,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
     import types
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", configure_gpu_env=lambda: False))
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -613,7 +613,7 @@ def test_startup_sets_mps_device(monkeypatch):
     dummy_torch.set_default_device = lambda dev: None
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
-    monkeypatch.setattr("solhunter_zero.device.detect_gpu", lambda: True)
+    monkeypatch.setattr("solhunter_zero.device.configure_gpu_env", lambda: True)
     monkeypatch.setattr("solhunter_zero.device.get_default_device", lambda: "mps")
 
     import scripts.startup as startup
@@ -664,7 +664,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", configure_gpu_env=lambda: False))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
