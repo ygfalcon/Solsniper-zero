@@ -201,11 +201,40 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
-    monkeypatch.setattr(startup, "load_config", lambda: {"dex_base_url": "https://dex.example"})
-    monkeypatch.setattr(startup, "validate_config", lambda cfg: cfg)
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    import types, sys
+    conf = types.SimpleNamespace(
+        load_config=lambda: {"dex_base_url": "https://dex.example"},
+        validate_config=lambda cfg: cfg,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
     with pytest.raises(SystemExit):
         startup.main(["--skip-deps", "--skip-rpc-check"])
 
     assert "endpoints" in called
+
+
+def test_main_skips_endpoint_check(monkeypatch):
+    from scripts import startup
+
+    called: dict[str, object] = {}
+
+    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_config", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
+    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    import types, sys
+    conf = types.SimpleNamespace(
+        load_config=lambda: {"dex_base_url": "https://dex.example"},
+        validate_config=lambda cfg: cfg,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+
+    with pytest.raises(SystemExit):
+        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-endpoint-check"])
+
+    assert "endpoints" not in called

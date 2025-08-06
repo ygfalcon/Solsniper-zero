@@ -363,6 +363,11 @@ def main(argv: list[str] | None = None) -> int:
         "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
     )
     parser.add_argument(
+        "--skip-endpoint-check",
+        action="store_true",
+        help="Skip HTTP endpoint availability check",
+    )
+    parser.add_argument(
         "--one-click",
         action="store_true",
         help="Enable fully automated non-interactive startup",
@@ -399,7 +404,8 @@ def main(argv: list[str] | None = None) -> int:
         ensure_config()
         cfg = load_config()
         cfg = validate_config(cfg)
-        ensure_endpoints(cfg)
+        if not args.skip_endpoint_check:
+            ensure_endpoints(cfg)
         ensure_keypair()
 
     if not args.skip_rpc_check:
