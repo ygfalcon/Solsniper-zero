@@ -166,26 +166,36 @@ Key discovery options:
    several built‑in **agents** that replace the previous static strategy
    modules.
 
-## macOS Setup
+## macOS M1 One‑Click Setup
 
-macOS users can launch the bot using the bundled `start.command` script.
-Double‑clicking it opens a terminal, installs any missing dependencies and
-forwards to `./run.sh --auto` for a fully automated start.
+Apple Silicon users can launch the bot with a single script:
 
-### Required dependencies
+1. **Install Python 3.11**
 
-1. Install the Xcode command line tools:
+   Use Homebrew or [pyenv](https://github.com/pyenv/pyenv):
+
    ```bash
-   xcode-select --install
+   brew install python@3.11
+   # or
+   brew install pyenv
+   pyenv install 3.11
+   pyenv global 3.11
    ```
-2. Install Homebrew packages:
+
+2. **Run the launcher**
+
+   Double‑click `start.command` (or run `./start.command` from Terminal).
+   The script delegates to `scripts/startup.py --auto`, installs any missing
+   Python packages, downloads the Metal-enabled PyTorch wheel and compiles
+   the Rust components such as `depth_service` on the first run.
+
+3. **Metal GPU support**
+
+   PyTorch automatically uses Apple's Metal backend (MPS) when available.
+   Verify with:
+
    ```bash
-   brew install python@3.11 pkg-config cmake rust protobuf
-   ```
-3. Install the Metal-enabled PyTorch build (for Apple Silicon):
-   ```bash
-   pip install torch==2.1.0 torchvision==0.16.0 \
-     --extra-index-url https://download.pytorch.org/whl/metal
+   python -c "import torch; print(torch.backends.mps.is_available())"
    ```
 
 ### Troubleshooting
@@ -194,8 +204,10 @@ forwards to `./run.sh --auto` for a fully automated start.
   right-click and choose *Open*.
 - **`python` not found** – ensure Python 3.11 is installed and on your
   `PATH`.
+- **Rust build failures** – make sure the Xcode command line tools are
+  installed via `xcode-select --install`.
 - **Torch missing MPS backend** – confirm the Metal wheel installed and that
-  macOS 13+ is in use. Validate with `python -c "import torch; print(torch.backends.mps.is_available())"`.
+  macOS 13+ is in use.
 - **Permission denied** – Gatekeeper may block the script; allow it via
   System Preferences or run from Terminal.
 
