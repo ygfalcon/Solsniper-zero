@@ -216,10 +216,40 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 
 
 def ensure_config() -> None:
-    if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
-        from scripts import quick_setup
+    cfg_file = ROOT / "config.toml"
+    if not cfg_file.exists():
+        template = ROOT / "config.minimal.toml"
+        if template.exists():
+            shutil.copy(template, cfg_file)
 
-        quick_setup.main(["--auto"])
+    import tomllib
+    try:
+        import tomli_w  # type: ignore
+    except ImportError:  # pragma: no cover - optional dependency
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "tomli-w"])
+            import tomli_w  # type: ignore
+        except Exception as exc:  # pragma: no cover - installation failure
+            print(f"Failed to install 'tomli-w': {exc}")
+            raise SystemExit(1)
+
+    from solhunter_zero.config import apply_env_overrides, validate_config
+
+    if cfg_file.exists():
+        with cfg_file.open("rb") as fh:
+            cfg = tomllib.load(fh)
+    else:
+        cfg = {}
+
+    cfg = apply_env_overrides(cfg)
+    try:
+        cfg = validate_config(cfg)
+    except ValueError as exc:  # pragma: no cover - config validation
+        print(f"Invalid configuration: {exc}")
+        raise SystemExit(1)
+
+    with cfg_file.open("wb") as fh:
+        fh.write(tomli_w.dumps(cfg).encode("utf-8"))
 
 
 def ensure_wallet_cli() -> None:
