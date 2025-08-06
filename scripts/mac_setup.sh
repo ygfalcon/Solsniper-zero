@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! xcode-select -p >/dev/null 2>&1; then
+    echo "Installing Xcode command line tools..."
+    xcode-select --install
+    exit 1  # prompt user to re-run after installation
+fi
+
 # Change to repository root
 cd "$(dirname "$0")/.."
 
