@@ -14,6 +14,8 @@ except Exception:  # pragma: no cover - optional dependency
     faiss = None
     SentenceTransformer = None
 
+from .device import detect_gpu
+
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 
 
@@ -26,15 +28,9 @@ def _detect_gpu() -> bool:
         except Exception:
             pass
     try:
-        import torch
-
-        if torch.cuda.is_available():
-            return True
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return True
+        return detect_gpu()
     except Exception:
-        pass
-    return False
+        return False
 
 
 def _gpu_index_enabled() -> bool:
@@ -47,9 +43,7 @@ def _gpu_index_enabled() -> bool:
     if not _HAS_FAISS_GPU:
         return False
     try:
-        import torch
-
-        return bool(torch.cuda.is_available())
+        return detect_gpu()
     except Exception:
         return False
 from sqlalchemy import (

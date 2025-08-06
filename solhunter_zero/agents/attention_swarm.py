@@ -17,15 +17,7 @@ import numpy as np
 
 from ..regime import detect_regime
 from ..advanced_memory import AdvancedMemory
-
-
-def select_device(device: str) -> torch.device:
-    """Return a torch.device, auto-selecting GPU when requested."""
-    if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    elif device != "cpu" and not torch.cuda.is_available():
-        device = "cpu"
-    return torch.device(device)
+from ..device import select_device, detect_gpu
 
 
 class AttentionSwarm(nn.Module):
@@ -147,7 +139,7 @@ def train_attention_swarm(
     """Fit an :class:`AttentionSwarm` from ``memory`` trades."""
 
     X, y = make_training_data(memory, agents, window=window, seq_len=seq_len)
-    if device != "cpu" and not torch.cuda.is_available():
+    if device != "cpu" and not detect_gpu():
         device = "cpu"
     X = X.to(device)
     y = y.to(device)
@@ -177,7 +169,7 @@ def save_model(model: AttentionSwarm, path: str) -> None:
 
 
 def load_model(path: str, *, device: str = "cpu") -> AttentionSwarm:
-    if device != "cpu" and not torch.cuda.is_available():
+    if device != "cpu" and not detect_gpu():
         device = "cpu"
     obj = torch.load(path, map_location=device)
     cfg = obj.get("cfg", {})

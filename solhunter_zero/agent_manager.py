@@ -38,6 +38,7 @@ from .swarm_coordinator import SwarmCoordinator
 from .agents.attention_swarm import AttentionSwarm, load_model
 from .agents.rl_weight_agent import RLWeightAgent
 from .agents.hierarchical_rl_agent import HierarchicalRLAgent
+from .device import detect_gpu
 from .hierarchical_rl import SupervisorAgent
 from .regime import detect_regime
 from . import mutation
@@ -193,8 +194,7 @@ class AgentManager:
         if self.use_attention_swarm and attention_model_path:
             try:
                 attn_device = os.getenv(
-                    "ATTENTION_SWARM_DEVICE",
-                    "cuda" if torch.cuda.is_available() else "cpu",
+                    "ATTENTION_SWARM_DEVICE", "cuda" if detect_gpu() else "cpu"
                 )
                 self.attention_swarm = load_model(attention_model_path, device=attn_device)
             except Exception:
@@ -443,8 +443,7 @@ class AgentManager:
         if attn_path is not None:
             try:
                 attn_device = os.getenv(
-                    "ATTENTION_SWARM_DEVICE",
-                    "cuda" if torch.cuda.is_available() else "cpu",
+                    "ATTENTION_SWARM_DEVICE", "cuda" if detect_gpu() else "cpu"
                 )
                 self.attention_swarm = load_model(str(attn_path), device=attn_device)
             except Exception:
