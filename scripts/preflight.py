@@ -3,10 +3,8 @@
 
 from __future__ import annotations
 
-import importlib
 import os
 import platform
-import re
 import shutil
 import subprocess
 import sys
@@ -14,10 +12,7 @@ from pathlib import Path
 from typing import Callable, List, Tuple
 from urllib import error, request
 
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # pragma: no cover - only for very old Pythons
-    tomllib = None
+from scripts import deps
 
 
 Check = Tuple[bool, str]
@@ -32,35 +27,22 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
     )
 
 
-def _parse_dependencies() -> List[str]:
-    """Return a list of modules specified in pyproject.toml."""
-    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
-    if not pyproject.exists():
-        return []
-    if tomllib is None:
-        return []
-    with pyproject.open("rb") as fh:
-        data = tomllib.load(fh)
-    deps: List[str] = []
-    for entry in data.get("project", {}).get("dependencies", []):
-        name = re.split(r"[<>=\[]", entry, 1)[0].strip()
-        deps.append(name)
-    return deps
-
-
 def check_dependencies() -> Check:
-    """Attempt to import each dependency declared in pyproject.toml."""
-    missing: List[str] = []
-    for dep in _parse_dependencies():
-        module_name = dep.replace("-", "_")
-        if module_name == "scikit_learn":  # special case
-            module_name = "sklearn"
-        try:
-            importlib.import_module(module_name)
-        except Exception:
-            missing.append(dep)
-    if missing:
-        return False, f"Missing modules: {', '.join(sorted(missing))}"
+    """Report missing required and optional dependencies."""
+    missing_required, missing_optional = deps.check_deps()
+    parts: List[str] = []
+    if missing_required:
+        parts.append(
+            "Missing required modules: " + ", ".join(sorted(missing_required))
+        )
+    if missing_optional:
+        parts.append(
+            "Missing optional modules: " + ", ".join(sorted(missing_optional))
+        )
+    if missing_required:
+        return False, "; ".join(parts)
+    if parts:
+        return True, "; ".join(parts)
     return True, "All dependencies available"
 
 
