@@ -17,7 +17,7 @@ import numpy as np
 
 from ..regime import detect_regime
 from ..advanced_memory import AdvancedMemory
-from ..device import get_default_device, detect_gpu
+from ..device import get_default_device
 
 
 class AttentionSwarm(nn.Module):
@@ -134,13 +134,12 @@ def train_attention_swarm(
     lr: float = 1e-3,
     hidden_dim: int = 32,
     num_layers: int = 2,
-    device: str = "cpu",
+    device: str | None = None,
 ) -> AttentionSwarm:
     """Fit an :class:`AttentionSwarm` from ``memory`` trades."""
+    device = str(get_default_device(device))
 
     X, y = make_training_data(memory, agents, window=window, seq_len=seq_len)
-    if device != "cpu" and not detect_gpu():
-        device = "cpu"
     X = X.to(device)
     y = y.to(device)
     model = AttentionSwarm(
@@ -168,9 +167,8 @@ def save_model(model: AttentionSwarm, path: str) -> None:
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
 
 
-def load_model(path: str, *, device: str = "cpu") -> AttentionSwarm:
-    if device != "cpu" and not detect_gpu():
-        device = "cpu"
+def load_model(path: str, *, device: str | None = None) -> AttentionSwarm:
+    device = str(get_default_device(device))
     obj = torch.load(path, map_location=device)
     cfg = obj.get("cfg", {})
     model = AttentionSwarm(**cfg, device=device)
