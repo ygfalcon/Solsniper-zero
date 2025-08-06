@@ -5,9 +5,6 @@ from __future__ import annotations
 
 import sys
 
-if sys.version_info < (3, 11):
-    raise SystemExit("Python 3.11 or higher is required to run this script.")
-
 import argparse
 import os
 import platform
@@ -329,6 +326,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.one_click:
         args.skip_rpc_check = True
         rest = ["--non-interactive", *rest]
+
+    if sys.version_info < (3, 11):
+        print(
+            "Python 3.11 or higher is required. "
+            "Please install Python 3.11 following the instructions in README.md."
+        )
+        return 1
 
     if not args.skip_deps:
         ensure_deps()
