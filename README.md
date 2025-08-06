@@ -14,6 +14,7 @@ The default workflow is intentionally simple:
    On macOS, double-click `start.command` to invoke `run.sh` from the Finder.
    The script auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
+   All startup output is also appended to `startup.log` in the project directory for later inspection.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50&nbsp;GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).

@@ -2,6 +2,7 @@
 # This launcher finds a Python interpreter and ensures it is at least version 3.11.
 set -euo pipefail
 cd "$(dirname "$0")"
+exec > >(tee -a startup.log) 2>&1
 
 if command -v python3 >/dev/null; then
   PY=$(command -v python3)
