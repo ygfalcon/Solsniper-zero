@@ -190,6 +190,23 @@ def test_ensure_endpoints_failure(monkeypatch, capsys):
     assert "dex_base_url" in out
 
 
+def test_ensure_endpoints_failure_skipped(monkeypatch, capsys):
+    from scripts.startup import ensure_endpoints
+    import urllib.request, urllib.error
+
+    def fake_urlopen(req, timeout=5):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    cfg = {"dex_base_url": "https://dex.example"}
+
+    ensure_endpoints(cfg, skip=True)
+
+    out = capsys.readouterr().out.lower()
+    assert "dex_base_url" in out
+
+
 def test_main_calls_ensure_endpoints(monkeypatch):
     from scripts import startup
 
@@ -200,12 +217,30 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
-    monkeypatch.setattr(startup, "load_config", lambda: {"dex_base_url": "https://dex.example"})
-    monkeypatch.setattr(startup, "validate_config", lambda cfg: cfg)
+
+    def fake_endpoints(cfg, skip):
+        called["cfg"] = cfg
+        called["skip"] = skip
+
+    monkeypatch.setattr(startup, "ensure_endpoints", fake_endpoints)
+
+    import types, sys
+    dummy_cfg = types.SimpleNamespace(
+        load_config=lambda: {"dex_base_url": "https://dex.example"},
+        validate_config=lambda cfg: cfg,
+    )
+    sys.modules["solhunter_zero.config"] = dummy_cfg
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
     with pytest.raises(SystemExit):
         startup.main(["--skip-deps", "--skip-rpc-check"])
 
-    assert "endpoints" in called
+    assert called["cfg"] == {"dex_base_url": "https://dex.example"}
+    assert called["skip"] is False
+
+    called.clear()
+
+    with pytest.raises(SystemExit):
+        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-endpoints"])
+
+    assert called["skip"] is True

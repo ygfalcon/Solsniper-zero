@@ -12,12 +12,12 @@ import subprocess
 import shutil
 from pathlib import Path
 
-from scripts import deps
-
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
+
+from scripts import deps
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -243,7 +243,7 @@ def ensure_keypair() -> None:
         return
 
 
-def ensure_endpoints(cfg: dict) -> None:
+def ensure_endpoints(cfg: dict, skip: bool = False) -> None:
     """Ensure HTTP endpoints in ``cfg`` are reachable.
 
     The configuration may specify several service URLs such as
@@ -289,7 +289,13 @@ def ensure_endpoints(cfg: dict) -> None:
                     time.sleep(wait)
 
     if failed:
-        raise SystemExit(1)
+        if skip:
+            print(
+                "Continuing despite failed endpoint checks for: "
+                + ", ".join(failed)
+            )
+        else:
+            raise SystemExit(1)
 
 
 def ensure_rpc() -> None:
@@ -363,6 +369,11 @@ def main(argv: list[str] | None = None) -> int:
         "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
     )
     parser.add_argument(
+        "--skip-endpoints",
+        action="store_true",
+        help="Log endpoint check failures but continue",
+    )
+    parser.add_argument(
         "--one-click",
         action="store_true",
         help="Enable fully automated non-interactive startup",
@@ -399,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_config()
         cfg = load_config()
         cfg = validate_config(cfg)
-        ensure_endpoints(cfg)
+        ensure_endpoints(cfg, skip=args.skip_endpoints)
         ensure_keypair()
 
     if not args.skip_rpc_check:
