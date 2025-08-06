@@ -26,6 +26,30 @@ from solhunter_zero import device
 
 device.ensure_gpu_env()
 
+MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
+
+
+def rotate_preflight_log(
+    path: Path | None = None, max_bytes: int = MAX_PREFLIGHT_LOG_SIZE
+) -> None:
+    """Rotate or truncate the preflight log before writing new output.
+
+    When ``path`` exists and exceeds ``max_bytes`` it is moved to ``.1``.
+    Otherwise the file is truncated to start fresh for the current run.
+    """
+
+    path = path or ROOT / "preflight.log"
+    if not path.exists():
+        return
+    try:
+        if path.stat().st_size > max_bytes:
+            backup = path.with_suffix(path.suffix + ".1")
+            path.replace(backup)
+        else:
+            path.write_text("")
+    except OSError:
+        pass
+
 
 def ensure_venv(argv: list[str] | None) -> None:
     """Create a local virtual environment and re-invoke the script inside it.
@@ -805,6 +829,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run_preflight = args.one_click or not args.skip_preflight
     if run_preflight:
+        rotate_preflight_log()
         from scripts import preflight
 
         stdout_buf = io.StringIO()
