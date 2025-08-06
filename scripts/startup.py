@@ -143,8 +143,10 @@ def ensure_deps() -> None:
                 print(f"Failed to reinstall torch with Metal wheels: {exc}")
             importlib.reload(torch)
             if not torch.backends.mps.is_available():
-                print(
-                    "WARNING: MPS backend still not available; continuing with CPU."
+                raise SystemExit(
+                    "MPS backend still not available. Please install the Metal wheel manually:\n"
+                    "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url "
+                    "https://download.pytorch.org/whl/metal"
                 )
 
     if opt:
