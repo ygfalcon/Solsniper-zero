@@ -9,9 +9,11 @@ This project is targeted towards being the greatest Solana bot ever created and 
 
 The default workflow is intentionally simple:
 
-1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) is bundled for out-of-the-box runs and can be funded directly.
-2. Load the keypair in the SolHunter GUI.
-3. Press **Start**.
+1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
+2. Run `./run.sh --auto` or toggle **Full Auto Mode** in the GUI for a fully automated launch.
+   The script auto-selects the sole keypair and active configuration, validates RPC endpoints,
+   and warns if the wallet balance is below `min_portfolio_value`.
+3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50&nbsp;GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
 Control how often snapshots and trades are flushed to disk with `OFFLINE_BATCH_SIZE` and `OFFLINE_FLUSH_INTERVAL`.
@@ -534,12 +536,9 @@ profit calculation so routes are ranked based on the borrowed size.
    ```
    The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
-Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`. The `make start` target is a convenient shortcut.
+Running `scripts/startup.py` handles these steps interactively and forwards any options to `./run.sh --auto`, which performs a fully automated launch using the bundled defaults.
 
-   This loads the selected configuration (or the `config.highrisk.toml` preset
-   when none is chosen). If there is exactly one keypair in `keypairs/`, `run.sh`
-   uses it automatically. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI does the
-   same.
+   The script loads the active configuration (falling back to `config.highrisk.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
 
    You can still run the bot manually with explicit options:
    ```bash
@@ -1482,6 +1481,13 @@ python -m grpc_tools.protoc -I proto --python_out=solhunter_zero proto/event.pro
 This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
 
 ## Troubleshooting
+
+### Preflight checks
+
+- **RPC unreachable** — ensure `SOLANA_RPC_URL` points to a healthy endpoint and that outbound network access is available.
+- **Wallet balance too low** — fund the default keypair or lower `min_portfolio_value` in `config.toml`.
+
+### General issues
 
 - **Permission denied when connecting to the socket** — check that
   `DEPTH_SERVICE_SOCKET` points to a writable location and that the Rust

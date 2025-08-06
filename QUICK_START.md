@@ -1,9 +1,11 @@
 # Quick Start
 
+- A default keypair (`keypairs/default.json`) and configuration (`config.toml`) are bundled for immediate runs.
+- Copy `config.example.toml` to `config.toml` if you need to customize the defaults.
 - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
-- Run `cp config.example.toml config.toml` and edit the values.
-- Set `AUTO_SELECT_KEYPAIR=1` to always use a single keypair.
-- Execute `./run.sh --auto` to start trading automatically; `depth_service` runs in the background.
+- Execute `./run.sh --auto` for a fully automated launch. It auto-selects the sole keypair and active config,
+  verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
+- Set `AUTO_SELECT_KEYPAIR=1` to have the Web UI pick the single keypair automatically.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py` (includes `depth_service`).
@@ -33,3 +35,8 @@ python scripts/investor_demo.py --full-system --reports reports
 
 All modes emit the same report files and console snippets. The `reports/`
 directory is ignored by Git so these generated files remain local.
+
+## Troubleshooting Preflight Checks
+
+- **RPC unreachable** — ensure `SOLANA_RPC_URL` points to a healthy endpoint and that your network allows outbound requests.
+- **Wallet balance too low** — fund the default keypair or lower `min_portfolio_value` in `config.toml`.
