@@ -156,6 +156,23 @@ PY
     exit 1
 fi
 
+if [ -n "${SOLANA_RPC_URL:-}" ]; then
+    python - <<'PY'
+import os, sys, urllib.request
+url = os.environ["SOLANA_RPC_URL"]
+if url.startswith("ws://"):
+    url = "http://" + url[5:]
+elif url.startswith("wss://"):
+    url = "https://" + url[6:]
+try:
+    req = urllib.request.Request(url, method="HEAD")
+    urllib.request.urlopen(req, timeout=5)
+except Exception as e:
+    print(f"Error: SOLANA_RPC_URL '{os.environ['SOLANA_RPC_URL']}' is unreachable: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+fi
+
 if ! command -v cargo >/dev/null 2>&1; then
     echo "Installing Rust toolchain via rustup..."
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh ||
