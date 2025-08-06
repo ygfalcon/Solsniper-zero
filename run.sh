@@ -248,6 +248,11 @@ if [ ! -f "solhunter_zero/$libfile" ]; then
         fi
         exit 1
     fi
+    if [ "$uname_s" = "Darwin" ]; then
+        if ! codesign --force --sign - solhunter_zero/libroute_ffi.dylib; then
+            echo "Warning: failed to codesign libroute_ffi.dylib. Please run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib' manually." >&2
+        fi
+    fi
 fi
 
 run_cargo_build --manifest-path depth_service/Cargo.toml --release
