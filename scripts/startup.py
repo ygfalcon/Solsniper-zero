@@ -19,6 +19,13 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 
+QUIET = False
+
+
+def step(msg: str) -> None:
+    if not QUIET:
+        print(f"[step] {msg}")
+
 
 def ensure_venv(argv: list[str] | None) -> None:
     """Create a local virtual environment and re-invoke the script inside it.
@@ -35,7 +42,7 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     venv_dir = ROOT / ".venv"
     if not venv_dir.exists():
-        print("Creating virtual environment in .venv...")
+        step("Creating virtual environment in .venv...")
         subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
 
     if Path(sys.prefix) != venv_dir:
@@ -46,12 +53,13 @@ def ensure_venv(argv: list[str] | None) -> None:
 
 
 def ensure_deps() -> None:
+    step("Checking dependencies...")
     req, opt = deps.check_deps()
     if not req and not opt:
         return
 
     if req:
-        print("Installing required dependencies...")
+        step("Installing required dependencies...")
         try:
             subprocess.check_call(
                 [sys.executable, "-m", "pip", "install", ".[uvloop]"]
@@ -61,7 +69,7 @@ def ensure_deps() -> None:
             raise SystemExit(exc.returncode)
 
     if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
-        print(
+        step(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
         try:
@@ -91,7 +99,7 @@ def ensure_deps() -> None:
             raise SystemExit(1)
 
     if opt:
-        print("Installing optional dependencies...")
+        step("Installing optional dependencies...")
         mapping = {
             "faiss": "faiss-cpu",
             "sentence_transformers": "sentence-transformers",
@@ -150,6 +158,7 @@ def ensure_deps() -> None:
 
 
 def ensure_config() -> None:
+    step("Ensuring configuration file...")
     if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
         from scripts import quick_setup
 
@@ -165,7 +174,7 @@ def ensure_wallet_cli() -> None:
     if shutil.which("solhunter-wallet") is not None:
         return
 
-    print("'solhunter-wallet' command not found. Installing the package...")
+    step("'solhunter-wallet' command not found. Installing the package...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "."])
     except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
@@ -180,6 +189,7 @@ def ensure_wallet_cli() -> None:
 
 
 def ensure_keypair() -> None:
+    step("Ensuring keypair...")
     from solhunter_zero import wallet
 
     keypairs = wallet.list_keypairs()
@@ -188,7 +198,7 @@ def ensure_keypair() -> None:
         if len(keypairs) == 1 and active is None:
             name = keypairs[0]
             wallet.select_keypair(name)
-            print(f"Automatically selected keypair '{name}'.")
+            step(f"Automatically selected keypair '{name}'.")
         return
 
     mnemonic = os.environ.get("MNEMONIC")
@@ -196,7 +206,7 @@ def ensure_keypair() -> None:
     if not mnemonic and not keypair_json:
         ensure_wallet_cli()
         script = Path(__file__).with_name("setup_default_keypair.sh")
-        print(
+        step(
             "No keypairs found and no MNEMONIC/KEYPAIR_JSON provided.\n"
             f"Running '{script}' to generate a default keypair."
         )
@@ -215,17 +225,17 @@ def ensure_keypair() -> None:
         mnemonic_out = result.stdout.strip()
         if mnemonic_out:
             os.environ.setdefault("MNEMONIC", mnemonic_out)
-            print(f"Generated mnemonic: {mnemonic_out}")
+            step(f"Generated mnemonic: {mnemonic_out}")
         name = wallet.get_active_keypair_name() or "default"
-        print(f"Automatically generated keypair '{name}' and selected it.")
+        step(f"Automatically generated keypair '{name}' and selected it.")
         return
 
-    print("No keypairs found in 'keypairs/' directory.")
+    step("No keypairs found in 'keypairs/' directory.")
     ensure_wallet_cli()
     if keypair_json:
         subprocess.check_call(["solhunter-wallet", "save", "default", keypair_json])
         subprocess.check_call(["solhunter-wallet", "select", "default"])
-        print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
+        step("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         return
 
     if mnemonic:
@@ -239,7 +249,7 @@ def ensure_keypair() -> None:
             passphrase,
         ])
         subprocess.check_call(["solhunter-wallet", "select", "default"])
-        print("Keypair saved from MNEMONIC and selected as 'default'.")
+        step("Keypair saved from MNEMONIC and selected as 'default'.")
         return
 
 
@@ -256,6 +266,7 @@ def ensure_endpoints(cfg: dict) -> None:
     import urllib.request
     import time
 
+    step("Checking external service endpoints...")
     urls: dict[str, str] = {}
     if cfg.get("birdeye_api_key"):
         urls["BirdEye"] = "https://public-api.birdeye.so/defi/tokenlist"
@@ -294,11 +305,12 @@ def ensure_endpoints(cfg: dict) -> None:
 
 def ensure_rpc() -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
+    step("Checking Solana RPC endpoint...")
     rpc_url = os.environ.get(
         "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
     )
     if not os.environ.get("SOLANA_RPC_URL"):
-        print(f"Using default RPC URL {rpc_url}")
+        step(f"Using default RPC URL {rpc_url}")
 
     import json
     import urllib.request
@@ -329,6 +341,7 @@ def ensure_rpc() -> None:
 
 
 def ensure_cargo() -> None:
+    step("Ensuring Rust toolchain...")
     if shutil.which("cargo") is None:
         if platform.system() == "Darwin":
             try:
@@ -342,7 +355,7 @@ def ensure_cargo() -> None:
                     "Xcode command line tools are required. Install them with 'xcode-select --install'."
                 )
                 raise SystemExit(1)
-        print("Installing Rust toolchain via rustup...")
+        step("Installing Rust toolchain via rustup...")
         subprocess.check_call(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
             shell=True,
@@ -354,6 +367,10 @@ def ensure_cargo() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    args_list = sys.argv[1:] if argv is None else argv
+    global QUIET
+    QUIET = "--quiet" in args_list
+
     ensure_venv(argv)
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")
@@ -372,7 +389,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Allow running under Rosetta (no Metal acceleration)",
     )
-    args, rest = parser.parse_known_args(argv)
+    parser.add_argument("--quiet", action="store_true", help="Suppress step messages")
+    args, rest = parser.parse_known_args(args_list)
+    QUIET = args.quiet
 
     if args.one_click:
         args.skip_rpc_check = True
