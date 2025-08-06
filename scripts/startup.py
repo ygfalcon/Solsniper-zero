@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+import sys
+
+if sys.version_info < (3, 11):
+    raise SystemExit("Python 3.11 or higher is required to run this script.")
+
 import argparse
 import os
 import platform
 import subprocess
-import sys
 import shutil
 from pathlib import Path
 
