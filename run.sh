@@ -41,72 +41,8 @@ EOF
     fi
 fi
 
-check_deps() {
-    "$PY" scripts/deps.py "$@"
-}
-
-set +e
-missing_opt_json=$(check_deps)
-deps_status=$?
-set -e
-if [ $deps_status -ne 0 ]; then
-    missing_opt=$("$PY" - "$missing_opt_json" <<'PY'
-import json,sys
-print(' '.join(json.loads(sys.argv[1]).get("optional", [])))
-PY
-)
-    missing_extras=$("$PY" - "$missing_opt_json" <<'PY'
-import json,sys
-mods=set(json.loads(sys.argv[1]).get("optional", []))
-extras=[]
-if 'orjson' in mods:
-    extras.append('fastjson')
-if {'lz4','zstandard'} & mods:
-    extras.append('fastcompress')
-if 'msgpack' in mods:
-    extras.append('msgpack')
-print(','.join(extras))
-PY
-)
-    echo "Installing dependencies..."
-    command -v pip >/dev/null 2>&1 || { echo "pip not found" >&2; exit 1; }
-    if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
-        "$PY" - <<'EOF'
-import importlib.util, sys
-sys.exit(0 if importlib.util.find_spec('torch') else 1)
-EOF
-        if [ $? -ne 0 ]; then
-            "$PY" -m pip install torch==2.1.0 torchvision==0.16.0 \
-              --extra-index-url https://download.pytorch.org/whl/metal
-        fi
-    fi
-    if [ -n "$missing_extras" ]; then
-        "$PY" -m pip install ".[${missing_extras}]"
-    else
-        "$PY" -m pip install .
-    fi
-    if [ -n "$missing_opt" ]; then
-        echo "Installed optional modules: $missing_opt"
-    fi
-fi
-
-set +e
-post_check_json=$(check_deps)
-post_check_status=$?
-set -e
-if [ $post_check_status -ne 0 ]; then
-    "$PY" - "$post_check_json" <<'PY'
-import json,sys
-data=json.loads(sys.argv[1])
-req=data.get("required", [])
-opt=data.get("optional", [])
-if req:
-    print("Missing required modules: " + ' '.join(req))
-if opt:
-    print("Missing optional modules: " + ' '.join(opt))
-PY
-    exit 1
-fi
+# Ensure Python dependencies are installed
+"$PY" scripts/deps.py --install
 
 # Detect if a GPU is present before moving FAISS indexes to GPU memory
 if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
