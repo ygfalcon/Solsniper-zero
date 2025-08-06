@@ -122,18 +122,31 @@ fi
 
 if [ -n "${SOLANA_RPC_URL:-}" ]; then
     "$PY" - <<'PY'
-import os, sys, urllib.request
+import os, sys, urllib.request, time
 url = os.environ["SOLANA_RPC_URL"]
 if url.startswith("ws://"):
     url = "http://" + url[5:]
 elif url.startswith("wss://"):
     url = "https://" + url[6:]
-try:
-    req = urllib.request.Request(url, method="HEAD")
-    urllib.request.urlopen(req, timeout=5)
-except Exception as e:
-    print(f"Error: SOLANA_RPC_URL '{os.environ['SOLANA_RPC_URL']}' is unreachable: {e}", file=sys.stderr)
-    sys.exit(1)
+req = urllib.request.Request(url, method="HEAD")
+for attempt in range(3):
+    try:
+        urllib.request.urlopen(req, timeout=5)
+        break
+    except Exception as e:
+        if attempt == 2:
+            print(
+                f"Error: SOLANA_RPC_URL '{os.environ['SOLANA_RPC_URL']}' is unreachable: {e}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        wait = 2**attempt
+        print(
+            f"Attempt {attempt + 1} failed to reach SOLANA_RPC_URL at {url}: {e}.",
+            f" Retrying in {wait} seconds...",
+            file=sys.stderr,
+        )
+        time.sleep(wait)
 PY
 fi
 
