@@ -2,14 +2,8 @@ from __future__ import annotations
 
 import os
 
-from scripts.startup import (
-    ensure_venv,
-    ensure_deps,
-    ensure_config,
-    ensure_keypair,
-    ensure_route_ffi,
-    ensure_depth_service,
-)
+from scripts.startup import ensure_venv, ensure_deps, ensure_config, ensure_keypair
+from scripts.build_rust import ensure_rust_components
 
 
 def bootstrap(one_click: bool = False) -> None:
@@ -32,5 +26,4 @@ def bootstrap(one_click: bool = False) -> None:
         ensure_config()
         ensure_keypair()
 
-    ensure_route_ffi()
-    ensure_depth_service()
+    ensure_rust_components()

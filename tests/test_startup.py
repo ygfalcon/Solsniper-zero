@@ -482,8 +482,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rust_components", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
@@ -591,7 +590,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rust_components", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
 
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
@@ -655,7 +654,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rust_components", lambda: None)
 
     monkeypatch.setattr(
         startup.subprocess,
