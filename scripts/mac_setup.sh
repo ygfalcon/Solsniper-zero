@@ -54,6 +54,10 @@ if ! command -v brew >/dev/null 2>&1; then
   fi
 fi
 
+# Refresh Homebrew environment for the current shell.
+# This is idempotent and safe even if Homebrew was already installed.
+eval "$(brew shellenv)"
+
 # Update Homebrew and install packages
 brew update
 brew install python@3.11 rustup-init pkg-config cmake protobuf
