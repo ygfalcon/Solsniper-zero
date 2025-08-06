@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pkgutil
 import re
 from pathlib import Path
@@ -14,6 +15,8 @@ except ModuleNotFoundError:  # pragma: no cover - should not happen
     import tomli as tomllib  # type: ignore
 
 ROOT = Path(__file__).resolve().parent.parent
+
+logger = logging.getLogger(__name__)
 
 OPTIONAL_DEPS = [
     "faiss",
@@ -42,7 +45,7 @@ def check_deps() -> tuple[list[str], list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     req, opt = check_deps()
-    print(json.dumps({"required": req, "optional": opt}))
+    logger.info(json.dumps({"required": req, "optional": opt}))
     return 1 if req or opt else 0
 
 

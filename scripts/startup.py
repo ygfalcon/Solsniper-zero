@@ -6,14 +6,24 @@ from __future__ import annotations
 import sys
 
 import argparse
+import logging
 import os
 import platform
-import subprocess
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
 from scripts import deps
+
+
+formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+file_handler = logging.FileHandler("startup.log")
+file_handler.setFormatter(formatter)
+logging.basicConfig(level=logging.INFO, handlers=[console_handler, file_handler])
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -58,15 +68,15 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     if venv_dir.exists():
         if not python.exists() or not os.access(str(python), os.X_OK):
-            print("Virtual environment missing interpreter; recreating .venv...")
+            logger.info("Virtual environment missing interpreter; recreating .venv...")
             shutil.rmtree(venv_dir)
 
     if not venv_dir.exists():
-        print("Creating virtual environment in .venv...")
+        logger.info("Creating virtual environment in .venv...")
         try:
             subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv: {exc}")
+            logger.error("Failed to create .venv: %s", exc)
             raise SystemExit(1)
 
     if Path(sys.prefix) != venv_dir:
@@ -87,14 +97,18 @@ def _pip_install(*args: str, retries: int = 3) -> None:
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
             wait = 2 ** (attempt - 1)
-            print(
-                f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
+            logger.warning(
+                "pip install %s failed (attempt %d/%d). Retrying in %d seconds...",
+                " ".join(args),
+                attempt,
+                retries,
+                wait,
             )
             time.sleep(wait)
-    print(f"Failed to install {' '.join(args)} after {retries} attempts:")
+    logger.error("Failed to install %s after %d attempts:", " ".join(args), retries)
     for err in errors:
         if err:
-            print(err)
+            logger.error(err)
     raise SystemExit(result.returncode)
 
 
@@ -102,10 +116,9 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     req, opt = deps.check_deps()
     if not req and not install_optional:
         if opt:
-            print(
-                "Optional modules missing: "
-                + ", ".join(opt)
-                + " (features disabled)."
+            logger.warning(
+                "Optional modules missing: %s (features disabled).",
+                ", ".join(opt),
             )
         return
 
@@ -121,21 +134,28 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                 subprocess.check_call(
                     [sys.executable, "-m", "ensurepip", "--default-pip"]
                 )
-            except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-                print(f"Failed to bootstrap pip: {exc}")
+            except (
+                subprocess.CalledProcessError
+            ) as exc:  # pragma: no cover - hard failure
+                logger.error("Failed to bootstrap pip: %s", exc)
                 raise SystemExit(exc.returncode)
             else:
                 subprocess.check_call([sys.executable, "-m", "pip", "--version"])
         else:  # pragma: no cover - unexpected failure
-            print(f"Failed to invoke pip: {pip_check.stderr.strip()}")
+            logger.error("Failed to invoke pip: %s", pip_check.stderr.strip())
             raise SystemExit(pip_check.returncode)
 
     if req:
-        print("Installing required dependencies...")
+        logger.info("Installing required dependencies...")
         _pip_install(".[uvloop]")
 
-    if install_optional and "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
-        print(
+    if (
+        install_optional
+        and "torch" in opt
+        and platform.system() == "Darwin"
+        and platform.machine() == "arm64"
+    ):
+        logger.info(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
         _pip_install(
@@ -146,12 +166,16 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         )
         opt.remove("torch")
 
-    if install_optional and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if (
+        install_optional
+        and platform.system() == "Darwin"
+        and platform.machine() == "arm64"
+    ):
         import importlib
         import torch
 
         if not torch.backends.mps.is_available():
-            print(
+            logger.warning(
                 "MPS backend not available; attempting to reinstall Metal wheel..."
             )
             try:
@@ -163,7 +187,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                     "https://download.pytorch.org/whl/metal",
                 )
             except SystemExit:
-                print("Failed to reinstall torch with Metal wheels.")
+                logger.warning("Failed to reinstall torch with Metal wheels.")
             importlib.reload(torch)
             if not torch.backends.mps.is_available():
                 raise SystemExit(
@@ -173,7 +197,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                 )
 
     if install_optional and opt:
-        print("Installing optional dependencies...")
+        logger.info("Installing optional dependencies...")
         mapping = {
             "faiss": "faiss-cpu",
             "sentence_transformers": "sentence-transformers",
@@ -201,22 +225,23 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     req_after, opt_after = deps.check_deps()
     missing_opt = list(opt_after)
     if req_after:
-        print(
-            "Missing required dependencies after installation: "
-            + ", ".join(req_after)
+        logger.error(
+            "Missing required dependencies after installation: %s",
+            ", ".join(req_after),
         )
     if missing_opt:
-        print(
-            "Optional modules missing: "
-            + ", ".join(missing_opt)
-            + " (features disabled)."
+        logger.warning(
+            "Optional modules missing: %s (features disabled).",
+            ", ".join(missing_opt),
         )
     if req_after:
         raise SystemExit(1)
 
 
 def ensure_config() -> None:
-    if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
+    if not any(
+        Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")
+    ):
         from scripts import quick_setup
 
         quick_setup.main(["--auto"])
@@ -231,15 +256,19 @@ def ensure_wallet_cli() -> None:
     if shutil.which("solhunter-wallet") is not None:
         return
 
-    print("'solhunter-wallet' command not found. Installing the package...")
+    logger.info("'solhunter-wallet' command not found. Installing the package...")
     try:
         _pip_install(".")
     except SystemExit:
-        print("Failed to install 'solhunter-wallet'. Please run 'pip install .' manually.")
+        logger.error(
+            "Failed to install 'solhunter-wallet'. Please run 'pip install .' manually."
+        )
         raise
 
     if shutil.which("solhunter-wallet") is None:
-        print("'solhunter-wallet' still not available after installation. Aborting.")
+        logger.error(
+            "'solhunter-wallet' still not available after installation. Aborting."
+        )
         raise SystemExit(1)
 
 
@@ -262,13 +291,15 @@ def ensure_default_keypair() -> None:
             ["bash", str(setup_script)], capture_output=True, text=True, check=True
         )
     except (OSError, subprocess.CalledProcessError) as exc:
-        print(f"Failed to run {setup_script}: {exc}")
+        logger.error("Failed to run %s: %s", setup_script, exc)
         raise SystemExit(1)
 
     mnemonic = result.stdout.strip()
     if mnemonic:
-        print(f"Generated mnemonic: {mnemonic}")
-        print("Please store this mnemonic securely; it will not be shown again.")
+        logger.info("Generated mnemonic: %s", mnemonic)
+        logger.warning(
+            "Please store this mnemonic securely; it will not be shown again."
+        )
 
 
 def ensure_keypair() -> None:
@@ -286,7 +317,7 @@ def ensure_keypair() -> None:
         if len(keypairs) == 1 and active is None:
             name = keypairs[0]
             wallet.select_keypair(name)
-            print(f"Automatically selected keypair '{name}'.")
+            logger.info("Automatically selected keypair '%s'.", name)
         return
 
     mnemonic = os.environ.get("MNEMONIC")
@@ -300,16 +331,18 @@ def ensure_keypair() -> None:
         subprocess.check_call(_wallet_cmd("select", "default"))
         os.environ.setdefault("MNEMONIC", mnemonic)
         name = wallet.get_active_keypair_name() or "default"
-        print(f"Generated mnemonic: {mnemonic}")
-        print("Please store this mnemonic securely; it will not be shown again.")
-        print(f"Automatically generated keypair '{name}' and selected it.")
+        logger.info("Generated mnemonic: %s", mnemonic)
+        logger.warning(
+            "Please store this mnemonic securely; it will not be shown again."
+        )
+        logger.info("Automatically generated keypair '%s' and selected it.", name)
         return
 
-    print("No keypairs found in 'keypairs/' directory.")
+    logger.warning("No keypairs found in 'keypairs/' directory.")
     if keypair_json:
         subprocess.check_call(_wallet_cmd("save", "default", keypair_json))
         subprocess.check_call(_wallet_cmd("select", "default"))
-        print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
+        logger.info("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         return
 
     if mnemonic:
@@ -318,7 +351,7 @@ def ensure_keypair() -> None:
             _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
         )
         subprocess.check_call(_wallet_cmd("select", "default"))
-        print("Keypair saved from MNEMONIC and selected as 'default'.")
+        logger.info("Keypair saved from MNEMONIC and selected as 'default'.")
         return
 
 
@@ -354,16 +387,22 @@ def ensure_endpoints(cfg: dict) -> None:
                     break
             except urllib.error.URLError as exc:  # pragma: no cover - network failure
                 if attempt == 2:
-                    print(
-                        f"Failed to reach {name} at {url} after 3 attempts: {exc}."
-                        " Check your network connection or configuration."
+                    logger.error(
+                        "Failed to reach %s at %s after 3 attempts: %s. Check your network connection or configuration.",
+                        name,
+                        url,
+                        exc,
                     )
                     failed.append(name)
                 else:
                     wait = 2**attempt
-                    print(
-                        f"Attempt {attempt + 1} failed for {name} at {url}: {exc}."
-                        f" Retrying in {wait} seconds..."
+                    logger.warning(
+                        "Attempt %d failed for %s at %s: %s. Retrying in %d seconds...",
+                        attempt + 1,
+                        name,
+                        url,
+                        exc,
+                        wait,
                     )
                     time.sleep(wait)
 
@@ -373,11 +412,9 @@ def ensure_endpoints(cfg: dict) -> None:
 
 def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
-    rpc_url = os.environ.get(
-        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-    )
+    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
     if not os.environ.get("SOLANA_RPC_URL"):
-        print(f"Using default RPC URL {rpc_url}")
+        logger.info("Using default RPC URL %s", rpc_url)
 
     import json
     import urllib.request
@@ -399,31 +436,33 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
                     " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
                 )
                 if warn_only:
-                    print(f"Warning: {msg}")
+                    logger.warning("%s", msg)
                     return
-                print(msg)
+                logger.error(msg)
                 raise SystemExit(1)
             wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}.",
-                f" Retrying in {wait} seconds...",
+            logger.warning(
+                "Attempt %d failed to contact Solana RPC at %s: %s. Retrying in %d seconds...",
+                attempt + 1,
+                rpc_url,
+                exc,
+                wait,
             )
             time.sleep(wait)
+
 
 def ensure_cargo() -> None:
     installed = False
     if shutil.which("cargo") is None:
         if shutil.which("curl") is None:
-            print(
-                "curl is required to install the Rust toolchain. "
-                "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
+            logger.error(
+                "curl is required to install the Rust toolchain. Install it (e.g., with Homebrew: 'brew install curl') and re-run this script."
             )
             raise SystemExit(1)
         if platform.system() == "Darwin":
             if shutil.which("brew") is None:
-                print(
-                    "Homebrew is required to install the Rust toolchain. "
-                    "Install it by running scripts/mac_setup.sh and re-run this script.",
+                logger.error(
+                    "Homebrew is required to install the Rust toolchain. Install it by running scripts/mac_setup.sh and re-run this script."
                 )
                 raise SystemExit(1)
             try:
@@ -433,22 +472,24 @@ def ensure_cargo() -> None:
                     stderr=subprocess.DEVNULL,
                 )
             except subprocess.CalledProcessError:
-                print(
+                logger.info(
                     "Xcode command line tools are required. Launching installer..."
                 )
                 try:
                     subprocess.check_call(["xcode-select", "--install"])
-                except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-                    print(
-                        f"Failed to start Xcode command line tools installer: {exc}"
+                except (
+                    subprocess.CalledProcessError
+                ) as exc:  # pragma: no cover - hard failure
+                    logger.error(
+                        "Failed to start Xcode command line tools installer: %s",
+                        exc,
                     )
                 else:
-                    print(
-                        "The installer may prompt for confirmation; "
-                        "after it finishes, re-run this script to resume."
+                    logger.info(
+                        "The installer may prompt for confirmation; after it finishes, re-run this script to resume."
                     )
                 raise SystemExit(1)
-        print("Installing Rust toolchain via rustup...")
+        logger.info("Installing Rust toolchain via rustup...")
         subprocess.check_call(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
             shell=True,
@@ -459,19 +500,15 @@ def ensure_cargo() -> None:
     try:
         subprocess.check_call(["cargo", "--version"], stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:
-        print("Failed to run 'cargo --version'. Is Rust installed correctly?")
+        logger.error("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
-    if (
-        installed
-        and platform.system() == "Darwin"
-        and platform.machine() == "arm64"
-    ):
+    if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
         subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
         except subprocess.CalledProcessError as exc:
-            print("Failed to list rust targets. Is rustup installed correctly?")
+            logger.error("Failed to list rust targets. Is rustup installed correctly?")
             raise SystemExit(exc.returncode)
         if "aarch64-apple-darwin" not in targets:
             subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
@@ -479,23 +516,29 @@ def ensure_cargo() -> None:
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
         if platform.system() == "Darwin" and shutil.which("brew") is not None:
-            print(
-                f"Missing {', '.join(missing)}. Attempting to install with Homebrew..."
+            logger.info(
+                "Missing %s. Attempting to install with Homebrew...",
+                ", ".join(missing),
             )
             try:
                 subprocess.check_call(["brew", "install", "pkg-config", "cmake"])
             except subprocess.CalledProcessError as exc:
-                print(f"Homebrew installation failed: {exc}")
+                logger.error("Homebrew installation failed: %s", exc)
             else:
                 missing = [
-                    tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None
+                    tool
+                    for tool in ("pkg-config", "cmake")
+                    if shutil.which(tool) is None
                 ]
         if missing:
             names = " and ".join(missing)
             brew = " ".join(missing)
-            print(
-                f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
-                f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
+            logger.error(
+                "%s %s required to build native extensions. Install %s (e.g., with Homebrew: 'brew install %s') and re-run this script.",
+                names,
+                "are" if len(missing) > 1 else "is",
+                "them" if len(missing) > 1 else "it",
+                brew,
             )
             raise SystemExit(1)
 
@@ -510,7 +553,9 @@ def ensure_route_ffi() -> None:
     ``aarch64-apple-darwin`` to match the host architecture.
     """
 
-    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libname = (
+        "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    )
     libpath = ROOT / "solhunter_zero" / libname
     if libpath.exists():
         return
@@ -521,12 +566,12 @@ def ensure_route_ffi() -> None:
                 ["rustup", "target", "list", "--installed"], text=True
             )
         except subprocess.CalledProcessError as exc:
-            print("Failed to verify rust targets. Is rustup installed correctly?")
+            logger.error(
+                "Failed to verify rust targets. Is rustup installed correctly?"
+            )
             raise SystemExit(exc.returncode)
         if "aarch64-apple-darwin" not in installed_targets:
-            subprocess.check_call(
-                ["rustup", "target", "add", "aarch64-apple-darwin"]
-            )
+            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
 
     cmd = [
         "cargo",
@@ -551,19 +596,21 @@ def ensure_route_ffi() -> None:
             break
 
     if not libpath.exists():
-        print(f"Warning: failed to locate built {libname}; please build manually.")
+        logger.warning("failed to locate built %s; please build manually.", libname)
     elif platform.system() == "Darwin":
         try:
-            subprocess.check_call([
-                "codesign",
-                "--force",
-                "--sign",
-                "-",
-                str(libpath),
-            ])
+            subprocess.check_call(
+                [
+                    "codesign",
+                    "--force",
+                    "--sign",
+                    "-",
+                    str(libpath),
+                ]
+            )
         except subprocess.CalledProcessError:
-            print(
-                "Warning: failed to codesign libroute_ffi.dylib; please run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib' manually."
+            logger.warning(
+                "failed to codesign libroute_ffi.dylib; please run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib' manually."
             )
 
 
@@ -589,15 +636,21 @@ def main(argv: list[str] | None = None) -> int:
     ensure_venv(argv)
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")
-    parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
+    parser.add_argument(
+        "--skip-deps", action="store_true", help="Skip dependency check"
+    )
     parser.add_argument(
         "--full-deps",
         action="store_true",
         help="Install optional dependencies",
     )
-    parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
     parser.add_argument(
-        "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
+        "--skip-setup", action="store_true", help="Skip config and wallet prompts"
+    )
+    parser.add_argument(
+        "--skip-rpc-check",
+        action="store_true",
+        help="Skip Solana RPC availability check",
     )
     parser.add_argument(
         "--skip-endpoint-check",
@@ -636,16 +689,15 @@ def main(argv: list[str] | None = None) -> int:
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
 
     if sys.version_info < (3, 11):
-        print(
-            "Python 3.11 or higher is required. "
-            "Please install Python 3.11 following the instructions in README.md."
+        logger.error(
+            "Python 3.11 or higher is required. Please install Python 3.11 following the instructions in README.md."
         )
         return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        logger.warning("Running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
+            logger.info("Use '--allow-rosetta' to continue anyway.")
             return 1
 
     if not args.skip_deps:
@@ -706,11 +758,11 @@ def main(argv: list[str] | None = None) -> int:
             code = exc.code if isinstance(exc.code, int) else 1
             if code:
                 return code
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    logger.info("Startup summary:")
+    logger.info("  Config file: %s", config_path or "none")
+    logger.info("  Active keypair: %s", active_keypair or "none")
+    logger.info("  GPU device: %s", gpu_device)
+    logger.info("  RPC endpoint: %s (%s)", rpc_url, rpc_status)
     os.execv(
         sys.executable,
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
