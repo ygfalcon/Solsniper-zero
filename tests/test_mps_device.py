@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import torch
@@ -13,38 +14,38 @@ def test_get_default_device_mps(monkeypatch):
     assert getattr(device_module.get_default_device(), "type", None) == "mps"
 
 
-def _extract_has_gpu() -> str:
-    run_sh = Path(__file__).resolve().parent.parent / "run.sh"
-    lines = run_sh.read_text().splitlines()
-    start = next(i for i, line in enumerate(lines) if line.strip().startswith("has_gpu()"))
-    func_lines = [lines[start]]
-    depth = lines[start].count("{") - lines[start].count("}")
-    for line in lines[start + 1:]:
-        func_lines.append(line)
-        depth += line.count("{") - line.count("}")
-        if depth == 0:
-            break
-    return "\n".join(func_lines)
+def test_cli_detects_mps(tmp_path):
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
 
+    (stubs / "platform.py").write_text("def system():\n    return 'Darwin'\n")
+    (stubs / "torch.py").write_text(
+        """
+class _Cuda:
+    @staticmethod
+    def is_available():
+        return False
 
-def test_run_sh_detects_mps(tmp_path):
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    uname = bin_dir / "uname"
-    uname.write_text("#!/bin/sh\necho Darwin\n")
-    uname.chmod(0o755)
-    system_profiler = bin_dir / "system_profiler"
-    system_profiler.write_text("#!/bin/sh\necho 'Vendor: Apple'\necho 'Metal: Supported'\n")
-    system_profiler.chmod(0o755)
+class _Mps:
+    @staticmethod
+    def is_available():
+        return True
+
+class _Backends:
+    mps = _Mps()
+
+cuda = _Cuda()
+backends = _Backends()
+"""
+    )
 
     env = os.environ.copy()
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["GPU_VENDOR"] = "apple"
+    env["PYTHONPATH"] = f"{stubs}:{Path.cwd()}:{env.get('PYTHONPATH', '')}"
 
-    script = _extract_has_gpu() + "\nif has_gpu; then echo yes; else echo no; fi"
-    result = subprocess.run([
-        "bash",
-        "-c",
-        script,
-    ], capture_output=True, text=True, env=env, check=True)
-    assert result.stdout.strip() == "yes"
+    result = subprocess.run(
+        [sys.executable, "-m", "solhunter_zero.device", "--check-gpu"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0
