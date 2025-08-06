@@ -89,7 +89,7 @@ def main() -> None:
     p.add_argument("--db", default="offline_data.db")
     p.add_argument("--model", default="ppo_model.pt")
     p.add_argument("--interval", type=float, default=3600.0)
-    p.add_argument("--device", default=None)
+    p.add_argument("--device", default="auto")
     args = p.parse_args()
 
     device = select_device(args.device)

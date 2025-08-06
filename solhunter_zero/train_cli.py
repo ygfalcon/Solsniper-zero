@@ -3,6 +3,7 @@ import asyncio
 from .rl_daemon import RLDaemon, parameter_server
 from .http import close_session
 from .util import install_uvloop
+from .device import select_device
 
 install_uvloop()
 
@@ -15,11 +16,13 @@ async def main() -> None:
     p.add_argument("--policy", default="mlp", choices=["mlp", "transformer"], help="Policy network type")
     p.add_argument("--interval", type=float, default=3600.0)
     p.add_argument("--num-workers", type=int, default=None, help="Data loader workers")
-    p.add_argument("--device", default=None)
+    p.add_argument("--device", default="auto")
     p.add_argument("--daemon", action="store_true", help="Run in background")
     p.add_argument("--distributed", action="store_true", help="Enable distributed training")
     p.add_argument("--parameter-server", action="store_true", help="Run parameter server")
     args = p.parse_args()
+
+    device = select_device(args.device)
 
     if args.parameter_server:
         sub = parameter_server()
@@ -38,7 +41,7 @@ async def main() -> None:
         model_path=args.model,
         algo=args.algo,
         policy=args.policy,
-        device=args.device,
+        device=device,
         distributed_rl=args.distributed,
     )
     daemon.start(args.interval)

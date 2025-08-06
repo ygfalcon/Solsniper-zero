@@ -4,6 +4,7 @@ import asyncio
 from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
+from solhunter_zero.device import select_device
 
 
 async def main() -> None:
@@ -12,12 +13,14 @@ async def main() -> None:
     parser.add_argument("--model", default="dqn_model.pt")
     parser.add_argument("--interval", type=float, default=60.0)
     parser.add_argument("--replay", default="sqlite:///replay.db")
-    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--device", default="auto")
     args = parser.parse_args()
+
+    device = select_device(args.device)
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)
-    agent = DQNAgent(memory_agent=mem_agent, model_path=args.model, replay_url=args.replay, device=args.device)
+    agent = DQNAgent(memory_agent=mem_agent, model_path=args.model, replay_url=args.replay, device=device)
     agent.start_online_learning(interval=args.interval)
     await asyncio.Event().wait()
 
