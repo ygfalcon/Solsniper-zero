@@ -350,6 +350,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Enable fully automated non-interactive startup",
     )
+    parser.add_argument(
+        "--allow-rosetta",
+        action="store_true",
+        help="Allow running under Rosetta (no Metal acceleration)",
+    )
     args, rest = parser.parse_known_args(argv)
 
     if args.one_click:
@@ -362,6 +367,12 @@ def main(argv: list[str] | None = None) -> int:
             "Please install Python 3.11 following the instructions in README.md."
         )
         return 1
+
+    if platform.system() == "Darwin" and platform.machine() == "x86_64":
+        print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        if not args.allow_rosetta:
+            print("Use '--allow-rosetta' to continue anyway.")
+            return 1
 
     if not args.skip_deps:
         ensure_deps()
