@@ -124,9 +124,14 @@ def check_gpu() -> Check:
         except Exception:  # pragma: no cover - torch is optional
             torch = None  # type: ignore
         if platform.system() == "Darwin" and os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-            return False, "PYTORCH_ENABLE_MPS_FALLBACK=1 not set"
+            return False, (
+                "PYTORCH_ENABLE_MPS_FALLBACK=1 not set; "
+                "export PYTORCH_ENABLE_MPS_FALLBACK=1"
+            )
         if not device.detect_gpu():
-            return False, "No GPU backend detected"
+            return False, (
+                "No GPU backend detected; install the PyTorch Metal wheel"
+            )
         if torch is not None and torch.backends.mps.is_available():
             return True, "Metal GPU available"
         return True, "CUDA GPU available"
