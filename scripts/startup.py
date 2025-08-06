@@ -724,7 +724,6 @@ def ensure_depth_service() -> None:
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
-
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument(
         "--skip-deps", action="store_true", help="Skip dependency check"
@@ -800,6 +799,21 @@ def main(argv: list[str] | None = None) -> int:
         print("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
             print("Use '--allow-rosetta' to continue anyway.")
+            return 1
+
+    if platform.system() == "Darwin":
+        from scripts.mac_setup import prepare_macos_env
+
+        report = prepare_macos_env(non_interactive=True)
+        success = False
+        if isinstance(report, dict):
+            success = bool(report.get("success"))
+        else:
+            success = bool(report)
+        if not success:
+            print(
+                "macOS environment preparation failed. Please address the issues above and re-run."
+            )
             return 1
 
     from solhunter_zero.bootstrap import bootstrap
