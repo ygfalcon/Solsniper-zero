@@ -101,12 +101,18 @@ def check_network(url: str = "https://api.mainnet-beta.solana.com") -> Check:
 
 def check_gpu() -> Check:
     try:
-        from solhunter_zero.device import detect_gpu
-        if not detect_gpu():
-            return False, "CUDA GPU not available"
+        from solhunter_zero import device
+        try:
+            import torch  # type: ignore[import]
+        except Exception:  # pragma: no cover - torch is optional
+            torch = None  # type: ignore
+        if not device.detect_gpu():
+            return False, "No GPU backend detected"
+        if torch is not None and torch.backends.mps.is_available():
+            return True, "Metal GPU available"
+        return True, "CUDA GPU available"
     except Exception as exc:  # pragma: no cover - defensive
         return False, str(exc)
-    return True, "GPU available"
 
 
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
