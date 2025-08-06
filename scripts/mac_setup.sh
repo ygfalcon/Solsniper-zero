@@ -67,3 +67,16 @@ if command -v python3.11 >/dev/null 2>&1; then
   python3.11 -m pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal
 fi
 
+# Verify required tools are installed
+missing=()
+for tool in python3.11 brew rustup; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    missing+=("$tool")
+  fi
+done
+
+if (( ${#missing[@]} > 0 )); then
+  echo "Error: Missing required tool(s): ${missing[*]}" >&2
+  exit 1
+fi
+
