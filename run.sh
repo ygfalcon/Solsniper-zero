@@ -162,6 +162,7 @@ fi
 
 # Determine expected native library name based on platform
 uname_s=$(uname -s)
+uname_m=$(uname -m)
 case "$uname_s" in
     Darwin*) libfile="libroute_ffi.dylib" ;;
     MINGW*|MSYS*|CYGWIN*|Windows_NT*) libfile="route_ffi.dll" ;;
@@ -174,6 +175,10 @@ if [ ! -f "solhunter_zero/$libfile" ]; then
     cp "route_ffi/target/release/$libfile" solhunter_zero/ 2>/dev/null
     if [ ! -f "solhunter_zero/$libfile" ]; then
         echo "Error: $libfile was not copied to solhunter_zero." >&2
+        if [ "$uname_s" = "Darwin" ] && [ "$uname_m" = "arm64" ]; then
+            echo "Try building for macOS arm64 with:" >&2
+            echo "  cargo build --manifest-path route_ffi/Cargo.toml --release --target aarch64-apple-darwin" >&2
+        fi
         exit 1
     fi
 fi
