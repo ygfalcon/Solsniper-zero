@@ -17,6 +17,19 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
+
+if sys.version_info < (3, 11):
+    message = "Python 3.11 or higher is required."
+    if platform.system() == "Darwin":
+        message += (
+            " Run 'scripts/mac_setup.py --non-interactive' "
+            "to install Python 3.11."
+        )
+    else:
+        message += " Please install Python 3.11 and try again."
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from solhunter_zero import env  # noqa: E402
