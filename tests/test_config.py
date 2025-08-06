@@ -1,4 +1,6 @@
 import os
+import os
+
 from solhunter_zero.config import (
     load_config,
     apply_env_overrides,
@@ -6,6 +8,7 @@ from solhunter_zero.config import (
     load_dex_config,
     save_config,
     validate_config,
+    load_dotenv,
 )
 from solhunter_zero.event_bus import subscribe
 
@@ -59,6 +62,22 @@ def test_load_config_agents(tmp_path):
     cfg = load_config(str(path))
     assert cfg["agents"] == ["sim", "exit"]
     assert cfg["agent_weights"] == {"sim": 0.5, "exit": 1.0}
+
+
+def test_load_dotenv(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "FOO=bar\n"
+        "BIRDEYE_API_KEY=DOTENV\n"
+        "BAZ=qux # comment\n"
+        "#IGNORED=1\n"
+    )
+    monkeypatch.setenv("BAZ", "existing")
+    load_dotenv(env_file)
+    assert os.getenv("FOO") == "bar"
+    assert os.getenv("BIRDEYE_API_KEY") == "DOTENV"
+    assert os.getenv("BAZ") == "existing"
+    assert os.getenv("IGNORED") is None
 
 
 def test_env_var_overrides_default_search(tmp_path, monkeypatch):

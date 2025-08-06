@@ -479,6 +479,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        load_dotenv=lambda path=None: called.setdefault("dotenv", True),
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
@@ -497,6 +498,7 @@ def test_main_skips_endpoint_check(monkeypatch):
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
@@ -508,6 +510,7 @@ def test_main_skips_endpoint_check(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        load_dotenv=lambda path=None: called.setdefault("dotenv", True),
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
@@ -520,6 +523,40 @@ def test_main_skips_endpoint_check(monkeypatch):
         ])
 
     assert "endpoints" not in called
+
+
+def test_main_loads_dotenv(monkeypatch):
+    from scripts import startup
+    called: dict[str, object] = {}
+
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
+    monkeypatch.setattr(startup, "ensure_config", lambda: None)
+    monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
+    import types, sys
+    stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
+    monkeypatch.setitem(sys.modules, "torch", stub_torch)
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+
+    def fake_load_dotenv(path=None):
+        called["dotenv"] = path
+
+    conf = types.SimpleNamespace(
+        load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        validate_config=lambda cfg: cfg,
+        load_dotenv=fake_load_dotenv,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+
+    startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
+
+    assert "dotenv" in called
 
 
 def test_main_preflight_success(monkeypatch):
@@ -668,6 +705,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        load_dotenv=lambda path=None: None,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 

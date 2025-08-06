@@ -740,8 +740,9 @@ def main(argv: list[str] | None = None) -> int:
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
-        from solhunter_zero.config import load_config, validate_config
+        from solhunter_zero.config import load_config, validate_config, load_dotenv
 
+        load_dotenv()
         ensure_config()
         config_path = os.getenv("SOLHUNTER_CONFIG")
         if not config_path:

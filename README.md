@@ -167,6 +167,16 @@ strategy_rotation_interval: 0
 weight_config_paths: []
 ```
 
+Configuration values can come from three sources.  When duplicates exist the
+precedence is:
+
+1. Explicit command line flags
+2. Environment variables (including values loaded from a `.env` file)
+3. `config.toml` / `config.yaml`
+
+This allows quick overrides via `--flag value` or by dropping settings into a
+`.env` file without modifying your main configuration.
+
 Key discovery options:
 
 - `mempool_score_threshold` sets the minimum score for tokens observed in the

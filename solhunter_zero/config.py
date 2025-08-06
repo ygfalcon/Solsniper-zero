@@ -148,6 +148,31 @@ def _read_config_file(path: Path) -> dict:
     raise ValueError(f"Unsupported config format: {path}")
 
 
+def load_dotenv(path: str | os.PathLike = ".env") -> None:
+    """Load environment variables from a simple ``.env`` file.
+
+    Existing environment variables take precedence and will not be overwritten.
+    Lines beginning with ``#`` and blank lines are ignored. Inline ``#`` comments
+    are stripped. Quotes around values are removed.
+    """
+
+    p = Path(path)
+    if not p.exists():
+        return
+    with p.open("r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            line = line.split("#", 1)[0].strip()
+            if "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip().strip("'").strip('"')
+            os.environ.setdefault(key, val)
+
+
 def load_config(path: str | os.PathLike | None = None) -> dict:
     """Load configuration from ``path`` or default locations."""
     if path is None:
