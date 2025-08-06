@@ -10,6 +10,8 @@ import os
 import platform
 import subprocess
 import shutil
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 from scripts import deps
@@ -49,6 +51,13 @@ def ensure_deps() -> None:
     req, opt = deps.check_deps()
     if not req and not opt:
         return
+
+    try:
+        with urllib.request.urlopen("https://pypi.org", timeout=5):
+            pass
+    except urllib.error.URLError:
+        print("Network unreachable")
+        raise SystemExit(1)
 
     if req:
         print("Installing required dependencies...")
