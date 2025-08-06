@@ -37,6 +37,7 @@ def test_mac_startup_prereqs(monkeypatch):
     startup.ensure_venv([])
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
+    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     startup.ensure_deps()
 
     dummy_torch = types.SimpleNamespace(
@@ -271,8 +272,19 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
 
     calls: list[list[str]] = []
 
-    def fake_pip_install(*args):
-        calls.append([sys.executable, "-m", "pip", "install", *args])
+    def fake_install():
+        calls.append(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "torch==2.1.0",
+                "torchvision==0.16.0",
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/metal",
+            ]
+        )
 
     results = [
         ([], ["torch"]),
@@ -280,17 +292,10 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     ]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
-    import types, sys
-    dummy_torch = types.SimpleNamespace()
-    dummy_torch.backends = types.SimpleNamespace()
-    dummy_torch.backends.mps = types.SimpleNamespace()
-    dummy_torch.backends.mps.is_available = lambda: True
-    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
-
+    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     startup.ensure_deps(install_optional=True)
 
     assert calls == [
@@ -315,22 +320,31 @@ def test_ensure_deps_requires_mps(monkeypatch):
     def fake_pip_install(*args):
         calls.append([sys.executable, "-m", "pip", "install", *args])
 
-    results = [(["req"], [])]
+    def fake_install():
+        calls.append(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--force-reinstall",
+                "torch==2.1.0",
+                "torchvision==0.16.0",
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/metal",
+            ]
+        )
+        raise RuntimeError("install the Metal wheel manually")
+
+    results = [(["req"], []), ([], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
-    import types, sys, importlib
-    dummy_torch = types.SimpleNamespace()
-    dummy_torch.backends = types.SimpleNamespace()
-    dummy_torch.backends.mps = types.SimpleNamespace()
-    dummy_torch.backends.mps.is_available = lambda: False
-    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
-    monkeypatch.setattr(importlib, "reload", lambda mod: mod)
-
+    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     with pytest.raises(SystemExit) as excinfo:
         startup.ensure_deps(install_optional=True)
 

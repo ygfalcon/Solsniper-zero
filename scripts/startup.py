@@ -195,7 +195,12 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     if platform.system() == "Darwin":
         from scripts import mac_setup
 
-        mac_setup.ensure_tools()
+        report = mac_setup.ensure_tools()
+        if not report.get("success"):
+            print(
+                "macOS environment preparation failed. Please address the issues above and re-run.",
+            )
+            raise SystemExit(1)
     req, opt = deps.check_deps()
     if not req and not install_optional:
         if opt:
@@ -239,7 +244,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             device.ensure_torch_with_metal()
         except Exception as exc:
             print(str(exc))
-            raise SystemExit(1)
+            raise SystemExit(str(exc))
         if "torch" in opt:
             opt.remove("torch")
 
@@ -677,16 +682,6 @@ def main(argv: list[str] | None = None) -> int:
         print("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
             print("Use '--allow-rosetta' to continue anyway.")
-            return 1
-
-    if platform.system() == "Darwin":
-        from scripts import mac_setup
-
-        report = mac_setup.ensure_tools()
-        if not report.get("success"):
-            print(
-                "macOS environment preparation failed. Please address the issues above and re-run."
-            )
             return 1
 
     from solhunter_zero.bootstrap import bootstrap
