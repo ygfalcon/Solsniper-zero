@@ -2,6 +2,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Ensure script is running on arm64
+ARCH=$(uname -m)
+if [[ "$ARCH" != "arm64" ]]; then
+    echo "Error: unsupported architecture '$ARCH'; this script requires arm64." >&2
+    exit 1
+fi
+
 # Find a suitable Python interpreter
 if command -v python >/dev/null 2>&1; then
     PYTHON=python
@@ -14,5 +21,5 @@ else
     exit 1
 fi
 
-exec "$PYTHON" start.py --one-click --full-deps "$@"
+exec arch -arm64 "$PYTHON" start.py --one-click --full-deps "$@"
 
