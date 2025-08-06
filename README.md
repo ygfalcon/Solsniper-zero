@@ -210,6 +210,11 @@ forwards to the Python launcher for a fully automated start.
    pip install torch==2.1.0 torchvision==0.16.0 \
      --extra-index-url https://download.pytorch.org/whl/metal
    ```
+   Versions for these wheels can be overridden with the `torch_metal_version`
+   and `torchvision_metal_version` options in the `[torch]` section of
+   `config.toml` or the `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION`
+   environment variables.
+
 3. Enable CPU fallback for unsupported MPS operations:
    ```bash
    export PYTORCH_ENABLE_MPS_FALLBACK=1

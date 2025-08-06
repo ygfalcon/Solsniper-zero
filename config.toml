@@ -1,3 +1,7 @@
+[torch]
+torch_metal_version = "2.1.0"
+torchvision_metal_version = "0.16.0"
+
 birdeye_api_key = ""  # leaving it blank disables BirdEye integration until a real key is provided
 solana_rpc_url = "https://solana-mainnet.example.com"
 dex_base_url = "https://quote-api.jup.ag"  # public Jupiter endpoint; override for custom providers

@@ -13,8 +13,28 @@ METAL_EXTRA_INDEX = [
     "https://download.pytorch.org/whl/metal",
 ]
 
-TORCH_METAL_VERSION = "2.1.0"
-TORCHVISION_METAL_VERSION = "0.16.0"
+DEFAULT_TORCH_METAL_VERSION = "2.1.0"
+DEFAULT_TORCHVISION_METAL_VERSION = "0.16.0"
+
+def _load_torch_versions() -> tuple[str, str]:
+    torch_ver = os.getenv("TORCH_METAL_VERSION")
+    vision_ver = os.getenv("TORCHVISION_METAL_VERSION")
+    if torch_ver and vision_ver:
+        return torch_ver, vision_ver
+    try:
+        from .config import load_config
+        cfg = load_config()
+        torch_cfg = cfg.get("torch", {})
+        torch_ver = torch_ver or torch_cfg.get("torch_metal_version")
+        vision_ver = vision_ver or torch_cfg.get("torchvision_metal_version")
+    except Exception:
+        pass
+    return (
+        torch_ver or DEFAULT_TORCH_METAL_VERSION,
+        vision_ver or DEFAULT_TORCHVISION_METAL_VERSION,
+    )
+
+TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = _load_torch_versions()
 
 try:  # pragma: no cover - optional dependency
     import torch
