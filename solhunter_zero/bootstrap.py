@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import os
 
-from scripts.startup import (
-    ensure_venv,
+from solhunter_zero.bootstrap_utils import (
     ensure_deps,
-    ensure_keypair,
-    ensure_route_ffi,
     ensure_depth_service,
+    ensure_route_ffi,
+    ensure_venv,
 )
+from scripts.startup import ensure_keypair
 from .config_bootstrap import ensure_config
 from . import wallet
 
