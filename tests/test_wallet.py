@@ -97,12 +97,12 @@ def test_generate_default_keypair(tmp_path, monkeypatch):
     assert os.environ["MNEMONIC"] == mnemonic
 
 
-def test_ensure_default_keypair(tmp_path, monkeypatch):
+def test_setup_default_keypair(tmp_path, monkeypatch):
     setup_wallet(tmp_path, monkeypatch)
 
-    name, mnemonic_path = wallet.ensure_default_keypair()
+    info = wallet.setup_default_keypair()
 
-    assert name == "default"
-    assert mnemonic_path == tmp_path / "default.mnemonic"
+    assert info.name == "default"
+    assert info.mnemonic_path == tmp_path / "default.mnemonic"
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"

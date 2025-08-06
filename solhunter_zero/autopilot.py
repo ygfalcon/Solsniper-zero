@@ -42,10 +42,10 @@ def _stop_all(*_: object) -> None:
 
 def _ensure_keypair() -> None:
     try:
-        name, _ = wallet.ensure_default_keypair()
-        path = os.path.join(wallet.KEYPAIR_DIR, name + ".json")
+        info = wallet.setup_default_keypair()
+        path = os.path.join(wallet.KEYPAIR_DIR, info.name + ".json")
         os.environ["KEYPAIR_PATH"] = path
-        print(f"Using keypair: {name}")
+        print(f"Using keypair: {info.name}")
     except Exception as exc:
         print(
             f"Wallet interaction failed: {exc}\n"
