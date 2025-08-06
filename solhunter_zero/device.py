@@ -42,10 +42,10 @@ def detect_gpu() -> bool:
                 )
                 return False
             if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-                logging.getLogger(__name__).warning(
-                    "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; GPU unavailable"
+                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+                logging.getLogger(__name__).info(
+                    "Enabled PYTORCH_ENABLE_MPS_FALLBACK=1"
                 )
-                return False
             if not torch.backends.mps.is_available():
                 logging.getLogger(__name__).warning(
                     "MPS backend not available"
