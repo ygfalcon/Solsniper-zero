@@ -193,8 +193,9 @@ class AgentManager:
         self._attn_history: list[list[float]] = []
         if self.use_attention_swarm and attention_model_path:
             try:
+                gpu_available, _ = detect_gpu()
                 attn_device = os.getenv(
-                    "ATTENTION_SWARM_DEVICE", "cuda" if detect_gpu() else "cpu"
+                    "ATTENTION_SWARM_DEVICE", "cuda" if gpu_available else "cpu"
                 )
                 self.attention_swarm = load_model(attention_model_path, device=attn_device)
             except Exception:
@@ -442,8 +443,9 @@ class AgentManager:
         attn_path = cfg.get("attention_swarm_model")
         if attn_path is not None:
             try:
+                gpu_available, _ = detect_gpu()
                 attn_device = os.getenv(
-                    "ATTENTION_SWARM_DEVICE", "cuda" if detect_gpu() else "cpu"
+                    "ATTENTION_SWARM_DEVICE", "cuda" if gpu_available else "cpu"
                 )
                 self.attention_swarm = load_model(str(attn_path), device=attn_device)
             except Exception:

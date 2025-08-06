@@ -30,7 +30,8 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
-if device.detect_gpu() and torch and torch.backends.mps.is_available():
+gpu_available, _ = device.detect_gpu()
+if gpu_available and torch and torch.backends.mps.is_available():
     os.environ.setdefault("TORCH_DEVICE", "mps")
 
 

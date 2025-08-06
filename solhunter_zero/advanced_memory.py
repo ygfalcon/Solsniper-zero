@@ -28,7 +28,7 @@ def _detect_gpu() -> bool:
         except Exception:
             pass
     try:
-        return detect_gpu()
+        return detect_gpu()[0]
     except Exception:
         return False
 
@@ -43,7 +43,7 @@ def _gpu_index_enabled() -> bool:
     if not _HAS_FAISS_GPU:
         return False
     try:
-        return detect_gpu()
+        return detect_gpu()[0]
     except Exception:
         return False
 from sqlalchemy import (

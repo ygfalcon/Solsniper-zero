@@ -11,56 +11,54 @@ except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
 
-def detect_gpu() -> bool:
-    """Return ``True`` when a supported GPU backend is available.
+def detect_gpu() -> tuple[bool, str | None]:
+    """Return ``(available, message)`` about GPU support.
 
     The check prefers Apple's Metal backend (MPS) on macOS machines with
-    Apple Silicon and falls back to CUDA on other platforms.  Any import
-    errors or unsupported configurations are treated as absence of a GPU.
+    Apple Silicon and falls back to CUDA on other platforms.  When a
+    backend cannot be used the second tuple element describes why.
     """
 
     if torch is None:
-        logging.getLogger(__name__).warning("PyTorch is not installed; GPU unavailable")
-        return False
+        msg = "PyTorch is not installed; GPU unavailable"
+        logging.getLogger(__name__).warning(msg)
+        return False, msg
     try:
         system = platform.system()
         if system == "Darwin":
             machine = platform.machine()
             if machine == "x86_64":
-                logging.getLogger(__name__).warning(
-                    "Running under Rosetta (x86_64); GPU unavailable"
-                )
-                return False
+                msg = "Running under Rosetta (x86_64); GPU unavailable"
+                logging.getLogger(__name__).warning(msg)
+                return False, msg
             if not getattr(torch.backends, "mps", None):
-                logging.getLogger(__name__).warning(
-                    "MPS backend not present; GPU unavailable"
-                )
-                return False
+                msg = "MPS backend not present; GPU unavailable"
+                logging.getLogger(__name__).warning(msg)
+                return False, msg
             if not torch.backends.mps.is_built():
-                logging.getLogger(__name__).warning(
-                    "MPS backend not built; GPU unavailable"
-                )
-                return False
+                msg = "MPS backend not built; GPU unavailable"
+                logging.getLogger(__name__).warning(msg)
+                return False, msg
             if "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ:
                 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             elif os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-                logging.getLogger(__name__).warning(
-                    "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; GPU unavailable",
-                )
+                msg = "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; GPU unavailable"
+                logging.getLogger(__name__).warning(msg)
                 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+                return False, msg
             if not torch.backends.mps.is_available():
-                logging.getLogger(__name__).warning(
-                    "MPS backend not available"
-                )
-                return False
-            return True
+                msg = "MPS backend not available"
+                logging.getLogger(__name__).warning(msg)
+                return False, msg
+            return True, None
         if not torch.cuda.is_available():
-            logging.getLogger(__name__).warning("CUDA backend not available")
-            return False
-        return True
-    except Exception:
+            msg = "CUDA backend not available"
+            logging.getLogger(__name__).warning(msg)
+            return False, msg
+        return True, None
+    except Exception as exc:
         logging.getLogger(__name__).exception("Exception during GPU detection")
-        return False
+        return False, str(exc)
 
 
 def get_gpu_backend() -> str | None:
@@ -123,7 +121,7 @@ def _main() -> int:  # pragma: no cover - CLI helper
     parser.add_argument("--check-gpu", action="store_true", help="exit 0 if a GPU is available")
     args = parser.parse_args()
     if args.check_gpu:
-        return 0 if detect_gpu() else 1
+        return 0 if detect_gpu()[0] else 1
     return 0
 
 

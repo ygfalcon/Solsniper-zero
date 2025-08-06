@@ -115,7 +115,8 @@ class SupervisorAgent(BaseAgent):
 
     def __init__(self, checkpoint: str = "supervisor.json", device: str | None = None) -> None:
         self.checkpoint = checkpoint
-        self.device = device or ("cuda" if detect_gpu() else "cpu")
+        gpu_available, _ = detect_gpu()
+        self.device = device or ("cuda" if gpu_available else "cpu")
         self.policy: Dict[str, float] = {}
         self.model = None
         self._load()
