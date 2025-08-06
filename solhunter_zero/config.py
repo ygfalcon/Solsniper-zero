@@ -19,6 +19,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     yaml = None
 
+try:  # pragma: no cover - optional dependency
+    from dotenv import dotenv_values
+except Exception:  # fallback when python-dotenv is unavailable
+    dotenv_values = None
+
 
 ENV_VARS = {
     "birdeye_api_key": "BIRDEYE_API_KEY",
@@ -127,6 +132,35 @@ ENV_VARS = {
     "rl_build_mmap_dataset": "RL_BUILD_MMAP_DATASET",
     "rl_prefetch_buffer": "RL_PREFETCH_BUFFER",
 }
+
+
+def load_env_file(path: str | os.PathLike) -> dict[str, str]:
+    """Load environment variables from a ``.env`` style file.
+
+    Uses :mod:`python-dotenv` when available for robust parsing. Existing
+    variables in :data:`os.environ` are not overwritten.  Returns a mapping
+    of variables that were loaded.
+    """
+
+    p = Path(path)
+    if not p.exists():
+        return {}
+
+    data: dict[str, str]
+    if dotenv_values is not None:
+        data = {k: v for k, v in dotenv_values(p).items() if v is not None}
+    else:  # fallback simple parser
+        data = {}
+        for raw_line in p.read_text().splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            data[key.strip()] = value.strip().strip("'\"")
+
+    for key, value in data.items():
+        os.environ.setdefault(key, value)
+    return data
 
 
 def _publish(topic: str, payload: Any) -> None:

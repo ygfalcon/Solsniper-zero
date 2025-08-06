@@ -19,30 +19,12 @@ import json
 from scripts import deps
 
 ROOT = Path(__file__).resolve().parent.parent
-
-
-def _load_env_file(path: Path) -> None:
-    """Load ``KEY=VALUE`` pairs from ``path`` into ``os.environ``.
-
-    The parser is intentionally minimal: blank lines and ``#`` comments are
-    ignored and existing environment variables are left untouched.
-    """
-
-    if not path.exists():
-        return
-    for raw_line in path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip("'\"")
-        os.environ.setdefault(key, value)
-
-
-_load_env_file(ROOT / ".env")
-os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
+
+from solhunter_zero.config import load_env_file
+
+load_env_file(ROOT / ".env")
+os.chdir(ROOT)
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
 
