@@ -1,6 +1,9 @@
 # Testing
 
 Before running the test suite make sure all dependencies are installed.
+The helper scripts `start.command` and `run.sh` attempt to run with `python3.11`
+when available, falling back to `python` and exiting with an error if neither
+interpreter can be found.
 Install the package in editable mode with the development extras:
 
 ```bash
