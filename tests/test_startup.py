@@ -131,13 +131,13 @@ solana_keypair = "kp2"
     assert env1['SOLANA_KEYPAIR'] == 'kp1'
 
 
-def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
+def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
     import sys
+    import solhunter_zero
     sys.modules.pop("solhunter_zero.wallet", None)
-
-    inputs = iter(["", ""])  # path prompt, mnemonic prompt
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    if hasattr(solhunter_zero, "wallet"):
+        delattr(solhunter_zero, "wallet")
 
     from scripts.startup import ensure_keypair
 
@@ -145,9 +145,44 @@ def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
 
     from solhunter_zero import wallet
 
-    assert wallet.list_keypairs() == ["temp"]
-    assert wallet.get_active_keypair_name() == "temp"
-    assert (tmp_path / "temp.json").exists()
+    assert wallet.list_keypairs() == ["default"]
+    assert wallet.get_active_keypair_name() == "default"
+    assert (tmp_path / "default.json").exists()
+    mn = tmp_path / "default.mnemonic"
+    assert mn.exists()
+    assert mn.read_text().strip()
+    assert (mn.stat().st_mode & 0o777) == 0o600
+
+
+def test_ensure_keypair_from_json(tmp_path, monkeypatch):
+    monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
+    import sys
+    import solhunter_zero
+    sys.modules.pop("solhunter_zero.wallet", None)
+    if hasattr(solhunter_zero, "wallet"):
+        delattr(solhunter_zero, "wallet")
+
+    monkeypatch.delenv("MNEMONIC", raising=False)
+
+    import json
+    monkeypatch.setenv("KEYPAIR_JSON", json.dumps([0] * 64))
+
+    from scripts.startup import ensure_keypair
+
+    ensure_keypair()
+
+    sys.modules.pop("solhunter_zero.wallet", None)
+    if hasattr(solhunter_zero, "wallet"):
+        delattr(solhunter_zero, "wallet")
+    from solhunter_zero import wallet
+
+    from pathlib import Path
+
+    assert wallet.list_keypairs() == ["default"]
+    assert wallet.get_active_keypair_name() == "default"
+    assert (Path(wallet.KEYPAIR_DIR) / "default.json").exists()
+    # Mnemonic file should not be created when KEYPAIR_JSON provided
+    assert not (Path(wallet.KEYPAIR_DIR) / "default.mnemonic").exists()
 
 
 def test_ensure_deps_installs_optional(monkeypatch):
