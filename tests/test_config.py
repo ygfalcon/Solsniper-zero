@@ -5,6 +5,7 @@ from solhunter_zero.config import (
     set_env_from_config,
     load_dex_config,
     save_config,
+    validate_config,
 )
 from solhunter_zero.event_bus import subscribe
 
@@ -195,4 +196,26 @@ def test_get_event_bus_peers(monkeypatch):
     monkeypatch.delenv("EVENT_BUS_PEERS", raising=False)
     peers = get_event_bus_peers({"event_bus_peers": ["ws://c"]})
     assert peers == ["ws://c"]
+
+
+def test_validate_config_ok():
+    cfg = {
+        "solana_rpc_url": "http://local",
+        "dex_base_url": "http://dex",
+        "agents": ["a", "b"],
+        "agent_weights": {"a": 1.0, "b": 2.0},
+    }
+    validate_config(cfg)
+
+
+def test_validate_config_missing():
+    cfg = {
+        "dex_base_url": "http://dex",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
+    }
+    import pytest
+
+    with pytest.raises(ValueError):
+        validate_config(cfg)
 
