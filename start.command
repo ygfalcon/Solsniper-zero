@@ -19,6 +19,24 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
   exit 1
 fi
 
+# If SOLANA_RPC_URL is set, ensure it's reachable within timeout
+if [ -n "${SOLANA_RPC_URL:-}" ]; then
+  "$PY" - <<'PY'
+import os, sys, urllib.request
+url = os.environ["SOLANA_RPC_URL"]
+if url.startswith("ws://"):
+    url = "http://" + url[5:]
+elif url.startswith("wss://"):
+    url = "https://" + url[6:]
+try:
+    req = urllib.request.Request(url, method="HEAD")
+    urllib.request.urlopen(req, timeout=5)
+except Exception as e:
+    print(f"Error: SOLANA_RPC_URL '{os.environ['SOLANA_RPC_URL']}' is unreachable: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+fi
+
 # Enable MPS fallback when running on macOS
 if [ "$(uname -s)" = "Darwin" ]; then
   export PYTORCH_ENABLE_MPS_FALLBACK=1
