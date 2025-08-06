@@ -20,10 +20,8 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 
-if platform.system() == "Darwin" and platform.machine() == "arm64":
-    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-
 from solhunter_zero import device
+device.ensure_mps_fallback()
 
 try:  # pragma: no cover - optional dependency
     import torch

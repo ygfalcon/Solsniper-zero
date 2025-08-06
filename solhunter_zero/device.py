@@ -11,6 +11,30 @@ except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
 
+def ensure_mps_fallback() -> None:
+    """Ensure PyTorch can fall back to the CPU for unsupported MPS ops.
+
+    On Apple Silicon machines running macOS the MPS backend requires the
+    environment variable ``PYTORCH_ENABLE_MPS_FALLBACK`` to be set to ``"1"``
+    so that operations without an MPS implementation automatically execute on
+    the CPU.  This helper sets the variable when appropriate and warns when an
+    existing non-compliant value is overridden.
+    """
+
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return
+
+    if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1":
+        return
+
+    if "PYTORCH_ENABLE_MPS_FALLBACK" in os.environ:
+        logging.getLogger(__name__).warning(
+            "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; overriding",
+        )
+
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+
 def detect_gpu() -> bool:
     """Return ``True`` when a supported GPU backend is available.
 
@@ -33,24 +57,20 @@ def detect_gpu() -> bool:
                 return False
             if not getattr(torch.backends, "mps", None):
                 logging.getLogger(__name__).warning(
-                    "MPS backend not present; GPU unavailable"
+                    "MPS backend not present; GPU unavailable",
                 )
                 return False
             if not torch.backends.mps.is_built():
                 logging.getLogger(__name__).warning(
-                    "MPS backend not built; GPU unavailable"
+                    "MPS backend not built; GPU unavailable",
                 )
                 return False
-            if "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ:
-                os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-            elif os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-                logging.getLogger(__name__).warning(
-                    "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; GPU unavailable",
-                )
-                os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+            ensure_mps_fallback()
+
             if not torch.backends.mps.is_available():
                 logging.getLogger(__name__).warning(
-                    "MPS backend not available"
+                    "MPS backend not available",
                 )
                 return False
             return True
@@ -70,13 +90,8 @@ def get_gpu_backend() -> str | None:
         try:  # pragma: no cover - optional dependency
             mps_built = hasattr(torch, "backends") and hasattr(torch.backends, "mps")
             mps_available = mps_built and torch.backends.mps.is_available()
-            if mps_built and os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
-                logging.getLogger(__name__).warning(
-                    "MPS support detected but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'. "
-                    "Export PYTORCH_ENABLE_MPS_FALLBACK=1 to enable CPU fallback for unsupported ops."
-                )
             if mps_built:
-                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+                ensure_mps_fallback()
             if torch.cuda.is_available() or mps_available:
                 return "torch"
         except Exception:

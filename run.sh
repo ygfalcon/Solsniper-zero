@@ -20,13 +20,6 @@ PY
 
 export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 
-# On macOS, enable PyTorch's MPS fallback so unsupported ops run on the CPU
-if [ "$(uname -s)" = "Darwin" ]; then
-    # PYTORCH_ENABLE_MPS_FALLBACK=1 allows PyTorch to fall back to CPU for
-    # operations that are not implemented for Apple's MPS backend
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
-fi
-
 # Detect if a GPU is present before moving FAISS indexes to GPU memory
 if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
     if [ "$(uname -s)" != "Darwin" ]; then
