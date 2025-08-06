@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
+# Parse CLI flags
+SKIP_BUILD=false
+ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--skip-build" ]; then
+        SKIP_BUILD=true
+    else
+        ARGS+=("$arg")
+    fi
+done
+set -- "${ARGS[@]}"
+
 export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 
 # Ensure FAISS indexes are moved to GPU memory when available
@@ -91,16 +103,28 @@ if ! command -v cargo >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-    cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-    cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null
+if [ "$SKIP_BUILD" != true ]; then
     if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-        echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
+        if ! cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel; then
+            echo "Error: Failed to build libroute_ffi.so. Ensure the Rust toolchain is installed or run with --skip-build if you have a precompiled binary." >&2
+            exit 1
+        fi
+        if ! cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null; then
+            echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
+            exit 1
+        fi
+    fi
+
+    if ! cargo build --manifest-path depth_service/Cargo.toml --release; then
+        echo "Error: Failed to build depth_service. Use --skip-build to bypass compilation if binaries are available." >&2
+        exit 1
+    fi
+else
+    if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+        echo "Error: --skip-build specified but solhunter_zero/libroute_ffi.so not found." >&2
         exit 1
     fi
 fi
-
-cargo build --manifest-path depth_service/Cargo.toml --release
 
 python -m solhunter_zero.metrics_aggregator &
 AGG_PID=$!
