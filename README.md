@@ -944,13 +944,12 @@ takes roughly **1.2&nbsp;s** compared to **6.5&nbsp;s** on a Ryzen&nbsp;9 5900X
 
 `run.sh` now exports `GPU_MEMORY_INDEX=1` by default to copy the FAISS trade
 index to all available GPUs when supported. If the variable is unset the index
-automatically moves to a
-CUDA device when detected via FAISS or PyTorch. GPU detection includes NVIDIA
-(`nvidia-smi`) and AMD (`rocminfo`/`clinfo`) devices. You can override detection
-with `GPU_VENDOR=amd|nvidia` or force it with `FORCE_GPU=1`. Searching a 100k
-vector index drops from roughly **7&nbsp;ms** per query on CPU to **2&nbsp;ms** with a
-CUDA GPU. Set `FORCE_CPU_INDEX=1` to keep the index on CPU even when a GPU is
-present.
+automatically moves to a CUDA or Metal (MPS) device when detected. GPU detection
+uses `python -m solhunter_zero.device --check-gpu`, which exits with status 0
+when a compatible accelerator is present; run the command manually to verify
+detection. Searching a 100k vector index drops from roughly **7&nbsp;ms** per query on
+CPU to **2&nbsp;ms** with a CUDA GPU. Set `FORCE_CPU_INDEX=1` to keep the index on CPU
+even when a GPU is present.
 
 ## Usage
 Run the bot with:
