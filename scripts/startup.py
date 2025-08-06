@@ -13,8 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 os.environ.setdefault("DEPTH_SERVICE", "true")
-
-os.environ.setdefault("DEPTH_SERVICE", "true")
+os.environ.setdefault("SOLHUNTER_CONFIG", "config.toml")
 
 
 def check_deps() -> tuple[list[str], list[str]]:

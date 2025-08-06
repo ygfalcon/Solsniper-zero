@@ -2,6 +2,7 @@
 set -e
 
 export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
+export SOLHUNTER_CONFIG=${SOLHUNTER_CONFIG:-config.toml}
 
 # Ensure FAISS indexes are moved to GPU memory when available
 export GPU_MEMORY_INDEX="1"

@@ -2,6 +2,7 @@
 
 - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
 - Run `cp config.example.toml config.toml` and edit the values.
+- Set `SOLHUNTER_CONFIG` to use an alternate config file; defaults to `config.toml`.
 - Set `AUTO_SELECT_KEYPAIR=1` to always use a single keypair.
 - Execute `./run.sh --auto` to start trading automatically; `depth_service` runs in the background.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
