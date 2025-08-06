@@ -19,6 +19,15 @@ from ..regime import detect_regime
 from ..advanced_memory import AdvancedMemory
 
 
+def select_device(device: str) -> torch.device:
+    """Return a torch.device, auto-selecting GPU when requested."""
+    if device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif device != "cpu" and not torch.cuda.is_available():
+        device = "cpu"
+    return torch.device(device)
+
+
 class AttentionSwarm(nn.Module):
     """Tiny transformer predicting agent weights from ROI history."""
 
@@ -37,9 +46,7 @@ class AttentionSwarm(nn.Module):
         self.hidden_dim = int(hidden_dim)
         self.num_layers = int(num_layers)
 
-        if device != "cpu" and not torch.cuda.is_available():
-            device = "cpu"
-        self.device = torch.device(device)
+        self.device = select_device(device)
 
         input_dim = num_agents + 2
         nhead = max(1, min(4, input_dim))
