@@ -169,7 +169,8 @@ Key discovery options:
 ## macOS Setup
 
 macOS users can launch the bot using the bundled `start.command` script.
-Double‑clicking it opens a terminal, installs any missing dependencies and
+After installing the prerequisites below, double‑clicking it performs a
+one‑click launch: it opens a terminal, installs any missing dependencies and
 forwards to `./run.sh --auto` for a fully automated start.
 
 ### Required dependencies
@@ -178,14 +179,24 @@ forwards to `./run.sh --auto` for a fully automated start.
    ```bash
    xcode-select --install
    ```
-2. Install Homebrew packages with the helper script:
+2. Install an ARM64 Python 3.11:
+   ```bash
+   brew install python@3.11
+   ```
+3. Install Homebrew packages with the helper script:
    ```bash
    ./scripts/mac_setup.sh
    ```
-3. Install the Metal-enabled PyTorch build (for Apple Silicon):
+4. Install the Metal-enabled PyTorch build (for Apple Silicon):
    ```bash
    pip install torch==2.1.0 torchvision==0.16.0 \
      --extra-index-url https://download.pytorch.org/whl/metal
+   ```
+5. Verify Metal support:
+   ```bash
+   python - <<'PY'
+   import torch; print(torch.backends.mps.is_available())
+   PY
    ```
 
 ### Troubleshooting
@@ -195,7 +206,7 @@ forwards to `./run.sh --auto` for a fully automated start.
 - **`python` not found** – ensure Python 3.11 is installed and on your
   `PATH`.
 - **Torch missing MPS backend** – confirm the Metal wheel installed and that
-  macOS 13+ is in use. Validate with `python -c "import torch; print(torch.backends.mps.is_available())"`.
+  macOS 13+ is in use. Verify with the command above.
 - **Permission denied** – Gatekeeper may block the script; allow it via
   System Preferences or run from Terminal.
 
