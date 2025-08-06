@@ -90,11 +90,11 @@ def _run_rustup_setup(cmd, *, shell: bool = False, retries: int = 2) -> None:
             print("Rustup setup failed, retrying...")
 
 
-def ensure_config() -> None:
-    """Ensure a configuration file exists and is valid."""
+def ensure_config() -> Path:
+    """Ensure a configuration file exists and is valid and return its path."""
     from solhunter_zero.config_bootstrap import ensure_config as _ensure_config
 
-    _ensure_config()
+    return _ensure_config()
 
 
 def ensure_wallet_cli() -> None:
@@ -119,8 +119,12 @@ def ensure_wallet_cli() -> None:
         print("'solhunter-wallet' still not available after installation. Aborting.")
         raise SystemExit(1)
 
-def ensure_keypair() -> None:
-    """Ensure a usable keypair exists and is selected."""
+def ensure_keypair() -> tuple["wallet.KeypairInfo", Path]:
+    """Ensure a usable keypair exists and is selected.
+
+    Returns the :class:`~solhunter_zero.wallet.KeypairInfo` and path to the
+    JSON keypair file.
+    """
 
     import logging
     from pathlib import Path
@@ -153,7 +157,30 @@ def ensure_keypair() -> None:
     else:
         _msg(f"Using keypair '{name}'.")
 
-    return
+    return result, keypair_path
+
+
+def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | None = None,
+                     mnemonic_path: Path | None = None, active_keypair: str | None = None) -> None:
+    """Append startup details to ``startup.log``."""
+
+    lines: list[str] = []
+    if config_path:
+        lines.append(f"Config path: {config_path}")
+    if keypair_path:
+        lines.append(f"Keypair path: {keypair_path}")
+    if mnemonic_path:
+        lines.append(f"Mnemonic path: {mnemonic_path}")
+    if active_keypair:
+        lines.append(f"Active keypair: {active_keypair}")
+    if not lines:
+        return
+    try:
+        with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+            for line in lines:
+                fh.write(line + "\n")
+    except OSError:
+        pass
 
 
 def run_quick_setup() -> str | None:
@@ -484,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.full_deps:
         os.environ["SOLHUNTER_INSTALL_OPTIONAL"] = "1"
-    if args.skip_setup:
+    if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
@@ -531,6 +558,18 @@ def main(argv: list[str] | None = None) -> int:
 
     bootstrap(one_click=args.one_click)
 
+    config_path: Path | None = None
+    keypair_path: Path | None = None
+    mnemonic_path: Path | None = None
+    active_keypair: str | None = None
+
+    if args.one_click and not args.skip_setup:
+        cfg_path = ensure_config()
+        kp_info, keypair_path = ensure_keypair()
+        config_path = cfg_path
+        mnemonic_path = kp_info.mnemonic_path
+        active_keypair = kp_info.name
+
     gpu_env = device.ensure_gpu_env()
     gpu_available = "TORCH_DEVICE" in gpu_env
     gpu_device = str(device.get_default_device()) if gpu_available else "none"
@@ -546,8 +585,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
     os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
-    config_path: str | None = None
-    active_keypair: str | None = None
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
@@ -557,11 +594,17 @@ def main(argv: list[str] | None = None) -> int:
             find_config_file,
         )
 
-        config_path = find_config_file()
         if config_path is None:
-            config_path = run_quick_setup()
-        cfg = load_config(config_path)
-        cfg = validate_config(cfg)
+            cfg_path = find_config_file()
+            if cfg_path is None:
+                cfg_path = run_quick_setup()
+            if cfg_path is not None:
+                config_path = Path(cfg_path)
+        if config_path is not None:
+            cfg = load_config(config_path)
+            cfg = validate_config(cfg)
+        else:
+            cfg = {}
         if not args.skip_endpoint_check:
             ensure_endpoints(cfg)
         try:
@@ -569,8 +612,10 @@ def main(argv: list[str] | None = None) -> int:
         except SystemExit as exc:
             return exc.code if isinstance(exc.code, int) else 1
         from solhunter_zero import wallet
-
-        active_keypair = wallet.get_active_keypair_name()
+        if active_keypair is None:
+            active_keypair = wallet.get_active_keypair_name()
+        if keypair_path is None and active_keypair:
+            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
 
     if not args.skip_rpc_check:
         check_internet()
@@ -580,6 +625,12 @@ def main(argv: list[str] | None = None) -> int:
         rpc_status = "skipped"
 
     ensure_cargo()
+    log_startup_info(
+        config_path=config_path,
+        keypair_path=keypair_path,
+        mnemonic_path=mnemonic_path,
+        active_keypair=active_keypair,
+    )
     print("Startup summary:")
     print(f"  Config file: {config_path or 'none'}")
     print(f"  Active keypair: {active_keypair or 'none'}")
