@@ -20,6 +20,11 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
   exit 1
 fi
 
+# Detect available GPU and set Torch device accordingly
+if "$PY" -m solhunter_zero.device --check-gpu; then
+  export TORCH_DEVICE=mps
+fi
+
 # Configure Rayon thread pool if not already set
 if [ -z "${RAYON_NUM_THREADS:-}" ]; then
   if command -v nproc >/dev/null 2>&1; then
