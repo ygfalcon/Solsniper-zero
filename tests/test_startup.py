@@ -141,10 +141,20 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
 
     from scripts.startup import ensure_keypair
 
-    ensure_keypair()
-
     from solhunter_zero import wallet
 
+    calls = {"count": 0}
+    real = wallet.generate_default_keypair
+
+    def wrapped() -> tuple[str, Path]:
+        calls["count"] += 1
+        return real()
+
+    monkeypatch.setattr(wallet, "generate_default_keypair", wrapped)
+
+    ensure_keypair()
+
+    assert calls["count"] == 1
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"
     assert (tmp_path / "default.json").exists()
@@ -169,14 +179,14 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
 
     from scripts.startup import ensure_keypair
 
-    ensure_keypair()
-
-    sys.modules.pop("solhunter_zero.wallet", None)
-    if hasattr(solhunter_zero, "wallet"):
-        delattr(solhunter_zero, "wallet")
     from solhunter_zero import wallet
 
-    from pathlib import Path
+    def boom() -> tuple[str, Path]:
+        raise AssertionError("should not be called")
+
+    monkeypatch.setattr(wallet, "generate_default_keypair", boom)
+
+    ensure_keypair()
 
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"

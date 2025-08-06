@@ -1,6 +1,7 @@
 import json
 from .http import loads
 import os
+from pathlib import Path
 import aiofiles
 from solders.keypair import Keypair
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
@@ -140,3 +141,45 @@ def load_keypair_from_mnemonic(mnemonic: str, passphrase: str = "") -> Keypair:
         .ToBytes()
     )
     return Keypair.from_seed(secret)
+
+
+def generate_default_keypair() -> tuple[str, Path]:
+    """Generate and persist a default keypair derived from a mnemonic.
+
+    The mnemonic is either taken from the ``MNEMONIC`` environment variable or
+    a new 24-word phrase is generated.  The derived keypair is saved as
+    ``default.json`` within :data:`KEYPAIR_DIR` and selected as the active
+    keypair.  The mnemonic is written to ``default.mnemonic`` with permissions
+    ``600`` so only the current user can read it.
+
+    Returns
+    -------
+    tuple[str, Path]
+        The mnemonic and the path to the stored mnemonic file.
+    """
+
+    try:  # ``bip_utils`` is optional during tests
+        from bip_utils import Bip39MnemonicGenerator  # type: ignore
+    except Exception:  # pragma: no cover - fallback for stubbed module
+        Bip39MnemonicGenerator = None  # type: ignore
+
+    mnemonic = os.environ.get("MNEMONIC")
+    if not mnemonic:
+        if Bip39MnemonicGenerator:
+            mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
+        else:  # pragma: no cover - simple fallback for stubs
+            mnemonic = "abandon " * 23 + "abandon"
+
+    passphrase = os.environ.get("PASSPHRASE", "")
+    kp = load_keypair_from_mnemonic(mnemonic, passphrase)
+    save_keypair("default", list(kp.to_bytes()))
+    select_keypair("default")
+    os.environ.setdefault("MNEMONIC", mnemonic)
+
+    mnemonic_path = Path(KEYPAIR_DIR) / "default.mnemonic"
+    mnemonic_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(mnemonic_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(mnemonic + "\n")
+
+    return mnemonic, mnemonic_path

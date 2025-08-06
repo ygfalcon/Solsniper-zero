@@ -331,11 +331,6 @@ def ensure_keypair() -> None:
 
     from solhunter_zero import wallet
 
-    try:  # ``bip_utils`` is optional during tests
-        from bip_utils import Bip39MnemonicGenerator  # type: ignore
-    except Exception:  # pragma: no cover - fallback for stubbed module
-        Bip39MnemonicGenerator = None  # type: ignore
-
     log = logging.getLogger(__name__)
     one_click = os.getenv("AUTO_SELECT_KEYPAIR") == "1"
 
@@ -359,7 +354,6 @@ def ensure_keypair() -> None:
             _msg(f"Automatically selected keypair '{name}'.")
         return
 
-    mnemonic = os.environ.get("MNEMONIC")
     keypair_json = os.environ.get("KEYPAIR_JSON")
 
     # Skip mnemonic generation entirely when KEYPAIR_JSON is provided
@@ -376,23 +370,7 @@ def ensure_keypair() -> None:
         _msg("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         return
 
-    if not mnemonic:
-        if Bip39MnemonicGenerator:
-            mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
-        else:  # pragma: no cover - simple fallback for stubs
-            mnemonic = "abandon " * 23 + "abandon"
-    passphrase = os.environ.get("PASSPHRASE", "")
-    kp = wallet.load_keypair_from_mnemonic(mnemonic, passphrase)
-    wallet.save_keypair("default", list(kp.to_bytes()))
-    wallet.select_keypair("default")
-    os.environ.setdefault("MNEMONIC", mnemonic)
-
-    # Persist mnemonic with restricted permissions
-    mnemonic_path = Path(wallet.KEYPAIR_DIR) / "default.mnemonic"
-    mnemonic_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(mnemonic_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(mnemonic + "\n")
+    mnemonic, mnemonic_path = wallet.generate_default_keypair()
 
     _msg("Generated mnemonic and keypair 'default'.")
     _msg(f"Mnemonic stored at {mnemonic_path}.")
