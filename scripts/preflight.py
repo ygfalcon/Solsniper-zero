@@ -12,12 +12,16 @@ import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 from urllib import error
+import json
 
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - only for very old Pythons
     tomllib = None
 
+
+
+ROOT = Path(__file__).resolve().parent.parent
 
 Check = Tuple[bool, str]
 
@@ -33,7 +37,7 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
 
 def _parse_dependencies() -> List[str]:
     """Return a list of modules specified in pyproject.toml."""
-    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    pyproject = ROOT / "pyproject.toml"
     if not pyproject.exists():
         return []
     if tomllib is None:
@@ -193,12 +197,26 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
 
 def main() -> None:
     failures: List[Tuple[str, str]] = []
+    successes: List[Tuple[str, str]] = []
     for name, func in CHECKS:
         ok, msg = func()
         status = "OK" if ok else "FAIL"
         print(f"{name}: {status} - {msg}")
-        if not ok:
+        if ok:
+            successes.append((name, msg))
+        else:
             failures.append((name, msg))
+
+    data = {
+        "successes": [{"name": n, "message": m} for n, m in successes],
+        "failures": [{"name": n, "message": m} for n, m in failures],
+    }
+    try:
+        with open(ROOT / "preflight.json", "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+    except OSError:
+        pass
+
     if failures:
         print("\nSummary of failures:")
         for name, msg in failures:
