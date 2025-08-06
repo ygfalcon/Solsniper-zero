@@ -1,5 +1,7 @@
 import subprocess
 import sys
+from pathlib import Path
+import os
 
 import pytest
 
@@ -377,3 +379,57 @@ def test_main_preflight_failure(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
+
+
+def test_start_command_runs_mac_setup_on_xcode_failure(tmp_path):
+    """Ensure mac setup is invoked when xcode-select is missing."""
+    # Copy start.command into temporary directory
+    repo_root = Path(__file__).resolve().parents[1]
+    start_src = repo_root / "start.command"
+    start_cmd = tmp_path / "start.command"
+    start_cmd.write_text(start_src.read_text())
+    start_cmd.chmod(0o755)
+    # Minimal config files required by start.command
+    (tmp_path / "config.example.toml").write_text("")
+
+    # Provide stub scripts
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "startup.py").write_text("from pathlib import Path; Path('startup_ran').touch()\n")
+    (scripts_dir / "mac_setup.sh").write_text(
+        "#!/usr/bin/env bash\n"
+        "touch mac_setup_called\n"
+        "touch \"$XCODE_SUCCESS_FILE\"\n"
+    )
+    (scripts_dir / "mac_setup.sh").chmod(0o755)
+
+    fakebin = tmp_path / "fakebin"
+    fakebin.mkdir()
+    # xcode-select fails first until mac_setup.sh creates the success file
+    (fakebin / "xcode-select").write_text(
+        "#!/usr/bin/env bash\n"
+        "if [ -f \"$XCODE_SUCCESS_FILE\" ]; then\n"
+        "  echo '/tmp'; exit 0\n"
+        "else\n"
+        "  exit 1\n"
+        "fi\n"
+    )
+    (fakebin / "xcode-select").chmod(0o755)
+    # Report macOS
+    (fakebin / "uname").write_text("#!/usr/bin/env bash\necho Darwin\n")
+    (fakebin / "uname").chmod(0o755)
+    # Stub brew and rustup so dependency check passes
+    for cmd in ["brew", "rustup"]:
+        p = fakebin / cmd
+        p.write_text("#!/usr/bin/env bash\nexit 0\n")
+        p.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fakebin}:{env['PATH']}"
+    env["XCODE_SUCCESS_FILE"] = str(tmp_path / "xcode_ok")
+
+    result = subprocess.run([str(start_cmd)], cwd=tmp_path, env=env, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert (tmp_path / "mac_setup_called").exists()
+    assert (tmp_path / "startup_ran").exists()

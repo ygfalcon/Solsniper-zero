@@ -45,6 +45,15 @@ if [ ! -f "config.toml" ]; then
   echo "Created default config.toml from config.example.toml"
 fi
 
+# On macOS ensure Xcode command line tools are installed before dependency checks
+if [ "$(uname -s)" = "Darwin" ]; then
+  if ! xcode-select -p >/dev/null 2>&1; then
+    echo "Xcode command line tools not found. Running mac setup..."
+    scripts/mac_setup.sh || true
+    exec "$0" "$@"
+  fi
+fi
+
 if [ "$(uname -s)" = "Darwin" ]; then
   if ! command -v brew >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
     echo "Missing Homebrew or rustup. Running mac setup..."
