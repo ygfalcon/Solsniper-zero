@@ -423,6 +423,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.one_click:
         args.skip_rpc_check = True
         rest = ["--non-interactive", *rest]
+        os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
 
     if sys.version_info < (3, 11):
         print(
