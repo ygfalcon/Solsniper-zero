@@ -102,7 +102,17 @@ def get_config_file() -> str | None:
     for name in ("config.toml", "config.yaml", "config.yml"):
         if Path(name).is_file():
             return name
-    return None
+    # If no config is found, generate a default one via quick_setup
+    try:
+        from scripts import quick_setup
+
+        # Populate config with defaults
+        quick_setup.main(["--auto"])
+    except Exception as exc:
+        print(f"Failed to generate default config: {exc}", file=sys.stderr)
+        return None
+    # Re-run lookup after generation
+    return get_config_file()
 
 
 def stop_all(*_: object) -> None:

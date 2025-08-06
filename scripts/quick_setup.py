@@ -72,7 +72,7 @@ AUTO_DEFAULTS = {
 }
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Interactive helper to create or update config.toml for basic setup."
     )
@@ -86,7 +86,7 @@ def main() -> None:
         action="store_true",
         help="Run without prompts; use environment variables and defaults only.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.non_interactive:
         args.auto = True
