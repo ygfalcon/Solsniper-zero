@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -58,10 +59,11 @@ def main(argv: list[str] | None = None) -> "NoReturn":
     if platform.system() == "Darwin":
         threads = _cpu_count(python_exe)
         os.environ["RAYON_NUM_THREADS"] = str(threads)
-        cmd = ["arch", "-arm64", *cmd]
-        os.execvp(cmd[0], cmd)
-    else:
-        os.execvp(cmd[0], cmd)
+        arch = shutil.which("arch")
+        if arch:
+            cmd = [arch, "-arm64", *cmd]
+
+    os.execvp(cmd[0], cmd)
 
 
 if __name__ == "__main__":
