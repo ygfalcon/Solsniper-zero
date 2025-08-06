@@ -29,44 +29,24 @@ import numpy as np
 from . import onchain_metrics, models
 from .http import get_session
 from solhunter_zero.lru import TTLCache
+from .device import get_default_device
 
 # Optional GPU acceleration for simulations
 _use_gpu_env = os.getenv("USE_GPU_SIM")
-USE_GPU_SIM = _use_gpu_env is not None and str(_use_gpu_env).lower() in {
-    "1",
-    "true",
-    "yes",
-}
-_GPU_BACKEND = None
-try:  # pragma: no cover - optional dependency
+_GPU_BACKEND = get_default_device()
+if _use_gpu_env is not None:
+    USE_GPU_SIM = str(_use_gpu_env).lower() in {"1", "true", "yes"}
+    if not USE_GPU_SIM:
+        _GPU_BACKEND = None
+else:
+    USE_GPU_SIM = _GPU_BACKEND is not None
+
+torch = None  # type: ignore
+cp = None  # type: ignore
+if _GPU_BACKEND == "torch":  # pragma: no cover - optional dependency
     import torch  # type: ignore
-
-    _mps_available = (
-        hasattr(torch, "backends")
-        and hasattr(torch.backends, "mps")
-        and torch.backends.mps.is_available()
-    )
-    if torch.cuda.is_available() or _mps_available:
-        if _mps_available:
-            if os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1") != "1":
-                logging.getLogger(__name__).warning(
-                    "MPS is available but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'"
-                )
-        _GPU_BACKEND = "torch"
-        if _use_gpu_env is None:
-            USE_GPU_SIM = True
-except Exception:
-    torch = None  # type: ignore
-if _GPU_BACKEND is None:
-    try:  # pragma: no cover - optional dependency
-        import cupy as cp  # type: ignore
-
-        if cp.cuda.runtime.getDeviceCount() > 0:
-            _GPU_BACKEND = "cupy"
-            if _use_gpu_env is None:
-                USE_GPU_SIM = True
-    except Exception:
-        cp = None  # type: ignore
+elif _GPU_BACKEND == "cupy":  # pragma: no cover - optional dependency
+    import cupy as cp  # type: ignore
 
 logger = logging.getLogger(__name__)
 
