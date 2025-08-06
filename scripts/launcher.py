@@ -13,36 +13,18 @@ from __future__ import annotations
 
 import os
 import platform
-import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
-
-def _cpu_count(python: str) -> int:
-    try:
-        out = subprocess.check_output(
-            [python, "-m", "solhunter_zero.system", "cpu-count"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-        return int(out)
-    except Exception:
-        try:
-            out = subprocess.check_output(
-                ["sysctl", "-n", "hw.ncpu"],
-                stderr=subprocess.DEVNULL,
-                text=True,
-            ).strip()
-            return int(out)
-        except Exception:
-            return 1
+from solhunter_zero.system import detect_cpu_count  # noqa: E402
 
 
-def main(argv: list[str] | None = None) -> "NoReturn":
+def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
 
     python_exe = sys.executable
@@ -56,8 +38,7 @@ def main(argv: list[str] | None = None) -> "NoReturn":
     cmd = [python_exe, str(startup), *argv]
 
     if platform.system() == "Darwin":
-        threads = _cpu_count(python_exe)
-        os.environ["RAYON_NUM_THREADS"] = str(threads)
+        os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
         cmd = ["arch", "-arm64", *cmd]
         os.execvp(cmd[0], cmd)
     else:
@@ -66,4 +47,3 @@ def main(argv: list[str] | None = None) -> "NoReturn":
 
 if __name__ == "__main__":
     main()
-
