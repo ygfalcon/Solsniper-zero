@@ -1,5 +1,13 @@
 import os
-import psutil
+import logging
+
+try:  # pragma: no cover - optional dependency
+    import psutil
+except Exception:  # pragma: no cover - psutil optional
+    psutil = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "psutil not installed; memory-based concurrency limits disabled"
+    )
 
 # Module level parameters read once on import.
 _KP: float = float(
@@ -58,10 +66,13 @@ def _target_concurrency(
     else:
         _CPU_EMA = cpu
 
-    try:
-        mem = float(psutil.virtual_memory().percent)
-    except Exception:
+    if psutil is None:
         mem = 0.0
+    else:
+        try:
+            mem = float(psutil.virtual_memory().percent)
+        except Exception:
+            mem = 0.0
 
     load = max(_CPU_EMA, mem)
 

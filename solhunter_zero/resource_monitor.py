@@ -3,8 +3,15 @@ from __future__ import annotations
 import asyncio
 import time
 from typing import Optional
+import logging
 
-import psutil
+try:  # pragma: no cover - optional dependency
+    import psutil
+except Exception:  # pragma: no cover - psutil optional
+    psutil = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "psutil not installed; resource monitoring disabled"
+    )
 
 from .event_bus import publish
 
@@ -17,6 +24,8 @@ _TASK: Optional[asyncio.Task] = None
 
 async def _monitor(interval: float) -> None:
     """Publish system metrics every ``interval`` seconds."""
+    if psutil is None:
+        return
     try:
         proc = psutil.Process()
         while True:
@@ -39,9 +48,11 @@ async def _monitor(interval: float) -> None:
         pass
 
 
-def start_monitor(interval: float = 1.0) -> asyncio.Task:
+def start_monitor(interval: float = 1.0) -> asyncio.Task | None:
     """Start background resource monitoring task."""
     global _TASK
+    if psutil is None:
+        return None
     if _TASK is None or _TASK.done():
         loop = asyncio.get_running_loop()
         _TASK = loop.create_task(_monitor(interval))
@@ -59,6 +70,8 @@ def stop_monitor() -> None:
 def get_cpu_usage() -> float:
     """Return the most recent CPU usage percentage."""
     global _CPU_PERCENT, _PROC_CPU_PERCENT, _CPU_LAST
+    if psutil is None:
+        return 0.0
     if time.monotonic() - _CPU_LAST > 2.0:
         try:
             _CPU_PERCENT = float(psutil.cpu_percent(interval=None))
@@ -73,5 +86,5 @@ try:  # pragma: no cover - initialization best effort
     loop = asyncio.get_running_loop()
 except RuntimeError:
     loop = None
-if loop:
+if loop and psutil is not None:
     loop.call_soon(start_monitor)

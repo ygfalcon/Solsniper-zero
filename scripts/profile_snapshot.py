@@ -7,8 +7,15 @@ import json
 import os
 import time
 from pathlib import Path
+import logging
 
-import psutil
+try:  # pragma: no cover - optional dependency
+    import psutil
+except Exception:  # pragma: no cover - psutil optional
+    psutil = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "psutil not installed; CPU profiling disabled"
+    )
 from aiohttp import web
 
 from solhunter_zero import http, depth_client
@@ -51,12 +58,13 @@ async def _run_case(ttl: float, limit: int, per_host: int, iterations: int, url:
     importlib.reload(http)
     importlib.reload(depth_client)
 
-    proc = psutil.Process(os.getpid())
-    proc.cpu_percent(interval=None)
+    proc = psutil.Process(os.getpid()) if psutil is not None else None
+    if proc is not None:
+        proc.cpu_percent(interval=None)
     start = time.perf_counter()
     await _fetch(url, iterations)
     elapsed = time.perf_counter() - start
-    cpu = proc.cpu_percent(interval=None)
+    cpu = proc.cpu_percent(interval=None) if proc is not None else 0.0
     return elapsed / iterations, cpu
 
 

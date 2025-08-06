@@ -5,10 +5,17 @@ import sys
 import contextlib
 import subprocess
 import time
-import psutil
 from argparse import ArgumentParser
 import cProfile
 from typing import Sequence
+
+try:  # pragma: no cover - optional dependency
+    import psutil
+except Exception:  # pragma: no cover - psutil optional
+    psutil = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "psutil not installed; CPU-based loop adjustments disabled"
+    )
 
 from .util import install_uvloop
 
@@ -726,7 +733,7 @@ def main(
         def adjust_delay(metrics: dict) -> None:
             nonlocal loop_delay, prev_activity, prev_count, prev_ts, depth_rate_limit
             activity = metrics.get("liquidity", 0.0) + metrics.get("volume", 0.0)
-            cpu = psutil.cpu_percent()
+            cpu = psutil.cpu_percent() if psutil is not None else 0.0
             now = time.monotonic()
             freq = (depth_updates - prev_count) / (now - prev_ts) if now > prev_ts else 0.0
             if (
