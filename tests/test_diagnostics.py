@@ -86,3 +86,83 @@ def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
     out = capsys.readouterr().out.lower()
     assert code == 2
     assert "python" in out
+
+
+def _prep_startup(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup.device, "ensure_gpu_env", lambda: None)
+    monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
+    dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setattr(startup, "torch", dummy_torch, raising=False)
+
+
+def test_startup_collects_diagnostics(monkeypatch, tmp_path, capsys):
+    _prep_startup(monkeypatch, tmp_path)
+
+    called = {}
+
+    def fake_run(cmd):
+        called["run"] = True
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+
+    sample = {"python": "3.11", "config": "present"}
+
+    def fake_collect():
+        called["collect"] = True
+        return sample
+
+    monkeypatch.setattr(diagnostics, "collect", fake_collect)
+
+    args = [
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-preflight",
+    ]
+    code = startup.run(args)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert called.get("run")
+    assert called.get("collect")
+    assert "Diagnostics summary:" in out
+    assert (tmp_path / "diagnostics.json").is_file()
+
+
+def test_startup_no_diagnostics_flag(monkeypatch, tmp_path, capsys):
+    _prep_startup(monkeypatch, tmp_path)
+
+    called = {}
+
+    def fake_run(cmd):
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+
+    def fake_collect():
+        called["collect"] = True
+        return {}
+
+    monkeypatch.setattr(diagnostics, "collect", fake_collect)
+
+    args = [
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-preflight",
+        "--no-diagnostics",
+    ]
+    code = startup.run(args)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "Diagnostics summary:" not in out
+    assert not (tmp_path / "diagnostics.json").exists()
+    assert "collect" not in called
