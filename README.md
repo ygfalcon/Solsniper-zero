@@ -9,11 +9,11 @@ This project is targeted towards being the greatest Solana bot ever created and 
 
 The default workflow is intentionally simple:
 
-1. Send SOL to the desired wallet.
+1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) is bundled for out-of-the-box runs and can be funded directly.
 2. Load the keypair in the SolHunter GUI.
 3. Press **Start**.
 
-All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50&nbsp;GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
+The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50&nbsp;GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
 Control how often snapshots and trades are flushed to disk with `OFFLINE_BATCH_SIZE` and `OFFLINE_FLUSH_INTERVAL`.
 `OFFLINE_FLUSH_MAX_BATCH` caps the number of entries written per transaction.
 Executemany batching yields roughly 25–30% faster logging.
@@ -187,13 +187,14 @@ python scripts/paper_test.py --capital 100 --iterations 100
 ## Rust Depth Service
 
 The `depth_service` crate provides low‑latency order book snapshots and
-direct transaction submission to the Solana RPC.
+direct transaction submission to the Solana RPC. It is required for trading
+and starts automatically when using `make start` or `./run.sh --auto`.
 
 Install the Rust toolchain if `cargo` isn't available:
 `curl https://sh.rustup.rs -sSf | sh`. More details at
 <https://www.rust-lang.org/tools/install>.
 
-1. **Build and run the service**
+1. **Build and run the service manually (optional)**
    ```bash
    cargo run --manifest-path depth_service/Cargo.toml --release -- \
      --config config.toml --serum wss://serum/ws --raydium wss://raydium/ws
@@ -1475,9 +1476,7 @@ This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
   Set `KEYPAIR_PATH` or `SOLANA_KEYPAIR` to its path or place it in the
   `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so `run.sh` or the Web UI
   select the sole available key automatically.
-- **Service not running** — verify `depth_service` is running and that
-  `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to
-  `True`.
+- **Service not running** — `depth_service` starts automatically with `make start` or `./run.sh --auto`. If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
 - **Slow routing** — the Rust service computes paths much faster. Leave
   `USE_SERVICE_ROUTE` enabled unless debugging the Python fallback.
 
