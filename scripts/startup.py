@@ -559,7 +559,13 @@ def build_rust_component(
         )
 
     if platform.system() == "Darwin":
-        subprocess.check_call(["codesign", "--force", "--sign", "-", str(output)])
+        try:
+            subprocess.check_call(["codesign", "--force", "--sign", "-", str(output)])
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"WARNING: failed to codesign {output}: {exc}. "
+                "Please codesign the binary manually if required."
+            )
 
 
 def ensure_route_ffi() -> None:
