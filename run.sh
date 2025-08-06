@@ -45,6 +45,24 @@ check_deps() {
     "$PY" scripts/deps.py "$@"
 }
 
+run_cargo_build() {
+    local output status
+    set +e
+    output=$(cargo build "$@" 2>&1)
+    status=$?
+    set -e
+    if [ $status -ne 0 ]; then
+        echo "$output" >&2
+        if echo "$output" | grep -qi 'aarch64-apple-darwin'; then
+            echo "Hint: run 'rustup target add aarch64-apple-darwin'." >&2
+        fi
+        if echo "$output" | grep -qi 'linker.*not found'; then
+            echo "Hint: ensure the Xcode command line tools are installed (xcode-select --install)." >&2
+        fi
+    fi
+    return $status
+}
+
 set +e
 missing_opt_json=$(check_deps)
 deps_status=$?
@@ -162,14 +180,14 @@ esac
 
 # Build and copy the library if it is not already present
 if [ ! -f "solhunter_zero/$libfile" ]; then
-    cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
+    run_cargo_build --manifest-path route_ffi/Cargo.toml --release --features=parallel
     cp "route_ffi/target/release/$libfile" solhunter_zero/ 2>/dev/null
     if [ ! -f "solhunter_zero/$libfile" ] && [ "$uname_s" = "Darwin" ] && [ "$uname_m" = "arm64" ]; then
         # The initial build might emit the library under the target triple directory
         cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
         if [ ! -f "solhunter_zero/$libfile" ]; then
             echo "Rebuilding for aarch64-apple-darwin..."
-            cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel --target aarch64-apple-darwin
+            run_cargo_build --manifest-path route_ffi/Cargo.toml --release --features=parallel --target aarch64-apple-darwin
             cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
         fi
     fi
@@ -183,7 +201,7 @@ if [ ! -f "solhunter_zero/$libfile" ]; then
     fi
 fi
 
-cargo build --manifest-path depth_service/Cargo.toml --release
+run_cargo_build --manifest-path depth_service/Cargo.toml --release
 
 # Allow skipping the metrics aggregator for debugging
 NO_METRICS=0
