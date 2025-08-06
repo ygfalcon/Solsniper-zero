@@ -63,12 +63,26 @@ EOF
     fi
 fi
 
+# Determine platform-specific route_ffi library name
+FFI_LIB=$(python - <<'PY'
+import platform
+plt = platform.system()
+if plt == "Darwin":
+    print("libroute_ffi.dylib")
+elif plt == "Windows":
+    print("route_ffi.dll")
+else:
+    print("libroute_ffi.so")
+PY
+)
+export ROUTE_FFI_LIB="solhunter_zero/$FFI_LIB"
+
 if command -v cargo >/dev/null 2>&1; then
-    if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+    if [ ! -f "$ROUTE_FFI_LIB" ]; then
         cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-        cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null
-        if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-            echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
+        cp "route_ffi/target/release/$FFI_LIB" solhunter_zero/ 2>/dev/null
+        if [ ! -f "$ROUTE_FFI_LIB" ]; then
+            echo "Error: $FFI_LIB was not copied to solhunter_zero." >&2
             exit 1
         fi
     fi
