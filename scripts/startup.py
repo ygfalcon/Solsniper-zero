@@ -181,6 +181,12 @@ def ensure_wallet_cli() -> None:
 
 def ensure_keypair() -> None:
     from solhunter_zero import wallet
+    from bip_utils import Bip39MnemonicGenerator
+
+    def _wallet_cmd(*args: str) -> list[str]:
+        if shutil.which("solhunter-wallet") is not None:
+            return ["solhunter-wallet", *args]
+        return [sys.executable, "-m", "solhunter_zero.wallet_cli", *args]
 
     keypairs = wallet.list_keypairs()
     active = wallet.get_active_keypair_name()
@@ -194,51 +200,31 @@ def ensure_keypair() -> None:
     mnemonic = os.environ.get("MNEMONIC")
     keypair_json = os.environ.get("KEYPAIR_JSON")
     if not mnemonic and not keypair_json:
-        ensure_wallet_cli()
-        script = Path(__file__).with_name("setup_default_keypair.sh")
-        print(
-            "No keypairs found and no MNEMONIC/KEYPAIR_JSON provided.\n"
-            f"Running '{script}' to generate a default keypair."
+        mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
+        passphrase = os.environ.get("PASSPHRASE", "")
+        subprocess.check_call(
+            _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
         )
-        try:
-            result = subprocess.run(
-                [str(script)],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-            print(
-                "Automatic keypair setup failed. Set MNEMONIC or KEYPAIR_JSON and retry."
-            )
-            raise SystemExit(exc.returncode)
-        mnemonic_out = result.stdout.strip()
-        if mnemonic_out:
-            os.environ.setdefault("MNEMONIC", mnemonic_out)
-            print(f"Generated mnemonic: {mnemonic_out}")
+        subprocess.check_call(_wallet_cmd("select", "default"))
+        os.environ.setdefault("MNEMONIC", mnemonic)
         name = wallet.get_active_keypair_name() or "default"
+        print(f"Generated mnemonic: {mnemonic}")
         print(f"Automatically generated keypair '{name}' and selected it.")
         return
 
     print("No keypairs found in 'keypairs/' directory.")
-    ensure_wallet_cli()
     if keypair_json:
-        subprocess.check_call(["solhunter-wallet", "save", "default", keypair_json])
-        subprocess.check_call(["solhunter-wallet", "select", "default"])
+        subprocess.check_call(_wallet_cmd("save", "default", keypair_json))
+        subprocess.check_call(_wallet_cmd("select", "default"))
         print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         return
 
     if mnemonic:
         passphrase = os.environ.get("PASSPHRASE", "")
-        subprocess.check_call([
-            "solhunter-wallet",
-            "derive",
-            "default",
-            mnemonic,
-            "--passphrase",
-            passphrase,
-        ])
-        subprocess.check_call(["solhunter-wallet", "select", "default"])
+        subprocess.check_call(
+            _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
+        )
+        subprocess.check_call(_wallet_cmd("select", "default"))
         print("Keypair saved from MNEMONIC and selected as 'default'.")
         return
 
