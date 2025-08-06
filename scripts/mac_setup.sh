@@ -3,8 +3,11 @@ set -euo pipefail
 
 if ! xcode-select -p >/dev/null 2>&1; then
     echo "Installing Xcode command line tools..."
-    xcode-select --install
-    exit 1  # prompt user to re-run after installation
+    xcode-select --install || true
+    echo "Waiting for Xcode command line tools installation to complete..."
+    until xcode-select -p >/dev/null 2>&1; do
+        sleep 5
+    done
 fi
 
 # Change to repository root
