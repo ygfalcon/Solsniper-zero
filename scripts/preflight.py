@@ -119,19 +119,32 @@ def check_network(url: str = "https://api.mainnet-beta.solana.com") -> Check:
 def check_gpu() -> Check:
     try:
         from solhunter_zero import device
-        try:
-            import torch  # type: ignore[import]
-        except Exception:  # pragma: no cover - torch is optional
-            torch = None  # type: ignore
-        if platform.system() == "Darwin" and os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
+        import torch  # type: ignore[import]
+        import torchvision  # type: ignore[import]
+    except Exception as exc:
+        return False, f"GPU libraries missing: {exc}"
+
+    # Version checks ensure compatibility with our models
+    torch_version = torch.__version__.split("+")[0]
+    if torch_version != "2.1.0":
+        return False, f"PyTorch 2.1.0 required, found {torch.__version__}"
+
+    tv_version = torchvision.__version__.split("+")[0]
+    if tv_version != "0.16.0":
+        return False, f"torchvision 0.16.0 required, found {torchvision.__version__}"
+
+    if platform.system() == "Darwin":
+        if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
             return False, "PYTORCH_ENABLE_MPS_FALLBACK=1 not set"
-        if not device.detect_gpu():
-            return False, "No GPU backend detected"
-        if torch is not None and torch.backends.mps.is_available():
-            return True, "Metal GPU available"
-        return True, "CUDA GPU available"
-    except Exception as exc:  # pragma: no cover - defensive
-        return False, str(exc)
+        if not torch.backends.mps.is_built():
+            return False, "PyTorch built without MPS support"
+
+    if not device.detect_gpu():
+        return False, "No GPU backend detected"
+
+    if torch.backends.mps.is_available():
+        return True, "Metal GPU available"
+    return True, "CUDA GPU available"
 
 
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
