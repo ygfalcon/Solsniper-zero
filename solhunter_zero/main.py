@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover - psutil optional
     )
 
 from .util import install_uvloop
+from .system import detect_cpu_count
 
 from pathlib import Path
 
@@ -474,7 +475,7 @@ async def _init_rl_training(
     policy = cfg.get("rl_policy", "mlp")
     auto_train = auto_train_cfg
     tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
-    cpu_count = os.cpu_count() or 1
+    cpu_count = detect_cpu_count()
     dyn_workers = bool(cfg.get("rl_dynamic_workers", cpu_count > 1))
 
     daemon = RLDaemon(

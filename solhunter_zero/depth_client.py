@@ -1,9 +1,11 @@
 import os
 import mmap
 
+from .system import detect_cpu_count
+
 # Set a default Rayon thread count for the FFI
 if not os.getenv("RAYON_NUM_THREADS"):
-    os.environ["RAYON_NUM_THREADS"] = str(os.cpu_count() or 1)
+    os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
 import asyncio
 import time
 import atexit

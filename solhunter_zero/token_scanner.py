@@ -26,6 +26,7 @@ from . import dex_ws
 from .event_bus import publish, subscription
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
+from .system import detect_cpu_count
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ async def scan_tokens_async(
     Parameters
     ----------
     max_concurrency:
-        Maximum number of concurrent subtasks. Defaults to ``os.cpu_count()``.
+        Maximum number of concurrent subtasks. Defaults to ``detect_cpu_count()``.
     cpu_usage_threshold:
         Pause task creation while CPU usage exceeds this percentage.
     dynamic_concurrency:
@@ -152,7 +153,7 @@ async def scan_tokens_async(
     """
 
     if max_concurrency is None or max_concurrency <= 0:
-        max_concurrency = os.cpu_count() or 1
+        max_concurrency = detect_cpu_count()
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency

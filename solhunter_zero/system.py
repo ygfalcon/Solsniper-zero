@@ -1,11 +1,9 @@
-#!/usr/bin/env python3
-"""Utility helpers for configuring Rayon threading."""
-
 from __future__ import annotations
 
 import os
 import platform
 import subprocess
+import sys
 from typing import Iterable
 
 
@@ -20,7 +18,7 @@ def _try_commands(cmds: Iterable[list[str]]) -> int | None:
     return None
 
 
-def _detect_cpu_count() -> int:
+def detect_cpu_count() -> int:
     """Detect the number of CPUs across platforms."""
     system = platform.system()
     if system == "Linux":
@@ -32,10 +30,14 @@ def _detect_cpu_count() -> int:
     return count or os.cpu_count() or 1
 
 
-def print_thread_count() -> None:
-    """Print the detected CPU count."""
-    print(_detect_cpu_count())
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "cpu-count":
+        print(detect_cpu_count())
+        return 0
+    print("usage: python -m solhunter_zero.system cpu-count", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":  # pragma: no cover
-    print_thread_count()
+    raise SystemExit(main())

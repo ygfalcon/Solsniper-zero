@@ -23,7 +23,7 @@ def _run_start_command(tmp_path, exit_code):
 if [ "$1" = "-V" ]; then
   echo 'Python 3.11.0'
   exit 0
-elif [ "$1" = "-m" ] && [ "$2" = "scripts.threading" ]; then
+elif [ "$1" = "-m" ] && [ "$2" = "solhunter_zero.system" ] && [ "$3" = "cpu-count" ]; then
   echo 6
   exit 0
 elif [ "$1" = "-" ]; then

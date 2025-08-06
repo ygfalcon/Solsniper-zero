@@ -13,6 +13,7 @@ from typing import AsyncGenerator, Iterable, Dict, Any, Deque
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
 from .event_bus import subscription
+from .system import detect_cpu_count
 
 try:
     from solana.publickey import PublicKey
@@ -233,7 +234,7 @@ async def stream_ranked_mempool_tokens(
         threshold = MEMPOOL_SCORE_THRESHOLD
 
     if max_concurrency is None or max_concurrency <= 0:
-        max_concurrency = os.cpu_count() or 1
+        max_concurrency = detect_cpu_count()
 
     sem = asyncio.Semaphore(max_concurrency)
     current_limit = max_concurrency

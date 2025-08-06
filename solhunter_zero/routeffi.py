@@ -5,8 +5,10 @@ import struct
 import logging
 import time
 
+from .system import detect_cpu_count
+
 if not os.getenv("RAYON_NUM_THREADS"):
-    os.environ["RAYON_NUM_THREADS"] = str(os.cpu_count() or 1)
+    os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
 
 logger = logging.getLogger(__name__)
 

@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover - psutil optional
 from .multi_rl import PopulationRL
 from .advanced_memory import AdvancedMemory
 from solhunter_zero.device import get_default_device
+from .system import detect_cpu_count
 
 try:
     from numba import njit  # type: ignore
@@ -139,7 +140,7 @@ def _calc_num_workers(
             return int(env_val)
         except Exception:
             pass
-    base = min(os.cpu_count() or 1, max(1, size // 100))
+    base = min(detect_cpu_count(), max(1, size // 100))
     if dynamic:
         cluster_env = os.getenv("RL_CLUSTER_WORKERS", "1").lower()
         use_cluster = cluster_env not in {"0", "false", "no"}

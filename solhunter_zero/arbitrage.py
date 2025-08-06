@@ -10,8 +10,10 @@ import logging
 import os
 
 # Configure Rayon parallelism for the Rust FFI
+from .system import detect_cpu_count
+
 if not os.getenv("RAYON_NUM_THREADS"):
-    os.environ["RAYON_NUM_THREADS"] = str(os.cpu_count() or 1)
+    os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
 from .http import get_session, loads, dumps
 import heapq
 import time
@@ -234,7 +236,7 @@ async def measure_dex_latency_async(
                 logger.debug("ffi.measure_latency failed: %s", exc)
 
     if max_concurrency is None or max_concurrency <= 0:
-        max_concurrency = max(os.cpu_count() or 1, len(urls))
+        max_concurrency = max(detect_cpu_count(), len(urls))
 
     class _Noop:
         async def __aenter__(self):
