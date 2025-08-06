@@ -52,18 +52,6 @@ if ! command -v brew >/dev/null 2>&1; then
   elif [ -d /usr/local/bin ]; then
     eval "$(/usr/local/bin/brew shellenv)"
   fi
-  if [[ $SHELL == *bash* ]]; then
-    profile_file="$HOME/.bash_profile"
-  else
-    profile_file="$HOME/.zprofile"
-  fi
-  brew shellenv >> "$profile_file"
-  echo "Updated $profile_file with Homebrew environment."
-fi
-
-# Persist Homebrew environment for future shells
-if ! grep -Fq 'HOMEBREW_PREFIX' "$PROFILE_FILE" 2>/dev/null; then
-  brew shellenv >> "$PROFILE_FILE"
 fi
 
 # Update Homebrew and install packages
@@ -74,6 +62,25 @@ brew install python@3.11 rustup-init pkg-config cmake protobuf
 if ! command -v rustup >/dev/null 2>&1; then
   rustup-init -y
   source "$HOME/.cargo/env"
+fi
+
+# Verify required tools are on PATH
+missing=()
+for cmd in python3.11 pip3.11 rustup; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    missing+=("$cmd")
+  fi
+done
+if ((${#missing[@]})); then
+  brew_prefix="$(brew --prefix)"
+  echo "Missing ${missing[*]} on PATH. Ensure ${brew_prefix}/bin is in your PATH and re-run this script."
+  exit 1
+fi
+
+# Persist Homebrew environment for future shells
+if ! grep -Fq 'HOMEBREW_PREFIX' "$PROFILE_FILE" 2>/dev/null; then
+  brew shellenv >> "$PROFILE_FILE"
+  echo "Updated $PROFILE_FILE with Homebrew environment."
 fi
 
 # Make Rust tools available in future shells
