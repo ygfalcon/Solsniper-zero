@@ -513,8 +513,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Allow running under Rosetta (no Metal acceleration)",
     )
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Print system diagnostics and exit",
+    )
     args, rest = parser.parse_known_args(argv)
 
+    if args.diagnostics:
+        from scripts import diagnostics
+
+        diagnostics.main()
+        return 0
     if args.one_click:
         rest = ["--non-interactive", *rest]
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
@@ -572,5 +582,22 @@ def main(argv: list[str] | None = None) -> int:
         os.execv(sys.executable, [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest])
 
 
+def run(argv: list[str] | None = None) -> int:
+    try:
+        code = main(argv)
+    except SystemExit as exc:
+        code = exc.code
+    except Exception:
+        from scripts import diagnostics
+
+        diagnostics.main()
+        raise
+    if code:
+        from scripts import diagnostics
+
+        diagnostics.main()
+    return code or 0
+
+
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    raise SystemExit(run())
