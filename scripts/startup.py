@@ -50,6 +50,27 @@ def ensure_deps() -> None:
     if not req and not opt:
         return
 
+    # Ensure ``pip`` is available before attempting installations.
+    pip_check = subprocess.run(
+        [sys.executable, "-m", "pip", "--version"],
+        capture_output=True,
+        text=True,
+    )
+    if pip_check.returncode != 0:
+        if "No module named pip" in pip_check.stderr:
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "ensurepip", "--default-pip"]
+                )
+            except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+                print(f"Failed to bootstrap pip: {exc}")
+                raise SystemExit(exc.returncode)
+            else:
+                subprocess.check_call([sys.executable, "-m", "pip", "--version"])
+        else:  # pragma: no cover - unexpected failure
+            print(f"Failed to invoke pip: {pip_check.stderr.strip()}")
+            raise SystemExit(pip_check.returncode)
+
     if req:
         print("Installing required dependencies...")
         try:
