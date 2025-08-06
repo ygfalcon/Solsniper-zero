@@ -50,7 +50,11 @@ def ensure_venv(argv: list[str] | None) -> None:
     venv_dir = ROOT / ".venv"
     if not venv_dir.exists():
         print("Creating virtual environment in .venv...")
-        subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+        try:
+            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+        except (subprocess.CalledProcessError, OSError) as exc:
+            print(f"Failed to create .venv: {exc}")
+            raise SystemExit(1)
 
     if Path(sys.prefix) != venv_dir:
         python = (
