@@ -16,8 +16,8 @@ def _run_start_command(tmp_path, exit_code):
     scripts_dir.mkdir()
     (scripts_dir / "rotate_logs.sh").write_text("rotate_logs() { :; }\n")
 
-    # Stub python3 interpreter
-    stub_py = tmp_path / "python3"
+    # Stub python interpreter
+    stub_py = tmp_path / "python"
     stub_py.write_text(
         """#!/usr/bin/env bash
 if [ "$1" = "-V" ]; then
@@ -34,6 +34,7 @@ exit "${PYTHON_EXIT_CODE:-0}"
 """
     )
     stub_py.chmod(0o755)
+    os.symlink(stub_py, tmp_path / "python3")
     os.symlink(stub_py, tmp_path / "python3.11")
 
     # Provide minimal config to skip copying
@@ -52,10 +53,10 @@ exit "${PYTHON_EXIT_CODE:-0}"
 def test_invokes_startup(tmp_path):
     code, log = _run_start_command(tmp_path, exit_code=0)
     assert code == 0
-    assert log == "scripts/startup.py --one-click --full-deps --skip-preflight"
+    assert log == "scripts/launcher.py --one-click --full-deps --skip-preflight"
 
 
 def test_propagates_failure(tmp_path):
     code, log = _run_start_command(tmp_path, exit_code=3)
     assert code == 3
-    assert log == "scripts/startup.py --one-click --full-deps --skip-preflight"
+    assert log == "scripts/launcher.py --one-click --full-deps --skip-preflight"
