@@ -15,6 +15,7 @@ import contextlib
 import io
 from pathlib import Path
 import json
+import traceback
 from scripts import preflight
 from solhunter_zero.bootstrap_utils import (
     _pip_install,
@@ -276,6 +277,34 @@ def ensure_cargo() -> None:
             raise SystemExit(1)
 
 
+def _write_diagnostics(exc: BaseException) -> None:
+    info: dict[str, object] = {"python_version": platform.python_version()}
+    try:
+        from solhunter_zero import device as _device
+
+        gpu_available = _device.detect_gpu()
+        info["gpu_device"] = (
+            str(_device.get_default_device()) if gpu_available else "none"
+        )
+    except Exception:
+        info["gpu_device"] = "unknown"
+    try:
+        from scripts import deps
+
+        req, opt = deps.check_deps()
+        info["missing_deps"] = {"required": req, "optional": opt}
+    except Exception:
+        info["missing_deps"] = {"required": [], "optional": []}
+    info["error"] = f"{exc.__class__.__name__}: {exc}"
+    info["traceback"] = "".join(
+        traceback.format_exception(type(exc), exc, exc.__traceback__)
+    )
+    try:
+        Path("diagnostics.json").write_text(json.dumps(info, indent=2))
+    except Exception:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
@@ -392,94 +421,100 @@ def main(argv: list[str] | None = None) -> int:
             print("Use '--allow-rosetta' to continue anyway.")
             return 1
 
-    if not args.skip_preflight:
-        rotate_preflight_log()
-        stdout_buf = io.StringIO()
-        stderr_buf = io.StringIO()
-        with (
-            contextlib.redirect_stdout(stdout_buf),
-            contextlib.redirect_stderr(stderr_buf),
-        ):
+    try:
+        if not args.skip_preflight:
+            rotate_preflight_log()
+            stdout_buf = io.StringIO()
+            stderr_buf = io.StringIO()
+            with (
+                contextlib.redirect_stdout(stdout_buf),
+                contextlib.redirect_stderr(stderr_buf),
+            ):
+                try:
+                    preflight.main()
+                except SystemExit as exc:
+                    code = exc.code if isinstance(exc.code, int) else 1
+                else:
+                    code = 0
+            out = stdout_buf.getvalue()
+            err = stderr_buf.getvalue()
+            sys.stdout.write(out)
+            sys.stderr.write(err)
             try:
-                preflight.main()
-            except SystemExit as exc:
-                code = exc.code if isinstance(exc.code, int) else 1
-            else:
-                code = 0
-        out = stdout_buf.getvalue()
-        err = stderr_buf.getvalue()
-        sys.stdout.write(out)
-        sys.stderr.write(err)
-        try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.write(out)
-                log.write(err)
-        except OSError:
-            pass
-        if code:
-            return code
-
-    from solhunter_zero.bootstrap import bootstrap
-
-    bootstrap(one_click=args.one_click)
-
-    from solhunter_zero import device
-    import torch
-
-    torch.set_default_device(device.get_default_device())
-    gpu_available = device.detect_gpu()
-    gpu_device = str(device.get_default_device()) if gpu_available else "none"
-    if gpu_device == "none":
-        print(
-            "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
-            "scripts/mac_setup.py to enable GPU support."
-        )
-    os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
-    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
-    config_path: str | None = None
-    active_keypair: str | None = None
-    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
-
-    if not args.skip_setup:
-        from solhunter_zero.config import (
-            load_config,
-            validate_config,
-            find_config_file,
-        )
-
-        config_path = find_config_file()
-        if config_path is None and args.one_click:
-            try:
-                from scripts import quick_setup
-
-                quick_setup.main(["--auto", "--non-interactive"])
-            except Exception:
+                with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
+                    log.write(out)
+                    log.write(err)
+            except OSError:
                 pass
+            if code:
+                return code
+
+        from solhunter_zero.bootstrap import bootstrap
+
+        bootstrap(one_click=args.one_click)
+
+        from solhunter_zero import device
+        import torch
+
+        torch.set_default_device(device.get_default_device())
+        gpu_available = device.detect_gpu()
+        gpu_device = str(device.get_default_device()) if gpu_available else "none"
+        if gpu_device == "none":
+            print(
+                "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
+                "scripts/mac_setup.py to enable GPU support."
+            )
+        os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
+        os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
+        config_path: str | None = None
+        active_keypair: str | None = None
+        rpc_url = os.environ.get(
+            "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+        )
+
+        if not args.skip_setup:
+            from solhunter_zero.config import (
+                load_config,
+                validate_config,
+                find_config_file,
+            )
+
             config_path = find_config_file()
-        cfg = load_config(config_path)
-        cfg = validate_config(cfg)
-        if not args.skip_endpoint_check:
-            ensure_endpoints(cfg)
-        try:
-            ensure_wallet_cli()
-        except SystemExit as exc:
-            return exc.code if isinstance(exc.code, int) else 1
-        from solhunter_zero import wallet
+            if config_path is None and args.one_click:
+                try:
+                    from scripts import quick_setup
 
-        active_keypair = wallet.get_active_keypair_name()
+                    quick_setup.main(["--auto", "--non-interactive"])
+                except Exception:
+                    pass
+                config_path = find_config_file()
+            cfg = load_config(config_path)
+            cfg = validate_config(cfg)
+            if not args.skip_endpoint_check:
+                ensure_endpoints(cfg)
+            try:
+                ensure_wallet_cli()
+            except SystemExit as exc:
+                return exc.code if isinstance(exc.code, int) else 1
+            from solhunter_zero import wallet
 
-    if not args.skip_rpc_check:
-        ensure_rpc(warn_only=args.one_click)
-        rpc_status = "reachable"
-    else:
-        rpc_status = "skipped"
+            active_keypair = wallet.get_active_keypair_name()
 
-    ensure_cargo()
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+        if not args.skip_rpc_check:
+            ensure_rpc(warn_only=args.one_click)
+            rpc_status = "reachable"
+        else:
+            rpc_status = "skipped"
+
+        ensure_cargo()
+        print("Startup summary:")
+        print(f"  Config file: {config_path or 'none'}")
+        print(f"  Active keypair: {active_keypair or 'none'}")
+        print(f"  GPU device: {gpu_device}")
+        print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    except BaseException as exc:
+        _write_diagnostics(exc)
+        raise
 
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
@@ -510,8 +545,15 @@ def run(argv: list[str] | None = None) -> int:
         code = main(args_list)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
-    except Exception:
+        if code and "--no-diagnostics" not in args_list:
+            _write_diagnostics(exc)
+            from scripts import diagnostics
+
+            diagnostics.main()
+        return code or 0
+    except Exception as exc:
         if "--no-diagnostics" not in args_list:
+            _write_diagnostics(exc)
             from scripts import diagnostics
 
             diagnostics.main()
