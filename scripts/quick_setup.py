@@ -48,6 +48,7 @@ PROMPTS = [
 # Defaults applied when --auto is used. These point to public endpoints but
 # can be overridden in the generated config for custom providers.
 AUTO_DEFAULTS = {
+    "solana_rpc_url": "https://api.mainnet-beta.solana.com",
     "dex_base_url": "https://quote-api.jup.ag",
     "dex_testnet_url": "https://quote-api.jup.ag",
 }
