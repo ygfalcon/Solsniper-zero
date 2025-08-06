@@ -13,10 +13,9 @@ import threading
 from pathlib import Path
 from typing import IO
 from solhunter_zero.config import (
-    load_config,
-    apply_env_overrides,
     set_env_from_config,
-    ENV_VARS as CONFIG_ENV_VARS,
+    ensure_config_file,
+    validate_env,
 )
 from solhunter_zero import data_sync
 
@@ -43,31 +42,6 @@ ENV_VARS = [
 ]
 
 
-def validate_env() -> None:
-    cfg_data = {}
-    cfg = get_config_file()
-    if cfg:
-        cfg_data = apply_env_overrides(load_config(cfg))
-    env_to_key = {v: k for k, v in CONFIG_ENV_VARS.items()}
-    missing: list[str] = []
-    for name in ENV_VARS:
-        if not os.getenv(name):
-            val = None
-            key = env_to_key.get(name)
-            if key:
-                val = cfg_data.get(key)
-            if val is None:
-                val = cfg_data.get(name)
-            if val is not None:
-                os.environ[name] = str(val)
-            if not os.getenv(name):
-                missing.append(name)
-    if missing:
-        for name in missing:
-            print(f"Required env var {name} is not set", file=sys.stderr)
-        sys.exit(1)
-
-
 def _stream_stderr(pipe: IO[bytes]) -> None:
     for line in iter(pipe.readline, b""):
         sys.stderr.buffer.write(line)
@@ -86,35 +60,6 @@ def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
     if stream_stderr and proc.stderr is not None:
         threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True).start()
     return proc
-
-
-def get_config_file() -> str | None:
-    path = os.getenv("SOLHUNTER_CONFIG")
-    if path:
-        return path
-    cfg_dir = Path(os.getenv("CONFIG_DIR", "configs"))
-    active = cfg_dir / "active"
-    if active.is_file():
-        name = active.read_text().strip()
-        cfg = cfg_dir / name
-        if cfg.is_file():
-            return str(cfg)
-    for name in ("config.toml", "config.yaml", "config.yml"):
-        if Path(name).is_file():
-            return name
-    # If no config is found, generate a default one via quick_setup
-    try:
-        from scripts import quick_setup
-
-        # Populate config with defaults
-        quick_setup.main(["--auto"])
-    except Exception as exc:
-        print(f"Failed to generate default config: {exc}", file=sys.stderr)
-        return None
-    # Re-run lookup after generation
-    return get_config_file()
-
-
 def stop_all(*_: object) -> None:
     data_sync.stop_scheduler()
     for p in PROCS:
@@ -133,14 +78,11 @@ def stop_all(*_: object) -> None:
 signal.signal(signal.SIGINT, stop_all)
 signal.signal(signal.SIGTERM, stop_all)
 
-validate_env()
+cfg = ensure_config_file()
+cfg_data = validate_env(ENV_VARS, cfg)
+set_env_from_config(cfg_data)
 
 # Launch depth service and RL daemon first
-cfg = get_config_file()
-cfg_data = {}
-if cfg:
-    cfg_data = apply_env_overrides(load_config(cfg))
-    set_env_from_config(cfg_data)
 interval = float(
     cfg_data.get(
         "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
