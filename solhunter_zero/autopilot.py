@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 import time
-import asyncio
+import logging
 from pathlib import Path
 
 from . import wallet, data_sync, main as main_module
@@ -15,16 +15,14 @@ from .config import (
     load_config,
     apply_env_overrides,
 )
+from .service_launcher import (
+    start_depth_service,
+    start_rl_daemon,
+    wait_for_depth_ws,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 PROCS: list[subprocess.Popen] = []
-
-
-def _start(cmd: list[str]) -> subprocess.Popen:
-    env = os.environ.copy()
-    proc = subprocess.Popen(cmd, env=env)
-    PROCS.append(proc)
-    return proc
 
 
 def _stop_all(*_: object) -> None:
@@ -51,7 +49,8 @@ def _ensure_keypair() -> None:
     except Exception as exc:
         print(
             f"Wallet interaction failed: {exc}\n"
-            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            "Run 'solhunter-wallet' manually or set the MNEMONIC "
+            "environment variable.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -74,26 +73,12 @@ def _get_config() -> tuple[str | None, dict]:
     return cfg_path, cfg
 
 
-async def _wait_depth(addr: str, port: int, deadline: float) -> None:
-    """Wait for the depth_service websocket to accept connections."""
-    while True:
-        try:
-            reader, writer = await asyncio.open_connection(addr, port)
-        except OSError:
-            if time.monotonic() > deadline:
-                print("depth_service websocket timed out", file=sys.stderr)
-                _stop_all()
-            await asyncio.sleep(0.1)
-        else:
-            writer.close()
-            await writer.wait_closed()
-            break
-
-
 def main() -> None:
     os.chdir(ROOT)
     signal.signal(signal.SIGINT, _stop_all)
     signal.signal(signal.SIGTERM, _stop_all)
+
+    logging.basicConfig(level=logging.INFO)
 
     _ensure_keypair()
 
@@ -114,16 +99,18 @@ def main() -> None:
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=db_path)
 
-    cmd = ["./target/release/depth_service"]
-    if cfg_path:
-        cmd += ["--config", cfg_path]
-    _start(cmd)
-    _start([sys.executable, "scripts/run_rl_daemon.py"])
+    try:
+        depth_proc = start_depth_service(cfg_path)
+        PROCS.append(depth_proc)
+        PROCS.append(start_rl_daemon())
 
-    addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
-    port = int(os.getenv("DEPTH_WS_PORT", "8765"))
-    deadline = time.monotonic() + 30.0
-    asyncio.run(_wait_depth(addr, port, deadline))
+        addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
+        port = int(os.getenv("DEPTH_WS_PORT", "8765"))
+        deadline = time.monotonic() + 30.0
+        wait_for_depth_ws(addr, port, deadline, depth_proc)
+    except Exception as exc:
+        logging.error(str(exc))
+        _stop_all()
 
     main_module.run_auto()
     _stop_all()

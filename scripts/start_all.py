@@ -8,8 +8,8 @@ import signal
 import subprocess
 import sys
 import time
-import socket
 import threading
+import logging
 from pathlib import Path
 from typing import IO
 from solhunter_zero.config import (
@@ -18,6 +18,11 @@ from solhunter_zero.config import (
     validate_env,
 )
 from solhunter_zero import data_sync
+from solhunter_zero.service_launcher import (
+    start_depth_service,
+    start_rl_daemon,
+    wait_for_depth_ws,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -58,8 +63,12 @@ def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
     proc = subprocess.Popen(cmd, env=env, stderr=stderr)
     PROCS.append(proc)
     if stream_stderr and proc.stderr is not None:
-        threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True).start()
+        threading.Thread(
+            target=_stream_stderr, args=(proc.stderr,), daemon=True
+        ).start()
     return proc
+
+
 def stop_all(*_: object) -> None:
     data_sync.stop_scheduler()
     for p in PROCS:
@@ -77,6 +86,7 @@ def stop_all(*_: object) -> None:
 
 signal.signal(signal.SIGINT, stop_all)
 signal.signal(signal.SIGTERM, stop_all)
+logging.basicConfig(level=logging.INFO)
 
 cfg = ensure_config_file()
 cfg_data = validate_env(ENV_VARS, cfg)
@@ -97,67 +107,18 @@ except OSError as exc:
     print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
     sys.exit(1)
 data_sync.start_scheduler(interval=interval, db_path=db_path)
-depth_bin = ROOT / "target" / "release" / "depth_service"
-if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
-    print("depth_service binary not found, building with cargo...")
-    try:
-        result = subprocess.run(
-            [
-                "cargo",
-                "build",
-                "--manifest-path",
-                str(ROOT / "depth_service" / "Cargo.toml"),
-                "--release",
-            ]
-        )
-    except FileNotFoundError:
-        print(
-            "cargo is not installed. Please run 'cargo build --manifest-path "
-            "depth_service/Cargo.toml --release'",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if result.returncode != 0:
-        print(
-            "Failed to build depth_service. Please run "
-            "'cargo build --manifest-path depth_service/Cargo.toml --release' "
-            "manually.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
-        print(
-            "depth_service binary missing or not executable after build. "
-            "Please run 'cargo build --manifest-path "
-            "depth_service/Cargo.toml --release'.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-cmd = [str(depth_bin)]
-if cfg:
-    cmd += ["--config", cfg]
-depth_proc = start(cmd, stream_stderr=True)
-start([sys.executable, "scripts/run_rl_daemon.py"])
 
-# Wait for the websocket to come online before starting the bot
-addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
-port = int(os.getenv("DEPTH_WS_PORT", "8765"))
-deadline = time.monotonic() + 30.0
-while True:
-    if depth_proc.poll() is not None:
-        print(
-            f"depth_service exited with code {depth_proc.returncode}",
-            file=sys.stderr,
-        )
-        stop_all()
-    try:
-        with socket.create_connection((addr, port), timeout=1):
-            break
-    except OSError:
-        if time.monotonic() > deadline:
-            print("depth_service websocket timed out", file=sys.stderr)
-            stop_all()
-        time.sleep(0.1)
+try:
+    depth_proc = start_depth_service(cfg, stream_stderr=True)
+    PROCS.append(depth_proc)
+    PROCS.append(start_rl_daemon())
+    addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
+    port = int(os.getenv("DEPTH_WS_PORT", "8765"))
+    deadline = time.monotonic() + 30.0
+    wait_for_depth_ws(addr, port, deadline, depth_proc)
+except Exception as exc:
+    logging.error(str(exc))
+    stop_all()
 
 main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
 if cfg:
