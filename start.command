@@ -19,6 +19,21 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
   exit 1
 fi
 
+# Configure Rayon thread pool if not already set
+if [ -z "$RAYON_NUM_THREADS" ]; then
+  if command -v nproc >/dev/null 2>&1; then
+    export RAYON_NUM_THREADS="$(nproc)"
+  elif command -v getconf >/dev/null 2>&1; then
+    export RAYON_NUM_THREADS="$(getconf _NPROCESSORS_ONLN)"
+  else
+    export RAYON_NUM_THREADS="$("$PY" - <<'EOF'
+import os
+print(os.cpu_count() or 1)
+EOF
+)"
+  fi
+fi
+
 # Enable MPS fallback when running on macOS
 if [ "$(uname -s)" = "Darwin" ]; then
   export PYTORCH_ENABLE_MPS_FALLBACK=1
