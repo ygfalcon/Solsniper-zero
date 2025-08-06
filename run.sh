@@ -256,8 +256,13 @@ if [ ! -f "solhunter_zero/$libfile" ]; then
         exit 1
     fi
     if [ "$uname_s" = "Darwin" ]; then
-        if ! codesign --force --sign - solhunter_zero/libroute_ffi.dylib; then
-            echo "Warning: failed to codesign libroute_ffi.dylib. Please run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib' manually." >&2
+        set +e
+        codesign --force --sign - solhunter_zero/libroute_ffi.dylib
+        codesign_status=$?
+        set -e
+        if [ $codesign_status -ne 0 ]; then
+            echo "Error: failed to codesign libroute_ffi.dylib. Ensure the Xcode command line tools are installed and run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib'." >&2
+            exit 1
         fi
     fi
 fi
