@@ -426,13 +426,26 @@ def ensure_cargo() -> None:
 
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
-        names = " and ".join(missing)
-        brew = " ".join(missing)
-        print(
-            f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
-            f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
-        )
-        raise SystemExit(1)
+        if platform.system() == "Darwin" and shutil.which("brew") is not None:
+            print(
+                f"Missing {', '.join(missing)}. Attempting to install with Homebrew..."
+            )
+            try:
+                subprocess.check_call(["brew", "install", "pkg-config", "cmake"])
+            except subprocess.CalledProcessError as exc:
+                print(f"Homebrew installation failed: {exc}")
+            else:
+                missing = [
+                    tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None
+                ]
+        if missing:
+            names = " and ".join(missing)
+            brew = " ".join(missing)
+            print(
+                f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
+                f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
+            )
+            raise SystemExit(1)
 
 
 def ensure_route_ffi() -> None:
