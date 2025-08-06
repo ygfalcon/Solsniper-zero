@@ -8,6 +8,11 @@ import platform
 import subprocess
 import sys
 
+METAL_EXTRA_INDEX = [
+    "--extra-index-url",
+    "https://download.pytorch.org/whl/metal",
+]
+
 try:  # pragma: no cover - optional dependency
     import torch
 except Exception:  # pragma: no cover - torch is optional at runtime
@@ -26,7 +31,6 @@ def ensure_torch_with_metal() -> None:
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         return
 
-    extra_index = ["--extra-index-url", "https://download.pytorch.org/whl/metal"]
     logger = logging.getLogger(__name__)
 
     global torch
@@ -43,7 +47,7 @@ def ensure_torch_with_metal() -> None:
         "install",
         "torch==2.1.0",
         "torchvision==0.16.0",
-        *extra_index,
+        *METAL_EXTRA_INDEX,
     ]
     try:
         subprocess.check_call(cmd)
@@ -66,7 +70,7 @@ def ensure_torch_with_metal() -> None:
                     "--force-reinstall",
                     "torch==2.1.0",
                     "torchvision==0.16.0",
-                    *extra_index,
+                    *METAL_EXTRA_INDEX,
                 ]
             )
         except Exception:  # pragma: no cover - installation failure
@@ -77,8 +81,8 @@ def ensure_torch_with_metal() -> None:
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
             raise RuntimeError(
                 "MPS backend still not available. Install manually with: pip install "
-                "torch==2.1.0 torchvision==0.16.0 --extra-index-url "
-                "https://download.pytorch.org/whl/metal",
+                "torch==2.1.0 torchvision==0.16.0 "
+                + " ".join(METAL_EXTRA_INDEX),
             )
 
 

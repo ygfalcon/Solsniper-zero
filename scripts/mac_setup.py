@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from collections.abc import Callable
 
+from solhunter_zero.device import METAL_EXTRA_INDEX
+
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
@@ -133,8 +135,7 @@ def upgrade_pip_and_torch() -> None:
             "install",
             "torch==2.1.0",
             "torchvision==0.16.0",
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/metal",
+            *METAL_EXTRA_INDEX,
         ],
         check=False,
     )
@@ -160,7 +161,7 @@ MANUAL_FIXES = {
     "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
     "pip_torch": (
         "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip '"
-        "'torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal'."
+        f"'torch==2.1.0 torchvision==0.16.0 {' '.join(METAL_EXTRA_INDEX)}'."
     ),
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
     "profile": (
