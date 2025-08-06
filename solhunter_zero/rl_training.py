@@ -9,8 +9,15 @@ from typing import Any, Iterable, List, Tuple
 from contextlib import suppress
 from concurrent.futures import ProcessPoolExecutor
 import time
-import psutil
 from collections import deque
+
+try:  # pragma: no cover - optional dependency
+    import psutil
+except Exception:  # pragma: no cover - psutil optional
+    psutil = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "psutil not installed; RL worker scaling will use defaults"
+    )
 from .multi_rl import PopulationRL
 from .advanced_memory import AdvancedMemory
 
@@ -136,7 +143,14 @@ def _calc_num_workers(
         cluster_env = os.getenv("RL_CLUSTER_WORKERS", "1").lower()
         use_cluster = cluster_env not in {"0", "false", "no"}
         if cpu_callback is None:
-            usage_fn = _get_cpu_usage if use_cluster else lambda: psutil.cpu_percent(interval=None)
+            if use_cluster:
+                usage_fn = _get_cpu_usage
+            else:
+                usage_fn = (
+                    (lambda: psutil.cpu_percent(interval=None))
+                    if psutil is not None
+                    else (lambda: 0.0)
+                )
         else:
             usage_fn = cpu_callback
         try:
@@ -148,10 +162,13 @@ def _calc_num_workers(
         except Exception:
             frac = 1.0
         base = max(1, int(base * max(0.1, frac)))
-    try:
-        mem = float(psutil.virtual_memory().percent)
-    except Exception:
+    if psutil is None:
         mem = 0.0
+    else:
+        try:
+            mem = float(psutil.virtual_memory().percent)
+        except Exception:
+            mem = 0.0
     if mem > 80.0:
         base = max(1, base // 2)
     return base
