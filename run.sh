@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
+
 # Ensure FAISS indexes are moved to GPU memory when available
 export GPU_MEMORY_INDEX="1"
 
@@ -68,14 +70,12 @@ if command -v cargo >/dev/null 2>&1; then
     fi
 fi
 
-if [ "${DEPTH_SERVICE,,}" = "true" ]; then
-    if ! command -v cargo >/dev/null 2>&1; then
-        echo "Error: DEPTH_SERVICE requested but 'cargo' is not installed." >&2
-        echo "Install Rust from https://www.rust-lang.org/tools/install" >&2
-        exit 1
-    fi
-    cargo build --manifest-path depth_service/Cargo.toml --release
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "Error: 'cargo' is not installed." >&2
+    echo "Install Rust from https://www.rust-lang.org/tools/install" >&2
+    exit 1
 fi
+cargo build --manifest-path depth_service/Cargo.toml --release
 
 python -m solhunter_zero.metrics_aggregator &
 AGG_PID=$!

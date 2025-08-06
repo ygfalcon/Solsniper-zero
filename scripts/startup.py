@@ -13,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 
+os.environ.setdefault("DEPTH_SERVICE", "true")
+
 
 def check_deps() -> tuple[list[str], list[str]]:
     import pkgutil
