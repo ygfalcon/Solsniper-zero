@@ -28,5 +28,6 @@ fi
 # Optionally upgrade pip for Python 3.11
 if command -v python3.11 >/dev/null 2>&1; then
   python3.11 -m pip install --upgrade pip || true
+  python3.11 -m pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal
 fi
 
