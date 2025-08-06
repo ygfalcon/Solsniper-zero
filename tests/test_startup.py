@@ -256,6 +256,22 @@ def test_ensure_cargo_requires_curl(monkeypatch, capsys):
     assert "curl is required" in out
 
 
+def test_ensure_cargo_requires_brew_on_macos(monkeypatch, capsys):
+    from scripts import startup
+
+    def fake_which(cmd):
+        return None if cmd in {"cargo", "brew"} else "/usr/bin/" + cmd
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+
+    with pytest.raises(SystemExit):
+        startup.ensure_cargo()
+
+    out = capsys.readouterr().out.lower()
+    assert "homebrew" in out and "mac_setup.sh" in out
+
+
 def test_main_calls_ensure_endpoints(monkeypatch):
     from scripts import startup
 
