@@ -41,11 +41,17 @@ _GPU_BACKEND = None
 try:  # pragma: no cover - optional dependency
     import torch  # type: ignore
 
-    if torch.cuda.is_available() or (
+    _mps_available = (
         hasattr(torch, "backends")
         and hasattr(torch.backends, "mps")
         and torch.backends.mps.is_available()
-    ):
+    )
+    if torch.cuda.is_available() or _mps_available:
+        if _mps_available:
+            if os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1") != "1":
+                logging.getLogger(__name__).warning(
+                    "MPS is available but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'"
+                )
         _GPU_BACKEND = "torch"
         if _use_gpu_env is None:
             USE_GPU_SIM = True
