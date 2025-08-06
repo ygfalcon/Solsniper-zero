@@ -487,6 +487,19 @@ def ensure_route_ffi() -> None:
 
     if not libpath.exists():
         print(f"Warning: failed to locate built {libname}; please build manually.")
+    elif platform.system() == "Darwin":
+        try:
+            subprocess.check_call([
+                "codesign",
+                "--force",
+                "--sign",
+                "-",
+                str(libpath),
+            ])
+        except subprocess.CalledProcessError:
+            print(
+                "Warning: failed to codesign libroute_ffi.dylib; please run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib' manually."
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
