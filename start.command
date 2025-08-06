@@ -18,7 +18,10 @@ rotate_logs
 exec > >(tee -a startup.log) 2>&1
 
 find_python() {
-  if command -v python3 >/dev/null 2>&1; then
+  if command -v python3.11 >/dev/null 2>&1; then
+    PY=$(command -v python3.11)
+    return 0
+  elif command -v python3 >/dev/null 2>&1; then
     PY=$(command -v python3)
   elif command -v python >/dev/null 2>&1; then
     PY=$(command -v python)
