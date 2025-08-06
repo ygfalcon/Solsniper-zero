@@ -174,20 +174,16 @@ forwards to `./run.sh --auto` for a fully automated start.
 
 ### Required dependencies
 
-1. Install the Xcode command line tools:
-   ```bash
-   xcode-select --install
-   ```
-2. Install Homebrew packages with the helper script:
+1. Install Homebrew packages with the helper script (installs the Xcode command line tools if needed). The script exits after starting the Xcode installation; re-run it once the tools finish installing:
    ```bash
    ./scripts/mac_setup.sh
    ```
-3. Install the Metal-enabled PyTorch build (for Apple Silicon):
+2. Install the Metal-enabled PyTorch build (for Apple Silicon):
    ```bash
    pip install torch==2.1.0 torchvision==0.16.0 \
      --extra-index-url https://download.pytorch.org/whl/metal
    ```
-4. Enable CPU fallback for unsupported MPS operations:
+3. Enable CPU fallback for unsupported MPS operations:
    ```bash
    export PYTORCH_ENABLE_MPS_FALLBACK=1
    ```
