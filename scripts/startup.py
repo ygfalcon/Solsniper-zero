@@ -15,7 +15,12 @@ import contextlib
 import io
 from pathlib import Path
 import json
-from scripts import preflight
+
+ROOT = Path(__file__).resolve().parent.parent
+os.chdir(ROOT)
+sys.path.insert(0, str(ROOT))
+
+from scripts import preflight  # noqa: E402
 from solhunter_zero.bootstrap_utils import (
     _pip_install,
     ensure_deps,
@@ -23,10 +28,6 @@ from solhunter_zero.bootstrap_utils import (
     ensure_route_ffi,
     ensure_venv,
 )
-
-ROOT = Path(__file__).resolve().parent.parent
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
 
 from solhunter_zero import env  # noqa: E402
 
@@ -226,6 +227,37 @@ def ensure_endpoints(cfg: dict) -> None:
 
     if failed:
         raise SystemExit(1)
+
+
+def check_internet(url: str = "https://example.com") -> None:
+    """Ensure basic internet connectivity by reaching a known host.
+
+    The function performs a simple ``GET`` request to ``url`` with
+    exponential backoff.  If all attempts fail, startup is aborted with a
+    clear error message.
+    """
+
+    import urllib.request
+    import urllib.error
+
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:  # nosec B310
+                resp.read()
+                return
+        except Exception as exc:  # pragma: no cover - network failure
+            if attempt == 2:
+                print(
+                    f"Failed to reach {url} after 3 attempts: {exc}. "
+                    "Check your internet connection."
+                )
+                raise SystemExit(1)
+            wait = 2**attempt
+            print(
+                f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
+                f"Retrying in {wait} seconds..."
+            )
+            time.sleep(wait)
 
 
 def ensure_rpc(*, warn_only: bool = False) -> None:
@@ -541,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
         active_keypair = wallet.get_active_keypair_name()
 
     if not args.skip_rpc_check:
+        check_internet()
         ensure_rpc(warn_only=args.one_click)
         rpc_status = "reachable"
     else:
