@@ -73,14 +73,21 @@ cfg = apply_env_overrides(cfg)
 set_env_from_config(cfg)
 
 # auto-select single keypair and configuration on startup
-if wallet.get_active_keypair_name() is None:
-    keys = wallet.list_keypairs()
-    if len(keys) == 1:
-        wallet.select_keypair(keys[0])
-        if not os.getenv("KEYPAIR_PATH"):
-            os.environ["KEYPAIR_PATH"] = os.path.join(
-                wallet.KEYPAIR_DIR, keys[0] + ".json"
-            )
+try:
+    if wallet.get_active_keypair_name() is None:
+        keys = wallet.list_keypairs()
+        if len(keys) == 1:
+            wallet.select_keypair(keys[0])
+            if not os.getenv("KEYPAIR_PATH"):
+                os.environ["KEYPAIR_PATH"] = os.path.join(
+                    wallet.KEYPAIR_DIR, keys[0] + ".json"
+                )
+except Exception as exc:
+    print(
+        f"Wallet interaction failed: {exc}\n"
+        "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+        file=sys.stderr,
+    )
 
 if get_active_config_name() is None:
     configs = list_configs()
@@ -321,11 +328,29 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
     current_portfolio = portfolio
     set_env_from_config(load_selected_config())
     keypair_path = os.getenv("KEYPAIR_PATH")
-    env_keypair = await wallet.load_keypair_async(keypair_path) if keypair_path else None
+    try:
+        env_keypair = (
+            await wallet.load_keypair_async(keypair_path) if keypair_path else None
+        )
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     current_keypair = env_keypair
 
     while not stop_event.is_set():
-        selected_keypair = await wallet.load_selected_keypair_async()
+        try:
+            selected_keypair = await wallet.load_selected_keypair_async()
+        except Exception as exc:
+            print(
+                f"Wallet interaction failed: {exc}\n"
+                "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
         keypair = selected_keypair if selected_keypair is not None else env_keypair
         current_keypair = keypair
         await main_module._run_iteration(
@@ -359,10 +384,23 @@ def start() -> dict:
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
     # auto-select the only available keypair if none is active
-    if wallet.get_active_keypair_name() is None:
-        keys = wallet.list_keypairs()
-        if len(keys) == 1:
-            wallet.select_keypair(keys[0])
+    try:
+        if wallet.get_active_keypair_name() is None:
+            keys = wallet.list_keypairs()
+            if len(keys) == 1:
+                wallet.select_keypair(keys[0])
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+        return jsonify(
+            {
+                "status": "error",
+                "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
+            }
+        ), 500
 
     missing = _missing_required()
     if missing:
@@ -509,12 +547,19 @@ def discovery_method() -> dict:
 
 @app.route("/keypairs", methods=["GET"])
 def keypairs() -> dict:
-    return jsonify(
-        {
+    try:
+        data = {
             "keypairs": wallet.list_keypairs(),
             "active": wallet.get_active_keypair_name(),
         }
-    )
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+        return jsonify({"error": "wallet unavailable"}), 500
+    return jsonify(data)
 
 
 @app.route("/keypairs/upload", methods=["POST"])
@@ -534,7 +579,23 @@ def upload_keypair() -> dict:
 @app.route("/keypairs/select", methods=["POST"])
 def select_keypair_route() -> dict:
     name = request.get_json().get("name")
-    wallet.select_keypair(name)
+    try:
+        wallet.select_keypair(name)
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
+                }
+            ),
+            400,
+        )
     return jsonify({"status": "ok"})
 
 
