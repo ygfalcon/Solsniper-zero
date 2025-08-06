@@ -54,7 +54,9 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     if Path(sys.prefix) != venv_dir:
         python = (
-            venv_dir / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
+            venv_dir
+            / ("Scripts" if os.name == "nt" else "bin")
+            / ("python.exe" if os.name == "nt" else "python")
         )
         os.execv(str(python), [str(python), *sys.argv])
 
@@ -101,7 +103,9 @@ def ensure_deps() -> None:
                 subprocess.check_call(
                     [sys.executable, "-m", "ensurepip", "--default-pip"]
                 )
-            except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+            except (
+                subprocess.CalledProcessError
+            ) as exc:  # pragma: no cover - hard failure
                 print(f"Failed to bootstrap pip: {exc}")
                 raise SystemExit(exc.returncode)
             else:
@@ -114,7 +118,11 @@ def ensure_deps() -> None:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]")
 
-    if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if (
+        "torch" in opt
+        and platform.system() == "Darwin"
+        and platform.machine() == "arm64"
+    ):
         print(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
@@ -129,10 +137,9 @@ def ensure_deps() -> None:
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         import importlib
         import torch
+
         if not torch.backends.mps.is_available():
-            print(
-                "MPS backend not available; attempting to reinstall Metal wheel..."
-            )
+            print("MPS backend not available; attempting to reinstall Metal wheel...")
             try:
                 _pip_install(
                     "--force-reinstall",
@@ -193,7 +200,9 @@ def ensure_deps() -> None:
 
 
 def ensure_config() -> None:
-    if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
+    if not any(
+        Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")
+    ):
         from scripts import quick_setup
 
         quick_setup.main(["--auto"])
@@ -212,7 +221,9 @@ def ensure_wallet_cli() -> None:
     try:
         _pip_install(".")
     except SystemExit:
-        print("Failed to install 'solhunter-wallet'. Please run 'pip install .' manually.")
+        print(
+            "Failed to install 'solhunter-wallet'. Please run 'pip install .' manually."
+        )
         raise
 
     if shutil.which("solhunter-wallet") is None:
@@ -321,9 +332,7 @@ def ensure_endpoints(cfg: dict) -> None:
 
 def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
-    rpc_url = os.environ.get(
-        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-    )
+    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
     if not os.environ.get("SOLANA_RPC_URL"):
         print(f"Using default RPC URL {rpc_url}")
 
@@ -358,6 +367,7 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
             )
             time.sleep(wait)
 
+
 def ensure_cargo() -> None:
     installed = False
     if shutil.which("cargo") is None:
@@ -381,15 +391,13 @@ def ensure_cargo() -> None:
                     stderr=subprocess.DEVNULL,
                 )
             except subprocess.CalledProcessError:
-                print(
-                    "Xcode command line tools are required. Launching installer..."
-                )
+                print("Xcode command line tools are required. Launching installer...")
                 try:
                     subprocess.check_call(["xcode-select", "--install"])
-                except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-                    print(
-                        f"Failed to start Xcode command line tools installer: {exc}"
-                    )
+                except (
+                    subprocess.CalledProcessError
+                ) as exc:  # pragma: no cover - hard failure
+                    print(f"Failed to start Xcode command line tools installer: {exc}")
                 else:
                     print(
                         "The installer may prompt for confirmation; "
@@ -409,11 +417,7 @@ def ensure_cargo() -> None:
     except subprocess.CalledProcessError as exc:
         print("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
-    if (
-        installed
-        and platform.system() == "Darwin"
-        and platform.machine() == "arm64"
-    ):
+    if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
         subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
@@ -445,7 +449,9 @@ def ensure_route_ffi() -> None:
     ``aarch64-apple-darwin`` to match the host architecture.
     """
 
-    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libname = (
+        "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    )
     libpath = ROOT / "solhunter_zero" / libname
     if libpath.exists():
         return
@@ -459,9 +465,7 @@ def ensure_route_ffi() -> None:
             print("Failed to verify rust targets. Is rustup installed correctly?")
             raise SystemExit(exc.returncode)
         if "aarch64-apple-darwin" not in installed_targets:
-            subprocess.check_call(
-                ["rustup", "target", "add", "aarch64-apple-darwin"]
-            )
+            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
 
     cmd = [
         "cargo",
@@ -493,10 +497,16 @@ def main(argv: list[str] | None = None) -> int:
     ensure_venv(argv)
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")
-    parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
-    parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
     parser.add_argument(
-        "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
+        "--skip-deps", action="store_true", help="Skip dependency check"
+    )
+    parser.add_argument(
+        "--skip-setup", action="store_true", help="Skip config and wallet prompts"
+    )
+    parser.add_argument(
+        "--skip-rpc-check",
+        action="store_true",
+        help="Skip Solana RPC availability check",
     )
     parser.add_argument(
         "--skip-endpoint-check",
@@ -565,11 +575,10 @@ def main(argv: list[str] | None = None) -> int:
         ensure_rpc(warn_only=args.one_click)
     ensure_cargo()
     ensure_route_ffi()
-    run_sh = ROOT / "run.sh"
-    if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
-        os.execv(str(run_sh), [str(run_sh), "--auto", *rest])
-    else:
-        os.execv(sys.executable, [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest])
+    os.execv(
+        sys.executable,
+        [sys.executable, "-m", "solhunter_zero.launcher", "--auto", *rest],
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
