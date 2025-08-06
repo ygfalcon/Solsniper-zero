@@ -659,7 +659,8 @@ def ensure_depth_service() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_venv(argv)
+    if argv is not None:
+        os.environ["SOLHUNTER_SKIP_VENV"] = "1"
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
@@ -711,7 +712,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.one_click:
         rest = ["--non-interactive", *rest]
-        os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
+
+    if args.skip_deps:
+        os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
+    if args.full_deps:
+        os.environ["SOLHUNTER_INSTALL_OPTIONAL"] = "1"
+    if args.skip_setup:
+        os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
         print(
@@ -726,8 +733,9 @@ def main(argv: list[str] | None = None) -> int:
             print("Use '--allow-rosetta' to continue anyway.")
             return 1
 
-    if not args.skip_deps:
-        ensure_deps(install_optional=args.full_deps)
+    from solhunter_zero.bootstrap import bootstrap
+
+    bootstrap(one_click=args.one_click)
 
     from solhunter_zero import device
 
@@ -742,7 +750,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_setup:
         from solhunter_zero.config import load_config, validate_config
 
-        ensure_config()
         config_path = os.getenv("SOLHUNTER_CONFIG")
         if not config_path:
             for name in ("config.yaml", "config.yml", "config.toml"):
@@ -757,8 +764,6 @@ def main(argv: list[str] | None = None) -> int:
             ensure_wallet_cli()
         except SystemExit as exc:
             return exc.code if isinstance(exc.code, int) else 1
-        ensure_default_keypair()
-        ensure_keypair()
         from solhunter_zero import wallet
 
         active_keypair = wallet.get_active_keypair_name()
@@ -772,8 +777,6 @@ def main(argv: list[str] | None = None) -> int:
     gpu_device = str(device.get_default_device()) if device.detect_gpu() else "none"
 
     ensure_cargo()
-    ensure_route_ffi()
-    ensure_depth_service()
 
     run_preflight = args.one_click or not args.skip_preflight
     if run_preflight:

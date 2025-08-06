@@ -10,6 +10,8 @@
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py` (includes `depth_service`).
+- Programmatic consumers can call `solhunter_zero.bootstrap.bootstrap()` to
+  perform the same setup steps before interacting with the library.
 
 ## Investor Demo
 
