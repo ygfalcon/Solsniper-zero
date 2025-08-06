@@ -41,7 +41,7 @@ if ! find_python; then
   else
     echo "Python 3.11 or higher is required (found $PY_VERSION). Attempting installation..."
   fi
-  scripts/mac_setup.sh || true
+  scripts/mac_setup.sh --non-interactive || true
   echo "Retrying Python interpreter discovery..."
   if ! find_python; then
     STATUS=$?
@@ -82,7 +82,7 @@ PY
 if [ "$(uname -s)" = "Darwin" ]; then
   if ! command -v brew >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
     echo "Missing Homebrew or rustup. Running mac setup..."
-    scripts/mac_setup.sh
+    scripts/mac_setup.sh --non-interactive
     if command -v brew >/dev/null 2>&1; then
       eval "$(brew shellenv)"
     elif [ -x /opt/homebrew/bin/brew ]; then
@@ -91,7 +91,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
       eval "$(/usr/local/bin/brew shellenv)"
     else
       echo "Homebrew not found after mac setup. Re-running mac setup..."
-      exec scripts/mac_setup.sh
+      exec scripts/mac_setup.sh --non-interactive
     fi
   fi
 

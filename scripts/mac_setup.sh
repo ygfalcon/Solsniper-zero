@@ -1,14 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+NON_INTERACTIVE=0
+for arg in "$@"; do
+    if [[ "$arg" == "--non-interactive" ]]; then
+        NON_INTERACTIVE=1
+        break
+    fi
+done
+
 if ! xcode-select -p >/dev/null 2>&1; then
     echo "Installing Xcode command line tools..."
     xcode-select --install
+    elapsed=0
+    timeout=300
+    interval=10
     until xcode-select -p >/dev/null 2>&1; do
-        read -p "Command line tools not yet installed. Press Enter to re-check or type 'c' to cancel: " ans
-        if [[ "${ans}" == "c" || "${ans}" == "C" ]]; then
-            echo "Please re-run this script after the tools are installed."
-            exit 1
+        if (( NON_INTERACTIVE )); then
+            if (( elapsed >= timeout )); then
+                echo "Command line tools installation timed out after ${timeout}s." >&2
+                exit 1
+            fi
+            sleep "$interval"
+            elapsed=$((elapsed + interval))
+        else
+            read -p "Command line tools not yet installed. Press Enter to re-check or type 'c' to cancel: " ans
+            if [[ "${ans}" == "c" || "${ans}" == "C" ]]; then
+                echo "Please re-run this script after the tools are installed."
+                exit 1
+            fi
         fi
     done
 fi
