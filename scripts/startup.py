@@ -550,21 +550,44 @@ def main(argv: list[str] | None = None) -> int:
     from solhunter_zero import device
 
     torch.set_default_device(device.get_default_device())
+    config_path: str | None = None
+    active_keypair: str | None = None
+    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
         from solhunter_zero.config import load_config, validate_config
 
         ensure_config()
-        cfg = load_config()
+        config_path = os.getenv("SOLHUNTER_CONFIG")
+        if not config_path:
+            for name in ("config.yaml", "config.yml", "config.toml"):
+                if Path(name).is_file():
+                    config_path = name
+                    break
+        cfg = load_config(config_path)
         cfg = validate_config(cfg)
         if not args.skip_endpoint_check:
             ensure_endpoints(cfg)
         ensure_keypair()
+        from solhunter_zero import wallet
+
+        active_keypair = wallet.get_active_keypair_name()
 
     if not args.skip_rpc_check:
         ensure_rpc(warn_only=args.one_click)
+        rpc_status = "reachable"
+    else:
+        rpc_status = "skipped"
+
+    gpu_device = str(device.get_default_device()) if device.detect_gpu() else "none"
+
     ensure_cargo()
     ensure_route_ffi()
+    print("Startup summary:")
+    print(f"  Config file: {config_path or 'none'}")
+    print(f"  Active keypair: {active_keypair or 'none'}")
+    print(f"  GPU device: {gpu_device}")
+    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
     run_sh = ROOT / "run.sh"
     if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
         os.execv(str(run_sh), [str(run_sh), "--auto", *rest])
