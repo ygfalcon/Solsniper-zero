@@ -15,6 +15,7 @@ import contextlib
 import io
 from pathlib import Path
 import json
+import logging
 from scripts import preflight
 from solhunter_zero.bootstrap_utils import (
     _pip_install,
@@ -33,6 +34,8 @@ from solhunter_zero import env  # noqa: E402
 env.load_env_file(ROOT / ".env")
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device  # noqa: E402
+
+log = logging.getLogger(__name__)
 
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     script = Path(__file__).resolve()
@@ -87,35 +90,29 @@ def ensure_wallet_cli() -> None:
     if shutil.which("solhunter-wallet") is not None:
         return
 
-    print("'solhunter-wallet' command not found. Installing the package...")
+    log.info("'solhunter-wallet' command not found. Installing the package...")
     try:
         _pip_install(".")
     except SystemExit:
-        print(
+        log.warning(
             "Failed to install 'solhunter-wallet'. Please run 'pip install .' manually."
         )
         raise
 
     if shutil.which("solhunter-wallet") is None:
-        print("'solhunter-wallet' still not available after installation. Aborting.")
+        log.warning("'solhunter-wallet' still not available after installation. Aborting.")
         raise SystemExit(1)
 
 def ensure_keypair() -> None:
     """Ensure a usable keypair exists and is selected."""
 
-    import logging
     from pathlib import Path
 
     from solhunter_zero import wallet
-
-    log = logging.getLogger(__name__)
     one_click = os.getenv("AUTO_SELECT_KEYPAIR") == "1"
 
     def _msg(msg: str) -> None:
-        if one_click:
-            log.info(msg)
-        else:
-            print(msg)
+        log.info(msg)
 
     keypair_json = os.environ.get("KEYPAIR_JSON")
     result = wallet.setup_default_keypair()
@@ -164,7 +161,7 @@ def ensure_endpoints(cfg: dict) -> None:
         try:
             check_endpoint(url)
         except urllib.error.URLError as exc:  # pragma: no cover - network failure
-            print(
+            log.warning(
                 f"Failed to reach {name} at {url} after 3 attempts: {exc}."
                 " Check your network connection or configuration."
             )
@@ -178,7 +175,7 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
     if not os.environ.get("SOLANA_RPC_URL"):
-        print(f"Using default RPC URL {rpc_url}")
+        log.info(f"Using default RPC URL {rpc_url}")
 
     import json
     import urllib.request
@@ -200,14 +197,14 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
                     " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
                 )
                 if warn_only:
-                    print(f"Warning: {msg}")
+                    log.warning(msg)
                     return
-                print(msg)
+                log.warning(msg)
                 raise SystemExit(1)
             wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}.",
-                f" Retrying in {wait} seconds...",
+            log.warning(
+                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}. "
+                f"Retrying in {wait} seconds..."
             )
             time.sleep(wait)
 
@@ -221,12 +218,12 @@ def ensure_cargo() -> None:
         apply_brew_env()
     if shutil.which("cargo") is None:
         if shutil.which("curl") is None:
-            print(
+            log.warning(
                 "curl is required to install the Rust toolchain. "
-                "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
+                "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script."
             )
             raise SystemExit(1)
-        print("Installing Rust toolchain via rustup...")
+        log.info("Installing Rust toolchain via rustup...")
         subprocess.check_call(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
             shell=True,
@@ -237,7 +234,7 @@ def ensure_cargo() -> None:
     try:
         subprocess.check_call(["cargo", "--version"], stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:
-        print("Failed to run 'cargo --version'. Is Rust installed correctly?")
+        log.warning("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
     if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
         subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
@@ -245,7 +242,7 @@ def ensure_cargo() -> None:
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
         except subprocess.CalledProcessError as exc:
-            print("Failed to list rust targets. Is rustup installed correctly?")
+            log.warning("Failed to list rust targets. Is rustup installed correctly?")
             raise SystemExit(exc.returncode)
         if "aarch64-apple-darwin" not in targets:
             subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
@@ -253,13 +250,13 @@ def ensure_cargo() -> None:
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
         if platform.system() == "Darwin" and shutil.which("brew") is not None:
-            print(
+            log.info(
                 f"Missing {', '.join(missing)}. Attempting to install with Homebrew..."
             )
             try:
                 subprocess.check_call(["brew", "install", "pkg-config", "cmake"])
             except subprocess.CalledProcessError as exc:
-                print(f"Homebrew installation failed: {exc}")
+                log.warning(f"Homebrew installation failed: {exc}")
             else:
                 missing = [
                     tool
@@ -269,7 +266,7 @@ def ensure_cargo() -> None:
         if missing:
             names = " and ".join(missing)
             brew = " ".join(missing)
-            print(
+            log.warning(
                 f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
                 f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
             )
@@ -331,7 +328,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Suppress post-run diagnostics collection",
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Reduce output to warnings only",
+    )
     args, rest = parser.parse_known_args(argv)
+
+    logging.basicConfig(
+        level=logging.WARNING if args.quiet else logging.INFO,
+        format="%(levelname)s: %(message)s",
+        force=True,
+    )
 
     if args.self_test:
         from solhunter_zero.bootstrap import bootstrap
@@ -358,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(out)
         passes = len(re.findall(r": OK\b", out))
         fails = len(re.findall(r": FAIL\b", out))
-        print(
+        log.info(
             f"Self-test summary: bootstrap {'PASS' if b_code == 0 else 'FAIL'}, "
             f"preflight: {passes} passed, {fails} failed."
         )
@@ -380,16 +388,16 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
-        print(
+        log.warning(
             "Python 3.11 or higher is required. "
             "Please install Python 3.11 following the instructions in README.md."
         )
         return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        log.warning("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
+            log.info("Use '--allow-rosetta' to continue anyway.")
             return 1
 
     if not args.skip_preflight:
@@ -411,9 +419,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(out)
         sys.stderr.write(err)
         try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.write(out)
-                log.write(err)
+            with open(ROOT / "preflight.log", "a", encoding="utf-8") as preflight_log:
+                preflight_log.write(out)
+                preflight_log.write(err)
         except OSError:
             pass
         if code:
@@ -430,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     gpu_available = device.detect_gpu()
     gpu_device = str(device.get_default_device()) if gpu_available else "none"
     if gpu_device == "none":
-        print(
+        log.warning(
             "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
             "scripts/mac_setup.py to enable GPU support."
         )
@@ -475,11 +483,11 @@ def main(argv: list[str] | None = None) -> int:
         rpc_status = "skipped"
 
     ensure_cargo()
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    log.info("Startup summary:")
+    log.info(f"  Config file: {config_path or 'none'}")
+    log.info(f"  Active keypair: {active_keypair or 'none'}")
+    log.info(f"  GPU device: {gpu_device}")
+    log.info(f"  RPC endpoint: {rpc_url} ({rpc_status})")
 
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
@@ -490,14 +498,14 @@ def main(argv: list[str] | None = None) -> int:
 
         info = diagnostics.collect()
         summary = ", ".join(f"{k}={v}" for k, v in info.items())
-        print(f"Diagnostics summary: {summary}")
+        log.info(f"Diagnostics summary: {summary}")
         out_path = Path("diagnostics.json")
         try:
             out_path.write_text(json.dumps(info, indent=2))
         except Exception:
             pass
         else:
-            print(f"Full diagnostics written to {out_path}")
+            log.info(f"Full diagnostics written to {out_path}")
 
     return proc.returncode
 
