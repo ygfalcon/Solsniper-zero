@@ -318,10 +318,15 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 
 def ensure_config() -> None:
     cfg_file = ROOT / "config.toml"
+    created = False
     if not cfg_file.exists():
-        template = ROOT / "config" / "default.toml"
-        if template.exists():
-            shutil.copy(template, cfg_file)
+        try:
+            from scripts import quick_setup
+
+            quick_setup.main(["--auto", "--non-interactive"])
+        except Exception as exc:  # pragma: no cover - quick setup failure
+            print(f"Failed to run quick setup: {exc}")
+        created = cfg_file.exists()
 
     import tomllib
 
@@ -352,6 +357,8 @@ def ensure_config() -> None:
 
     with cfg_file.open("wb") as fh:
         fh.write(tomli_w.dumps(cfg).encode("utf-8"))
+    if created:
+        print(f"Configuration created at {cfg_file}")
 
 
 def ensure_wallet_cli() -> None:
@@ -409,6 +416,7 @@ def ensure_keypair() -> None:
     """Ensure a usable keypair exists and is selected."""
 
     import logging
+    from pathlib import Path
 
     from solhunter_zero import wallet
 
@@ -422,12 +430,23 @@ def ensure_keypair() -> None:
             print(msg)
 
     keypair_json = os.environ.get("KEYPAIR_JSON")
+    if not wallet.list_keypairs() and not keypair_json:
+        try:
+            from scripts import quick_setup
+
+            quick_setup.main(["--auto", "--non-interactive"])
+        except Exception as exc:  # pragma: no cover - quick setup failure
+            _msg(f"Failed to run quick setup: {exc}")
+
     name, mnemonic_path = wallet.ensure_default_keypair()
+    keypair_path = Path(wallet.KEYPAIR_DIR) / f"{name}.json"
 
     if keypair_json:
         _msg("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
+        _msg(f"Keypair stored at {keypair_path}.")
     elif mnemonic_path:
         _msg(f"Generated mnemonic and keypair '{name}'.")
+        _msg(f"Keypair stored at {keypair_path}.")
         _msg(f"Mnemonic stored at {mnemonic_path}.")
         if not one_click:
             _msg("Please store this mnemonic securely; it will not be shown again.")
