@@ -178,17 +178,19 @@ def ensure_deps() -> None:
             _pip_install(pkg)
 
     req_after, opt_after = deps.check_deps()
-    if req_after or opt_after:
-        if req_after:
-            print(
-                "Missing required dependencies after installation: "
-                + ", ".join(req_after)
-            )
-        if opt_after:
-            print(
-                "Missing optional dependencies after installation: "
-                + ", ".join(opt_after)
-            )
+    missing_opt = list(opt_after)
+    if req_after:
+        print(
+            "Missing required dependencies after installation: "
+            + ", ".join(req_after)
+        )
+    if missing_opt:
+        print(
+            "Optional modules missing: "
+            + ", ".join(missing_opt)
+            + " (features disabled)."
+        )
+    if req_after:
         raise SystemExit(1)
 
 

@@ -121,9 +121,8 @@ def test_ensure_deps_installs_optional(monkeypatch):
 
     calls: list[list[str]] = []
 
-    def fake_check_call(cmd):
-        calls.append(cmd)
-        return 0
+    def fake_pip_install(*args):
+        calls.append([sys.executable, "-m", "pip", "install", *args])
 
     results = [
         (
@@ -141,7 +140,8 @@ def test_ensure_deps_installs_optional(monkeypatch):
         ([], []),
     ]
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
 
     startup.ensure_deps()
 
@@ -160,14 +160,32 @@ def test_ensure_deps_installs_optional(monkeypatch):
     assert not results  # ensure check_deps called twice
 
 
+def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
+    from scripts import startup
+
+    results = [
+        ([], ["orjson", "faiss"]),
+        ([], ["orjson", "faiss"]),
+    ]
+
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(startup, "_pip_install", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+
+    startup.ensure_deps()
+    out = capsys.readouterr().out
+
+    assert "Optional modules missing: orjson, faiss (features disabled)." in out
+    assert not results
+
+
 def test_ensure_deps_installs_torch_metal(monkeypatch):
     from scripts import startup
 
     calls: list[list[str]] = []
 
-    def fake_check_call(cmd):
-        calls.append(cmd)
-        return 0
+    def fake_pip_install(*args):
+        calls.append([sys.executable, "-m", "pip", "install", *args])
 
     results = [
         ([], ["torch"]),
@@ -175,7 +193,8 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     ]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
     import types, sys
@@ -207,14 +226,14 @@ def test_ensure_deps_requires_mps(monkeypatch):
 
     calls: list[list[str]] = []
 
-    def fake_check_call(cmd):
-        calls.append(cmd)
-        return 0
+    def fake_pip_install(*args):
+        calls.append([sys.executable, "-m", "pip", "install", *args])
 
     results = [(["req"], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
