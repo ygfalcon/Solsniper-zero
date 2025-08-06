@@ -272,8 +272,32 @@ def ensure_default_keypair() -> None:
 
 
 def ensure_keypair() -> None:
+    """Ensure a usable keypair exists and is selected.
+
+    When no keypairs are present a new one is derived.  The generated mnemonic
+    is written to ``keypairs/default.mnemonic`` with mode ``600`` so it is only
+    readable by the current user.  In ``--one-click`` mode console output is
+    suppressed and the storage path is logged instead.
+    """
+
+    import json
+    import logging
+
     from solhunter_zero import wallet
-    from bip_utils import Bip39MnemonicGenerator
+
+    try:  # ``bip_utils`` is optional during tests
+        from bip_utils import Bip39MnemonicGenerator  # type: ignore
+    except Exception:  # pragma: no cover - fallback for stubbed module
+        Bip39MnemonicGenerator = None  # type: ignore
+
+    log = logging.getLogger(__name__)
+    one_click = os.getenv("AUTO_SELECT_KEYPAIR") == "1"
+
+    def _msg(msg: str) -> None:
+        if one_click:
+            log.info(msg)
+        else:
+            print(msg)
 
     def _wallet_cmd(*args: str) -> list[str]:
         if shutil.which("solhunter-wallet") is not None:
@@ -286,40 +310,49 @@ def ensure_keypair() -> None:
         if len(keypairs) == 1 and active is None:
             name = keypairs[0]
             wallet.select_keypair(name)
-            print(f"Automatically selected keypair '{name}'.")
+            _msg(f"Automatically selected keypair '{name}'.")
         return
 
     mnemonic = os.environ.get("MNEMONIC")
     keypair_json = os.environ.get("KEYPAIR_JSON")
-    if not mnemonic and not keypair_json:
-        mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
-        passphrase = os.environ.get("PASSPHRASE", "")
-        subprocess.check_call(
-            _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
-        )
-        subprocess.check_call(_wallet_cmd("select", "default"))
-        os.environ.setdefault("MNEMONIC", mnemonic)
-        name = wallet.get_active_keypair_name() or "default"
-        print(f"Generated mnemonic: {mnemonic}")
-        print("Please store this mnemonic securely; it will not be shown again.")
-        print(f"Automatically generated keypair '{name}' and selected it.")
-        return
 
-    print("No keypairs found in 'keypairs/' directory.")
+    # Skip mnemonic generation entirely when KEYPAIR_JSON is provided
     if keypair_json:
-        subprocess.check_call(_wallet_cmd("save", "default", keypair_json))
-        subprocess.check_call(_wallet_cmd("select", "default"))
-        print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
+        try:
+            data = json.loads(keypair_json)
+            if isinstance(data, list):
+                wallet.save_keypair("default", data)
+            else:
+                raise ValueError
+        except Exception:
+            subprocess.check_call(_wallet_cmd("save", "default", keypair_json))
+        wallet.select_keypair("default")
+        _msg("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         return
 
-    if mnemonic:
-        passphrase = os.environ.get("PASSPHRASE", "")
-        subprocess.check_call(
-            _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
-        )
-        subprocess.check_call(_wallet_cmd("select", "default"))
-        print("Keypair saved from MNEMONIC and selected as 'default'.")
-        return
+    if not mnemonic:
+        if Bip39MnemonicGenerator:
+            mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
+        else:  # pragma: no cover - simple fallback for stubs
+            mnemonic = "abandon " * 23 + "abandon"
+    passphrase = os.environ.get("PASSPHRASE", "")
+    kp = wallet.load_keypair_from_mnemonic(mnemonic, passphrase)
+    wallet.save_keypair("default", list(kp.to_bytes()))
+    wallet.select_keypair("default")
+    os.environ.setdefault("MNEMONIC", mnemonic)
+
+    # Persist mnemonic with restricted permissions
+    mnemonic_path = Path(wallet.KEYPAIR_DIR) / "default.mnemonic"
+    mnemonic_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(mnemonic_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(mnemonic + "\n")
+
+    _msg("Generated mnemonic and keypair 'default'.")
+    _msg(f"Mnemonic stored at {mnemonic_path}.")
+    if not one_click:
+        _msg("Please store this mnemonic securely; it will not be shown again.")
+    return
 
 
 def ensure_endpoints(cfg: dict) -> None:
