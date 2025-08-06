@@ -19,7 +19,19 @@ export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 
 # Detect if a GPU is present before moving FAISS indexes to GPU memory
 if python -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
-    export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
+    if python - <<'PY'
+import sys
+try:
+    import torch
+    sys.exit(0 if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available() else 1)
+except Exception:
+    sys.exit(1)
+PY
+    then
+        echo "MPS backend detected; leaving FAISS index on CPU"
+    else
+        export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
+    fi
 else
     echo "No GPU detected; using CPU mode"
 fi

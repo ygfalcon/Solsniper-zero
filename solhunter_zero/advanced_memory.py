@@ -41,6 +41,12 @@ def _gpu_index_enabled() -> bool:
     """Return ``True`` if the FAISS index should use GPU acceleration."""
     if os.getenv("FORCE_CPU_INDEX", "").lower() in {"1", "true", "yes"}:
         return False
+    try:
+        import torch
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return False
+    except Exception:
+        pass
     env = os.getenv("GPU_MEMORY_INDEX")
     if env is not None:
         return env.lower() in {"1", "true", "yes"}
@@ -48,7 +54,6 @@ def _gpu_index_enabled() -> bool:
         return False
     try:
         import torch
-
         return bool(torch.cuda.is_available())
     except Exception:
         return False

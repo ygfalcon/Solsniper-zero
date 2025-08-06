@@ -47,7 +47,7 @@ def test_simulation_env_disables_gpu(monkeypatch):
 
 def test_mps_detected_disables_gpu_index(monkeypatch):
     monkeypatch.delenv("FORCE_CPU_INDEX", raising=False)
-    monkeypatch.delenv("GPU_MEMORY_INDEX", raising=False)
+    monkeypatch.setenv("GPU_MEMORY_INDEX", "1")
 
     torch_mod = types.SimpleNamespace(
         cuda=types.SimpleNamespace(is_available=lambda: False),
