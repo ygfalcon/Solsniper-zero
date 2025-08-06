@@ -81,3 +81,17 @@ def test_derive_and_save_keypair(tmp_path, monkeypatch):
     wallet.save_keypair("mn", list(kp.to_bytes()))
     loaded = wallet.load_keypair(str(tmp_path / "mn.json"))
     assert loaded.to_bytes() == kp.to_bytes()
+
+
+def test_generate_default_keypair(tmp_path, monkeypatch):
+    setup_wallet(tmp_path, monkeypatch)
+    mnemonic, mnemonic_path = wallet.generate_default_keypair()
+
+    assert wallet.list_keypairs() == ["default"]
+    assert wallet.get_active_keypair_name() == "default"
+    assert (tmp_path / "default.json").exists()
+    assert mnemonic_path == tmp_path / "default.mnemonic"
+    assert mnemonic_path.read_text().strip() == mnemonic
+    assert len(mnemonic.split()) == 24
+    assert (mnemonic_path.stat().st_mode & 0o777) == 0o600
+    assert os.environ["MNEMONIC"] == mnemonic
