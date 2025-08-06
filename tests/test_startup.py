@@ -475,16 +475,22 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        apply_env_overrides=lambda cfg: cfg,
         validate_config=lambda cfg: cfg,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
-    with pytest.raises(SystemExit):
-        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
+    ret = startup.main([
+        "--skip-deps",
+        "--skip-rpc-check",
+        "--skip-preflight",
+        "--no-diagnostics",
+    ])
 
+    assert ret == 0
     assert "endpoints" in called
 
 
@@ -497,29 +503,70 @@ def test_main_skips_endpoint_check(monkeypatch):
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        apply_env_overrides=lambda cfg: cfg,
         validate_config=lambda cfg: cfg,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
-    with pytest.raises(SystemExit):
-        startup.main([
-            "--skip-deps",
-            "--skip-rpc-check",
-            "--skip-endpoint-check",
-            "--skip-preflight",
-        ])
+    ret = startup.main([
+        "--skip-deps",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-preflight",
+        "--no-diagnostics",
+    ])
 
+    assert ret == 0
     assert "endpoints" not in called
+
+
+def test_main_endpoint_failure(monkeypatch, capsys):
+    from scripts import startup
+    import urllib.request, urllib.error, types, sys
+
+    def fake_urlopen(req, timeout=5):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
+    monkeypatch.setattr(startup, "ensure_config", lambda: None)
+    monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
+    monkeypatch.setitem(sys.modules, "torch", stub_torch)
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+
+    conf = types.SimpleNamespace(
+        load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        apply_env_overrides=lambda cfg: cfg,
+        validate_config=lambda cfg: cfg,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+
+    with pytest.raises(SystemExit) as exc:
+        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight", "--skip-setup"])
+    assert exc.value.code == 1
+    out = capsys.readouterr().out.lower()
+    assert "dex_base_url" in out
 
 
 def test_main_preflight_success(monkeypatch):
@@ -667,6 +714,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        apply_env_overrides=lambda cfg: cfg,
         validate_config=lambda cfg: cfg,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)

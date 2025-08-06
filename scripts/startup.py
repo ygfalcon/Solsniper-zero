@@ -401,7 +401,7 @@ def ensure_keypair() -> None:
     return
 
 
-def ensure_endpoints(cfg: dict) -> None:
+def ensure_endpoints(cfg: dict, retries: int = 3) -> None:
     """Ensure HTTP endpoints in ``cfg`` are reachable.
 
     The configuration may specify several service URLs such as
@@ -424,29 +424,31 @@ def ensure_endpoints(cfg: dict) -> None:
             continue
         urls[key] = val
 
-    failed: list[str] = []
+    failures: list[tuple[str, str, str]] = []
     for name, url in urls.items():
         req = urllib.request.Request(url, method="HEAD")
-        for attempt in range(3):
+        for attempt in range(1, retries + 1):
             try:
                 with urllib.request.urlopen(req, timeout=5):  # nosec B310
                     break
             except urllib.error.URLError as exc:  # pragma: no cover - network failure
-                if attempt == 2:
+                if attempt == retries:
                     print(
-                        f"Failed to reach {name} at {url} after 3 attempts: {exc}."
+                        f"Failed to reach {name} at {url} after {retries} attempts: {exc}."
                         " Check your network connection or configuration."
                     )
-                    failed.append(name)
+                    failures.append((name, url, str(exc)))
                 else:
-                    wait = 2**attempt
+                    wait = 2 ** (attempt - 1)
                     print(
-                        f"Attempt {attempt + 1} failed for {name} at {url}: {exc}."
-                        f" Retrying in {wait} seconds..."
+                        f"Attempt {attempt} failed for {name} at {url}: {exc}."
+                        f" Retrying in {wait} seconds...",
                     )
                     time.sleep(wait)
 
-    if failed:
+    if failures:
+        names = ", ".join(name for name, _, _ in failures)
+        print(f"Endpoint check failed for: {names}")
         raise SystemExit(1)
 
 
@@ -740,19 +742,30 @@ def main(argv: list[str] | None = None) -> int:
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
-        from solhunter_zero.config import load_config, validate_config
-
         ensure_config()
-        config_path = os.getenv("SOLHUNTER_CONFIG")
-        if not config_path:
-            for name in ("config.yaml", "config.yml", "config.toml"):
-                if Path(name).is_file():
-                    config_path = name
-                    break
-        cfg = load_config(config_path)
-        cfg = validate_config(cfg)
-        if not args.skip_endpoint_check:
-            ensure_endpoints(cfg)
+
+    config_path = os.getenv("SOLHUNTER_CONFIG")
+    if not config_path:
+        for name in ("config.yaml", "config.yml", "config.toml"):
+            if Path(name).is_file():
+                config_path = name
+                break
+
+    from solhunter_zero.config import load_config, apply_env_overrides, validate_config
+
+    cfg = load_config(config_path)
+    cfg = apply_env_overrides(cfg)
+    if cfg:
+        try:
+            cfg = validate_config(cfg)
+        except ValueError as exc:
+            print(f"Invalid configuration: {exc}")
+            return 1
+
+    if not args.skip_endpoint_check:
+        ensure_endpoints(cfg)
+
+    if not args.skip_setup:
         try:
             ensure_wallet_cli()
         except SystemExit as exc:
