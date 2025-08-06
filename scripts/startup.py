@@ -403,6 +403,47 @@ def ensure_cargo() -> None:
             subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
 
 
+def ensure_route_ffi() -> None:
+    """Ensure the ``route_ffi`` Rust library is built and copied locally.
+
+    The Python package expects ``solhunter_zero/libroute_ffi.{so|dylib}`` to be
+    present.  When missing, this function invokes ``cargo build`` for the
+    ``route_ffi`` crate and copies the resulting shared library into the
+    package directory.  On Apple Silicon the build target is explicitly set to
+    ``aarch64-apple-darwin`` to match the host architecture.
+    """
+
+    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libpath = ROOT / "solhunter_zero" / libname
+    if libpath.exists():
+        return
+
+    cmd = [
+        "cargo",
+        "build",
+        "--manifest-path",
+        str(ROOT / "route_ffi" / "Cargo.toml"),
+        "--release",
+    ]
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        cmd.extend(["--target", "aarch64-apple-darwin"])
+
+    subprocess.check_call(cmd)
+
+    target_dir = ROOT / "route_ffi" / "target"
+    candidates = [target_dir / "release" / libname]
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        candidates.append(target_dir / "aarch64-apple-darwin" / "release" / libname)
+
+    for built in candidates:
+        if built.exists():
+            shutil.copy2(built, libpath)
+            break
+
+    if not libpath.exists():
+        print(f"Warning: failed to locate built {libname}; please build manually.")
+
+
 def main(argv: list[str] | None = None) -> int:
     ensure_venv(argv)
 
@@ -462,6 +503,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_rpc_check:
         ensure_rpc()
     ensure_cargo()
+    ensure_route_ffi()
     run_sh = ROOT / "run.sh"
     if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
         os.execv(str(run_sh), [str(run_sh), "--auto", *rest])
