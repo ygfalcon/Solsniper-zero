@@ -105,6 +105,12 @@ def ensure_deps() -> None:
         else:
             opt.remove("torch")
 
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        import torch
+        if not torch.backends.mps.is_available():
+            print("MPS backend not available; ensure Metal wheel is installed")
+            raise SystemExit(1)
+
     if opt:
         print("Installing optional dependencies...")
         mapping = {
