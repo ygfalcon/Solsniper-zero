@@ -180,49 +180,52 @@ def _pip_install(*args: str, retries: int = 3) -> None:
 
 
 def ensure_deps(*, install_optional: bool = False) -> None:
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
-        missing_tools: list[str] = []
-        try:
-            if (
-                subprocess.run(
-                    ["xcode-select", "-p"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                ).returncode
-                != 0
-            ):
-                missing_tools.append("xcode-select")
-        except FileNotFoundError:
-            missing_tools.append("xcode-select")
-        for cmd in ("brew", "python3.11", "rustup"):
-            if shutil.which(cmd) is None:
-                missing_tools.append(cmd)
-        if missing_tools:
-            print(
-                "Missing macOS tools: "
-                + ", ".join(missing_tools)
-                + ". Running mac setup..."
-            )
-            from scripts import mac_setup
+    if platform.system() == "Darwin":
+        from scripts import mac_setup
 
-            report = mac_setup.prepare_macos_env(non_interactive=True)
-            mac_setup.apply_brew_env()
-            for step, info in report["steps"].items():
-                msg = info.get("message", "")
-                if msg:
-                    print(f"{step}: {info['status']} - {msg}")
-                else:
-                    print(f"{step}: {info['status']}")
-            if not report.get("success"):
+        mac_setup.apply_brew_env()
+        if platform.machine() == "arm64":
+            missing_tools: list[str] = []
+            try:
+                if (
+                    subprocess.run(
+                        ["xcode-select", "-p"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    ).returncode
+                    != 0
+                ):
+                    missing_tools.append("xcode-select")
+            except FileNotFoundError:
+                missing_tools.append("xcode-select")
+            for cmd in ("brew", "python3.11", "rustup"):
+                if shutil.which(cmd) is None:
+                    missing_tools.append(cmd)
+            if missing_tools:
                 print(
-                    "macOS environment preparation failed; continuing without required tools",
-                    file=sys.stderr,
+                    "Missing macOS tools: "
+                    + ", ".join(missing_tools)
+                    + ". Running mac setup..."
                 )
+
+                report = mac_setup.prepare_macos_env(non_interactive=True)
+                mac_setup.apply_brew_env()
                 for step, info in report["steps"].items():
-                    if info.get("status") == "error":
-                        fix = mac_setup.MANUAL_FIXES.get(step)
-                        if fix:
-                            print(f"Manual fix for {step}: {fix}")
+                    msg = info.get("message", "")
+                    if msg:
+                        print(f"{step}: {info['status']} - {msg}")
+                    else:
+                        print(f"{step}: {info['status']}")
+                if not report.get("success"):
+                    print(
+                        "macOS environment preparation failed; continuing without required tools",
+                        file=sys.stderr,
+                    )
+                    for step, info in report["steps"].items():
+                        if info.get("status") == "error":
+                            fix = mac_setup.MANUAL_FIXES.get(step)
+                            if fix:
+                                print(f"Manual fix for {step}: {fix}")
 
     req, opt = deps.check_deps()
     if not req and not install_optional:

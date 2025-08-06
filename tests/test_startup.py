@@ -18,7 +18,7 @@ def test_mac_startup_prereqs(monkeypatch):
     """Mac-specific startup helpers run without errors."""
     import platform
     import types, sys
-    from scripts import startup
+    from scripts import startup, mac_setup
     from solhunter_zero import device
 
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
@@ -31,6 +31,7 @@ def test_mac_startup_prereqs(monkeypatch):
     startup.ensure_venv([])
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
+    monkeypatch.setattr(mac_setup, "apply_brew_env", lambda: None)
     startup.ensure_deps()
 
     dummy_torch = types.SimpleNamespace(
@@ -260,12 +261,12 @@ def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
 
 
 def test_ensure_deps_installs_torch_metal(monkeypatch):
-    from scripts import startup
+    from scripts import startup, mac_setup
 
     calls: list[list[str]] = []
 
-    def fake_pip_install(*args):
-        calls.append([sys.executable, "-m", "pip", "install", *args])
+    def fake_check_call(cmd, *a, **k):
+        calls.append(list(cmd))
 
     results = [
         ([], ["torch"]),
@@ -273,16 +274,18 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     ]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
-    import types, sys
+    monkeypatch.setattr(mac_setup, "apply_brew_env", lambda: None)
+    monkeypatch.setattr(startup.device, "torch", None)
+    import importlib, types, sys
     dummy_torch = types.SimpleNamespace()
     dummy_torch.backends = types.SimpleNamespace()
     dummy_torch.backends.mps = types.SimpleNamespace()
     dummy_torch.backends.mps.is_available = lambda: True
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setattr(importlib, "reload", lambda mod: mod)
 
     startup.ensure_deps(install_optional=True)
 
@@ -301,32 +304,38 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     assert not results
 
 
-def test_ensure_deps_requires_mps(monkeypatch):
-    from scripts import startup
+def test_ensure_deps_requires_mps(monkeypatch, capsys):
+    from scripts import startup, mac_setup
 
     calls: list[list[str]] = []
 
     def fake_pip_install(*args):
         calls.append([sys.executable, "-m", "pip", "install", *args])
 
+    def fake_check_call(cmd, *a, **k):
+        calls.append(list(cmd))
+
     results = [(["req"], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(mac_setup, "apply_brew_env", lambda: None)
 
-    import types, sys, importlib
+    import types, importlib
     dummy_torch = types.SimpleNamespace()
     dummy_torch.backends = types.SimpleNamespace()
     dummy_torch.backends.mps = types.SimpleNamespace()
     dummy_torch.backends.mps.is_available = lambda: False
-    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setattr(startup.device, "torch", dummy_torch)
     monkeypatch.setattr(importlib, "reload", lambda mod: mod)
 
     with pytest.raises(SystemExit) as excinfo:
         startup.ensure_deps(install_optional=True)
+
+    out = capsys.readouterr().out
 
     assert calls[-1] == [
         sys.executable,
@@ -339,7 +348,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
         "--extra-index-url",
         "https://download.pytorch.org/whl/metal",
     ]
-    assert "install the Metal wheel manually" in str(excinfo.value)
+    assert "Install manually with" in out
 
 
 def test_ensure_endpoints_success(monkeypatch):
