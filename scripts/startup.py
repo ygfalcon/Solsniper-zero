@@ -13,7 +13,7 @@ import shutil
 import time
 from pathlib import Path
 
-from scripts import deps
+from scripts import deps, env_checks
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -412,7 +412,8 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
 
 def ensure_cargo() -> None:
     installed = False
-    if shutil.which("cargo") is None:
+    ok, _ = env_checks.check_rust_toolchain(which=shutil.which)
+    if not ok:
         if shutil.which("curl") is None:
             print(
                 "curl is required to install the Rust toolchain. "
@@ -420,7 +421,8 @@ def ensure_cargo() -> None:
             )
             raise SystemExit(1)
         if platform.system() == "Darwin":
-            if shutil.which("brew") is None:
+            ok_brew, _ = env_checks.check_homebrew(which=shutil.which)
+            if not ok_brew:
                 print(
                     "Homebrew is required to install the Rust toolchain. "
                     "Install it by running scripts/mac_setup.sh and re-run this script.",
@@ -478,7 +480,7 @@ def ensure_cargo() -> None:
 
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
-        if platform.system() == "Darwin" and shutil.which("brew") is not None:
+        if platform.system() == "Darwin" and env_checks.check_homebrew(which=shutil.which)[0]:
             print(
                 f"Missing {', '.join(missing)}. Attempting to install with Homebrew..."
             )
@@ -635,12 +637,29 @@ def main(argv: list[str] | None = None) -> int:
         rest = ["--non-interactive", *rest]
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
 
-    if sys.version_info < (3, 11):
+    ok, msg = env_checks.check_python_version()
+    if not ok:
         print(
-            "Python 3.11 or higher is required. "
-            "Please install Python 3.11 following the instructions in README.md."
+            msg
+            + ". Please install Python 3.11 following the instructions in README.md."
         )
         return 1
+
+    ok, msg = env_checks.check_rust_toolchain()
+    if not ok:
+        print(
+            msg + ". Please install Rust from https://www.rust-lang.org/tools/install."
+        )
+        return 1
+
+    if platform.system() == "Darwin":
+        ok, msg = env_checks.check_homebrew()
+        if not ok:
+            print(
+                msg
+                + ". Install it by running scripts/mac_setup.sh and re-run this script."
+            )
+            return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
         print("Warning: running under Rosetta; Metal acceleration unavailable.")
