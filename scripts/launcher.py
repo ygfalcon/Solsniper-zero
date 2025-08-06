@@ -18,8 +18,11 @@ from pathlib import Path
 from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parent.parent
-os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
+from solhunter_zero import env  # noqa: E402
+
+env.load_env_file(ROOT / ".env")
+os.chdir(ROOT)
 
 from solhunter_zero.system import detect_cpu_count  # noqa: E402
 

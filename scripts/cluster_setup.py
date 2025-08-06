@@ -10,10 +10,16 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-from solhunter_zero.config import load_config, ENV_VARS
-
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from solhunter_zero import env  # noqa: E402
+
+env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
+
+import tomllib
+
+from solhunter_zero.config import ENV_VARS  # noqa: E402
 
 PROCS: list[subprocess.Popen] = []
 
@@ -57,7 +63,8 @@ def _stop_all(*_: object) -> None:
 
 
 def load_cluster_config(path: str) -> dict:
-    return load_config(path)
+    with open(path, "rb") as fh:
+        return tomllib.load(fh)
 
 
 def main(argv: list[str] | None = None) -> int:
