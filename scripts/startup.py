@@ -17,6 +17,7 @@ from pathlib import Path
 import json
 
 from scripts import deps
+from scripts.mac_setup import REQUIRED_TOOLS
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -194,7 +195,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                 missing_tools.append("xcode-select")
         except FileNotFoundError:
             missing_tools.append("xcode-select")
-        for cmd in ("brew", "python3.11", "rustup"):
+        for cmd in REQUIRED_TOOLS:
             if shutil.which(cmd) is None:
                 missing_tools.append(cmd)
         if missing_tools:

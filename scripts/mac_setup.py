@@ -14,6 +14,14 @@ from pathlib import Path
 from collections.abc import Callable
 
 
+REQUIRED_TOOLS = ("python3.11", "brew", "rustup")
+"""Command line tools expected to be available on macOS.
+
+The list is shared with :mod:`scripts.startup` to avoid duplicating the
+required tool names in multiple places.
+"""
+
+
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
     print("Running:", " ".join(cmd))
@@ -141,10 +149,7 @@ def upgrade_pip_and_torch() -> None:
 
 
 def verify_tools() -> None:
-    missing = []
-    for tool in ["python3.11", "brew", "rustup"]:
-        if shutil.which(tool) is None:
-            missing.append(tool)
+    missing = [tool for tool in REQUIRED_TOOLS if shutil.which(tool) is None]
     if missing:
         brew_prefix = subprocess.check_output(["brew", "--prefix"], text=True).strip()
         print(
