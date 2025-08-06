@@ -122,6 +122,13 @@ def main() -> None:
         )
     )
     db_path = cfg.get("rl_db_path", "offline_data.db")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(db_path, "a"):
+            pass
+    except OSError as exc:
+        print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=db_path)
 
     cmd = ["./target/release/depth_service"]

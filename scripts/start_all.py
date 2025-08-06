@@ -109,6 +109,13 @@ interval = float(
     )
 )
 db_path = cfg_data.get("rl_db_path", "offline_data.db")
+Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+try:
+    with open(db_path, "a"):
+        pass
+except OSError as exc:
+    print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
+    sys.exit(1)
 data_sync.start_scheduler(interval=interval, db_path=db_path)
 depth_bin = ROOT / "target" / "release" / "depth_service"
 if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
