@@ -325,20 +325,75 @@ def test_ensure_cargo_requires_curl(monkeypatch, capsys):
     assert "curl is required" in out
 
 
-def test_ensure_cargo_requires_brew_on_macos(monkeypatch, capsys):
+def test_ensure_cargo_runs_mac_setup_if_brew_missing(monkeypatch):
     from scripts import startup
 
     def fake_which(cmd):
         return None if cmd in {"cargo", "brew"} else "/usr/bin/" + cmd
 
+    calls = []
+
+    def fake_check_call(cmd, *a, **k):
+        calls.append(cmd)
+        return 0
+
     monkeypatch.setattr(startup.shutil, "which", fake_which)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
+
+    startup.ensure_cargo()
+
+    script = startup.ROOT / "scripts" / "mac_setup.sh"
+    assert [str(script), "--non-interactive"] in calls
+
+
+def test_ensure_cargo_runs_mac_setup_if_xcode_missing(monkeypatch):
+    from scripts import startup
+
+    def fake_which(cmd):
+        return None if cmd == "cargo" else "/usr/bin/" + cmd
+
+    calls = []
+
+    def fake_check_call(cmd, *a, **k):
+        calls.append(cmd)
+        if cmd[:2] == ["xcode-select", "-p"]:
+            raise subprocess.CalledProcessError(1, cmd)
+        return 0
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
+
+    startup.ensure_cargo()
+
+    script = startup.ROOT / "scripts" / "mac_setup.sh"
+    assert [str(script), "--non-interactive"] in calls
+
+
+def test_ensure_cargo_exits_when_mac_setup_fails(monkeypatch, capsys):
+    from scripts import startup
+
+    def fake_which(cmd):
+        return None if cmd in {"cargo", "brew"} else "/usr/bin/" + cmd
+
+    def fake_check_call(cmd, *a, **k):
+        if isinstance(cmd, list) and "mac_setup.sh" in cmd[0]:
+            raise subprocess.CalledProcessError(1, cmd)
+        return 0
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
 
     with pytest.raises(SystemExit):
         startup.ensure_cargo()
 
     out = capsys.readouterr().out.lower()
-    assert "homebrew" in out and "mac_setup.sh" in out
+    assert "macos setup failed" in out
 
 
 def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):

@@ -419,35 +419,29 @@ def ensure_cargo() -> None:
                 "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
             )
             raise SystemExit(1)
+
         if platform.system() == "Darwin":
-            if shutil.which("brew") is None:
-                print(
-                    "Homebrew is required to install the Rust toolchain. "
-                    "Install it by running scripts/mac_setup.sh and re-run this script.",
-                )
-                raise SystemExit(1)
-            try:
-                subprocess.check_call(
-                    ["xcode-select", "-p"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except subprocess.CalledProcessError:
-                print(
-                    "Xcode command line tools are required. Launching installer..."
-                )
+            needs_setup = shutil.which("brew") is None
+            if not needs_setup:
                 try:
-                    subprocess.check_call(["xcode-select", "--install"])
-                except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-                    print(
-                        f"Failed to start Xcode command line tools installer: {exc}"
+                    subprocess.check_call(
+                        ["xcode-select", "-p"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
-                else:
+                except subprocess.CalledProcessError:
+                    needs_setup = True
+            if needs_setup:
+                script = ROOT / "scripts" / "mac_setup.sh"
+                cmd = [str(script), "--non-interactive"]
+                try:
+                    subprocess.check_call(cmd)
+                except subprocess.CalledProcessError as exc:
                     print(
-                        "The installer may prompt for confirmation; "
-                        "after it finishes, re-run this script to resume."
+                        f"macOS setup failed (exit code {exc.returncode}). "
+                        f"Please run '{cmd[0]}' manually and re-run this script.",
                     )
-                raise SystemExit(1)
+                    raise SystemExit(exc.returncode)
         print("Installing Rust toolchain via rustup...")
         subprocess.check_call(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
