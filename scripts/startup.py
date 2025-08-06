@@ -85,7 +85,9 @@ def ensure_deps() -> None:
             raise SystemExit(exc.returncode)
 
     if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
-        print("Installing torch for macOS arm64 with Metal support...")
+        print(
+            "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
+        )
         try:
             subprocess.check_call(
                 [
@@ -93,8 +95,9 @@ def ensure_deps() -> None:
                     "-m",
                     "pip",
                     "install",
-                    "torch",
-                    "torchvision",
+                    # Pinned versions: update together when upgrading Metal wheels.
+                    "torch==2.1.0",
+                    "torchvision==0.16.0",
                     "--extra-index-url",
                     "https://download.pytorch.org/whl/metal",
                 ]
