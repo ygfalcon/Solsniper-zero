@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# This launcher expects Python 3.11 to be available as `python3.11` or fall back to
-# the default `python3` interpreter.
+# This launcher finds a Python interpreter and ensures it is at least version 3.11.
+set -e
 cd "$(dirname "$0")"
 
-command -v python3.11 >/dev/null && PY=python3.11 || PY=python3
-if ! command -v "$PY" >/dev/null; then
-  echo "Error: Python interpreter not found. Install Python 3.11 or python3." >&2
+if command -v python3 >/dev/null; then
+  PY=$(command -v python3)
+elif command -v python >/dev/null; then
+  PY=$(command -v python)
+else
+  echo "Error: Python interpreter not found. Install Python 3.11 or higher." >&2
+  exit 1
+fi
+
+PY_VERSION=$("$PY" -V 2>&1 | awk '{print $2}')
+IFS='.' read -r PY_MAJOR PY_MINOR _ <<< "$PY_VERSION"
+if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
+  echo "Error: Python 3.11 or higher is required (found $PY_VERSION)." >&2
   exit 1
 fi
 
