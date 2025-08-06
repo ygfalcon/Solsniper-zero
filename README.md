@@ -167,13 +167,17 @@ Key discovery options:
 
 ## Docker Compose
 
-Build and run inside containers without installing Python or Rust locally:
+Build and run inside containers without installing Python or Rust locally. The
+compose file mounts `config.toml` and the `keypairs` directory so changes persist
+across runs. Environment variables such as `SOLANA_RPC_URL` and `BIRDEYE_API_KEY`
+are loaded from a `.env` file.
 
 ```bash
+cp .env.example .env  # edit values as needed
 docker-compose up
 ```
 
-The compose file installs dependencies, compiles the Rust crates and starts the bot via `run.sh --auto`. Logs stream to the terminal. To run in the background and follow logs:
+Logs stream to the terminal. To run in the background and follow logs:
 
 ```bash
 docker-compose up -d
