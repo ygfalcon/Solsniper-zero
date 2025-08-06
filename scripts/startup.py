@@ -10,6 +10,7 @@ import os
 import platform
 import subprocess
 import shutil
+import time
 from pathlib import Path
 
 from scripts import deps
@@ -58,6 +59,31 @@ def ensure_venv(argv: list[str] | None) -> None:
         os.execv(str(python), [str(python), *sys.argv])
 
 
+def _pip_install(*args: str, retries: int = 3) -> None:
+    """Run ``pip install`` with retries and exponential backoff."""
+    errors: list[str] = []
+    for attempt in range(1, retries + 1):
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", *args],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        errors.append(result.stderr.strip() or result.stdout.strip())
+        if attempt < retries:
+            wait = 2 ** (attempt - 1)
+            print(
+                f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
+            )
+            time.sleep(wait)
+    print(f"Failed to install {' '.join(args)} after {retries} attempts:")
+    for err in errors:
+        if err:
+            print(err)
+    raise SystemExit(result.returncode)
+
+
 def ensure_deps() -> None:
     req, opt = deps.check_deps()
     if not req and not opt:
@@ -86,37 +112,19 @@ def ensure_deps() -> None:
 
     if req:
         print("Installing required dependencies...")
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", ".[uvloop]"]
-            )
-        except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-            print(f"Failed to install required dependencies: {exc}")
-            raise SystemExit(exc.returncode)
+        _pip_install(".[uvloop]")
 
     if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
         print(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
-        try:
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    # Pinned versions: update together when upgrading Metal wheels.
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
-                    "--extra-index-url",
-                    "https://download.pytorch.org/whl/metal",
-                ]
-            )
-        except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
-            print(f"Failed to install torch with Metal wheels: {exc}")
-            raise SystemExit(exc.returncode)
-        else:
-            opt.remove("torch")
+        _pip_install(
+            "torch==2.1.0",
+            "torchvision==0.16.0",
+            "--extra-index-url",
+            "https://download.pytorch.org/whl/metal",
+        )
+        opt.remove("torch")
 
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         import importlib
@@ -126,21 +134,15 @@ def ensure_deps() -> None:
                 "MPS backend not available; attempting to reinstall Metal wheel..."
             )
             try:
-                subprocess.check_call(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pip",
-                        "install",
-                        "--force-reinstall",
-                        "torch==2.1.0",
-                        "torchvision==0.16.0",
-                        "--extra-index-url",
-                        "https://download.pytorch.org/whl/metal",
-                    ]
+                _pip_install(
+                    "--force-reinstall",
+                    "torch==2.1.0",
+                    "torchvision==0.16.0",
+                    "--extra-index-url",
+                    "https://download.pytorch.org/whl/metal",
                 )
-            except subprocess.CalledProcessError as exc:
-                print(f"Failed to reinstall torch with Metal wheels: {exc}")
+            except SystemExit:
+                print("Failed to reinstall torch with Metal wheels.")
             importlib.reload(torch)
             if not torch.backends.mps.is_available():
                 raise SystemExit(
@@ -169,29 +171,11 @@ def ensure_deps() -> None:
         if "msgpack" in mods:
             extras.append("msgpack")
         if extras:
-            try:
-                subprocess.check_call(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pip",
-                        "install",
-                        f".[{','.join(extras)}]",
-                    ]
-                )
-            except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
-                print(f"Failed to install optional extras '{extras}': {exc}")
-                raise SystemExit(exc.returncode)
+            _pip_install(f".[{','.join(extras)}]")
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
-            try:
-                subprocess.check_call(
-                    [sys.executable, "-m", "pip", "install", pkg]
-                )
-            except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
-                print(f"Failed to install optional dependency '{pkg}': {exc}")
-                raise SystemExit(exc.returncode)
+            _pip_install(pkg)
 
     req_after, opt_after = deps.check_deps()
     if req_after or opt_after:
@@ -226,12 +210,10 @@ def ensure_wallet_cli() -> None:
 
     print("'solhunter-wallet' command not found. Installing the package...")
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "."])
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-        print(
-            "Failed to install 'solhunter-wallet'. Please run 'pip install .' manually."
-        )
-        raise SystemExit(exc.returncode)
+        _pip_install(".")
+    except SystemExit:
+        print("Failed to install 'solhunter-wallet'. Please run 'pip install .' manually.")
+        raise
 
     if shutil.which("solhunter-wallet") is None:
         print("'solhunter-wallet' still not available after installation. Aborting.")
