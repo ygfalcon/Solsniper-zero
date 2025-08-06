@@ -187,6 +187,11 @@ forwards to `./run.sh --auto` for a fully automated start.
    pip install torch==2.1.0 torchvision==0.16.0 \
      --extra-index-url https://download.pytorch.org/whl/metal
    ```
+4. Enable CPU fallback for unsupported MPS operations:
+   ```bash
+   export PYTORCH_ENABLE_MPS_FALLBACK=1
+   ```
+   Add this to your shell profile to persist across sessions.
 
 ### Troubleshooting
 

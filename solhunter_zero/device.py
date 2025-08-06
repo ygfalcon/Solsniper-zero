@@ -66,18 +66,16 @@ def get_gpu_backend() -> str | None:
 
     if torch is not None:
         try:  # pragma: no cover - optional dependency
-            mps_available = (
-                hasattr(torch, "backends")
-                and hasattr(torch.backends, "mps")
-                and torch.backends.mps.is_available()
-            )
+            mps_built = hasattr(torch, "backends") and hasattr(torch.backends, "mps")
+            mps_available = mps_built and torch.backends.mps.is_available()
+            if mps_built and os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
+                logging.getLogger(__name__).warning(
+                    "MPS support detected but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'. "
+                    "Export PYTORCH_ENABLE_MPS_FALLBACK=1 to enable CPU fallback for unsupported ops."
+                )
+            if mps_built:
+                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
             if torch.cuda.is_available() or mps_available:
-                if mps_available and os.environ.setdefault(
-                    "PYTORCH_ENABLE_MPS_FALLBACK", "1"
-                ) != "1":
-                    logging.getLogger(__name__).warning(
-                        "MPS is available but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'"
-                    )
                 return "torch"
         except Exception:
             pass
