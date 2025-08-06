@@ -8,6 +8,7 @@ import time
 import logging
 from pathlib import Path
 
+from solhunter_zero.paths import ROOT
 from . import wallet, data_sync, main as main_module
 from .config import (
     CONFIG_DIR,
@@ -20,8 +21,6 @@ from .service_launcher import (
     start_rl_daemon,
     wait_for_depth_ws,
 )
-
-ROOT = Path(__file__).resolve().parent.parent
 PROCS: list[subprocess.Popen] = []
 
 
@@ -64,7 +63,7 @@ def _get_config() -> tuple[str | None, dict]:
         if os.path.isfile(path):
             cfg_path = path
     else:
-        preset = Path(ROOT / "config.highrisk.toml")
+        preset = ROOT / "config.highrisk.toml"
         if preset.is_file():
             cfg_path = str(preset)
     cfg: dict = {}

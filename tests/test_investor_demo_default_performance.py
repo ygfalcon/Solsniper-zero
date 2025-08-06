@@ -1,10 +1,9 @@
 import json
 import time
-from pathlib import Path
-
 import pytest
 
 from solhunter_zero import investor_demo
+from solhunter_zero.paths import ROOT
 
 MAX_DATA_POINTS = 1000
 MAX_SECONDS_DEFAULT = 10
@@ -13,8 +12,7 @@ MAX_SECONDS_DEFAULT = 10
 @pytest.mark.timeout(30)
 def test_investor_demo_default_performance(tmp_path):
     """Ensure investor_demo runs within time bound on the default dataset."""
-    repo_root = Path(__file__).resolve().parent.parent
-    data_path = repo_root / "solhunter_zero" / "data" / "investor_demo_prices.json"
+    data_path = ROOT / "solhunter_zero" / "data" / "investor_demo_prices.json"
 
     data = json.loads(data_path.read_text())
     if len(data) > MAX_DATA_POINTS:

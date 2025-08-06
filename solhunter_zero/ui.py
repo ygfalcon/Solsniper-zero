@@ -37,6 +37,7 @@ from .config import (
 from pathlib import Path
 import numpy as np
 
+from solhunter_zero.paths import ROOT
 from . import config as config_module
 
 from .prices import fetch_token_prices
@@ -57,7 +58,7 @@ from .config import (
     load_selected_config,
 )
 
-_DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+_DEFAULT_PRESET = ROOT / "config.highrisk.toml"
 
 cfg = load_config()
 if not cfg and _DEFAULT_PRESET.is_file():
@@ -441,7 +442,7 @@ def _run_start_all() -> None:
     global start_all_proc
     cmd = [
         sys.executable,
-        str(Path(__file__).resolve().parent.parent / "scripts" / "start_all.py"),
+        str(ROOT / "scripts" / "start_all.py"),
         "autopilot",
     ]
     start_all_proc = subprocess.Popen(cmd)

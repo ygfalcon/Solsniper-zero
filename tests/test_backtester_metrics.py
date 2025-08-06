@@ -1,9 +1,10 @@
 import numpy as np
 import importlib.util
-from pathlib import Path
+
+from solhunter_zero.paths import ROOT
 
 # Load backtester module directly
-_path = Path(__file__).resolve().parents[1] / "solhunter_zero" / "backtester.py"
+_path = ROOT / "solhunter_zero" / "backtester.py"
 spec = importlib.util.spec_from_file_location("backtester", _path)
 backtester = importlib.util.module_from_spec(spec)
 import sys

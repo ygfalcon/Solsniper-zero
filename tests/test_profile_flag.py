@@ -4,6 +4,8 @@ import runpy
 import asyncio
 from pathlib import Path
 
+from solhunter_zero.paths import ROOT
+
 
 def _stub(name, attrs=None):
     mod = types.ModuleType(name)
@@ -27,7 +29,7 @@ class _Sub:
 
 def test_profile_flag_creates_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(ROOT))
 
     _stub("solhunter_zero.token_scanner", {"scan_tokens_async": _async})
     _stub(

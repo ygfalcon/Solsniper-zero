@@ -4,6 +4,8 @@ import types
 import contextlib
 import importlib.machinery
 
+from solhunter_zero.paths import ROOT
+
 
 def test_live_trading(monkeypatch):
     with monkeypatch.context() as mp:
@@ -99,7 +101,7 @@ def test_live_trading(monkeypatch):
         ]
         from solhunter_zero import main as main_module
         from solhunter_zero.simulation import SimulationResult
-        repo_root = Path(__file__).resolve().parent.parent
+        repo_root = ROOT
         cfg_path = repo_root / "config.highrisk.toml"
         key_path = repo_root / "keypairs" / "default.json"
 

@@ -7,6 +7,7 @@ import importlib.util
 import pytest
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
+from solhunter_zero.paths import ROOT
 
 pytest.importorskip("torch.nn.utils.rnn")
 
@@ -255,7 +256,7 @@ sys.modules["transformers"].pipeline = _trans_mod.pipeline
 
 
 def test_full_system_integration(monkeypatch, tmp_path):
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = ROOT
     cfg_path = repo_root / "config.highrisk.toml"
     key_path = repo_root / "keypairs" / "default.json"
 

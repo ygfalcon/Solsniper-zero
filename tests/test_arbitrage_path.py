@@ -5,6 +5,7 @@ import pytest
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 from itertools import permutations
+from solhunter_zero.paths import ROOT
 
 
 async def dex1(token):
@@ -46,20 +47,16 @@ def numba_enabled(monkeypatch, request):
 @pytest.fixture(params=[False, True])
 def ffi_enabled(monkeypatch, request):
     if request.param:
-        from pathlib import Path
         import subprocess
 
-        lib_path = (
-            Path(__file__).resolve().parents[1]
-            / "route_ffi/target/release/libroute_ffi.so"
-        )
+        lib_path = ROOT / "route_ffi/target/release/libroute_ffi.so"
         if not lib_path.exists():
             subprocess.run(
                 [
                     "cargo",
                     "build",
                     "--manifest-path",
-                    str(Path(__file__).resolve().parents[1] / "route_ffi/Cargo.toml"),
+                    str(ROOT / "route_ffi/Cargo.toml"),
                     "--release",
                     "--features",
                     "parallel",

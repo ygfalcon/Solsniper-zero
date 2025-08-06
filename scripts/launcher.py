@@ -17,9 +17,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from solhunter_zero.paths import ROOT
+
 os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
 
 
 def _cpu_count(python: str) -> int:

@@ -1,9 +1,10 @@
 import json  # needed for dataset operations
-from pathlib import Path
+import json
 
 import pytest
 
 from solhunter_zero import investor_demo
+from solhunter_zero.paths import ROOT
 
 
 MAX_DATA_POINTS = 5000
@@ -11,8 +12,7 @@ MAX_DATA_POINTS = 5000
 
 @pytest.mark.timeout(30)
 def test_investor_demo_full_dataset(tmp_path):
-    repo_root = Path(__file__).resolve().parent.parent
-    data_path = repo_root / "solhunter_zero" / "data" / "investor_demo_prices.json"
+    data_path = ROOT / "solhunter_zero" / "data" / "investor_demo_prices.json"
     data = json.loads(data_path.read_text())
     if len(data) > MAX_DATA_POINTS:
         pytest.skip("dataset too large for resource constraints")

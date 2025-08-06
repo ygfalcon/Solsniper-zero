@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Callable, List, Tuple
 from urllib import error
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from solhunter_zero.paths import ROOT
+
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - only for very old Pythons
@@ -33,7 +36,7 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
 
 def _parse_dependencies() -> List[str]:
     """Return a list of modules specified in pyproject.toml."""
-    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    pyproject = ROOT / "pyproject.toml"
     if not pyproject.exists():
         return []
     if tomllib is None:

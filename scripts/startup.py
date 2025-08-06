@@ -16,9 +16,10 @@ import io
 from pathlib import Path
 import json
 
-from scripts import deps
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from solhunter_zero.paths import ROOT
 
-ROOT = Path(__file__).resolve().parent.parent
+from scripts import deps
 
 
 def _load_env_file(path: Path) -> None:
@@ -42,7 +43,6 @@ def _load_env_file(path: Path) -> None:
 
 _load_env_file(ROOT / ".env")
 os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
 

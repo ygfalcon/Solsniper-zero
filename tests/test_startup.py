@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from solhunter_zero.paths import ROOT
 
 
 def test_startup_help():
@@ -47,7 +48,7 @@ def test_mac_startup_prereqs(monkeypatch):
 
 
 def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = ROOT
     bindir = tmp_path / "bin"
     bindir.mkdir()
 
@@ -594,7 +595,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
 
-    log_file = Path(__file__).resolve().parent.parent / "preflight.log"
+    log_file = ROOT / "preflight.log"
     if log_file.exists():
         log_file.unlink()
 

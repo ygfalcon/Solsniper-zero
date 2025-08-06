@@ -10,6 +10,7 @@ import json
 import pytest
 
 from solhunter_zero import investor_demo
+from solhunter_zero.paths import ROOT
 
 
 def _run_and_check(
@@ -188,7 +189,7 @@ def _run_and_check(
 )
 @pytest.mark.parametrize("extra_flags", [[], ["--rl-demo"]])
 def test_investor_demo_cli(base_cmd, data_file, extra_flags, tmp_path):
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = ROOT
     env = {**os.environ, "PYTHONPATH": str(repo_root)}
     if base_cmd == ["solhunter-demo"]:
         wrapper = tmp_path / "solhunter-demo"

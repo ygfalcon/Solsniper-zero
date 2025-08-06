@@ -12,6 +12,9 @@ import threading
 import logging
 from pathlib import Path
 from typing import IO
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from solhunter_zero.paths import ROOT
 from solhunter_zero.config import (
     set_env_from_config,
     ensure_config_file,
@@ -24,7 +27,6 @@ from solhunter_zero.service_launcher import (
     wait_for_depth_ws,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 
 if len(sys.argv) > 1 and sys.argv[1] == "autopilot":

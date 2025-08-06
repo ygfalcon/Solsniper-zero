@@ -11,6 +11,8 @@ import os
 import time
 import types
 
+from solhunter_zero.paths import ROOT
+
 try:
     import torch
     from torch import nn
@@ -943,9 +945,7 @@ class RLDaemon:
         if auto_train:
             if tune_interval is None:
                 tune_interval = interval
-            script = (
-                Path(__file__).resolve().parent.parent / "scripts" / "auto_train_rl.py"
-            )
+            script = ROOT / "scripts" / "auto_train_rl.py"
             self._proc = subprocess.Popen(
                 [
                     sys.executable,

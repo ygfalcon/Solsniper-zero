@@ -3,7 +3,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from solhunter_zero.paths import ROOT
+
+REPO_ROOT = ROOT
 
 
 def _run_start_command(tmp_path, exit_code):

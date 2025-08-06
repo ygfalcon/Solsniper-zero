@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import IO
 
-ROOT = Path(__file__).resolve().parent.parent
+from solhunter_zero.paths import ROOT
 logger = logging.getLogger(__name__)
 
 

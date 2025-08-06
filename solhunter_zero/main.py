@@ -22,6 +22,7 @@ from .system import detect_cpu_count
 
 from pathlib import Path
 
+from solhunter_zero.paths import ROOT
 from .config import (
     load_config,
     apply_env_overrides,
@@ -36,9 +37,7 @@ from . import wallet
 from . import metrics_aggregator
 from .bootstrap import bootstrap
 
-_SERVICE_MANIFEST = (
-    Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
-)
+_SERVICE_MANIFEST = ROOT / "depth_service" / "Cargo.toml"
 
 install_uvloop()
 
@@ -147,7 +146,7 @@ from .data_pipeline import start_depth_snapshot_listener
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
 
-_HIGH_RISK_PRESET = Path(__file__).resolve().parent.parent / "config.highrisk.toml"
+_HIGH_RISK_PRESET = ROOT / "config.highrisk.toml"
 
 _level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
 logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))

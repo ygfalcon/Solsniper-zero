@@ -10,9 +10,10 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from solhunter_zero.paths import ROOT
 from solhunter_zero.config import load_config, ENV_VARS
 
-ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 
 PROCS: list[subprocess.Popen] = []

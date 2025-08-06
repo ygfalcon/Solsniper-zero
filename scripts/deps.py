@@ -6,14 +6,16 @@ from __future__ import annotations
 import json
 import pkgutil
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from solhunter_zero.paths import ROOT
 
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - should not happen
     import tomli as tomllib  # type: ignore
-
-ROOT = Path(__file__).resolve().parent.parent
 
 OPTIONAL_DEPS = [
     "faiss",
