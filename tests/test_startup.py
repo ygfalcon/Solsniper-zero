@@ -611,6 +611,18 @@ def test_main_preflight_failure(monkeypatch, capsys):
     assert "err" in log_contents
 
 
+def test_preflight_log_rotation(tmp_path):
+    from scripts import startup
+    log_path = tmp_path / "preflight.log"
+    log_path.write_text("x" * 20)
+    rotated = tmp_path / "preflight.log.1"
+
+    startup.rotate_preflight_log(log_path, max_bytes=10)
+
+    assert rotated.exists()
+    assert not log_path.exists()
+
+
 def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.delenv("TORCH_DEVICE", raising=False)
 
