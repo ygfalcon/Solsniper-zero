@@ -88,6 +88,29 @@ def ensure_config() -> None:
         quick_setup.main()
 
 
+def ensure_wallet_cli() -> None:
+    """Ensure the ``solhunter-wallet`` CLI is available.
+
+    If the command is missing, attempt to install the current package which
+    provides it. On failure, instruct the user and abort gracefully.
+    """
+    if shutil.which("solhunter-wallet") is not None:
+        return
+
+    print("'solhunter-wallet' command not found. Installing the package...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "."])
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+        print(
+            "Failed to install 'solhunter-wallet'. Please run 'pip install .' manually."
+        )
+        raise SystemExit(exc.returncode)
+
+    if shutil.which("solhunter-wallet") is None:
+        print("'solhunter-wallet' still not available after installation. Aborting.")
+        raise SystemExit(1)
+
+
 def ensure_keypair() -> None:
     from solhunter_zero import wallet
 
@@ -103,6 +126,7 @@ def ensure_keypair() -> None:
     print("No keypairs found in 'keypairs/' directory.")
     path = input("Path to keypair JSON (leave blank for mnemonic): ").strip()
     if path:
+        ensure_wallet_cli()
         subprocess.check_call(["solhunter-wallet", "save", "default", path])
         subprocess.check_call(["solhunter-wallet", "select", "default"])
         print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
@@ -110,6 +134,7 @@ def ensure_keypair() -> None:
 
     mnemonic = input("Enter mnemonic: ").strip()
     if mnemonic:
+        ensure_wallet_cli()
         passphrase = input("Passphrase (leave blank if none): ").strip()
         subprocess.check_call([
             "solhunter-wallet",
