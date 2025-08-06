@@ -475,8 +475,8 @@ def test_main_calls_ensure_endpoints(monkeypatch):
 
     called: dict[str, object] = {}
 
+    monkeypatch.setattr(startup, "ensure_venv", lambda argv: None)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
@@ -489,10 +489,13 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+    )
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        ensure_config_file=lambda: None,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
@@ -507,8 +510,8 @@ def test_main_skips_endpoint_check(monkeypatch):
 
     called: dict[str, object] = {}
 
+    monkeypatch.setattr(startup, "ensure_venv", lambda argv: None)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -518,10 +521,13 @@ def test_main_skips_endpoint_check(monkeypatch):
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+    )
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        ensure_config_file=lambda: None,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
@@ -547,8 +553,8 @@ def test_main_preflight_success(monkeypatch):
         raise SystemExit(0)
 
     monkeypatch.setattr("scripts.preflight.main", fake_preflight)
+    monkeypatch.setattr(startup, "ensure_venv", lambda argv: None)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -557,7 +563,9 @@ def test_main_preflight_success(monkeypatch):
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+    )
 
     with pytest.raises(SystemExit) as exc:
         startup.main([
@@ -586,6 +594,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "ensure_venv", lambda argv: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -633,8 +642,8 @@ def test_startup_sets_mps_device(monkeypatch):
     import scripts.startup as startup
     startup = importlib.reload(startup)
 
+    monkeypatch.setattr(startup, "ensure_venv", lambda argv: None)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -644,11 +653,6 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(
         startup.subprocess,
         "run",
-        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""),
-    )
-    monkeypatch.setattr(
-        startup.os,
-        "execv",
         lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)),
     )
 
@@ -670,8 +674,8 @@ def test_startup_sets_mps_device(monkeypatch):
 def test_wallet_cli_failure_propagates(monkeypatch):
     from scripts import startup
 
+    monkeypatch.setattr(startup, "ensure_venv", lambda argv: None)
     monkeypatch.setattr(startup, "ensure_deps", lambda: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: (_ for _ in ()).throw(Exception("should not run")))
@@ -682,6 +686,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        ensure_config_file=lambda: None,
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
@@ -689,6 +694,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
         raise SystemExit(5)
 
     monkeypatch.setattr(startup, "ensure_wallet_cli", fail_wallet)
+    monkeypatch.setenv("SOLHUNTER_SKIP_SETUP", "1")
 
     ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     assert ret == 5

@@ -224,17 +224,57 @@ def find_config_file() -> str | None:
 
 
 def ensure_config_file() -> str | None:
-    """Ensure a configuration file exists, generating a default if needed."""
-    path = find_config_file()
-    if path:
-        return path
-    try:
-        from scripts import quick_setup
+    """Ensure a configuration file exists and is valid.
 
-        quick_setup.main(["--auto"])
-    except Exception:
-        return None
-    return find_config_file()
+    If no configuration file can be located, ``scripts.quick_setup`` is
+    invoked in ``--auto`` mode to generate one.  Environment variable
+    overrides are applied and the resulting configuration is validated.
+    The normalised configuration is written back to disk before the final
+    path is returned.
+    """
+
+    path = find_config_file()
+    if path is None:
+        try:  # pragma: no cover - exercised indirectly
+            from scripts import quick_setup
+
+            quick_setup.main(["--auto"])
+        except Exception:
+            return None
+        path = find_config_file()
+        if path is None:
+            return None
+
+    cfg = load_config(path)
+    cfg = apply_env_overrides(cfg)
+    try:
+        cfg = validate_config(cfg)
+    except ValueError as exc:  # pragma: no cover - config validation
+        print(f"Invalid configuration: {exc}")
+        raise SystemExit(1) from exc
+
+    suffix = Path(path).suffix.lower()
+    if suffix == ".toml":
+        try:
+            import tomli_w  # type: ignore
+        except ImportError:  # pragma: no cover - optional dependency
+            import subprocess
+
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "tomli-w"]
+                )
+                import tomli_w  # type: ignore
+            except Exception as exc:  # pragma: no cover - installation failure
+                print(f"Failed to install 'tomli-w': {exc}")
+                raise SystemExit(1) from exc
+        with open(path, "wb") as fh:
+            fh.write(tomli_w.dumps(cfg).encode("utf-8"))
+    elif suffix in {".yaml", ".yml"} and yaml is not None:
+        with open(path, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(cfg, fh)
+
+    return path
 
 
 def validate_env(required: Sequence[str], cfg_path: str | None = None) -> dict:
