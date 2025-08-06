@@ -162,6 +162,21 @@ Key discovery options:
    several built‑in **agents** that replace the previous static strategy
    modules.
 
+## Docker Compose
+
+Build and run inside containers without installing Python or Rust locally:
+
+```bash
+docker-compose up
+```
+
+The compose file installs dependencies, compiles the Rust crates and starts the bot via `run.sh --auto`. Logs stream to the terminal. To run in the background and follow logs:
+
+```bash
+docker-compose up -d
+docker-compose logs -f
+```
+
 ## Paper Trading
 
 Before committing real SOL, you can evaluate strategies using the paper
