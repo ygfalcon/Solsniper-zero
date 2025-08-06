@@ -124,6 +124,12 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+    import types, sys
+    dummy_torch = types.SimpleNamespace()
+    dummy_torch.backends = types.SimpleNamespace()
+    dummy_torch.backends.mps = types.SimpleNamespace()
+    dummy_torch.backends.mps.is_available = lambda: True
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
     startup.ensure_deps()
 
@@ -133,13 +139,57 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
             "-m",
             "pip",
             "install",
-            "torch",
-            "torchvision",
+            "torch==2.1.0",
+            "torchvision==0.16.0",
             "--extra-index-url",
             "https://download.pytorch.org/whl/metal",
         ]
     ]
     assert not results
+
+
+def test_ensure_deps_reinstalls_mps(monkeypatch, capsys):
+    from scripts import startup
+
+    calls: list[list[str]] = []
+
+    def fake_check_call(cmd):
+        calls.append(cmd)
+        return 0
+
+    results = [
+        (["req"], []),
+        ([], []),
+    ]
+
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+
+    import types, sys, importlib
+    dummy_torch = types.SimpleNamespace()
+    dummy_torch.backends = types.SimpleNamespace()
+    dummy_torch.backends.mps = types.SimpleNamespace()
+    dummy_torch.backends.mps.is_available = lambda: False
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setattr(importlib, "reload", lambda mod: mod)
+
+    startup.ensure_deps()
+
+    assert calls[-1] == [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--force-reinstall",
+        "torch==2.1.0",
+        "torchvision==0.16.0",
+        "--extra-index-url",
+        "https://download.pytorch.org/whl/metal",
+    ]
+    out = capsys.readouterr().out
+    assert "WARNING: MPS backend still not available" in out
 
 
 def test_ensure_endpoints_success(monkeypatch):

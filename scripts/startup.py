@@ -106,10 +106,33 @@ def ensure_deps() -> None:
             opt.remove("torch")
 
     if platform.system() == "Darwin" and platform.machine() == "arm64":
+        import importlib
         import torch
         if not torch.backends.mps.is_available():
-            print("MPS backend not available; ensure Metal wheel is installed")
-            raise SystemExit(1)
+            print(
+                "MPS backend not available; attempting to reinstall Metal wheel..."
+            )
+            try:
+                subprocess.check_call(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--force-reinstall",
+                        "torch==2.1.0",
+                        "torchvision==0.16.0",
+                        "--extra-index-url",
+                        "https://download.pytorch.org/whl/metal",
+                    ]
+                )
+            except subprocess.CalledProcessError as exc:
+                print(f"Failed to reinstall torch with Metal wheels: {exc}")
+            importlib.reload(torch)
+            if not torch.backends.mps.is_available():
+                print(
+                    "WARNING: MPS backend still not available; continuing with CPU."
+                )
 
     if opt:
         print("Installing optional dependencies...")
