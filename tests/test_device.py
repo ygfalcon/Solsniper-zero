@@ -1,4 +1,8 @@
+import os
+import platform
 import types
+
+import pytest
 
 from solhunter_zero import device as device_module
 
@@ -71,3 +75,40 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
     with caplog.at_level("ERROR"):
         assert device_module.detect_gpu() is False
     assert "Tensor operation failed" in caplog.text
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
+def test_configure_gpu_env_mps(monkeypatch):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    torch_stub = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: True)
+        ),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+    )
+    monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    monkeypatch.delenv("TORCH_DEVICE", raising=False)
+    monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+    env = device_module.ensure_gpu_env()
+    assert env["TORCH_DEVICE"] == "mps"
+    assert env["PYTORCH_ENABLE_MPS_FALLBACK"] == "1"
+    assert os.environ["TORCH_DEVICE"] == "mps"
+    assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "1"
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
+def test_configure_gpu_env_mps_unavailable(monkeypatch):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    torch_stub = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: False)
+        ),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+    )
+    monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    monkeypatch.delenv("TORCH_DEVICE", raising=False)
+    monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+    env = device_module.ensure_gpu_env()
+    assert env == {}
+    assert "TORCH_DEVICE" not in os.environ
+    assert "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ
