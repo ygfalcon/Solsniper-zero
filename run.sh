@@ -165,8 +165,13 @@ if [ ! -f "solhunter_zero/$libfile" ]; then
     cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
     cp "route_ffi/target/release/$libfile" solhunter_zero/ 2>/dev/null
     if [ ! -f "solhunter_zero/$libfile" ] && [ "$uname_s" = "Darwin" ] && [ "$uname_m" = "arm64" ]; then
-        cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel --target aarch64-apple-darwin
+        # The initial build might emit the library under the target triple directory
         cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
+        if [ ! -f "solhunter_zero/$libfile" ]; then
+            echo "Rebuilding for aarch64-apple-darwin..."
+            cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel --target aarch64-apple-darwin
+            cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
+        fi
     fi
     if [ ! -f "solhunter_zero/$libfile" ]; then
         echo "Error: $libfile was not copied to solhunter_zero." >&2
