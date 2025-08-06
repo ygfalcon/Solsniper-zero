@@ -151,27 +151,28 @@ def ensure_venv(argv: list[str] | None) -> None:
 def _pip_install(*args: str, retries: int = 3) -> None:
     """Run ``pip install`` with retries and exponential backoff."""
     errors: list[str] = []
+    cmd = [sys.executable, "-m", "pip", "install"]
+    cmd_args = list(args)
+    wheelhouse = ROOT / "wheelhouse"
+    if wheelhouse.is_dir():
+        cmd_args.extend(["--find-links", "wheelhouse", "--no-index"])
+    cmd.extend(cmd_args)
     for attempt in range(1, retries + 1):
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", *args],
-            capture_output=True,
-            text=True,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
             wait = 2 ** (attempt - 1)
             print(
-                f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
+                f"pip install {' '.join(cmd_args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds...",
             )
             time.sleep(wait)
-    print(f"Failed to install {' '.join(args)} after {retries} attempts:")
+    print(f"Failed to install {' '.join(cmd_args)} after {retries} attempts:")
     for err in errors:
         if err:
             print(err)
     raise SystemExit(result.returncode)
-
 
 def ensure_deps(*, install_optional: bool = False) -> None:
     if platform.system() == "Darwin":

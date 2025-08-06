@@ -62,6 +62,11 @@ retained only for reference. Use it only if you explicitly set
   also installed and is used by the order book utilities to watch the
   depth mmap for changes.
 
+   When a `wheelhouse/` directory is present in the project root the
+   startup script and helper commands automatically add
+   `--find-links wheelhouse --no-index` to `pip` so packages can be
+   installed from locally cached wheels.
+
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running
   `python -m solhunter_zero.main --auto` (or `./run.sh` on Unix) performs
