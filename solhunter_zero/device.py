@@ -7,6 +7,7 @@ import os
 import platform
 import subprocess
 import sys
+from pathlib import Path
 
 METAL_EXTRA_INDEX = [
     "--extra-index-url",
@@ -15,6 +16,8 @@ METAL_EXTRA_INDEX = [
 
 TORCH_METAL_VERSION = "2.1.0"
 TORCHVISION_METAL_VERSION = "0.16.0"
+
+MPS_SENTINEL = Path(__file__).resolve().parent.parent / ".cache" / "torch_mps_ready"
 
 try:  # pragma: no cover - optional dependency
     import torch
@@ -28,10 +31,15 @@ def ensure_torch_with_metal() -> None:
     The helper installs specific ``torch`` and ``torchvision`` versions from the
     Metal wheels when running on Apple Silicon.  After installation the module is
     imported and the ``mps`` backend availability is verified.  A ``RuntimeError``
-    is raised if the backend remains unavailable.
+    is raised if the backend remains unavailable.  After a successful check a
+    sentinel file is written to :data:`MPS_SENTINEL` so future runs can skip
+    reinstallation attempts.
     """
 
     if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return
+
+    if MPS_SENTINEL.exists():
         return
 
     logger = logging.getLogger(__name__)
@@ -39,6 +47,8 @@ def ensure_torch_with_metal() -> None:
     global torch
     try:
         if torch is not None and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+            MPS_SENTINEL.touch()
             return
     except Exception:
         pass
@@ -88,13 +98,30 @@ def ensure_torch_with_metal() -> None:
                 + " ".join(METAL_EXTRA_INDEX),
             )
 
+    MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+    MPS_SENTINEL.touch()
+
 
 if platform.system() == "Darwin" and platform.machine() == "arm64":
     try:
-        if torch is None or not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+        needs_install = (
+            torch is None
+            or not getattr(torch.backends, "mps", None)
+            or not torch.backends.mps.is_available()
+        )
+        if needs_install and not MPS_SENTINEL.exists():
             ensure_torch_with_metal()
-            if torch is None or not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+            if (
+                torch is None
+                or not getattr(torch.backends, "mps", None)
+                or not torch.backends.mps.is_available()
+            ):
                 raise RuntimeError("MPS backend unavailable after attempted installation")
+        elif needs_install:
+            logging.getLogger(__name__).warning(
+                "MPS backend unavailable but sentinel %s exists; delete to retry",
+                MPS_SENTINEL,
+            )
     except Exception as exc:  # pragma: no cover - fail fast if setup fails
         logging.getLogger(__name__).exception("Automatic PyTorch Metal setup failed")
         raise RuntimeError("Failed to configure MPS-enabled PyTorch") from exc
@@ -113,16 +140,22 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
 
     if torch is None:
         if _attempt_install:
+            if MPS_SENTINEL.exists():
+                logging.getLogger(__name__).info(
+                    "Skipping PyTorch installation; sentinel %s present",
+                    MPS_SENTINEL,
+                )
+                return detect_gpu(_attempt_install=False)
             try:
                 ensure_torch_with_metal()
             except Exception:
                 logging.getLogger(__name__).exception(
-                    "PyTorch installation failed; GPU unavailable"
+                    "PyTorch installation failed; GPU unavailable",
                 )
                 return False
             return detect_gpu(_attempt_install=False)
         logging.getLogger(__name__).warning(
-            "PyTorch is not installed; GPU unavailable"
+            "PyTorch is not installed; GPU unavailable",
         )
         return False
     try:
@@ -142,6 +175,13 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
 
             def _install_and_retry(reason: str) -> bool:
                 logger = logging.getLogger(__name__)
+                if MPS_SENTINEL.exists():
+                    logger.warning(
+                        "%s; sentinel %s exists, skipping reinstall",
+                        reason,
+                        MPS_SENTINEL,
+                    )
+                    return False
                 logger.warning(
                     "%s; attempting to install MPS-enabled PyTorch", reason
                 )
@@ -150,16 +190,15 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 except Exception:
                     logger.exception("PyTorch installation failed")
                     raise RuntimeError(
-                        "Failed to install MPS-enabled PyTorch"
+                        "Failed to install MPS-enabled PyTorch",
                     )
                 if detect_gpu(_attempt_install=False):
                     logger.info("MPS backend detected after installation")
                     return True
                 logger.error("MPS backend unavailable after installation")
                 raise RuntimeError(
-                    "MPS backend unavailable even after installing PyTorch"
+                    "MPS backend unavailable even after installing PyTorch",
                 )
-
             if not getattr(torch.backends, "mps", None):
                 if _attempt_install:
                     return _install_and_retry("MPS backend not present")
@@ -307,7 +346,21 @@ def _main() -> int:  # pragma: no cover - CLI helper
         action="store_true",
         help="print export commands configuring GPU environment variables",
     )
+    parser.add_argument(
+        "--refresh-metal",
+        action="store_true",
+        help="delete the Metal install sentinel and reinstall",
+    )
     args = parser.parse_args()
+    if args.refresh_metal:
+        MPS_SENTINEL.unlink(missing_ok=True)
+        try:
+            ensure_torch_with_metal()
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Failed to refresh Metal installation",
+            )
+            return 1
     if args.check_gpu:
         return 0 if detect_gpu() else 1
     if args.setup_env:
