@@ -213,17 +213,45 @@ case "$uname_s" in
     *) libfile="libroute_ffi.so" ;;
 esac
 
+# Prebuilt macOS arm64 release used if the Cargo build fails.
+# URL: https://github.com/backpackapp-io/Solsniper-zero/releases/download/v0.1.0/libroute_ffi-macos-arm64.dylib
+# SHA256: d81a8bc6de2f20ffc56367b3cbdf3d231aed26afe6744e64349234f8551b811f
+ROUTE_FFI_PREBUILT_URL_DEFAULT="https://github.com/backpackapp-io/Solsniper-zero/releases/download/v0.1.0/libroute_ffi-macos-arm64.dylib"
+ROUTE_FFI_PREBUILT_SHA256_DEFAULT="d81a8bc6de2f20ffc56367b3cbdf3d231aed26afe6744e64349234f8551b811f"
+
 # Build and copy the library if it is not already present
 if [ ! -f "solhunter_zero/$libfile" ]; then
-    run_cargo_build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-    cp "route_ffi/target/release/$libfile" solhunter_zero/ 2>/dev/null
-    if [ ! -f "solhunter_zero/$libfile" ] && [ "$uname_s" = "Darwin" ] && [ "$uname_m" = "arm64" ]; then
-        # The initial build might emit the library under the target triple directory
-        cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
-        if [ ! -f "solhunter_zero/$libfile" ]; then
-            echo "Rebuilding for aarch64-apple-darwin..."
-            run_cargo_build --manifest-path route_ffi/Cargo.toml --release --features=parallel --target aarch64-apple-darwin
+    if run_cargo_build --manifest-path route_ffi/Cargo.toml --release --features=parallel; then
+        cp "route_ffi/target/release/$libfile" solhunter_zero/ 2>/dev/null
+        if [ ! -f "solhunter_zero/$libfile" ] && [ "$uname_s" = "Darwin" ] && [ "$uname_m" = "arm64" ]; then
+            # The initial build might emit the library under the target triple directory
             cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
+            if [ ! -f "solhunter_zero/$libfile" ]; then
+                echo "Rebuilding for aarch64-apple-darwin..."
+                run_cargo_build --manifest-path route_ffi/Cargo.toml --release --features=parallel --target aarch64-apple-darwin
+                cp "route_ffi/target/aarch64-apple-darwin/release/$libfile" solhunter_zero/ 2>/dev/null
+            fi
+        fi
+    else
+        if [ "$uname_s" = "Darwin" ] && [ "$uname_m" = "arm64" ]; then
+            prebuilt_url="${ROUTE_FFI_PREBUILT_URL:-$ROUTE_FFI_PREBUILT_URL_DEFAULT}"
+            prebuilt_sha256="${ROUTE_FFI_PREBUILT_SHA256:-$ROUTE_FFI_PREBUILT_SHA256_DEFAULT}"
+            echo "Cargo build failed, attempting download from $prebuilt_url..." >&2
+            if curl -L "$prebuilt_url" -o "solhunter_zero/$libfile"; then
+                if ! echo "$prebuilt_sha256  solhunter_zero/$libfile" | shasum -a 256 -c - >/dev/null 2>&1; then
+                    echo "Error: checksum verification failed for libroute_ffi." >&2
+                    rm -f "solhunter_zero/$libfile"
+                    echo "Please build the library manually: cargo build --manifest-path route_ffi/Cargo.toml --release --target aarch64-apple-darwin" >&2
+                    exit 1
+                fi
+            else
+                echo "Error: failed to download libroute_ffi from $prebuilt_url." >&2
+                echo "Please build the library manually: cargo build --manifest-path route_ffi/Cargo.toml --release --target aarch64-apple-darwin" >&2
+                exit 1
+            fi
+        else
+            echo "Error: cargo build failed for libroute_ffi." >&2
+            exit 1
         fi
     fi
     if [ ! -f "solhunter_zero/$libfile" ]; then
