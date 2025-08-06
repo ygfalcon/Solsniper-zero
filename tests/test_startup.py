@@ -320,3 +320,45 @@ def test_main_skips_endpoint_check(monkeypatch):
         startup.main(["--skip-deps", "--skip-rpc-check", "--skip-endpoint-check"])
 
     assert "endpoints" not in called
+
+
+def test_main_preflight_success(monkeypatch):
+    from scripts import startup
+    import types, sys
+
+    calls: dict[str, list[str]] = {}
+
+    def fake_run(cmd, capture_output=True, text=True):
+        calls["cmd"] = cmd
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_config", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+
+    with pytest.raises(SystemExit) as exc:
+        startup.main(["--one-click", "--skip-setup", "--skip-deps"])
+
+    assert calls["cmd"] == [sys.executable, "scripts/preflight.py"]
+    assert exc.value.code == 0
+
+
+def test_main_preflight_failure(monkeypatch, capsys):
+    from scripts import startup
+    import types
+
+    def fake_run(cmd, capture_output=True, text=True):
+        return types.SimpleNamespace(returncode=1, stdout="out", stderr="err")
+
+    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+
+    ret = startup.main(["--one-click"])
+
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "out" in captured.out
+    assert "err" in captured.err

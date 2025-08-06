@@ -439,6 +439,17 @@ def main(argv: list[str] | None = None) -> int:
         args.skip_rpc_check = True
         rest = ["--non-interactive", *rest]
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
+        preflight = subprocess.run(
+            [sys.executable, "scripts/preflight.py"],
+            capture_output=True,
+            text=True,
+        )
+        if preflight.returncode != 0:
+            if preflight.stdout:
+                print(preflight.stdout, end="")
+            if preflight.stderr:
+                print(preflight.stderr, end="", file=sys.stderr)
+            return preflight.returncode
 
     if sys.version_info < (3, 11):
         print(
