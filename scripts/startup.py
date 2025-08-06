@@ -214,11 +214,25 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
 
 def ensure_cargo() -> None:
     installed = False
+
+    def _run(cmd, *, desc: str, **kwargs) -> None:
+        try:
+            subprocess.check_call(cmd, stderr=subprocess.PIPE, text=True, **kwargs)
+        except subprocess.CalledProcessError as exc:  # pragma: no cover - exercised indirectly
+            with open(ROOT / "startup.log", "a", encoding="utf-8") as log:
+                log.write(f"Command: {exc.cmd}\n")
+                if exc.stderr:
+                    log.write(f"stderr: {exc.stderr}\n")
+            raise SystemExit(f"{desc} failed") from None
+
     if platform.system() == "Darwin":
         from scripts.mac_setup import apply_brew_env, ensure_tools
 
         ensure_tools()
         apply_brew_env()
+        if shutil.which("brew") is None:
+            print("Homebrew is required on macOS. See scripts/mac_setup.py")
+            raise SystemExit(1)
     if shutil.which("cargo") is None:
         if shutil.which("curl") is None:
             print(
@@ -227,54 +241,54 @@ def ensure_cargo() -> None:
             )
             raise SystemExit(1)
         print("Installing Rust toolchain via rustup...")
-        subprocess.check_call(
+        _run(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+            desc="Rust toolchain installation",
             shell=True,
         )
         installed = True
     cargo_bin = Path.home() / ".cargo" / "bin"
     os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
     try:
-        subprocess.check_call(["cargo", "--version"], stdout=subprocess.DEVNULL)
-    except subprocess.CalledProcessError as exc:
+        _run(["cargo", "--version"], desc="Checking cargo version", stdout=subprocess.DEVNULL)
+    except SystemExit:
         print("Failed to run 'cargo --version'. Is Rust installed correctly?")
-        raise SystemExit(exc.returncode)
+        raise
     if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
-        subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+        _run(["rustup", "target", "add", "aarch64-apple-darwin"], desc="Adding aarch64-apple-darwin target")
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
-        except subprocess.CalledProcessError as exc:
+        except subprocess.CalledProcessError as exc:  # pragma: no cover - unusual failure
+            with open(ROOT / "startup.log", "a", encoding="utf-8") as log:
+                log.write(f"Command: {exc.cmd}\n")
+                if exc.stderr:
+                    log.write(f"stderr: {exc.stderr}\n")
             print("Failed to list rust targets. Is rustup installed correctly?")
-            raise SystemExit(exc.returncode)
+            raise SystemExit(exc.returncode) from None
         if "aarch64-apple-darwin" not in targets:
-            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+            _run(["rustup", "target", "add", "aarch64-apple-darwin"], desc="Adding aarch64-apple-darwin target")
 
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
         if platform.system() == "Darwin" and shutil.which("brew") is not None:
             print(
-                f"Missing {', '.join(missing)}. Attempting to install with Homebrew..."
+                f"Missing {', '.join(missing)}. Attempting to install with Homebrew...",
             )
-            try:
-                subprocess.check_call(["brew", "install", "pkg-config", "cmake"])
-            except subprocess.CalledProcessError as exc:
-                print(f"Homebrew installation failed: {exc}")
-            else:
-                missing = [
-                    tool
-                    for tool in ("pkg-config", "cmake")
-                    if shutil.which(tool) is None
-                ]
+            _run(["brew", "install", "pkg-config", "cmake"], desc="Installing build tools with Homebrew")
+            missing = [
+                tool
+                for tool in ("pkg-config", "cmake")
+                if shutil.which(tool) is None
+            ]
         if missing:
             names = " and ".join(missing)
             brew = " ".join(missing)
             print(
                 f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
-                f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
+                f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script.",
             )
             raise SystemExit(1)
-
 
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
