@@ -69,13 +69,34 @@ def test_ensure_deps_installs_optional(monkeypatch):
         calls.append(cmd)
         return 0
 
-    results = [([], ["faiss", "sentence_transformers", "torch"]), ([], [])]
+    results = [
+        (
+            [],
+            [
+                "faiss",
+                "sentence_transformers",
+                "torch",
+                "orjson",
+                "lz4",
+                "zstandard",
+                "msgpack",
+            ],
+        ),
+        ([], []),
+    ]
     monkeypatch.setattr(startup, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
 
     startup.ensure_deps()
 
-    assert [c[-1] for c in calls] == [
+    assert calls[0] == [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        ".[fastjson,fastcompress,msgpack]",
+    ]
+    assert [c[-1] for c in calls[1:]] == [
         "faiss-cpu",
         "sentence-transformers",
         "torch",
