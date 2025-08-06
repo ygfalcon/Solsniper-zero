@@ -260,6 +260,7 @@ def ensure_endpoints(cfg: dict) -> None:
 
     import urllib.error
     import urllib.request
+    import time
 
     urls: dict[str, str] = {}
     if cfg.get("birdeye_api_key"):
@@ -274,15 +275,24 @@ def ensure_endpoints(cfg: dict) -> None:
     failed: list[str] = []
     for name, url in urls.items():
         req = urllib.request.Request(url, method="HEAD")
-        try:
-            with urllib.request.urlopen(req, timeout=5):  # nosec B310
-                pass
-        except urllib.error.URLError as exc:  # pragma: no cover - network failure
-            print(
-                f"Failed to reach {name} at {url}: {exc}."
-                " Check your network connection or configuration."
-            )
-            failed.append(name)
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=5):  # nosec B310
+                    break
+            except urllib.error.URLError as exc:  # pragma: no cover - network failure
+                if attempt == 2:
+                    print(
+                        f"Failed to reach {name} at {url} after 3 attempts: {exc}."
+                        " Check your network connection or configuration."
+                    )
+                    failed.append(name)
+                else:
+                    wait = 2**attempt
+                    print(
+                        f"Attempt {attempt + 1} failed for {name} at {url}: {exc}."
+                        f" Retrying in {wait} seconds..."
+                    )
+                    time.sleep(wait)
 
     if failed:
         raise SystemExit(1)
@@ -298,17 +308,30 @@ def ensure_rpc() -> None:
 
     import json
     import urllib.request
+    import time
 
     payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getHealth"}).encode()
     req = urllib.request.Request(
         rpc_url, data=payload, headers={"Content-Type": "application/json"}
     )
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
-            resp.read()
-    except Exception as exc:  # pragma: no cover - network failure
-        print(f"Failed to contact Solana RPC at {rpc_url}: {exc}")
-        raise SystemExit(1)
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
+                resp.read()
+                break
+        except Exception as exc:  # pragma: no cover - network failure
+            if attempt == 2:
+                print(
+                    f"Failed to contact Solana RPC at {rpc_url} after 3 attempts: {exc}."
+                    " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
+                )
+                raise SystemExit(1)
+            wait = 2**attempt
+            print(
+                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}."
+                f" Retrying in {wait} seconds..."
+            )
+            time.sleep(wait)
 
 
 def ensure_cargo() -> None:
