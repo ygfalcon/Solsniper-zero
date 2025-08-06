@@ -1,7 +1,10 @@
 import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -33,13 +36,15 @@ def _run_script(script: str, tmp_path: Path, monkeypatch) -> list[str]:
 
 
 def test_start_command_invokes_launcher(monkeypatch, tmp_path):
+    if platform.machine() != "arm64":
+        pytest.skip("start.command requires arm64")
     args = _run_script("start.command", tmp_path, monkeypatch)
-    assert args[:3] == ["scripts/launcher.py", "--one-click", "--full-deps"]
+    assert args[:3] == ["start.py", "--one-click", "--full-deps"]
     assert args[-1] == "EXTRA"
 
 
 def test_run_sh_invokes_launcher(monkeypatch, tmp_path):
     args = _run_script("run.sh", tmp_path, monkeypatch)
-    assert args[:2] == ["scripts/launcher.py", "--auto"]
+    assert args[:3] == ["start.py", "--one-click", "--full-deps"]
     assert args[-1] == "EXTRA"
 
