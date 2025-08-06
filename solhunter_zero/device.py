@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import logging
 import os
 import platform
+import subprocess
+import sys
 
 try:  # pragma: no cover - optional dependency
     import torch
@@ -11,7 +14,7 @@ except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
 
-def detect_gpu() -> bool:
+def detect_gpu(_attempt_install: bool = True) -> bool:
     """Return ``True`` when a supported GPU backend is available.
 
     The check prefers Apple's Metal backend (MPS) on macOS machines with
@@ -38,16 +41,53 @@ def detect_gpu() -> bool:
                 "Install with: pip install torch==2.1.0 torchvision==0.16.0 "
                 "--extra-index-url https://download.pytorch.org/whl/metal"
             )
+
+            def _install_and_retry(reason: str) -> bool:
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "%s; attempting to install MPS-enabled PyTorch", reason
+                )
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "torch==2.1.0",
+                    "torchvision==0.16.0",
+                    "--extra-index-url",
+                    "https://download.pytorch.org/whl/metal",
+                ]
+                try:
+                    subprocess.check_call(cmd)
+                    logger.info("PyTorch installation succeeded")
+                    importlib.invalidate_caches()
+                    global torch
+                    torch = importlib.import_module("torch")
+                except Exception:
+                    logger.exception("PyTorch installation failed")
+                    raise RuntimeError(
+                        "Failed to install MPS-enabled PyTorch"
+                    )
+                if detect_gpu(_attempt_install=False):
+                    logger.info("MPS backend detected after installation")
+                    return True
+                logger.error("MPS backend unavailable after installation")
+                raise RuntimeError(
+                    "MPS backend unavailable even after installing PyTorch"
+                )
+
             if not getattr(torch.backends, "mps", None):
+                if _attempt_install:
+                    return _install_and_retry("MPS backend not present")
                 logging.getLogger(__name__).warning(
-                    "MPS backend not present; GPU unavailable. %s",
-                    install_hint,
+                    "MPS backend not present; GPU unavailable. %s", install_hint
                 )
                 return False
             if not torch.backends.mps.is_built():
+                if _attempt_install:
+                    return _install_and_retry("MPS backend not built")
                 logging.getLogger(__name__).warning(
-                    "MPS backend not built; GPU unavailable. %s",
-                    install_hint,
+                    "MPS backend not built; GPU unavailable. %s", install_hint
                 )
                 return False
             if "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ:
@@ -58,9 +98,10 @@ def detect_gpu() -> bool:
                 )
                 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             if not torch.backends.mps.is_available():
+                if _attempt_install:
+                    return _install_and_retry("MPS backend not available")
                 logging.getLogger(__name__).warning(
-                    "MPS backend not available; GPU unavailable. %s",
-                    install_hint,
+                    "MPS backend not available; GPU unavailable. %s", install_hint
                 )
                 return False
             try:
@@ -69,6 +110,10 @@ def detect_gpu() -> bool:
                 logging.getLogger(__name__).exception(
                     "Tensor operation failed on mps backend"
                 )
+                if _attempt_install:
+                    return _install_and_retry(
+                        "Tensor operation failed on mps backend"
+                    )
                 return False
             return True
         if not torch.cuda.is_available():
