@@ -184,19 +184,36 @@ def ensure_keypair() -> None:
             print(f"Automatically selected keypair '{name}'.")
         return
 
-    print("No keypairs found in 'keypairs/' directory.")
-    path = input("Path to keypair JSON (leave blank for mnemonic): ").strip()
-    if path:
+    mnemonic = os.environ.get("MNEMONIC")
+    keypair_json = os.environ.get("KEYPAIR_JSON")
+    if not mnemonic and not keypair_json:
         ensure_wallet_cli()
-        subprocess.check_call(["solhunter-wallet", "save", "default", path])
-        subprocess.check_call(["solhunter-wallet", "select", "default"])
-        print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
+        script = Path(__file__).with_name("setup_default_keypair.sh")
+        print(
+            "No keypairs found and no MNEMONIC/KEYPAIR_JSON provided.\n"
+            f"Running '{script}' to generate a default keypair."
+        )
+        try:
+            subprocess.check_call([str(script)])
+        except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+            print(
+                "Automatic keypair setup failed. Set MNEMONIC or KEYPAIR_JSON and retry."
+            )
+            raise SystemExit(exc.returncode)
+        name = wallet.get_active_keypair_name() or "default"
+        print(f"Automatically generated keypair '{name}' and selected it.")
         return
 
-    mnemonic = input("Enter mnemonic: ").strip()
+    print("No keypairs found in 'keypairs/' directory.")
+    ensure_wallet_cli()
+    if keypair_json:
+        subprocess.check_call(["solhunter-wallet", "save", "default", keypair_json])
+        subprocess.check_call(["solhunter-wallet", "select", "default"])
+        print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
+        return
+
     if mnemonic:
-        ensure_wallet_cli()
-        passphrase = input("Passphrase (leave blank if none): ").strip()
+        passphrase = os.environ.get("PASSPHRASE", "")
         subprocess.check_call([
             "solhunter-wallet",
             "derive",
@@ -206,12 +223,8 @@ def ensure_keypair() -> None:
             passphrase,
         ])
         subprocess.check_call(["solhunter-wallet", "select", "default"])
-        print("Keypair saved. You can use scripts/setup_default_keypair.sh for automated setup.")
-    else:
-        kp = wallet.Keypair()
-        wallet.save_keypair("temp", list(kp.to_bytes()))
-        wallet.select_keypair("temp")
-        print("Generated temporary keypair 'temp' and selected it.")
+        print("Keypair saved from MNEMONIC and selected as 'default'.")
+        return
 
 
 def ensure_endpoints(cfg: dict) -> None:
