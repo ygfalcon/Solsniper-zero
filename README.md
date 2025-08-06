@@ -10,17 +10,20 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `python start.py --auto` (or `./run.sh --auto` on Unix-like systems) or toggle **Full Auto Mode** in the GUI for a fully automated launch.
-   On macOS, double-click `start.command` to invoke `start.py` from the Finder.
-   The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
-   and warns if the wallet balance is below `min_portfolio_value`.
-   `run.sh`, `start.command`, and `make start` all forward to this script for consistent behaviour across platforms.
-   All startup output is also appended to `startup.log` in the project directory for later inspection.
-   Output from environment preflight checks is written to `preflight.log`, which is truncated
-   before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
-   remains available.
-   A machine-readable diagnostics summary is written to `diagnostics.json` after the bot exits
-   unless `--no-diagnostics` is supplied.
+2. Run `solhunter-start` for the recommended one-click launch. The command
+    invokes `scripts/startup.py` with `--one-click`, performing dependency
+    checks, selecting the sole keypair and active configuration, validating RPC
+    endpoints and warning if the wallet balance is below
+    `min_portfolio_value`.
+    Alternative wrappers such as `python start.py --auto`, `./run.sh --auto`,
+    `make start` or the `start.command` shortcut on macOS provide the same
+    behaviour. All startup output is appended to `startup.log` in the project
+    directory. Output from environment preflight checks is written to
+    `preflight.log`, which is truncated before each run and rotated to
+    `preflight.log.1` once it exceeds 1 MB so the previous run remains
+    available. A machine-readable diagnostics summary is written to
+    `diagnostics.json` after the bot exits unless `--no-diagnostics` is
+    supplied.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50&nbsp;GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
