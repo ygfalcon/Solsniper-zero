@@ -128,6 +128,13 @@ ENV_VARS = {
     "rl_prefetch_buffer": "RL_PREFETCH_BUFFER",
 }
 
+# Commonly required environment variables
+REQUIRED_ENV_VARS = (
+    "EVENT_BUS_URL",
+    "SOLANA_RPC_URL",
+    "SOLANA_KEYPAIR",
+)
+
 
 def _publish(topic: str, payload: Any) -> None:
     """Proxy to :func:`event_bus.publish` imported lazily."""
