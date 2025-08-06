@@ -377,3 +377,70 @@ def test_main_preflight_failure(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
+
+
+def test_start_command_sets_mps_device(tmp_path, monkeypatch):
+    import os
+    import shutil
+    import sys
+    from pathlib import Path
+
+    monkeypatch.setenv("SOLHUNTER_TESTING", "1")
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+
+    real_uname = shutil.which("uname") or "/usr/bin/uname"
+    uname = fake_bin / "uname"
+    uname.write_text(
+        "#!/usr/bin/env bash\n"
+        "if [ \"$1\" = \"-s\" ]; then echo Darwin; exit 0; fi\n"
+        "if [ \"$1\" = \"-m\" ]; then echo arm64; exit 0; fi\n"
+        f"{real_uname} \"$@\"\n"
+    )
+    uname.chmod(0o755)
+
+    for cmd in ("brew", "rustup"):
+        stub = fake_bin / cmd
+        stub.write_text("#!/usr/bin/env bash\nexit 0\n")
+        stub.chmod(0o755)
+
+    python_stub = fake_bin / "python"
+    real_python = shutil.which("python3") or sys.executable
+    python_stub.write_text(
+        f"#!{real_python}\n"
+        "import os, sys, subprocess\n"
+        "if sys.argv[1:2] in (['-V'], ['--version']):\n"
+        "    print('Python 3.11.0')\n"
+        "    sys.exit(0)\n"
+        "if sys.argv[1:4] == ['-m', 'solhunter_zero.device', '--check-gpu']:\n"
+        "    sys.exit(0)\n"
+        "if sys.argv[1:] and sys.argv[1] == 'scripts/startup.py':\n"
+        "    subprocess.run(['bash', 'run.sh', '--auto'], check=True)\n"
+        "    sys.exit(0)\n"
+        "sys.exit(0)\n"
+    )
+    python_stub.chmod(0o755)
+    (fake_bin / "python3").symlink_to(python_stub)
+
+    monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ['PATH']}")
+
+    run_sh_path = Path("run.sh")
+    original_run_sh = run_sh_path.read_text()
+    run_sh_path.write_text(
+        "#!/usr/bin/env bash\n"
+        "PY=$(command -v python3 || command -v python)\n"
+        "if \"$PY\" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then\n"
+        "    [ \"$(uname -s)\" = \"Darwin\" ] && export TORCH_DEVICE=\"mps\"\n"
+        "fi\n"
+        "echo TORCH_DEVICE=${TORCH_DEVICE:-}\n"
+    )
+    run_sh_path.chmod(0o755)
+
+    try:
+        result = subprocess.run(["bash", "start.command"], capture_output=True, text=True)
+    finally:
+        run_sh_path.write_text(original_run_sh)
+        run_sh_path.chmod(0o755)
+
+    assert "TORCH_DEVICE=mps" in result.stdout
