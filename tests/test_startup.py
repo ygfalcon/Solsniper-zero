@@ -6,6 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from solhunter_zero.device import (
+    METAL_EXTRA_INDEX,
+    TORCH_METAL_VERSION,
+    TORCHVISION_METAL_VERSION,
+)
+
 
 def test_startup_help():
     result = subprocess.run([sys.executable, 'scripts/startup.py', '--help'], capture_output=True, text=True)
@@ -292,10 +298,9 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
             "-m",
             "pip",
             "install",
-            "torch==2.1.0",
-            "torchvision==0.16.0",
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/metal",
+            f"torch=={TORCH_METAL_VERSION}",
+            f"torchvision=={TORCHVISION_METAL_VERSION}",
+            *METAL_EXTRA_INDEX,
         ]
     ]
     assert not results
@@ -334,10 +339,9 @@ def test_ensure_deps_requires_mps(monkeypatch):
         "pip",
         "install",
         "--force-reinstall",
-        "torch==2.1.0",
-        "torchvision==0.16.0",
-        "--extra-index-url",
-        "https://download.pytorch.org/whl/metal",
+        f"torch=={TORCH_METAL_VERSION}",
+        f"torchvision=={TORCHVISION_METAL_VERSION}",
+        *METAL_EXTRA_INDEX,
     ]
     assert "install the Metal wheel manually" in str(excinfo.value)
 

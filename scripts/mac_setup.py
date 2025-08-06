@@ -13,7 +13,11 @@ import time
 from pathlib import Path
 from collections.abc import Callable
 
-from solhunter_zero.device import METAL_EXTRA_INDEX
+from solhunter_zero.device import (
+    METAL_EXTRA_INDEX,
+    TORCH_METAL_VERSION,
+    TORCHVISION_METAL_VERSION,
+)
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
@@ -133,8 +137,8 @@ def upgrade_pip_and_torch() -> None:
             "-m",
             "pip",
             "install",
-            "torch==2.1.0",
-            "torchvision==0.16.0",
+            f"torch=={TORCH_METAL_VERSION}",
+            f"torchvision=={TORCHVISION_METAL_VERSION}",
             *METAL_EXTRA_INDEX,
         ],
         check=False,
@@ -161,7 +165,7 @@ MANUAL_FIXES = {
     "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
     "pip_torch": (
         "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip '"
-        f"'torch==2.1.0 torchvision==0.16.0 {' '.join(METAL_EXTRA_INDEX)}'."
+        f"'torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} {' '.join(METAL_EXTRA_INDEX)}'."
     ),
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
     "profile": (

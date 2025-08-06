@@ -13,6 +13,9 @@ METAL_EXTRA_INDEX = [
     "https://download.pytorch.org/whl/metal",
 ]
 
+TORCH_METAL_VERSION = "2.1.0"
+TORCHVISION_METAL_VERSION = "0.16.0"
+
 try:  # pragma: no cover - optional dependency
     import torch
 except Exception:  # pragma: no cover - torch is optional at runtime
@@ -45,8 +48,8 @@ def ensure_torch_with_metal() -> None:
         "-m",
         "pip",
         "install",
-        "torch==2.1.0",
-        "torchvision==0.16.0",
+        f"torch=={TORCH_METAL_VERSION}",
+        f"torchvision=={TORCHVISION_METAL_VERSION}",
         *METAL_EXTRA_INDEX,
     ]
     try:
@@ -68,8 +71,8 @@ def ensure_torch_with_metal() -> None:
                     "pip",
                     "install",
                     "--force-reinstall",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
+                    f"torch=={TORCH_METAL_VERSION}",
+                    f"torchvision=={TORCHVISION_METAL_VERSION}",
                     *METAL_EXTRA_INDEX,
                 ]
             )
@@ -81,7 +84,7 @@ def ensure_torch_with_metal() -> None:
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
             raise RuntimeError(
                 "MPS backend still not available. Install manually with: pip install "
-                "torch==2.1.0 torchvision==0.16.0 "
+                f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
                 + " ".join(METAL_EXTRA_INDEX),
             )
 
@@ -121,7 +124,8 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 )
                 return False
             install_hint = (
-                "Install with: pip install torch==2.1.0 torchvision==0.16.0 "
+                "Install with: pip install "
+                f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
                 "--extra-index-url https://download.pytorch.org/whl/metal"
             )
 

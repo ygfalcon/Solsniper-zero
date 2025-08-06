@@ -5,6 +5,11 @@ import types
 import pytest
 
 from solhunter_zero import device as device_module
+from solhunter_zero.device import (
+    METAL_EXTRA_INDEX,
+    TORCH_METAL_VERSION,
+    TORCHVISION_METAL_VERSION,
+)
 
 
 def test_detect_gpu_and_get_default_device_mps(monkeypatch):
@@ -49,12 +54,15 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
         cuda=types.SimpleNamespace(is_available=lambda: False),
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    monkeypatch.setattr(device_module, "ensure_torch_with_metal", lambda: None)
     with caplog.at_level("WARNING"):
         assert device_module.detect_gpu() is False
-    assert (
-        "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal"
-        in caplog.text
+    expected = (
+        f"pip install torch=={TORCH_METAL_VERSION} "
+        f"torchvision=={TORCHVISION_METAL_VERSION} "
+        + " ".join(METAL_EXTRA_INDEX)
     )
+    assert expected in caplog.text
 
 
 def test_detect_gpu_tensor_failure(monkeypatch, caplog):
