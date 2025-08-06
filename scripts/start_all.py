@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import subprocess
@@ -12,7 +13,11 @@ import socket
 import threading
 from pathlib import Path
 from typing import IO
-from solhunter_zero.config import load_config, apply_env_overrides, set_env_from_config
+from solhunter_zero.config import (
+    load_config,
+    apply_env_overrides,
+    set_env_from_config,
+)
 from solhunter_zero import data_sync
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,12 +42,27 @@ ENV_VARS = [
     "DEPTH_WS_PORT",
 ]
 
+ENV_DEFAULTS = {
+    "EVENT_BUS_URL": "",
+    "SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com",
+    "SOLANA_KEYPAIR": "",
+    "DEPTH_SERVICE_SOCKET": "/tmp/depth_service.sock",
+    "DEPTH_MMAP_PATH": "/tmp/depth_service.mmap",
+    "DEPTH_WS_ADDR": "127.0.0.1",
+    "DEPTH_WS_PORT": "8765",
+}
+
 
 def validate_env() -> None:
     for name in ENV_VARS:
         if not os.getenv(name):
-            print(f"Required env var {name} is not set", file=sys.stderr)
-            sys.exit(1)
+            default = ENV_DEFAULTS.get(name, "")
+            logging.warning(
+                "Environment variable %s is not set. Using default %r.",
+                name,
+                default,
+            )
+            os.environ[name] = default
 
 
 def _stream_stderr(pipe: IO[bytes]) -> None:
@@ -61,7 +81,9 @@ def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
     proc = subprocess.Popen(cmd, env=env, stderr=stderr)
     PROCS.append(proc)
     if stream_stderr and proc.stderr is not None:
-        threading.Thread(target=_stream_stderr, args=(proc.stderr,), daemon=True).start()
+        threading.Thread(
+            target=_stream_stderr, args=(proc.stderr,), daemon=True
+        ).start()
     return proc
 
 
