@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from solhunter_zero.device import select_device
 
 from solhunter_zero.offline_data import OfflineData
 from solhunter_zero import models
@@ -45,17 +46,14 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Fine-tune transformer model during trading")
     p.add_argument("--db", default="sqlite:///offline_data.db")
     p.add_argument("--model", default="transformer_model.pt")
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto")
     p.add_argument("--seq-len", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--interval", type=float, default=3600.0)
     p.add_argument("--lr", type=float, default=1e-4)
     args = p.parse_args()
 
-    if args.device != "cpu" and not torch.cuda.is_available():
-        device = torch.device("cpu")
-    else:
-        device = torch.device(args.device)
+    device = select_device(args.device)
 
     asyncio.run(train_loop(args.db, Path(args.model), device, args.seq_len, args.batch_size, args.interval, args.lr))
 
