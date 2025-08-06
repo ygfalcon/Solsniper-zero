@@ -185,14 +185,19 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
 
 
 def main() -> None:
-    failed = False
+    failures: List[Tuple[str, str]] = []
     for name, func in CHECKS:
         ok, msg = func()
         status = "OK" if ok else "FAIL"
         print(f"{name}: {status} - {msg}")
         if not ok:
-            failed = True
-    sys.exit(0 if not failed else 1)
+            failures.append((name, msg))
+    if failures:
+        print("\nSummary of failures:")
+        for name, msg in failures:
+            print(f"- {name}: {msg}")
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
