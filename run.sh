@@ -102,9 +102,31 @@ fi
 
 cargo build --manifest-path depth_service/Cargo.toml --release
 
-python -m solhunter_zero.metrics_aggregator &
-AGG_PID=$!
-trap 'kill $AGG_PID 2>/dev/null' EXIT
+# Allow skipping the metrics aggregator for debugging
+NO_METRICS=0
+args=()
+for arg in "$@"; do
+    if [ "$arg" = "--no-metrics" ]; then
+        NO_METRICS=1
+    else
+        args+=("$arg")
+    fi
+done
+set -- "${args[@]}"
+
+if [ $NO_METRICS -eq 0 ]; then
+    METRICS_LOG=$(mktemp)
+    python -m solhunter_zero.metrics_aggregator >"$METRICS_LOG" 2>&1 &
+    AGG_PID=$!
+    sleep 1
+    if ! kill -0 "$AGG_PID" 2>/dev/null; then
+        echo "metrics_aggregator failed to start" >&2
+        cat "$METRICS_LOG"
+        rm -f "$METRICS_LOG"
+        exit 1
+    fi
+    trap 'kill $AGG_PID 2>/dev/null; rm -f "$METRICS_LOG"' EXIT
+fi
 
 if [ "$1" = "--daemon" ]; then
     shift
