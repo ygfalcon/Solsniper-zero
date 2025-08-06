@@ -26,6 +26,8 @@ if [ -z "${RAYON_NUM_THREADS:-}" ]; then
     export RAYON_NUM_THREADS="$(nproc)"
   elif command -v getconf >/dev/null 2>&1; then
     export RAYON_NUM_THREADS="$(getconf _NPROCESSORS_ONLN)"
+  elif [ "$(uname -s)" = "Darwin" ]; then
+    export RAYON_NUM_THREADS="$(sysctl -n hw.ncpu)"
   else
     export RAYON_NUM_THREADS="$("$PY" - <<'EOF'
 import os
