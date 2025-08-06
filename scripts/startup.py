@@ -500,71 +500,69 @@ def ensure_cargo() -> None:
             raise SystemExit(1)
 
 
-def ensure_route_ffi() -> None:
-    """Ensure the ``route_ffi`` Rust library is built and copied locally.
+def build_rust_component(name: str, cargo_path: Path, output: Path) -> None:
+    """Build a Rust component and ensure its artifact exists.
 
-    The Python package expects ``solhunter_zero/libroute_ffi.{so|dylib}`` to be
-    present.  When missing, this function invokes ``cargo build`` for the
-    ``route_ffi`` crate and copies the resulting shared library into the
-    package directory.  On Apple Silicon the build target is explicitly set to
-    ``aarch64-apple-darwin`` to match the host architecture.
+    On Apple Silicon targets the function verifies the ``aarch64-apple-darwin``
+    target is installed and builds for it explicitly. The compiled binary or
+    library is copied to ``output`` when necessary and automatically codesigned
+    on macOS. A ``RuntimeError`` is raised when the expected artifact cannot be
+    located after the build completes.
     """
 
-    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
-    libpath = ROOT / "solhunter_zero" / libname
-    if libpath.exists():
-        return
-
+    cmd = ["cargo", "build", "--manifest-path", str(cargo_path), "--release"]
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             installed_targets = subprocess.check_output(
                 ["rustup", "target", "list", "--installed"], text=True
             )
         except subprocess.CalledProcessError as exc:
-            print("Failed to verify rust targets. Is rustup installed correctly?")
-            raise SystemExit(exc.returncode)
+            raise RuntimeError("failed to verify rust targets") from exc
         if "aarch64-apple-darwin" not in installed_targets:
-            subprocess.check_call(
-                ["rustup", "target", "add", "aarch64-apple-darwin"]
-            )
-
-    cmd = [
-        "cargo",
-        "build",
-        "--manifest-path",
-        str(ROOT / "route_ffi" / "Cargo.toml"),
-        "--release",
-    ]
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
+            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
         cmd.extend(["--target", "aarch64-apple-darwin"])
 
     subprocess.check_call(cmd)
 
-    target_dir = ROOT / "route_ffi" / "target"
-    candidates = [target_dir / "release" / libname]
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
-        candidates.append(target_dir / "aarch64-apple-darwin" / "release" / libname)
+    artifact = output.name
+    target_dirs = [cargo_path.parent / "target", ROOT / "target"]
+    candidates: list[Path] = []
+    for base in target_dirs:
+        candidates.append(base / "release" / artifact)
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            candidates.append(base / "aarch64-apple-darwin" / "release" / artifact)
 
-    for built in candidates:
-        if built.exists():
-            shutil.copy2(built, libpath)
-            break
+    built = next((p for p in candidates if p.exists()), None)
+    if built is None:
+        paths = ", ".join(str(p) for p in candidates)
+        raise RuntimeError(f"failed to build {name}: expected {artifact} in {paths}")
 
-    if not libpath.exists():
-        print(f"Warning: failed to locate built {libname}; please build manually.")
-    elif platform.system() == "Darwin":
-        try:
-            subprocess.check_call([
-                "codesign",
-                "--force",
-                "--sign",
-                "-",
-                str(libpath),
-            ])
-        except subprocess.CalledProcessError:
-            print(
-                "Warning: failed to codesign libroute_ffi.dylib; please run 'codesign --force --sign - solhunter_zero/libroute_ffi.dylib' manually."
-            )
+    if built.resolve() != output.resolve():
+        output.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(built, output)
+
+    if not output.exists():
+        raise RuntimeError(
+            f"{name} build succeeded but {output} is missing. Please build manually."
+        )
+
+    if platform.system() == "Darwin":
+        subprocess.check_call(["codesign", "--force", "--sign", "-", str(output)])
+
+
+def ensure_route_ffi() -> None:
+    """Ensure the ``route_ffi`` Rust library is built and copied locally."""
+
+    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libpath = ROOT / "solhunter_zero" / libname
+    if libpath.exists():
+        return
+
+    build_rust_component(
+        "route_ffi",
+        ROOT / "route_ffi" / "Cargo.toml",
+        libpath,
+    )
 
 
 def ensure_depth_service() -> None:
@@ -574,14 +572,10 @@ def ensure_depth_service() -> None:
     if bin_path.exists():
         return
 
-    subprocess.check_call(
-        [
-            "cargo",
-            "build",
-            "--manifest-path",
-            str(ROOT / "depth_service" / "Cargo.toml"),
-            "--release",
-        ]
+    build_rust_component(
+        "depth_service",
+        ROOT / "depth_service" / "Cargo.toml",
+        bin_path,
     )
 
 
