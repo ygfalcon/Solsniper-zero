@@ -31,6 +31,9 @@ if ! command -v rustup >/dev/null 2>&1; then
   source "$HOME/.cargo/env"
 fi
 
+# Add support for Apple Silicon targets
+rustup target add aarch64-apple-darwin
+
 # Optionally upgrade pip for Python 3.11
 if command -v python3.11 >/dev/null 2>&1; then
   python3.11 -m pip install --upgrade pip || true
