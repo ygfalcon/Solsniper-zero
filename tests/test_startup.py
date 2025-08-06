@@ -599,7 +599,6 @@ def test_main_preflight_success(monkeypatch):
             "--one-click",
             "--skip-setup",
             "--skip-deps",
-            "--skip-preflight",
         ])
 
     assert called.get("preflight") is True
@@ -633,7 +632,6 @@ def test_main_preflight_failure(monkeypatch, capsys):
         "--one-click",
         "--skip-deps",
         "--skip-setup",
-        "--skip-preflight",
     ])
 
     assert ret == 2

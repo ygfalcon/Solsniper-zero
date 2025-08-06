@@ -16,7 +16,7 @@ import io
 from pathlib import Path
 import json
 
-from scripts import deps
+from scripts import deps, preflight
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -684,6 +684,33 @@ def main(argv: list[str] | None = None) -> int:
             print("Use '--allow-rosetta' to continue anyway.")
             return 1
 
+    if not args.skip_preflight:
+        rotate_preflight_log()
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+        with (
+            contextlib.redirect_stdout(stdout_buf),
+            contextlib.redirect_stderr(stderr_buf),
+        ):
+            try:
+                preflight.main()
+            except SystemExit as exc:
+                code = exc.code if isinstance(exc.code, int) else 1
+            else:
+                code = 0
+        out = stdout_buf.getvalue()
+        err = stderr_buf.getvalue()
+        sys.stdout.write(out)
+        sys.stderr.write(err)
+        try:
+            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
+                log.write(out)
+                log.write(err)
+        except OSError:
+            pass
+        if code:
+            return code
+
     from solhunter_zero.bootstrap import bootstrap
 
     bootstrap(one_click=args.one_click)
@@ -732,36 +759,6 @@ def main(argv: list[str] | None = None) -> int:
         rpc_status = "skipped"
 
     ensure_cargo()
-
-    run_preflight = args.one_click or not args.skip_preflight
-    if run_preflight:
-        rotate_preflight_log()
-        from scripts import preflight
-
-        stdout_buf = io.StringIO()
-        stderr_buf = io.StringIO()
-        with (
-            contextlib.redirect_stdout(stdout_buf),
-            contextlib.redirect_stderr(stderr_buf),
-        ):
-            try:
-                preflight.main()
-            except SystemExit as exc:  # propagate non-zero exit codes
-                code = exc.code if isinstance(exc.code, int) else 1
-            else:
-                code = 0
-        out = stdout_buf.getvalue()
-        err = stderr_buf.getvalue()
-        sys.stdout.write(out)
-        sys.stderr.write(err)
-        try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.write(out)
-                log.write(err)
-        except OSError:
-            pass
-        if code:
-            return code
     print("Startup summary:")
     print(f"  Config file: {config_path or 'none'}")
     print(f"  Active keypair: {active_keypair or 'none'}")
