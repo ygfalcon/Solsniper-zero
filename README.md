@@ -31,10 +31,10 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 - Use an external SSD for larger datasets.
 - Consider a workstation-grade GPU for model training.
 
-### High Risk Preset
-For an aggressive starting point, load the `config.highrisk.toml` preset. It
-turns on all built-in agents with dynamic weighting so risky trades are scaled
-up automatically. Select this file from the UI or set
+### High Risk Preset (deprecated)
+The legacy `config.highrisk.toml` preset enabled all built-in agents with dynamic
+weighting so risky trades are scaled up automatically. It is deprecated and
+retained only for reference. Use it only if you explicitly set
 `SOLHUNTER_CONFIG=config.highrisk.toml` before running the bot.
 
 ## Quick Start
@@ -176,12 +176,12 @@ Key discovery options:
 - `max_concurrency` limits how many discovery tasks run in parallel. The
   environment variable `MAX_CONCURRENCY` overrides this value.
 
-   An example configuration file named `config.example.toml` is included in
-   the project root. Run `cp config.example.toml config.toml` (or copy it to
-   `config.yaml`) and edit the values. A high risk preset called
-   `config.highrisk.toml` is also provided. The example configuration loads
-   several built‑in **agents** that replace the previous static strategy
-   modules.
+   A base configuration file named `config/default.toml` is provided in the
+   project root. Copy it to `config.toml` (or `config.yaml`) and edit the values
+   to get started. Legacy example presets such as `config.example.toml`,
+   `config.minimal.toml` and `config.highrisk.toml` are deprecated and retained
+   only for reference. The default configuration loads several built‑in
+   **agents** that replace the previous static strategy modules.
 
 ## macOS Setup
 
@@ -605,7 +605,7 @@ profit calculation so routes are ranked based on the borrowed size.
 Running `scripts/startup.py` handles these steps interactively and forwards any options to the cross-platform entry point
 `python -m solhunter_zero.main --auto` (or `./run.sh --auto` on Unix), which performs a fully automated launch using the bundled defaults.
 
-   The script ensures the `solhunter-wallet` command-line tool is available, loads the active configuration (falling back to `config.highrisk.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
+   The script ensures the `solhunter-wallet` command-line tool is available, loads the active configuration (falling back to `config/default.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
 
    You can still run the bot manually with explicit options:
    ```bash
@@ -1059,8 +1059,7 @@ includes a **Full Auto Mode** switch. When enabled the UI posts to the
 keypair. The dashboard shows the running status, selected keypair and config.
 It is served on `http://localhost:5000` by default.
 When launched without a user configuration file or `SOLHUNTER_CONFIG`
-environment variable, the UI automatically loads the `config.highrisk.toml`
-preset.
+environment variable, the UI automatically loads `config/default.toml`.
 
 Recent updates embed **Chart.js** to visualise trading activity.  The UI now
 plots ROI over time, recent trade counts and current agent weights.  You can

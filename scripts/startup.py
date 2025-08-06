@@ -234,7 +234,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 def ensure_config() -> None:
     cfg_file = ROOT / "config.toml"
     if not cfg_file.exists():
-        template = ROOT / "config.minimal.toml"
+        template = ROOT / "config" / "default.toml"
         if template.exists():
             shutil.copy(template, cfg_file)
 
