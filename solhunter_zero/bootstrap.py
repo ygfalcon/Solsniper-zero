@@ -10,6 +10,7 @@ from scripts.startup import (
     ensure_depth_service,
 )
 from .config_bootstrap import ensure_config
+from . import wallet
 
 import solhunter_zero.device as device
 
@@ -30,11 +31,14 @@ def bootstrap(one_click: bool = False) -> None:
         ensure_venv(None)
 
     if os.getenv("SOLHUNTER_SKIP_DEPS") != "1":
-        ensure_deps(install_optional=os.getenv("SOLHUNTER_INSTALL_OPTIONAL") == "1")
+        ensure_deps(
+            install_optional=os.getenv("SOLHUNTER_INSTALL_OPTIONAL") == "1"
+        )
 
     if os.getenv("SOLHUNTER_SKIP_SETUP") != "1":
         ensure_config()
         ensure_keypair()
 
+    wallet.ensure_default_keypair()
     ensure_route_ffi()
     ensure_depth_service()
