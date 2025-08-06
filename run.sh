@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec python scripts/launcher.py --auto "$@"
+exec python start.py --auto "$@"
 
