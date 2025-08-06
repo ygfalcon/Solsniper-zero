@@ -2,6 +2,19 @@
 # This launcher finds a Python interpreter and ensures it is at least version 3.11.
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# Rotate logs before redirecting output
+rotate_logs() {
+  local logfile="startup.log"
+  local timestamp="$(date +'%Y%m%d-%H%M%S')"
+  if [ -f "$logfile" ]; then
+    mv "$logfile" "${logfile%.log}-$timestamp.log"
+  fi
+  local max_logs=5
+  ls -1t ${logfile%.log}-*.log 2>/dev/null | tail -n +$((max_logs+1)) | xargs -r rm -- || true
+}
+
+rotate_logs
 exec > >(tee -a startup.log) 2>&1
 
 if command -v python3 >/dev/null; then

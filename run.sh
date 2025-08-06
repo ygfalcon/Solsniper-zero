@@ -2,6 +2,19 @@
 # Requires Python 3.11 or higher.
 
 set -euo pipefail
+
+# Rotate logs before redirecting output
+rotate_logs() {
+    local logfile="startup.log"
+    local timestamp="$(date +'%Y%m%d-%H%M%S')"
+    if [ -f "$logfile" ]; then
+        mv "$logfile" "${logfile%.log}-$timestamp.log"
+    fi
+    local max_logs=5
+    ls -1t ${logfile%.log}-*.log 2>/dev/null | tail -n +$((max_logs+1)) | xargs -r rm -- || true
+}
+
+rotate_logs
 exec > >(tee -a startup.log) 2>&1
 
 PY=$(command -v python3 || command -v python)
