@@ -4,20 +4,41 @@ set -euo pipefail
 cd "$(dirname "$0")"
 exec > >(tee -a startup.log) 2>&1
 
-if command -v python3 >/dev/null; then
-  PY=$(command -v python3)
-elif command -v python >/dev/null; then
-  PY=$(command -v python)
-else
-  echo "Error: Python interpreter not found. Install Python 3.11 or higher." >&2
-  exit 1
-fi
+find_python() {
+  if command -v python3 >/dev/null 2>&1; then
+    PY=$(command -v python3)
+  elif command -v python >/dev/null 2>&1; then
+    PY=$(command -v python)
+  else
+    return 1
+  fi
 
-PY_VERSION=$("$PY" -V 2>&1 | awk '{print $2}')
-IFS='.' read -r PY_MAJOR PY_MINOR _ <<< "$PY_VERSION"
-if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
-  echo "Error: Python 3.11 or higher is required (found $PY_VERSION)." >&2
-  exit 1
+  PY_VERSION=$("$PY" -V 2>&1 | awk '{print $2}')
+  IFS='.' read -r PY_MAJOR PY_MINOR _ <<< "$PY_VERSION"
+  if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
+    return 2
+  fi
+  return 0
+}
+
+if ! find_python; then
+  STATUS=$?
+  if [[ $STATUS -eq 1 ]]; then
+    echo "Python interpreter not found. Attempting to install Python 3.11..."
+  else
+    echo "Python 3.11 or higher is required (found $PY_VERSION). Attempting installation..."
+  fi
+  scripts/mac_setup.sh || true
+  echo "Retrying Python interpreter discovery..."
+  if ! find_python; then
+    STATUS=$?
+    if [[ $STATUS -eq 1 ]]; then
+      echo "Error: Python interpreter not found. Install Python 3.11 or higher." >&2
+    else
+      echo "Error: Python 3.11 or higher is required (found $PY_VERSION)." >&2
+    fi
+    exit 1
+  fi
 fi
 
 # Configure Rayon thread pool if not already set
