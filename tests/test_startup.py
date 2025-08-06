@@ -277,7 +277,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
@@ -302,7 +302,7 @@ def test_main_skips_endpoint_check(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
@@ -333,7 +333,7 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
@@ -353,6 +353,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
 
     monkeypatch.setattr(startup.subprocess, "run", fake_run)
 
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     ret = startup.main(["--one-click"])
 
     assert ret == 1

@@ -337,7 +337,7 @@ def ensure_endpoints(cfg: dict) -> None:
         raise SystemExit(1)
 
 
-def ensure_rpc() -> None:
+def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get(
         "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
@@ -360,18 +360,21 @@ def ensure_rpc() -> None:
                 break
         except Exception as exc:  # pragma: no cover - network failure
             if attempt == 2:
-                print(
+                msg = (
                     f"Failed to contact Solana RPC at {rpc_url} after 3 attempts: {exc}."
                     " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
                 )
+                if warn_only:
+                    print(f"Warning: {msg}")
+                    return
+                print(msg)
                 raise SystemExit(1)
             wait = 2**attempt
             print(
-                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}."
-                f" Retrying in {wait} seconds..."
+                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}.",
+                f" Retrying in {wait} seconds...",
             )
             time.sleep(wait)
-
 
 def ensure_cargo() -> None:
     if shutil.which("cargo") is None:
@@ -500,7 +503,6 @@ def main(argv: list[str] | None = None) -> int:
     args, rest = parser.parse_known_args(argv)
 
     if args.one_click:
-        args.skip_rpc_check = True
         rest = ["--non-interactive", *rest]
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
         preflight = subprocess.run(
@@ -547,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_keypair()
 
     if not args.skip_rpc_check:
-        ensure_rpc()
+        ensure_rpc(warn_only=args.one_click)
     ensure_cargo()
     ensure_route_ffi()
     run_sh = ROOT / "run.sh"
