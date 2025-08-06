@@ -83,10 +83,50 @@ cfg = get_config_file()
 cfg_data = {}
 if cfg:
     cfg_data = apply_env_overrides(load_config(cfg))
-interval = float(cfg_data.get("offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")))
+interval = float(
+    cfg_data.get(
+        "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
+    )
+)
 db_path = cfg_data.get("rl_db_path", "offline_data.db")
 data_sync.start_scheduler(interval=interval, db_path=db_path)
-cmd = ["./target/release/depth_service"]
+depth_bin = ROOT / "target" / "release" / "depth_service"
+if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
+    print("depth_service binary not found, building with cargo...")
+    try:
+        result = subprocess.run(
+            [
+                "cargo",
+                "build",
+                "--manifest-path",
+                str(ROOT / "depth_service" / "Cargo.toml"),
+                "--release",
+            ]
+        )
+    except FileNotFoundError:
+        print(
+            "cargo is not installed. Please run 'cargo build --manifest-path "
+            "depth_service/Cargo.toml --release'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if result.returncode != 0:
+        print(
+            "Failed to build depth_service. Please run "
+            "'cargo build --manifest-path depth_service/Cargo.toml --release' "
+            "manually.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
+        print(
+            "depth_service binary missing or not executable after build. "
+            "Please run 'cargo build --manifest-path "
+            "depth_service/Cargo.toml --release'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+cmd = [str(depth_bin)]
 if cfg:
     cmd += ["--config", cfg]
 start(cmd)
