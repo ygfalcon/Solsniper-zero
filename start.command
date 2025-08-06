@@ -2,6 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+source scripts/rotate_logs.sh
+rotate_logs
+exec > >(tee -a startup.log) 2>&1
+
 # Find a suitable Python interpreter
 if command -v python >/dev/null 2>&1; then
     PYTHON=python

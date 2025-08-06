@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import platform
+import subprocess
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -43,7 +44,16 @@ def main(argv: list[str] | None = None) -> NoReturn:
     if platform.system() == "Darwin":
         os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
         cmd = ["arch", "-arm64", *cmd]
-        os.execvp(cmd[0], cmd)
+
+    if sys.stdout.isatty():
+        with open(ROOT / "startup.log", "a") as log:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                log.write(line)
+            proc.wait()
+            raise SystemExit(proc.returncode)
     else:
         os.execvp(cmd[0], cmd)
 
