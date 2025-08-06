@@ -29,8 +29,8 @@ def detect_gpu() -> bool:
         return False
 
 
-def get_default_device() -> str | None:
-    """Return the default GPU backend if available."""
+def get_default_backend() -> str | None:
+    """Return the default GPU backend name if available."""
 
     if torch is not None:
         try:  # pragma: no cover - optional dependency
