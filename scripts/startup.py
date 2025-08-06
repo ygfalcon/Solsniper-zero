@@ -635,6 +635,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip environment preflight checks",
     )
     parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="Run bootstrap and preflight checks then exit",
+    )
+    parser.add_argument(
         "--one-click",
         action="store_true",
         help="Enable fully automated non-interactive startup",
@@ -655,6 +660,37 @@ def main(argv: list[str] | None = None) -> int:
         help="Suppress post-run diagnostics collection",
     )
     args, rest = parser.parse_known_args(argv)
+
+    if args.self_test:
+        from solhunter_zero.bootstrap import bootstrap
+        from scripts import preflight
+        import re
+
+        b_code = 0
+        try:
+            bootstrap(one_click=True)
+        except SystemExit as exc:
+            b_code = exc.code if isinstance(exc.code, int) else 1
+        except Exception:
+            b_code = 1
+
+        stdout_buf = io.StringIO()
+        with contextlib.redirect_stdout(stdout_buf):
+            try:
+                preflight.main()
+            except SystemExit as exc:
+                p_code = exc.code if isinstance(exc.code, int) else 1
+            else:
+                p_code = 0
+        out = stdout_buf.getvalue()
+        sys.stdout.write(out)
+        passes = len(re.findall(r": OK\b", out))
+        fails = len(re.findall(r": FAIL\b", out))
+        print(
+            f"Self-test summary: bootstrap {'PASS' if b_code == 0 else 'FAIL'}, "
+            f"preflight: {passes} passed, {fails} failed."
+        )
+        return b_code or p_code
 
     if args.diagnostics:
         from scripts import diagnostics
