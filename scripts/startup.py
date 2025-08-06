@@ -317,48 +317,10 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 
 
 def ensure_config() -> None:
-    cfg_file = ROOT / "config.toml"
-    created = False
-    if not cfg_file.exists():
-        try:
-            from scripts import quick_setup
+    """Ensure a configuration file exists and is valid."""
+    from solhunter_zero.config_bootstrap import ensure_config as _ensure_config
 
-            quick_setup.main(["--auto", "--non-interactive"])
-        except Exception as exc:  # pragma: no cover - quick setup failure
-            print(f"Failed to run quick setup: {exc}")
-        created = cfg_file.exists()
-
-    import tomllib
-
-    try:
-        import tomli_w  # type: ignore
-    except ImportError:  # pragma: no cover - optional dependency
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "tomli-w"])
-            import tomli_w  # type: ignore
-        except Exception as exc:  # pragma: no cover - installation failure
-            print(f"Failed to install 'tomli-w': {exc}")
-            raise SystemExit(1)
-
-    from solhunter_zero.config import apply_env_overrides, validate_config
-
-    if cfg_file.exists():
-        with cfg_file.open("rb") as fh:
-            cfg = tomllib.load(fh)
-    else:
-        cfg = {}
-
-    cfg = apply_env_overrides(cfg)
-    try:
-        cfg = validate_config(cfg)
-    except ValueError as exc:  # pragma: no cover - config validation
-        print(f"Invalid configuration: {exc}")
-        raise SystemExit(1)
-
-    with cfg_file.open("wb") as fh:
-        fh.write(tomli_w.dumps(cfg).encode("utf-8"))
-    if created:
-        print(f"Configuration created at {cfg_file}")
+    _ensure_config()
 
 
 def ensure_wallet_cli() -> None:

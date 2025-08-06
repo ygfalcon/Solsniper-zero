@@ -5,11 +5,11 @@ import os
 from scripts.startup import (
     ensure_venv,
     ensure_deps,
-    ensure_config,
     ensure_keypair,
     ensure_route_ffi,
     ensure_depth_service,
 )
+from .config_bootstrap import ensure_config
 
 
 def bootstrap(one_click: bool = False) -> None:
