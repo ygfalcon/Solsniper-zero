@@ -8,7 +8,7 @@ PYTHON ?= python
 .PHONY: start run test demo demo-rl demo-multi
 
 start:
->$(PYTHON) scripts/startup.py --one-click $(ARGS)
+>$(PYTHON) scripts/launcher.py --one-click $(ARGS)
 
 # Launch directly without the shell script (works on all platforms)
 run:
