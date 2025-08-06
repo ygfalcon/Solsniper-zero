@@ -162,6 +162,20 @@ PY
     exit 1
 fi
 
+if [ "$(uname -s)" = "Darwin" ]; then
+    if "$PY" - <<'EOF'
+import torch, sys
+sys.exit(0 if torch.backends.mps.is_available() else 1)
+EOF
+    then
+        export SOLHUNTER_MPS=1
+    else
+        export SOLHUNTER_MPS=0
+    fi
+else
+    export SOLHUNTER_MPS=0
+fi
+
 if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
     [ "$(uname -s)" = "Darwin" ] && export TORCH_DEVICE="mps"
     export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
