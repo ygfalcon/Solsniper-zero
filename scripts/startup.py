@@ -347,10 +347,21 @@ def ensure_cargo() -> None:
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
             shell=True,
         )
-        if platform.system() == "Darwin":
-            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
     cargo_bin = Path.home() / ".cargo" / "bin"
     os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+    try:
+        subprocess.check_call(["cargo", "--version"], stdout=subprocess.DEVNULL)
+    except subprocess.CalledProcessError as exc:
+        print("Failed to run 'cargo --version'. Is Rust installed correctly?")
+        raise SystemExit(exc.returncode)
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        try:
+            targets = subprocess.check_output(["rustup", "target", "list"], text=True)
+        except subprocess.CalledProcessError as exc:
+            print("Failed to list rust targets. Is rustup installed correctly?")
+            raise SystemExit(exc.returncode)
+        if "aarch64-apple-darwin" not in targets:
+            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
 
 
 def main(argv: list[str] | None = None) -> int:
