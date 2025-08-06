@@ -13,6 +13,12 @@ import time
 from pathlib import Path
 from collections.abc import Callable
 
+try:  # pragma: no cover - fallback when package is unavailable
+    from solhunter_zero.versions import TORCH_VERSION, TORCHVISION_VERSION
+except Exception:  # pragma: no cover - fallback values for isolated script
+    TORCH_VERSION = "2.1.0"
+    TORCHVISION_VERSION = "0.16.0"
+
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
@@ -131,8 +137,8 @@ def upgrade_pip_and_torch() -> None:
             "-m",
             "pip",
             "install",
-            "torch==2.1.0",
-            "torchvision==0.16.0",
+            f"torch=={TORCH_VERSION}",
+            f"torchvision=={TORCHVISION_VERSION}",
             "--extra-index-url",
             "https://download.pytorch.org/whl/metal",
         ],
@@ -160,7 +166,7 @@ MANUAL_FIXES = {
     "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
     "pip_torch": (
         "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip '"
-        "'torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal'."
+        f"'torch=={TORCH_VERSION} torchvision=={TORCHVISION_VERSION} --extra-index-url https://download.pytorch.org/whl/metal'."
     ),
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
     "profile": (

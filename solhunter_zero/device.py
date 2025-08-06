@@ -8,6 +8,8 @@ import platform
 import subprocess
 import sys
 
+from .versions import TORCH_VERSION, TORCHVISION_VERSION
+
 try:  # pragma: no cover - optional dependency
     import torch
 except Exception:  # pragma: no cover - torch is optional at runtime
@@ -41,8 +43,8 @@ def ensure_torch_with_metal() -> None:
         "-m",
         "pip",
         "install",
-        "torch==2.1.0",
-        "torchvision==0.16.0",
+        f"torch=={TORCH_VERSION}",
+        f"torchvision=={TORCHVISION_VERSION}",
         *extra_index,
     ]
     try:
@@ -64,8 +66,8 @@ def ensure_torch_with_metal() -> None:
                     "pip",
                     "install",
                     "--force-reinstall",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
+                    f"torch=={TORCH_VERSION}",
+                    f"torchvision=={TORCHVISION_VERSION}",
                     *extra_index,
                 ]
             )
@@ -77,7 +79,7 @@ def ensure_torch_with_metal() -> None:
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
             raise RuntimeError(
                 "MPS backend still not available. Install manually with: pip install "
-                "torch==2.1.0 torchvision==0.16.0 --extra-index-url "
+                f"torch=={TORCH_VERSION} torchvision=={TORCHVISION_VERSION} --extra-index-url "
                 "https://download.pytorch.org/whl/metal",
             )
 
@@ -117,11 +119,12 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 )
                 return False
             install_hint = (
-                "Install with: pip install torch==2.1.0 torchvision==0.16.0 "
+                "Install with: pip install torch=="
+                f"{TORCH_VERSION} torchvision=={TORCHVISION_VERSION} "
                 "--extra-index-url https://download.pytorch.org/whl/metal"
             )
 
-            def _install_and_retry(reason: str) -> bool:
+            def _install_and_retry(reason: str, hint: str) -> bool:
                 logger = logging.getLogger(__name__)
                 logger.warning(
                     "%s; attempting to install MPS-enabled PyTorch", reason
@@ -130,6 +133,7 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                     ensure_torch_with_metal()
                 except Exception:
                     logger.exception("PyTorch installation failed")
+                    logger.warning("%s", hint)
                     raise RuntimeError(
                         "Failed to install MPS-enabled PyTorch"
                     )
@@ -137,20 +141,21 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                     logger.info("MPS backend detected after installation")
                     return True
                 logger.error("MPS backend unavailable after installation")
+                logger.warning("%s", hint)
                 raise RuntimeError(
                     "MPS backend unavailable even after installing PyTorch"
                 )
 
             if not getattr(torch.backends, "mps", None):
                 if _attempt_install:
-                    return _install_and_retry("MPS backend not present")
+                    return _install_and_retry("MPS backend not present", install_hint)
                 logging.getLogger(__name__).warning(
                     "MPS backend not present; GPU unavailable. %s", install_hint
                 )
                 return False
             if not torch.backends.mps.is_built():
                 if _attempt_install:
-                    return _install_and_retry("MPS backend not built")
+                    return _install_and_retry("MPS backend not built", install_hint)
                 logging.getLogger(__name__).warning(
                     "MPS backend not built; GPU unavailable. %s", install_hint
                 )
@@ -164,7 +169,7 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             if not torch.backends.mps.is_available():
                 if _attempt_install:
-                    return _install_and_retry("MPS backend not available")
+                    return _install_and_retry("MPS backend not available", install_hint)
                 logging.getLogger(__name__).warning(
                     "MPS backend not available; GPU unavailable. %s", install_hint
                 )
