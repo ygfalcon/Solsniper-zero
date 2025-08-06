@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # This launcher finds a Python interpreter and ensures it is at least version 3.11.
-set -e
+set -euo pipefail
 cd "$(dirname "$0")"
 
 if command -v python3 >/dev/null; then
@@ -20,7 +20,7 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
 fi
 
 # Configure Rayon thread pool if not already set
-if [ -z "$RAYON_NUM_THREADS" ]; then
+if [ -z "${RAYON_NUM_THREADS:-}" ]; then
   if command -v nproc >/dev/null 2>&1; then
     export RAYON_NUM_THREADS="$(nproc)"
   elif command -v getconf >/dev/null 2>&1; then
