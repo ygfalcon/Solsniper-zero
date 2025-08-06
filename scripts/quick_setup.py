@@ -11,8 +11,12 @@ import argparse
 import tomli_w  # type: ignore
 
 from solhunter_zero.config_schema import validate_config
+from solhunter_zero.config import find_config_file
 
-CONFIG_PATH = Path("config.toml")
+_existing = find_config_file()
+CONFIG_PATH = (
+    Path(_existing) if _existing and _existing.endswith(".toml") else Path("config.toml")
+)
 EXAMPLE_PATH = Path("config.example.toml")
 MINIMAL_PATH = Path("config.minimal.toml")
 

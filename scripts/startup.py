@@ -835,14 +835,13 @@ def main(argv: list[str] | None = None) -> int:
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
-        from solhunter_zero.config import load_config, validate_config
+        from solhunter_zero.config import (
+            load_config,
+            validate_config,
+            find_config_file,
+        )
 
-        config_path = os.getenv("SOLHUNTER_CONFIG")
-        if not config_path:
-            for name in ("config.yaml", "config.yml", "config.toml"):
-                if Path(name).is_file():
-                    config_path = name
-                    break
+        config_path = find_config_file()
         cfg = load_config(config_path)
         cfg = validate_config(cfg)
         if not args.skip_endpoint_check:

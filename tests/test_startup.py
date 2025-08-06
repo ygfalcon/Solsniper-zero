@@ -490,16 +490,19 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
+    )
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
-    with pytest.raises(SystemExit):
-        startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
-
+    ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     assert "endpoints" in called
+    assert ret == 0
 
 
 def test_main_skips_endpoint_check(monkeypatch):
@@ -522,18 +525,19 @@ def test_main_skips_endpoint_check(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
-    with pytest.raises(SystemExit):
-        startup.main([
-            "--skip-deps",
-            "--skip-rpc-check",
-            "--skip-endpoint-check",
-            "--skip-preflight",
-        ])
+    ret = startup.main([
+        "--skip-deps",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-preflight",
+    ])
 
     assert "endpoints" not in called
+    assert ret == 0
 
 
 def test_main_preflight_success(monkeypatch):
@@ -694,6 +698,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 

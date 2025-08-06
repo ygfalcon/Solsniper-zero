@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from solhunter_zero.config import (
     load_config,
     apply_env_overrides,
@@ -6,6 +7,7 @@ from solhunter_zero.config import (
     load_dex_config,
     save_config,
     validate_config,
+    find_config_file,
 )
 from solhunter_zero.event_bus import subscribe
 
@@ -81,8 +83,17 @@ def test_env_var_overrides_default_search(tmp_path, monkeypatch):
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SOLHUNTER_CONFIG", str(override))
-    cfg = load_config()
-    assert cfg == {"birdeye_api_key": "OVR"}
+    cfg = load_config(find_config_file())
+    assert cfg["birdeye_api_key"] == "OVR"
+
+
+def test_find_config_file_order(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text("")
+    (tmp_path / "config.toml").write_text("")
+    assert Path(find_config_file()).resolve() == (tmp_path / "config.toml").resolve()
+    (tmp_path / "config.toml").unlink()
+    assert Path(find_config_file()).resolve() == (tmp_path / "config.yaml").resolve()
 
 
 def test_apply_env_overrides(monkeypatch):
