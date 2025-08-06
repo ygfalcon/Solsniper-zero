@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
-from urllib import error, request
+from urllib import error
 
 try:
     import tomllib  # Python 3.11+
@@ -134,9 +134,9 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
 def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> Check:
     url = os.environ.get("SOLANA_RPC_URL", default_url)
     try:
-        req = request.Request(url, method="HEAD")
-        with request.urlopen(req, timeout=5):
-            pass
+        from solhunter_zero.http import check_endpoint
+
+        check_endpoint(url)
     except error.URLError as exc:
         return False, f"Network error: {exc}"
     return True, f"Network access to {url} OK"
