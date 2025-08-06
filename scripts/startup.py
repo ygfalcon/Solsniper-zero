@@ -243,35 +243,14 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]", *extra_index)
 
-    if install_optional and "torch" in opt and extra_index:
-        print(
-            "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
-        )
-        _pip_install("torch==2.1.0", "torchvision==0.16.0", *extra_index)
-        opt.remove("torch")
-
     if install_optional and extra_index:
-        import importlib
-        import torch
-
-        if not torch.backends.mps.is_available():
-            print("MPS backend not available; attempting to reinstall Metal wheel...")
-            try:
-                _pip_install(
-                    "--force-reinstall",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
-                    *extra_index,
-                )
-            except SystemExit:
-                print("Failed to reinstall torch with Metal wheels.")
-            importlib.reload(torch)
-            if not torch.backends.mps.is_available():
-                raise SystemExit(
-                    "MPS backend still not available. Please install the Metal wheel manually:\n"
-                    "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url "
-                    "https://download.pytorch.org/whl/metal"
-                )
+        try:
+            device.ensure_torch_with_metal()
+        except Exception as exc:
+            print(str(exc))
+            raise SystemExit(1)
+        if "torch" in opt:
+            opt.remove("torch")
 
     if install_optional and opt:
         print("Installing optional dependencies...")

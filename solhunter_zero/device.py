@@ -14,6 +14,74 @@ except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
 
+def ensure_torch_with_metal() -> None:
+    """Ensure PyTorch with Metal backend is installed on macOS arm64.
+
+    The helper installs specific ``torch`` and ``torchvision`` versions from the
+    Metal wheels when running on Apple Silicon.  After installation the module is
+    imported and the ``mps`` backend availability is verified.  A ``RuntimeError``
+    is raised if the backend remains unavailable.
+    """
+
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return
+
+    extra_index = ["--extra-index-url", "https://download.pytorch.org/whl/metal"]
+    logger = logging.getLogger(__name__)
+
+    global torch
+    try:
+        if torch is not None and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            return
+    except Exception:
+        pass
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "torch==2.1.0",
+        "torchvision==0.16.0",
+        *extra_index,
+    ]
+    try:
+        subprocess.check_call(cmd)
+    except Exception:  # pragma: no cover - installation failure
+        logger.exception("PyTorch installation failed")
+        raise RuntimeError("Failed to install MPS-enabled PyTorch")
+
+    importlib.invalidate_caches()
+    torch = importlib.import_module("torch")
+
+    if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+        logger.warning("MPS backend not available; attempting to reinstall Metal wheel")
+        try:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--force-reinstall",
+                    "torch==2.1.0",
+                    "torchvision==0.16.0",
+                    *extra_index,
+                ]
+            )
+        except Exception:  # pragma: no cover - installation failure
+            logger.exception("PyTorch reinstallation failed")
+            raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
+        importlib.invalidate_caches()
+        torch = importlib.reload(torch)
+        if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+            raise RuntimeError(
+                "MPS backend still not available. Install manually with: pip install "
+                "torch==2.1.0 torchvision==0.16.0 --extra-index-url "
+                "https://download.pytorch.org/whl/metal",
+            )
+
+
 def detect_gpu(_attempt_install: bool = True) -> bool:
     """Return ``True`` when a supported GPU backend is available.
 
@@ -26,7 +94,18 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
     """
 
     if torch is None:
-        logging.getLogger(__name__).warning("PyTorch is not installed; GPU unavailable")
+        if _attempt_install:
+            try:
+                ensure_torch_with_metal()
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "PyTorch installation failed; GPU unavailable"
+                )
+                return False
+            return detect_gpu(_attempt_install=False)
+        logging.getLogger(__name__).warning(
+            "PyTorch is not installed; GPU unavailable"
+        )
         return False
     try:
         system = platform.system()
@@ -47,22 +126,8 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 logger.warning(
                     "%s; attempting to install MPS-enabled PyTorch", reason
                 )
-                cmd = [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
-                    "--extra-index-url",
-                    "https://download.pytorch.org/whl/metal",
-                ]
                 try:
-                    subprocess.check_call(cmd)
-                    logger.info("PyTorch installation succeeded")
-                    importlib.invalidate_caches()
-                    global torch
-                    torch = importlib.import_module("torch")
+                    ensure_torch_with_metal()
                 except Exception:
                     logger.exception("PyTorch installation failed")
                     raise RuntimeError(
