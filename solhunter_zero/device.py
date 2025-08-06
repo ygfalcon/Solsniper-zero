@@ -21,10 +21,11 @@ def get_default_device() -> str | None:
             and torch.backends.mps.is_available()
         )
         if torch.cuda.is_available() or mps_available:
-            if mps_available and os.environ.setdefault(
-                "PYTORCH_ENABLE_MPS_FALLBACK", "1"
-            ) != "1":
-                logging.getLogger(__name__).warning(
+            if (
+                mps_available
+                and os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1") != "1"
+            ):
+                logging.getLogger(__name__).debug(
                     "MPS is available but PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'"
                 )
             return "torch"
