@@ -173,7 +173,8 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 
     if install_optional and extra_index:
         try:
-            device.ensure_torch_with_metal()
+            if not device.MPS_SENTINEL.exists():
+                device.ensure_torch_with_metal()
         except Exception as exc:
             print(str(exc))
             raise SystemExit(str(exc))
