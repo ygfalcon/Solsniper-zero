@@ -253,6 +253,14 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
+## .env configuration
+
+The startup scripts and Docker Compose setup read environment variables from a
+`.env` file in the project root. Each non-empty line must use `KEY=value`
+syntax. Lines starting with `#` or blank lines are ignored. Values already
+defined in the environment take precedence over entries in the file, allowing
+you to override them when invoking commands or in container settings.
+
 ## Paper Trading
 
 Before committing real SOL, you can evaluate strategies using the paper
