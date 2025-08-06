@@ -856,9 +856,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run(argv: list[str] | None = None) -> int:
-    args_list = argv or sys.argv[1:]
+    args_list = list(sys.argv[1:] if argv is None else argv)
+    if "--one-click" not in args_list:
+        args_list.insert(0, "--one-click")
     try:
-        code = main(argv)
+        code = main(args_list)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
     except Exception:
