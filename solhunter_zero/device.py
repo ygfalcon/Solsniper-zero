@@ -11,22 +11,28 @@ except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
 
-def detect_gpu() -> bool:
-    """Return ``True`` when a supported GPU backend is available.
+def detect_gpu() -> str | None:
+    """Return the available GPU backend identifier.
 
-    The check prefers Apple's Metal backend (MPS) on macOS machines with
-    Apple Silicon and falls back to CUDA on other platforms.  Any import
-    errors or unsupported configurations are treated as absence of a GPU.
+    The function prefers Apple's Metal backend (``"mps"``) on macOS machines
+    with Apple Silicon and falls back to CUDA (``"cuda"``) on other platforms.
+    Any import errors or unsupported configurations result in ``None``.
     """
 
     if torch is None:
-        return False
+        return None
     try:
-        if platform.system() == "Darwin":
-            return bool(torch.backends.mps.is_available())
-        return bool(torch.cuda.is_available())
+        if (
+            hasattr(torch, "backends")
+            and hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_available()
+        ):
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
     except Exception:
-        return False
+        pass
+    return None
 
 
 def get_gpu_backend() -> str | None:
@@ -88,7 +94,7 @@ def _main() -> int:  # pragma: no cover - CLI helper
     parser.add_argument("--check-gpu", action="store_true", help="exit 0 if a GPU is available")
     args = parser.parse_args()
     if args.check_gpu:
-        return 0 if detect_gpu() else 1
+        return 0 if detect_gpu() is not None else 1
     return 0
 
 

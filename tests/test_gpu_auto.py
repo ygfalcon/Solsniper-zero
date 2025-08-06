@@ -61,6 +61,6 @@ def test_mps_detected_disables_gpu_index(monkeypatch):
     monkeypatch.setitem(sys.modules, "sentence_transformers", st_stub)
     import solhunter_zero.advanced_memory as am
     importlib.reload(am)
-    assert am._detect_gpu() is True
+    assert am._detect_gpu() == "mps"
     assert am._gpu_index_enabled() is False
     monkeypatch.delitem(sys.modules, "solhunter_zero.advanced_memory", raising=False)

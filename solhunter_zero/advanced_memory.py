@@ -19,18 +19,18 @@ from .device import detect_gpu
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 
 
-def _detect_gpu() -> bool:
-    """Return ``True`` if a CUDA or MPS device is available."""
+def _detect_gpu() -> str | None:
+    """Return the available GPU backend identifier."""
     if _HAS_FAISS_GPU:
         try:
             faiss.StandardGpuResources()
-            return True
+            return "cuda"
         except Exception:
             pass
     try:
         return detect_gpu()
     except Exception:
-        return False
+        return None
 
 
 def _gpu_index_enabled() -> bool:
@@ -43,7 +43,7 @@ def _gpu_index_enabled() -> bool:
     if not _HAS_FAISS_GPU:
         return False
     try:
-        return detect_gpu()
+        return _detect_gpu() == "cuda"
     except Exception:
         return False
 from sqlalchemy import (

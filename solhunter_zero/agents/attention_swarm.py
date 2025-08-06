@@ -139,7 +139,8 @@ def train_attention_swarm(
     """Fit an :class:`AttentionSwarm` from ``memory`` trades."""
 
     X, y = make_training_data(memory, agents, window=window, seq_len=seq_len)
-    if device != "cpu" and not detect_gpu():
+    backend = detect_gpu()
+    if device != "cpu" and backend != device:
         device = "cpu"
     X = X.to(device)
     y = y.to(device)
@@ -169,7 +170,8 @@ def save_model(model: AttentionSwarm, path: str) -> None:
 
 
 def load_model(path: str, *, device: str = "cpu") -> AttentionSwarm:
-    if device != "cpu" and not detect_gpu():
+    backend = detect_gpu()
+    if device != "cpu" and backend != device:
         device = "cpu"
     obj = torch.load(path, map_location=device)
     cfg = obj.get("cfg", {})
