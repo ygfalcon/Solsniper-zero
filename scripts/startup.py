@@ -632,6 +632,10 @@ def main(argv: list[str] | None = None) -> int:
         cfg = validate_config(cfg)
         if not args.skip_endpoint_check:
             ensure_endpoints(cfg)
+        try:
+            ensure_wallet_cli()
+        except SystemExit as exc:
+            return exc.code if isinstance(exc.code, int) else 1
         ensure_keypair()
         from solhunter_zero import wallet
 
