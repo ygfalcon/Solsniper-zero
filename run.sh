@@ -24,6 +24,13 @@ else
     echo "No GPU detected; using CPU mode"
 fi
 
+# On macOS, enable PyTorch's MPS fallback so unsupported ops run on the CPU
+if [ "$(uname -s)" = "Darwin" ]; then
+    # PYTORCH_ENABLE_MPS_FALLBACK=1 allows PyTorch to fall back to CPU for
+    # operations that are not implemented for Apple's MPS backend
+    export PYTORCH_ENABLE_MPS_FALLBACK=1
+fi
+
 # Configure Rayon thread pool if not already set
 if [ -z "$RAYON_NUM_THREADS" ]; then
     if command -v nproc >/dev/null 2>&1; then
