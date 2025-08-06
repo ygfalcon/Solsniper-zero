@@ -699,6 +699,11 @@ def main(argv: list[str] | None = None) -> int:
     torch.set_default_device(device.get_default_device())
     gpu_available = device.detect_gpu()
     gpu_device = str(device.get_default_device()) if gpu_available else "none"
+    if gpu_device == "none":
+        print(
+            "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
+            "scripts/mac_setup.py to enable GPU support."
+        )
     os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
     os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
     config_path: str | None = None
