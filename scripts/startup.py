@@ -10,12 +10,13 @@ import sys
 import shutil
 from pathlib import Path
 
+os.environ.setdefault("DEPTH_SERVICE", "true")
+
 from solhunter_zero.config import load_config, validate_config
 
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
-os.environ.setdefault("DEPTH_SERVICE", "true")
 
 
 def check_deps() -> tuple[list[str], list[str]]:
