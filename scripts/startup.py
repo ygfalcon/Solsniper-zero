@@ -21,6 +21,31 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 
 
+def ensure_venv(argv: list[str] | None) -> None:
+    """Create a local virtual environment and re-invoke the script inside it.
+
+    The environment is created in ``ROOT/.venv`` using ``python -m venv``.  If
+    the script is not already executing from that interpreter, ``execv`` is used
+    to restart the current process with ``.venv/bin/python`` (or the Windows
+    equivalent).  When ``argv`` is not ``None`` the function assumes it is being
+    called from tests and does nothing to avoid spawning subprocesses.
+    """
+
+    if argv is not None:  # avoid side effects during tests
+        return
+
+    venv_dir = ROOT / ".venv"
+    if not venv_dir.exists():
+        print("Creating virtual environment in .venv...")
+        subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+
+    if Path(sys.prefix) != venv_dir:
+        python = (
+            venv_dir / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
+        )
+        os.execv(str(python), [str(python), *sys.argv])
+
+
 def check_deps() -> tuple[list[str], list[str]]:
     import pkgutil
     import re
@@ -313,6 +338,8 @@ def ensure_cargo() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_venv(argv)
+
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
     parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
