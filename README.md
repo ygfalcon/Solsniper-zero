@@ -96,7 +96,7 @@ retained only for reference. Use it only if you explicitly set
    pip install .[fastcompress]
    ```
 
-For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup.
+For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
 Developers embedding SolHunter Zero can initialize the environment
 programmatically:
