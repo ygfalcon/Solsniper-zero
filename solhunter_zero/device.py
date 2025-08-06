@@ -89,6 +89,17 @@ def ensure_torch_with_metal() -> None:
             )
 
 
+if platform.system() == "Darwin" and platform.machine() == "arm64":
+    try:
+        if torch is None or not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+            ensure_torch_with_metal()
+            if torch is None or not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+                raise RuntimeError("MPS backend unavailable after attempted installation")
+    except Exception as exc:  # pragma: no cover - fail fast if setup fails
+        logging.getLogger(__name__).exception("Automatic PyTorch Metal setup failed")
+        raise RuntimeError("Failed to configure MPS-enabled PyTorch") from exc
+
+
 def detect_gpu(_attempt_install: bool = True) -> bool:
     """Return ``True`` when a supported GPU backend is available.
 
