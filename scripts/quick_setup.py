@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 import sys
 import tomllib
+import argparse
 
 try:
     import tomli_w  # type: ignore
@@ -44,13 +45,35 @@ PROMPTS = [
 ]
 
 
+# Defaults applied when --auto is used. These point to public endpoints but
+# can be overridden in the generated config for custom providers.
+AUTO_DEFAULTS = {
+    "dex_base_url": "https://quote-api.jup.ag",
+    "dex_testnet_url": "https://quote-api.jup.ag",
+}
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Interactive helper to create or update config.toml for basic setup."
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Populate missing values with defaults without prompting.",
+    )
+    args = parser.parse_args()
+
     cfg = load_config()
     updated = False
     for key, env, desc in PROMPTS:
         val = os.getenv(env) or cfg.get(key)
         missing = val in (None, "", "YOUR_BIRDEYE_KEY")
         if missing:
+            if args.auto and key in AUTO_DEFAULTS:
+                cfg[key] = AUTO_DEFAULTS[key]
+                updated = True
+                continue
             try:
                 inp = input(f"Enter {desc}: ").strip()
             except EOFError:
