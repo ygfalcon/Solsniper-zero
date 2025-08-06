@@ -280,6 +280,9 @@ Install the Rust toolchain if `cargo` isn't available:
   - `system_metrics` events are aggregated from the local monitor and the
     depth service by `metrics_aggregator`. After computing the average it
     publishes the result back onto the event bus as `system_metrics_combined`.
+    `run.sh` now verifies the aggregator stays alive and prints its log on
+    failure. Pass `--no-metrics` to `run.sh` to skip starting the aggregator
+    when debugging.
   - The token and mempool scanners along with components in
     `dynamic_limit` and the RL trainer subscribe to this topic and use the
     aggregated CPU value for concurrency and worker adjustments.
