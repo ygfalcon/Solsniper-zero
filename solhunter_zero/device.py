@@ -22,7 +22,14 @@ def detect_gpu() -> bool:
     if torch is None:
         return False
     try:
-        if platform.system() == "Darwin":
+        system = platform.system()
+        if system == "Darwin":
+            machine = platform.machine()
+            if machine == "x86_64":
+                logging.getLogger(__name__).warning(
+                    "Running under Rosetta (x86_64); GPU unavailable"
+                )
+                return False
             return bool(torch.backends.mps.is_available())
         return bool(torch.cuda.is_available())
     except Exception:
