@@ -22,9 +22,19 @@ from ..advanced_memory import AdvancedMemory
 def select_device(device: str) -> torch.device:
     """Return a torch.device, auto-selecting GPU when requested."""
     if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    elif device != "cpu" and not torch.cuda.is_available():
-        device = "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+    elif device != "cpu":
+        cuda_ok = torch.cuda.is_available()
+        mps_ok = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        if device == "cuda" and not cuda_ok:
+            device = "cpu"
+        elif device == "mps" and not mps_ok:
+            device = "cpu"
     return torch.device(device)
 
 

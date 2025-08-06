@@ -1403,7 +1403,14 @@ class MultiAgentRL:
 
     def _score(self, model: pl.LightningModule, dataset: Dataset) -> float:
         loader = DataLoader(dataset, batch_size=64)
-        device = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if self.device is not None:
+            device = self.device
+        elif torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
         model.to(device)
         model.eval()
         total = 0.0

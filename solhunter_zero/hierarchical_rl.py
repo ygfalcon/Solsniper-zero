@@ -114,7 +114,14 @@ class SupervisorAgent(BaseAgent):
 
     def __init__(self, checkpoint: str = "supervisor.json", device: str | None = None) -> None:
         self.checkpoint = checkpoint
-        self.device = device or ("cuda" if torch and hasattr(torch, "cuda") and torch.cuda.is_available() else "cpu")
+        if device is not None:
+            self.device = device
+        elif torch and hasattr(torch, "cuda") and torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch and hasattr(torch, "backends") and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
         self.policy: Dict[str, float] = {}
         self.model = None
         self._load()
