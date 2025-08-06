@@ -62,8 +62,7 @@ sys.exit(1 if missing_required or missing_optional else 0)
 PY
 }
 
-missing_opt_json=$(check_deps)
-if [ $? -ne 0 ]; then
+if ! missing_opt_json="$(check_deps)"; then
     missing_opt=$(python - "$missing_opt_json" <<'PY'
 import json,sys
 print(' '.join(json.loads(sys.argv[1])))
