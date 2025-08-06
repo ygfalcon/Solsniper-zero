@@ -22,6 +22,16 @@ os.environ.setdefault("DEPTH_SERVICE", "true")
 if platform.system() == "Darwin" and platform.machine() == "arm64":
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
+from solhunter_zero import device
+
+try:  # pragma: no cover - optional dependency
+    import torch
+except Exception:  # pragma: no cover - torch is optional at runtime
+    torch = None  # type: ignore
+
+if device.detect_gpu() and torch and torch.backends.mps.is_available():
+    os.environ.setdefault("TORCH_DEVICE", "mps")
+
 
 def ensure_venv(argv: list[str] | None) -> None:
     """Create a local virtual environment and re-invoke the script inside it.
