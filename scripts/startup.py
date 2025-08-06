@@ -17,36 +17,12 @@ from pathlib import Path
 import json
 
 from scripts import deps
+from solhunter_zero.env import load_env
 
 ROOT = Path(__file__).resolve().parent.parent
 
-
-def _load_env_file(path: Path) -> None:
-    """Load ``KEY=VALUE`` pairs from ``path`` into ``os.environ``.
-
-    The parser is intentionally minimal: blank lines and ``#`` comments are
-    ignored and existing environment variables are left untouched.
-    """
-
-    if not path.exists():
-        return
-    for raw_line in path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip("'\"")
-        os.environ.setdefault(key, value)
-
-
-_load_env_file(ROOT / ".env")
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault("DEPTH_SERVICE", "true")
-from solhunter_zero import device
-
-device.ensure_gpu_env()
 
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
@@ -722,6 +698,11 @@ def ensure_depth_service() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_env()
+    os.environ.setdefault("DEPTH_SERVICE", "true")
+    from solhunter_zero import device
+
+    device.ensure_gpu_env()
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
     parser = argparse.ArgumentParser(description="Guided setup and launch")

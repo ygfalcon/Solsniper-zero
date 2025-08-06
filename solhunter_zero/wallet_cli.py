@@ -1,5 +1,10 @@
 from argparse import ArgumentParser
 import asyncio
+
+from .env import load_env
+
+load_env()
+
 from . import wallet
 from .http import close_session
 from .util import install_uvloop

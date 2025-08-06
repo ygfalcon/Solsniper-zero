@@ -1,5 +1,10 @@
 import argparse
 import asyncio
+
+from .env import load_env
+
+load_env()
+
 from .rl_daemon import RLDaemon, parameter_server
 from .http import close_session
 from .util import install_uvloop

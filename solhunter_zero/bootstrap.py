@@ -2,14 +2,7 @@ from __future__ import annotations
 
 import os
 
-from scripts.startup import (
-    ensure_venv,
-    ensure_deps,
-    ensure_config,
-    ensure_keypair,
-    ensure_route_ffi,
-    ensure_depth_service,
-)
+from .env import load_env
 
 
 def bootstrap(one_click: bool = False) -> None:
@@ -19,6 +12,17 @@ def bootstrap(one_click: bool = False) -> None:
     be used by entry points that need to guarantee the project is ready to run
     programmatically.
     """
+    load_env()
+
+    from scripts.startup import (
+        ensure_venv,
+        ensure_deps,
+        ensure_config,
+        ensure_keypair,
+        ensure_route_ffi,
+        ensure_depth_service,
+    )
+
     if one_click:
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
 

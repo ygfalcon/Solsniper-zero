@@ -9,19 +9,21 @@ import tomllib
 import asyncio
 import csv
 
+from .env import load_env
+
+load_env()
+
 from .http import close_session
 from .util import install_uvloop
-
-install_uvloop()
-
 from .trade_analyzer import analyze_trades
-
 from .backtester import (
     backtest_strategies,
     backtest_configs,
     backtest_weighted,
     DEFAULT_STRATEGIES,
 )
+
+install_uvloop()
 
 
 def bayesian_optimize_weights(
