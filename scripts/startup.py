@@ -11,6 +11,7 @@ import platform
 import subprocess
 import shutil
 import time
+import re
 from pathlib import Path
 
 from scripts import deps
@@ -489,6 +490,45 @@ def ensure_route_ffi() -> None:
         print(f"Warning: failed to locate built {libname}; please build manually.")
 
 
+
+def ensure_depth_service() -> None:
+    """Ensure the ``depth_service`` crate is built."""
+
+    if platform.system() == "Darwin" and platform.machine() == "arm64" and shutil.which("rustup"):
+        try:
+            installed = subprocess.check_output([
+                "rustup",
+                "target",
+                "list",
+                "--installed",
+            ], text=True)
+        except subprocess.CalledProcessError as exc:
+            print("Failed to verify rust targets. Is rustup installed correctly?")
+            raise SystemExit(exc.returncode)
+        if "aarch64-apple-darwin" not in installed:
+            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+
+    cmd = [
+        "cargo",
+        "build",
+        "--manifest-path",
+        str(ROOT / "depth_service" / "Cargo.toml"),
+        "--release",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        output = (result.stdout + result.stderr).strip()
+        if output:
+            print(output)
+        lower = output.lower()
+        if "aarch64-apple-darwin" in lower:
+            print("Hint: run 'rustup target add aarch64-apple-darwin'.")
+        if re.search(r"linker.*not found", lower):
+            print(
+                "Hint: ensure the Xcode command line tools are installed (xcode-select --install)."
+            )
+        raise SystemExit(result.returncode)
+
 def main(argv: list[str] | None = None) -> int:
     ensure_venv(argv)
 
@@ -565,6 +605,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_rpc(warn_only=args.one_click)
     ensure_cargo()
     ensure_route_ffi()
+    ensure_depth_service()
     run_sh = ROOT / "run.sh"
     if os.name != "nt" and run_sh.is_file() and os.access(run_sh, os.X_OK):
         os.execv(str(run_sh), [str(run_sh), "--auto", *rest])

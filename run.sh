@@ -243,8 +243,6 @@ if [ ! -f "solhunter_zero/$libfile" ]; then
     fi
 fi
 
-run_cargo_build --manifest-path depth_service/Cargo.toml --release
-
 # Allow skipping the metrics aggregator for debugging
 NO_METRICS=0
 args=()
