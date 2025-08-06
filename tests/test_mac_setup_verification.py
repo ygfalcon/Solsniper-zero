@@ -1,13 +1,14 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 
 def test_mac_setup_aborts_without_tools(tmp_path):
-    script_src = Path('scripts/mac_setup.sh').read_text()
+    script_src = Path('scripts/mac_setup.py').read_text()
     scripts_dir = tmp_path / 'scripts'
     scripts_dir.mkdir()
-    mac_setup = scripts_dir / 'mac_setup.sh'
+    mac_setup = scripts_dir / 'mac_setup.py'
     mac_setup.write_text(script_src)
     mac_setup.chmod(0o755)
 
@@ -44,7 +45,7 @@ fi
     env['HOME'] = str(tmp_path)
     env['SHELL'] = '/bin/bash'
 
-    result = subprocess.run(['bash', str(mac_setup)], cwd=tmp_path, env=env, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, str(mac_setup), '--non-interactive'], cwd=tmp_path, env=env, capture_output=True, text=True)
 
     assert result.returncode != 0
     assert 'Missing python3.11' in result.stdout

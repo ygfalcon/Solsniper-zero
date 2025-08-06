@@ -5,7 +5,7 @@
 - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
 - Run `./start.command` (or double-click on macOS) to execute `scripts/startup.py --auto` for a fully automated launch.
   It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
-- On macOS, run `scripts/mac_setup.sh` to install the Xcode command line tools if needed. The script exits after starting the installation; rerun it once the tools are installed before continuing.
+- On macOS, run `scripts/mac_setup.py` to install the Xcode command line tools if needed. The script exits after starting the installation; rerun it once the tools are installed before continuing.
 - Set `AUTO_SELECT_KEYPAIR=1` to have the Web UI pick the single keypair automatically.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.

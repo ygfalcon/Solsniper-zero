@@ -99,6 +99,29 @@ def _pip_install(*args: str, retries: int = 3) -> None:
 
 
 def ensure_deps(*, install_optional: bool = False) -> None:
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        missing_tools: list[str] = []
+        if subprocess.run(
+            ["xcode-select", "-p"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode != 0:
+            missing_tools.append("xcode-select")
+        for cmd in ("brew", "python3.11", "rustup"):
+            if shutil.which(cmd) is None:
+                missing_tools.append(cmd)
+        if missing_tools:
+            print(
+                "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
+            )
+            try:
+                from scripts import mac_setup
+
+                mac_setup.main(["--non-interactive"])
+            except SystemExit as exc:  # pragma: no cover - hard failure
+                if exc.code:
+                    raise
+
     req, opt = deps.check_deps()
     if not req and not install_optional:
         if opt:
@@ -423,7 +446,7 @@ def ensure_cargo() -> None:
             if shutil.which("brew") is None:
                 print(
                     "Homebrew is required to install the Rust toolchain. "
-                    "Install it by running scripts/mac_setup.sh and re-run this script.",
+                    "Install it by running scripts/mac_setup.py and re-run this script.",
                 )
                 raise SystemExit(1)
             try:
