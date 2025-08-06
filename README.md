@@ -94,6 +94,19 @@ up automatically. Select this file from the UI or set
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup.
 
 
+### One-Click macOS M1 Setup
+
+1. **Launch** — In Finder, double-click `start.command` to begin the automated setup.  
+   If the file isn't executable, run `chmod +x start.command` from Terminal and try again.
+2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  
+   Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.
+3. **GPU detection** — The launcher runs `solhunter_zero.device --check-gpu` and sets `TORCH_DEVICE=mps` when an Apple GPU is available.  
+   `PYTORCH_ENABLE_MPS_FALLBACK=1` is exported so unsupported operations transparently fall back to the CPU.
+4. **Logs** — All output is appended to `startup.log` in the project directory.  
+   Older logs rotate with timestamps for easy troubleshooting.
+5. **Troubleshooting** — If the script exits early, open Terminal and run `./start.command` to view errors.  
+   Common issues include missing network access, Homebrew not on `PATH`, or stale permissions on the script.
+
 3. **Create a configuration file**
    Create a `config.yaml` or `config.toml` file in the project directory with
    your API keys, RPC URL and DEX endpoints:
