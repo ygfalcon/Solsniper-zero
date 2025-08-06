@@ -3,13 +3,16 @@
 
 from __future__ import annotations
 
+import io
 import os
 import signal
 import subprocess
 import sys
 import time
 import socket
+import threading
 from pathlib import Path
+
 from solhunter_zero.config import load_config, apply_env_overrides
 from solhunter_zero import data_sync
 
@@ -23,6 +26,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     raise SystemExit
 
 PROCS: list[subprocess.Popen] = []
+# keep track of log file handles so we can close them on shutdown
+LOG_HANDLES: list[tuple[io.IOBase, io.IOBase]] = []
 
 
 ENV_VARS = [
@@ -36,10 +41,56 @@ ENV_VARS = [
 ]
 
 
-def start(cmd: list[str]) -> subprocess.Popen:
+def start(
+    cmd: list[str],
+    name: str | None = None,
+    stream_stderr: bool = True,
+) -> subprocess.Popen:
+    """Launch a subprocess with logging.
+
+    Stdout and stderr are redirected to ``logs/<name>-stdout.log`` and
+    ``logs/<name>-stderr.log`` respectively.  The log paths are printed so
+    users can inspect startup errors.  If ``stream_stderr`` is true the stderr
+    stream is forwarded to the console in real time while still being written
+    to the log file.
+    """
+
     env = os.environ.copy()
-    proc = subprocess.Popen(cmd, env=env)
+    logs_dir = ROOT / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    if name is None:
+        name = Path(cmd[0]).stem
+
+    stdout_path = logs_dir / f"{name}-stdout.log"
+    stderr_path = logs_dir / f"{name}-stderr.log"
+
+    stdout_f = open(stdout_path, "wb")
+    stderr_f = open(stderr_path, "wb")
+
+    if stream_stderr:
+        proc = subprocess.Popen(cmd, env=env, stdout=stdout_f, stderr=subprocess.PIPE)
+
+        def _forward_stderr() -> None:
+            assert proc.stderr is not None  # for type checkers
+            for line in proc.stderr:
+                stderr_f.write(line)
+                stderr_f.flush()
+                try:
+                    sys.stderr.buffer.write(line)
+                    sys.stderr.buffer.flush()
+                except Exception:
+                    pass
+            proc.stderr.close()
+            stderr_f.close()
+
+        threading.Thread(target=_forward_stderr, daemon=True).start()
+    else:
+        proc = subprocess.Popen(cmd, env=env, stdout=stdout_f, stderr=stderr_f)
+
     PROCS.append(proc)
+    LOG_HANDLES.append((stdout_f, stderr_f))
+    print(f"Started {' '.join(cmd)}; stdout -> {stdout_path}, stderr -> {stderr_path}")
     return proc
 
 
@@ -72,6 +123,15 @@ def stop_all(*_: object) -> None:
                 p.wait(deadline - time.time())
             except Exception:
                 p.kill()
+    for stdout_f, stderr_f in LOG_HANDLES:
+        try:
+            stdout_f.close()
+        except Exception:
+            pass
+        try:
+            stderr_f.close()
+        except Exception:
+            pass
     sys.exit(0)
 
 
@@ -89,8 +149,8 @@ data_sync.start_scheduler(interval=interval, db_path=db_path)
 cmd = ["./target/release/depth_service"]
 if cfg:
     cmd += ["--config", cfg]
-start(cmd)
-start([sys.executable, "scripts/run_rl_daemon.py"])
+start(cmd, name="depth_service")
+start([sys.executable, "scripts/run_rl_daemon.py"], name="rl_daemon")
 
 # Wait for the websocket to come online before starting the bot
 addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
@@ -109,7 +169,7 @@ while True:
 main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
 if cfg:
     main_cmd += ["--config", cfg]
-start(main_cmd)
+start(main_cmd, name="trading_bot")
 
 try:
     while any(p.poll() is None for p in PROCS):
