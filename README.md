@@ -477,7 +477,8 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
     Set `AUTO_SELECT_KEYPAIR=1` so `run.sh` and the Web UI pick the only
     available keypair automatically. When there is just one keypair in the
-    `keypairs/` directory it will be selected on start.
+    `keypairs/` directory it will be selected on start. The `--one-click`
+    option for `scripts/startup.py` sets `AUTO_SELECT_KEYPAIR=1` automatically.
 
     You can also recover a keypair from a BIP‑39 mnemonic using the
     `solhunter-wallet` utility and activate it:
