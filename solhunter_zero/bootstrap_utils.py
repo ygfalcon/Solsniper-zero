@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import logging
 import os
 import platform
 import shutil
@@ -85,7 +86,15 @@ def ensure_venv(argv: list[str] | None) -> None:
             )
 
     if Path(sys.prefix) != venv_dir:
-        os.execv(str(python), [str(python), *sys.argv])
+        try:
+            os.execv(str(python), [str(python), *sys.argv])
+            raise RuntimeError("exec failed")
+        except OSError as exc:
+            msg = f"Failed to execv {python}: {exc}"
+            logging.exception(msg)
+            with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+                fh.write(msg + "\n")
+            raise
 
 
 def _pip_install(*args: str, retries: int = 3) -> None:
