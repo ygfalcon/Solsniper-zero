@@ -374,6 +374,7 @@ def ensure_rpc() -> None:
 
 
 def ensure_cargo() -> None:
+    installed = False
     if shutil.which("cargo") is None:
         if shutil.which("curl") is None:
             print(
@@ -415,6 +416,7 @@ def ensure_cargo() -> None:
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
             shell=True,
         )
+        installed = True
     cargo_bin = Path.home() / ".cargo" / "bin"
     os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
     try:
@@ -422,6 +424,12 @@ def ensure_cargo() -> None:
     except subprocess.CalledProcessError as exc:
         print("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
+    if (
+        installed
+        and platform.system() == "Darwin"
+        and platform.machine() == "arm64"
+    ):
+        subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
@@ -446,6 +454,19 @@ def ensure_route_ffi() -> None:
     libpath = ROOT / "solhunter_zero" / libname
     if libpath.exists():
         return
+
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        try:
+            installed_targets = subprocess.check_output(
+                ["rustup", "target", "list", "--installed"], text=True
+            )
+        except subprocess.CalledProcessError as exc:
+            print("Failed to verify rust targets. Is rustup installed correctly?")
+            raise SystemExit(exc.returncode)
+        if "aarch64-apple-darwin" not in installed_targets:
+            subprocess.check_call(
+                ["rustup", "target", "add", "aarch64-apple-darwin"]
+            )
 
     cmd = [
         "cargo",
