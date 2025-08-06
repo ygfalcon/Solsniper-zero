@@ -6,16 +6,16 @@ exec > >(tee -a startup.log) 2>&1
 
 PY=$(command -v python3 || command -v python)
 
-if [ ! -f "config.toml" ]; then
-    cp config.example.toml config.toml
-    echo "Created default config.toml from config.example.toml"
-fi
-
 "$PY" - <<'PY'
 import sys
 if sys.version_info < (3, 11):
     print("Error: Python 3.11 or higher is required.", file=sys.stderr)
     sys.exit(1)
+PY
+
+"$PY" - <<'PY'
+from scripts.startup import ensure_config
+ensure_config()
 PY
 
 export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
