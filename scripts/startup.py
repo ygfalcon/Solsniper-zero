@@ -98,9 +98,15 @@ def _pip_install(*args: str, retries: int = 3) -> None:
     raise SystemExit(result.returncode)
 
 
-def ensure_deps() -> None:
+def ensure_deps(*, install_optional: bool = False) -> None:
     req, opt = deps.check_deps()
-    if not req and not opt:
+    if not req and not install_optional:
+        if opt:
+            print(
+                "Optional modules missing: "
+                + ", ".join(opt)
+                + " (features disabled)."
+            )
         return
 
     # Ensure ``pip`` is available before attempting installations.
@@ -128,7 +134,7 @@ def ensure_deps() -> None:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]")
 
-    if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if install_optional and "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
         print(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
@@ -140,9 +146,10 @@ def ensure_deps() -> None:
         )
         opt.remove("torch")
 
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
+    if install_optional and platform.system() == "Darwin" and platform.machine() == "arm64":
         import importlib
         import torch
+
         if not torch.backends.mps.is_available():
             print(
                 "MPS backend not available; attempting to reinstall Metal wheel..."
@@ -165,7 +172,7 @@ def ensure_deps() -> None:
                     "https://download.pytorch.org/whl/metal"
                 )
 
-    if opt:
+    if install_optional and opt:
         print("Installing optional dependencies...")
         mapping = {
             "faiss": "faiss-cpu",
@@ -536,6 +543,11 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
+    parser.add_argument(
+        "--full-deps",
+        action="store_true",
+        help="Install optional dependencies",
+    )
     parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
     parser.add_argument(
         "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
@@ -596,7 +608,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if not args.skip_deps:
-        ensure_deps()
+        ensure_deps(install_optional=args.full_deps)
 
     import torch
     from solhunter_zero import device

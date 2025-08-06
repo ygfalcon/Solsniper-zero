@@ -110,4 +110,4 @@ if [ "$(uname -s)" = "Darwin" ]; then
   done
 fi
 
-"$PY" scripts/startup.py --one-click
+"$PY" scripts/startup.py --one-click --full-deps

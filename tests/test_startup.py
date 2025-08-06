@@ -143,7 +143,7 @@ def test_ensure_deps_installs_optional(monkeypatch):
     monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
 
-    startup.ensure_deps()
+    startup.ensure_deps(install_optional=True)
 
     assert calls[0] == [
         sys.executable,
@@ -163,10 +163,7 @@ def test_ensure_deps_installs_optional(monkeypatch):
 def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
     from scripts import startup
 
-    results = [
-        ([], ["orjson", "faiss"]),
-        ([], ["orjson", "faiss"]),
-    ]
+    results = [([], ["orjson", "faiss"])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup, "_pip_install", lambda *a, **k: None)
@@ -204,7 +201,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     dummy_torch.backends.mps.is_available = lambda: True
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
-    startup.ensure_deps()
+    startup.ensure_deps(install_optional=True)
 
     assert calls == [
         [
@@ -246,7 +243,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
     monkeypatch.setattr(importlib, "reload", lambda mod: mod)
 
     with pytest.raises(SystemExit) as excinfo:
-        startup.ensure_deps()
+        startup.ensure_deps(install_optional=True)
 
     assert calls[-1] == [
         sys.executable,
@@ -395,7 +392,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
 
     called: dict[str, object] = {}
 
-    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -420,7 +417,7 @@ def test_main_skips_endpoint_check(monkeypatch):
 
     called: dict[str, object] = {}
 
-    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -451,7 +448,7 @@ def test_main_preflight_success(monkeypatch):
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(startup.subprocess, "run", fake_run)
-    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -505,7 +502,7 @@ def test_startup_sets_mps_device(monkeypatch):
     import scripts.startup as startup
     startup = importlib.reload(startup)
 
-    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)

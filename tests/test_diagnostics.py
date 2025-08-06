@@ -79,7 +79,9 @@ def test_startup_diagnostics_flag(capsys):
 
 
 def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
-    monkeypatch.setattr(startup, "ensure_deps", lambda: (_ for _ in ()).throw(SystemExit(2)))
+    monkeypatch.setattr(
+        startup, "ensure_deps", lambda install_optional=False: (_ for _ in ()).throw(SystemExit(2))
+    )
     code = startup.run([])
     out = capsys.readouterr().out.lower()
     assert code == 2
