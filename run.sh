@@ -91,11 +91,20 @@ if ! command -v cargo >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+# Determine expected native library name based on platform
+uname_s=$(uname -s)
+case "$uname_s" in
+    Darwin*) libfile="libroute_ffi.dylib" ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT*) libfile="route_ffi.dll" ;;
+    *) libfile="libroute_ffi.so" ;;
+esac
+
+# Build and copy the library if it is not already present
+if [ ! -f "solhunter_zero/$libfile" ]; then
     cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-    cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null
-    if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-        echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
+    cp "route_ffi/target/release/$libfile" solhunter_zero/ 2>/dev/null
+    if [ ! -f "solhunter_zero/$libfile" ]; then
+        echo "Error: $libfile was not copied to solhunter_zero." >&2
         exit 1
     fi
 fi
