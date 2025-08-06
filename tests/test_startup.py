@@ -203,7 +203,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     dummy_torch.backends.mps.is_available = lambda: True
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
 
-    startup.ensure_deps(install_optional=True)
+    startup.ensure_deps()
 
     assert calls == [
         [
@@ -245,7 +245,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
     monkeypatch.setattr(importlib, "reload", lambda mod: mod)
 
     with pytest.raises(SystemExit) as excinfo:
-        startup.ensure_deps(install_optional=True)
+        startup.ensure_deps()
 
     assert calls[-1] == [
         sys.executable,

@@ -101,13 +101,16 @@ def _pip_install(*args: str, retries: int = 3) -> None:
 def ensure_deps(*, install_optional: bool = False) -> None:
     req, opt = deps.check_deps()
     if not req and not install_optional:
-        if opt:
-            print(
-                "Optional modules missing: "
-                + ", ".join(opt)
-                + " (features disabled)."
-            )
-        return
+        if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
+            pass
+        else:
+            if opt:
+                print(
+                    "Optional modules missing: "
+                    + ", ".join(opt)
+                    + " (features disabled)."
+                )
+            return
 
     # Ensure ``pip`` is available before attempting installations.
     pip_check = subprocess.run(
@@ -134,7 +137,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]")
 
-    if install_optional and "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
         print(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
@@ -146,7 +149,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         )
         opt.remove("torch")
 
-    if install_optional and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
         import importlib
         import torch
 
