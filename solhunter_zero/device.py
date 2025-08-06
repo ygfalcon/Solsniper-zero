@@ -142,6 +142,23 @@ def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.d
     return torch.device(device) if isinstance(device, str) else device
 
 
+def get_device_str(device: str | "torch.device" | None = "auto") -> str:
+    """Return the string representation of the selected device.
+
+    Parameters
+    ----------
+    device:
+        Desired device identifier passed to :func:`get_default_device`.
+
+    Returns
+    -------
+    str
+        The string name of the resolved device.
+    """
+
+    return str(get_default_device(device))
+
+
 def ensure_gpu_env() -> dict[str, str]:
     """Configure environment variables for GPU execution.
 

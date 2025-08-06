@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - optional
     nn = None
 
 from .models import load_compiled_model
-from .device import detect_gpu
+from .device import get_device_str
 
 
 class HighLevelPolicyNetwork(nn.Module if torch else object):
@@ -115,7 +115,7 @@ class SupervisorAgent(BaseAgent):
 
     def __init__(self, checkpoint: str = "supervisor.json", device: str | None = None) -> None:
         self.checkpoint = checkpoint
-        self.device = device or ("cuda" if detect_gpu() else "cpu")
+        self.device = device or get_device_str()
         self.policy: Dict[str, float] = {}
         self.model = None
         self._load()

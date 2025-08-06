@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
 
 if torch:
-    os.environ.setdefault("TORCH_DEVICE", str(device.get_default_device()))
+    os.environ.setdefault("TORCH_DEVICE", device.get_device_str())
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -647,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         rpc_status = "skipped"
 
-    gpu_device = str(device.get_default_device()) if device.detect_gpu() else "none"
+    gpu_device = device.get_device_str() if device.detect_gpu() else "none"
 
     ensure_cargo()
     ensure_route_ffi()

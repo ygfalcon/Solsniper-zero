@@ -20,7 +20,7 @@ except Exception:  # pragma: no cover - psutil optional
     )
 from .multi_rl import PopulationRL
 from .advanced_memory import AdvancedMemory
-from solhunter_zero.device import get_default_device
+from solhunter_zero.device import get_default_device, get_device_str
 
 try:
     from numba import njit  # type: ignore
@@ -1394,7 +1394,7 @@ class MultiAgentRL:
 
     def _score(self, model: pl.LightningModule, dataset: Dataset) -> float:
         loader = DataLoader(dataset, batch_size=64)
-        device = self.device or get_default_device().type
+        device = self.device or get_device_str()
         model.to(device)
         model.eval()
         total = 0.0
