@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.rl_daemon import _PPO, _TradeDataset, _metrics
+from solhunter_zero.device import get_default_device
 
 
 def _train(model: _PPO, data: _TradeDataset, device: torch.device, lr: float) -> None:
@@ -91,15 +92,7 @@ def main() -> None:
     p.add_argument("--device", default=None)
     args = p.parse_args()
 
-    if args.device is None:
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-    else:
-        device = torch.device(args.device)
+    device = get_default_device(args.device)
 
     model_path = Path(args.model)
     while True:
