@@ -16,6 +16,7 @@ from solhunter_zero.config import (
     set_env_from_config,
     ensure_config_file,
     validate_env,
+    REQUIRED_ENV_VARS,
 )
 from solhunter_zero import data_sync
 from solhunter_zero.service_launcher import (
@@ -36,15 +37,12 @@ if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
 PROCS: list[subprocess.Popen] = []
 
 
-ENV_VARS = [
-    "EVENT_BUS_URL",
-    "SOLANA_RPC_URL",
-    "SOLANA_KEYPAIR",
+ENV_VARS = REQUIRED_ENV_VARS + (
     "DEPTH_SERVICE_SOCKET",
     "DEPTH_MMAP_PATH",
     "DEPTH_WS_ADDR",
     "DEPTH_WS_PORT",
-]
+)
 
 
 def _stream_stderr(pipe: IO[bytes]) -> None:
