@@ -123,6 +123,29 @@ mutation_threshold = 0.0
 strategy_rotation_interval = 0
 weight_config_paths = []
 
+# RL auto-training
+rl_auto_train = false
+rl_tune_interval = 3600
+regime_weight = 1.0
+rl_dynamic_workers = true
+rl_prioritized_replay = false
+rl_build_mmap_dataset = true
+rl_prefetch_buffer = 0
+multi_rl = false
+rl_population_size = 2
+rl_live = false
+# Policy network type: "mlp" or "transformer"
+rl_policy = "mlp"
+# Use RLWeightAgent for dynamic agent weights
+use_rl_weights = false
+rl_weights_path = "rl_weights.json"
+rl_weight_population = 4
+# Enable FAISS GPU index for faster memory search
+gpu_memory_index = false
+distributed_rl = false
+hierarchical_rl = true
+hierarchical_model_path = "hier_policy.json"
+
 token_suffix = "bonk"
 token_keywords = ""
 mempool_score_threshold = 0.0
@@ -167,26 +190,5 @@ portfolio_optimizer = 1.0
 crossdex_rebalancer = 1.0
 flashloan_sandwich = 1.0
 sac = 1.0
-
-# RL auto-training
-rl_auto_train = false
-rl_tune_interval = 3600
-regime_weight = 1.0
-rl_dynamic_workers = true
-rl_prioritized_replay = false
-rl_build_mmap_dataset = true
-rl_prefetch_buffer = 0
-multi_rl = false
-rl_population_size = 2
-rl_live = false
-# Policy network type: "mlp" or "transformer"
-rl_policy = "mlp"
-# Use RLWeightAgent for dynamic agent weights
-use_rl_weights = false
-rl_weights_path = "rl_weights.json"
-rl_weight_population = 4
-# Enable FAISS GPU index for faster memory search
-gpu_memory_index = false
-distributed_rl = false
-hierarchical_rl = true
-hierarchical_model_path = "hier_policy.json"
+mev_sandwich = 1.0
+artifact_math = 1.0
