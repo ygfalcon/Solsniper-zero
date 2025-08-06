@@ -16,14 +16,14 @@ import io
 from pathlib import Path
 import json
 
-from scripts import deps
-
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
+from scripts import deps
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
 
+device.ensure_mps_torch()
 device.ensure_gpu_env()
 
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
