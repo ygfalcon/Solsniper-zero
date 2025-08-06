@@ -235,6 +235,18 @@ def ensure_rpc() -> None:
 
 def ensure_cargo() -> None:
     if shutil.which("cargo") is None:
+        if platform.system() == "Darwin":
+            try:
+                subprocess.check_call(
+                    ["xcode-select", "-p"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                print(
+                    "Xcode command line tools are required. Install them with 'xcode-select --install'."
+                )
+                raise SystemExit(1)
         print("Installing Rust toolchain via rustup...")
         subprocess.check_call(
             "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
