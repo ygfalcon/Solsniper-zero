@@ -59,6 +59,15 @@ echo Darwin
 """)
     uname.chmod(0o755)
 
+    arch = fakebin / 'arch'
+    arch.write_text("""#!/usr/bin/env bash
+if [ "$1" = "-arm64" ]; then
+  shift
+fi
+"$@"
+""")
+    arch.chmod(0o755)
+
     env = os.environ.copy()
     env['PATH'] = f"{fakebin}:{env['PATH']}"
 

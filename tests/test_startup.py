@@ -72,12 +72,16 @@ def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
     (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
     os.chmod(bindir / "uname", 0o755)
 
-    (bindir / "sysctl").write_text(
+    (bindir / "arch").write_text(
         "#!/bin/bash\n"
-        "if [ \"$1\" = '-n' ] && [ \"$2\" = 'hw.ncpu' ]; then\n"
-        "  echo 6\n"
+        "if [ \"$1\" = '-arm64' ]; then\n"
+        "  shift\n"
         "fi\n"
+        "\"$@\"\n"
     )
+    os.chmod(bindir / "arch", 0o755)
+
+    (bindir / "sysctl").write_text("#!/bin/bash\nexit 1\n")
     os.chmod(bindir / "sysctl", 0o755)
 
     for cmd in ["brew", "rustup"]:
