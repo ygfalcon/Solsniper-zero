@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from .http import loads
 import os
 from pathlib import Path
@@ -27,6 +28,24 @@ if not hasattr(Keypair, "to_bytes_array"):
 KEYPAIR_DIR = os.getenv("KEYPAIR_DIR", "keypairs")
 ACTIVE_KEYPAIR_FILE = os.path.join(KEYPAIR_DIR, "active")
 os.makedirs(KEYPAIR_DIR, exist_ok=True)
+
+
+@dataclass
+class KeypairInfo:
+    """Structured result from :func:`setup_default_keypair`.
+
+    The structure is intentionally simple so it can be serialized for
+    accessibility tools or automation."""
+
+    name: str
+    mnemonic_path: Path | None
+
+    def to_dict(self) -> dict[str, str | None]:
+        """Return a JSON serializable representation."""
+        return {
+            "name": self.name,
+            "mnemonic_path": str(self.mnemonic_path) if self.mnemonic_path else None,
+        }
 
 
 def load_keypair(path: str) -> Keypair:
@@ -185,7 +204,7 @@ def generate_default_keypair() -> tuple[str, Path]:
     return mnemonic, mnemonic_path
 
 
-def ensure_default_keypair() -> tuple[str, Path | None]:
+def setup_default_keypair() -> KeypairInfo:
     """Ensure a usable keypair exists and is selected.
 
     When no keypairs are present a new one is derived from a mnemonic using
@@ -196,9 +215,8 @@ def ensure_default_keypair() -> tuple[str, Path | None]:
 
     Returns
     -------
-    tuple[str, Path | None]
-        The active keypair name and, when generated, the path to the mnemonic
-        file.  The path is ``None`` when an existing keypair is selected.
+    KeypairInfo
+        Structured data describing the active keypair.
     """
 
     import json
@@ -206,9 +224,18 @@ def ensure_default_keypair() -> tuple[str, Path | None]:
     import subprocess
     import sys
 
+    keypair_json = os.environ.get("KEYPAIR_JSON")
+    if not list_keypairs() and not keypair_json:
+        try:
+            from scripts import quick_setup
+
+            quick_setup.main(["--auto", "--non-interactive"])
+        except Exception:
+            pass
+
     active = get_active_keypair_name()
     if active:
-        return active, None
+        return KeypairInfo(active, None)
 
     keypairs = list_keypairs()
     if keypairs:
@@ -231,9 +258,8 @@ def ensure_default_keypair() -> tuple[str, Path | None]:
             except Exception:
                 pass
         select_keypair(choice)
-        return choice, None
+        return KeypairInfo(choice, None)
 
-    keypair_json = os.environ.get("KEYPAIR_JSON")
     if keypair_json:
         try:
             data = json.loads(keypair_json)
@@ -254,7 +280,7 @@ def ensure_default_keypair() -> tuple[str, Path | None]:
                 ]
             subprocess.check_call(cmd)
         select_keypair("default")
-        return "default", None
+        return KeypairInfo("default", None)
 
     mnemonic, mnemonic_path = generate_default_keypair()
-    return "default", mnemonic_path
+    return KeypairInfo("default", mnemonic_path)

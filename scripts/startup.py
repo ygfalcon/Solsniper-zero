@@ -430,15 +430,8 @@ def ensure_keypair() -> None:
             print(msg)
 
     keypair_json = os.environ.get("KEYPAIR_JSON")
-    if not wallet.list_keypairs() and not keypair_json:
-        try:
-            from scripts import quick_setup
-
-            quick_setup.main(["--auto", "--non-interactive"])
-        except Exception as exc:  # pragma: no cover - quick setup failure
-            _msg(f"Failed to run quick setup: {exc}")
-
-    name, mnemonic_path = wallet.ensure_default_keypair()
+    result = wallet.setup_default_keypair()
+    name, mnemonic_path = result.name, result.mnemonic_path
     keypair_path = Path(wallet.KEYPAIR_DIR) / f"{name}.json"
 
     if keypair_json:
