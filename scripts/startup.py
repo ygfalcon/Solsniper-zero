@@ -85,7 +85,7 @@ def ensure_config() -> None:
     if not any(Path(name).is_file() for name in ("config.toml", "config.yaml", "config.yml")):
         from scripts import quick_setup
 
-        quick_setup.main()
+        quick_setup.main(["--auto"])
 
 
 def ensure_keypair() -> None:
