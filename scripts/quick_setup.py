@@ -63,9 +63,12 @@ DEFAULT_AGENTS = ["simulation"]
 # Defaults applied when --auto is used. These point to public endpoints but
 # can be overridden in the generated config for custom providers.
 AUTO_DEFAULTS = {
+    "birdeye_api_key": "",
     "solana_rpc_url": "https://api.mainnet-beta.solana.com",
     "dex_base_url": "https://quote-api.jup.ag",
     "dex_testnet_url": "https://quote-api.jup.ag",
+    "orca_dex_url": "",
+    "raydium_dex_url": "",
 }
 
 
@@ -78,7 +81,15 @@ def main() -> None:
         action="store_true",
         help="Populate missing values with defaults without prompting.",
     )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run without prompts; use environment variables and defaults only.",
+    )
     args = parser.parse_args()
+
+    if args.non_interactive:
+        args.auto = True
 
     cfg = load_config()
     updated = False
@@ -89,6 +100,8 @@ def main() -> None:
             if args.auto and key in AUTO_DEFAULTS:
                 cfg[key] = AUTO_DEFAULTS[key]
                 updated = True
+                continue
+            if args.non_interactive:
                 continue
             try:
                 inp = input(f"Enter {desc}: ").strip()
@@ -102,6 +115,10 @@ def main() -> None:
                 if key in cfg:
                     cfg.pop(key, None)
                     updated = True
+        else:
+            if cfg.get(key) != val:
+                cfg[key] = val
+                updated = True
 
     if "agents" not in cfg:
         cfg["agents"] = DEFAULT_AGENTS.copy()
