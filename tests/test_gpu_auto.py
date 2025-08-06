@@ -54,6 +54,9 @@ def test_mps_detected_disables_gpu_index(monkeypatch):
         backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: True)),
     )
     monkeypatch.setitem(sys.modules, "torch", torch_mod)
+    monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)
+    monkeypatch.setattr("solhunter_zero.device.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("solhunter_zero.device.platform.machine", lambda: "arm64")
     faiss_stub = types.ModuleType("faiss")
     monkeypatch.setitem(sys.modules, "faiss", faiss_stub)
     st_stub = types.ModuleType("sentence_transformers")
