@@ -49,7 +49,24 @@ if [ "$(uname -s)" = "Darwin" ]; then
   if ! command -v brew >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
     echo "Missing Homebrew or rustup. Running mac setup..."
     scripts/mac_setup.sh
+    if command -v brew >/dev/null 2>&1; then
+      eval "$(brew shellenv)"
+    elif [ -x /opt/homebrew/bin/brew ]; then
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x /usr/local/bin/brew ]; then
+      eval "$(/usr/local/bin/brew shellenv)"
+    else
+      echo "Homebrew not found after mac setup. Re-running mac setup..."
+      exec scripts/mac_setup.sh
+    fi
   fi
+
+  for cmd in brew python3.11 rustup; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      echo "Error: $cmd not found in PATH after mac setup." >&2
+      exit 1
+    fi
+  done
 fi
 
 "$PY" scripts/startup.py --one-click
