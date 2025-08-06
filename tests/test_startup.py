@@ -377,3 +377,57 @@ def test_main_preflight_failure(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
+
+
+def test_startup_sets_mps_device(monkeypatch):
+    monkeypatch.delenv("TORCH_DEVICE", raising=False)
+
+    import platform
+    import types, sys, importlib, os
+
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+
+    dummy_torch = types.SimpleNamespace()
+    dummy_torch.backends = types.SimpleNamespace()
+    dummy_torch.backends.mps = types.SimpleNamespace()
+    dummy_torch.backends.mps.is_available = lambda: True
+    dummy_torch.set_default_device = lambda dev: None
+    monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+
+    monkeypatch.setattr("solhunter_zero.device.detect_gpu", lambda: True)
+    monkeypatch.setattr("solhunter_zero.device.get_default_device", lambda: "mps")
+
+    import scripts.startup as startup
+    startup = importlib.reload(startup)
+
+    monkeypatch.setattr(startup, "ensure_deps", lambda: None)
+    monkeypatch.setattr(startup, "ensure_config", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+
+    monkeypatch.setattr(
+        startup.subprocess,
+        "run",
+        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(
+        startup.os,
+        "execv",
+        lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)),
+    )
+
+    with pytest.raises(SystemExit):
+        startup.main(
+            [
+                "--one-click",
+                "--skip-deps",
+                "--skip-setup",
+                "--skip-endpoint-check",
+                "--skip-rpc-check",
+            ]
+        )
+
+    assert os.environ.get("TORCH_DEVICE") == "mps"
