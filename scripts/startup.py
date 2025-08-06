@@ -159,13 +159,24 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             )
             from scripts import mac_setup
 
-            success = mac_setup.prepare_macos_env(non_interactive=True)
+            report = mac_setup.prepare_macos_env(non_interactive=True)
             mac_setup.apply_brew_env()
-            if not success:
+            for step, info in report["steps"].items():
+                msg = info.get("message", "")
+                if msg:
+                    print(f"{step}: {info['status']} - {msg}")
+                else:
+                    print(f"{step}: {info['status']}")
+            if not report.get("success"):
                 print(
                     "macOS environment preparation failed; continuing without required tools",
                     file=sys.stderr,
                 )
+                for step, info in report["steps"].items():
+                    if info.get("status") == "error":
+                        fix = mac_setup.MANUAL_FIXES.get(step)
+                        if fix:
+                            print(f"Manual fix for {step}: {fix}")
 
     req, opt = deps.check_deps()
     if not req and not install_optional:
