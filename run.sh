@@ -27,15 +27,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
     export PYTORCH_ENABLE_MPS_FALLBACK=1
 fi
 
-# Detect if a GPU is present before moving FAISS indexes to GPU memory
-if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
-    if [ "$(uname -s)" != "Darwin" ]; then
-        export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
-    fi
-    [ "$(uname -s)" = "Darwin" ] && export TORCH_DEVICE="mps"
-fi
-
-echo "${TORCH_DEVICE:-}"
+# Detect if a GPU is present
+"$PY" -m solhunter_zero.device --check-gpu
 
 # Configure Rayon thread pool if not already set
 if [ -z "$RAYON_NUM_THREADS" ]; then
