@@ -449,6 +449,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_deps:
         ensure_deps()
+
+    import torch
+    from solhunter_zero import device
+
+    torch.set_default_device(device.get_default_device())
+
     if not args.skip_setup:
         from solhunter_zero.config import load_config, validate_config
 
