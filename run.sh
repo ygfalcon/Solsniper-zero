@@ -28,13 +28,10 @@ fi
 
 # Detect if a GPU is present before moving FAISS indexes to GPU memory
 if "$PY" -m solhunter_zero.device --check-gpu >/dev/null 2>&1; then
-    export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
-    # On Apple Silicon, use the Metal Performance Shaders backend for PyTorch
-    if [ "$(uname -s)" = "Darwin" ]; then
-        export TORCH_DEVICE="mps"
+    if [ "$(uname -s)" != "Darwin" ]; then
+        export GPU_MEMORY_INDEX="${GPU_MEMORY_INDEX:-1}"
     fi
-else
-    echo "No GPU detected; using CPU mode"
+    [ "$(uname -s)" = "Darwin" ] && export TORCH_DEVICE="mps"
 fi
 
 echo "${TORCH_DEVICE:-}"
