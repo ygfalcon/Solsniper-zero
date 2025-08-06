@@ -696,7 +696,15 @@ def main(
     if keypair_path:
         keypair = load_keypair(keypair_path)
     else:
-        keypair = wallet.load_selected_keypair()
+        try:
+            keypair = wallet.load_selected_keypair()
+        except Exception as exc:
+            print(
+                f"Wallet interaction failed: {exc}\n"
+                "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
     async def loop() -> None:
         ws_task = None
@@ -973,12 +981,20 @@ def run_auto(**kwargs) -> None:
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
-    active_name = wallet.get_active_keypair_name()
-    if active_name is None:
-        keys = wallet.list_keypairs()
-        if len(keys) == 1:
-            wallet.select_keypair(keys[0])
-            active_name = keys[0]
+    try:
+        active_name = wallet.get_active_keypair_name()
+        if active_name is None:
+            keys = wallet.list_keypairs()
+            if len(keys) == 1:
+                wallet.select_keypair(keys[0])
+                active_name = keys[0]
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     if active_name and not os.getenv("KEYPAIR_PATH"):
         os.environ["KEYPAIR_PATH"] = os.path.join(
