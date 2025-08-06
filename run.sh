@@ -130,7 +130,8 @@ import torch, sys
 sys.exit(0 if torch.backends.mps.is_available() else 1)
 EOF
             if [ $? -ne 0 ]; then
-                echo "Warning: MPS backend remains unavailable" >&2
+                echo "Error: MPS backend remains unavailable" >&2
+                exit 1
             fi
         fi
     fi
