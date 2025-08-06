@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec python start.py --one-click --full-deps "$@"
+cd "$(dirname "$0")"
+exec python3 scripts/launcher.py "$@"
 

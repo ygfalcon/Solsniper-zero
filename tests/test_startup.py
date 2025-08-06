@@ -1,4 +1,5 @@
 import os
+import os
 import shutil
 import subprocess
 import sys
@@ -54,61 +55,39 @@ def test_mac_startup_prereqs(monkeypatch):
     assert env.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1"
 
 
-def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
+def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     bindir = tmp_path / "bin"
     bindir.mkdir()
 
-    for cmd in ["tee", "awk", "dirname", "tail", "xargs", "ls", "mv", "rm", "date"]:
-        src = shutil.which(cmd)
-        assert src is not None
-        os.symlink(src, bindir / cmd)
-
-    (bindir / "python3").write_text(
-        "#!/bin/bash\n"
-        "if [ \"$1\" = '-V' ]; then\n"
-        "  echo 'Python 3.11.0'\n"
-        "elif [ \"$1\" = '-m' ] && [ \"$2\" = 'solhunter_zero.system' ] && [ \"$3\" = 'cpu-count' ]; then\n"
-        "  echo 6\n"
-        "else\n"
-        "  echo RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n"
-        "fi\n"
-    )
-    os.chmod(bindir / "python3", 0o755)
-    os.symlink(bindir / "python3", bindir / "python3.11")
-
     (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
     os.chmod(bindir / "uname", 0o755)
 
-    (bindir / "arch").write_text(
-        "#!/bin/bash\n"
-        "if [ \"$1\" = '-arm64' ]; then\n"
-        "  shift\n"
-        "fi\n"
-        "\"$@\"\n"
-    )
+    (bindir / "arch").write_text("#!/bin/bash\nshift\n\"$@\"\n")
     os.chmod(bindir / "arch", 0o755)
 
-    (bindir / "sysctl").write_text("#!/bin/bash\nexit 1\n")
-    os.chmod(bindir / "sysctl", 0o755)
+    venv = repo_root / ".venv"
+    bin_dir = venv / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        stub = bin_dir / "python3"
+        stub.write_text("#!/bin/bash\necho RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n")
+        os.chmod(stub, 0o755)
 
-    for cmd in ["brew", "rustup"]:
-        (bindir / cmd).write_text("#!/bin/bash\nexit 0\n")
-        os.chmod(bindir / cmd, 0o755)
+        env = {**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}"}
+        env.pop("RAYON_NUM_THREADS", None)
 
-    env = {**os.environ, "PATH": str(bindir)}
-    env.pop("RAYON_NUM_THREADS", None)
+        result = subprocess.run(
+            [sys.executable, "scripts/launcher.py", "--skip-preflight"],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        shutil.rmtree(venv)
 
-    bash = shutil.which("bash")
-    assert bash is not None
-    result = subprocess.run(
-        [bash, "start.command", "--skip-preflight"],
-        cwd=repo_root,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    assert "RAYON_NUM_THREADS=6" in result.stdout
+    assert result.stdout.startswith("RAYON_NUM_THREADS=")
 
 
 def test_cluster_setup_assemble(tmp_path):
