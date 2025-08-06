@@ -19,19 +19,9 @@ ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
-
-if platform.system() == "Darwin" and platform.machine() == "arm64":
-    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-
 from solhunter_zero import device
 
-try:  # pragma: no cover - optional dependency
-    import torch
-except Exception:  # pragma: no cover - torch is optional at runtime
-    torch = None  # type: ignore
-
-if torch:
-    os.environ.setdefault("TORCH_DEVICE", str(device.get_default_device()))
+device.ensure_gpu_env()
 
 
 def ensure_venv(argv: list[str] | None) -> None:
