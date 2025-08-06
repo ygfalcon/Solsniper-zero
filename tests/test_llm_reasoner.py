@@ -26,7 +26,9 @@ if importlib.util.find_spec("torch") is None:
     tmod.__path__ = []
     tmod.Tensor = object
     tmod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    tmod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    tmod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_built=lambda: True, is_available=lambda: False)
+    )
     class _Device:
         def __init__(self, typ="cpu"):
             self.type = str(typ)

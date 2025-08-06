@@ -28,7 +28,9 @@ if importlib.util.find_spec("torch") is None:
     torch_mod.__path__ = []
     torch_mod.Tensor = object
     torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch_mod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_built=lambda: True, is_available=lambda: False)
+    )
     torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
     torch_mod.load = lambda *a, **k: {}
     torch_mod.float32 = object()

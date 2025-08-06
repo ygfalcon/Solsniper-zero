@@ -51,7 +51,9 @@ def test_mps_detected_disables_gpu_index(monkeypatch):
 
     torch_mod = types.SimpleNamespace(
         cuda=types.SimpleNamespace(is_available=lambda: False),
-        backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: True)),
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_built=lambda: True, is_available=lambda: True)
+        ),
     )
     monkeypatch.setitem(sys.modules, "torch", torch_mod)
     monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)

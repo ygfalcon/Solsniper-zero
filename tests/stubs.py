@@ -737,7 +737,9 @@ def stub_torch() -> None:
     mod.Tensor = object
     mod.float32 = object()
     mod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    mod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_built=lambda: True, is_available=lambda: False)
+    )
 
     mod.no_grad = contextlib.nullcontext
 

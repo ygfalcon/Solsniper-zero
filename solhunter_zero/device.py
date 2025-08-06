@@ -30,6 +30,11 @@ def detect_gpu() -> bool:
                     "Running under Rosetta (x86_64); GPU unavailable"
                 )
                 return False
+            if not torch.backends.mps.is_built():
+                logging.getLogger(__name__).warning(
+                    "MPS backend not built; GPU unavailable"
+                )
+                return False
             return bool(torch.backends.mps.is_available())
         return bool(torch.cuda.is_available())
     except Exception:

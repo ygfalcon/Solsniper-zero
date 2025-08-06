@@ -18,7 +18,11 @@ def test_cli_detects_mps(tmp_path):
     stubs = tmp_path / "stubs"
     stubs.mkdir()
 
-    (stubs / "platform.py").write_text("def system():\n    return 'Darwin'\n")
+    (stubs / "platform.py").write_text(
+        "def system():\n    return 'Darwin'\n\n"
+        "def machine():\n    return 'arm64'\n\n"
+        "def python_implementation():\n    return 'CPython'\n"
+    )
     (stubs / "torch.py").write_text(
         """
 class _Cuda:
@@ -29,6 +33,10 @@ class _Cuda:
 class _Mps:
     @staticmethod
     def is_available():
+        return True
+
+    @staticmethod
+    def is_built():
         return True
 
 class _Backends:
