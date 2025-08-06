@@ -54,10 +54,8 @@ if ! find_python; then
   fi
 fi
 
-# Detect available GPU and set Torch device accordingly
-if "$PY" -m solhunter_zero.device --check-gpu; then
-  export TORCH_DEVICE=mps
-fi
+# Configure GPU-related environment variables
+eval "$("$PY" -m solhunter_zero.device --setup-env)"
 
 # Configure Rayon thread pool if not already set
 if [ -z "${RAYON_NUM_THREADS:-}" ]; then
@@ -74,11 +72,6 @@ print(os.cpu_count() or 1)
 EOF
 )"
   fi
-fi
-
-# Enable MPS fallback when running on macOS
-if [ "$(uname -s)" = "Darwin" ]; then
-  export PYTORCH_ENABLE_MPS_FALLBACK=1
 fi
 
 "$PY" - <<'PY'
