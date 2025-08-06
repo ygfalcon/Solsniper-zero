@@ -41,11 +41,28 @@ def _ensure_keypair() -> None:
     active = wallet.get_active_keypair_name()
     if active is None:
         keys = wallet.list_keypairs()
-        if len(keys) == 1:
-            wallet.select_keypair(keys[0])
-            active = keys[0]
-    if active and not os.getenv("KEYPAIR_PATH"):
-        os.environ["KEYPAIR_PATH"] = os.path.join(wallet.KEYPAIR_DIR, active + ".json")
+        if not keys:
+            return
+        keys.sort()
+        choice = keys[0]
+        if len(keys) > 1 and sys.stdin.isatty():
+            print("Available keypairs:")
+            for idx, name in enumerate(keys, 1):
+                print(f"{idx}. {name}")
+            try:
+                sel = input("Select keypair [1]: ").strip()
+                if sel:
+                    i = int(sel) - 1
+                    if 0 <= i < len(keys):
+                        choice = keys[i]
+            except Exception:
+                pass
+        wallet.select_keypair(choice)
+        active = choice
+    if active:
+        path = os.path.join(wallet.KEYPAIR_DIR, active + ".json")
+        os.environ["KEYPAIR_PATH"] = path
+        print(f"Using keypair: {active}")
 
 
 def _get_config() -> tuple[str | None, dict]:
