@@ -71,6 +71,24 @@ def rotate_preflight_log(
         pass
 
 
+def _run_rustup_setup(cmd, *, shell: bool = False, retries: int = 2) -> None:
+    """Run ``cmd`` retrying on failure with helpful errors."""
+
+    for attempt in range(1, retries + 1):
+        try:
+            subprocess.check_call(cmd, shell=shell)
+            return
+        except subprocess.CalledProcessError as exc:
+            if attempt == retries:
+                print(
+                    "Failed to install Rust toolchain via rustup. "
+                    "Please visit https://rustup.rs/ and follow the instructions.",
+                )
+                raise SystemExit(exc.returncode)
+            time.sleep(1)
+            print("Rustup setup failed, retrying...")
+
+
 def ensure_config() -> None:
     """Ensure a configuration file exists and is valid."""
     from solhunter_zero.config_bootstrap import ensure_config as _ensure_config
@@ -238,26 +256,48 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
 
 def ensure_cargo() -> None:
     installed = False
+    cache_marker = ROOT / ".cache" / "cargo-installed"
     if platform.system() == "Darwin":
         from scripts.mac_setup import apply_brew_env, ensure_tools
 
         ensure_tools()
         apply_brew_env()
-    if shutil.which("cargo") is None:
-        if shutil.which("curl") is None:
-            print(
-                "curl is required to install the Rust toolchain. "
-                "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
-            )
-            raise SystemExit(1)
-        print("Installing Rust toolchain via rustup...")
-        subprocess.check_call(
-            "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-            shell=True,
-        )
-        installed = True
+
     cargo_bin = Path.home() / ".cargo" / "bin"
     os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+
+    if shutil.which("cargo") is None:
+        if cache_marker.exists():
+            print(
+                "Rust toolchain previously installed but 'cargo' was not found. "
+                "Ensure ~/.cargo/bin is in your PATH or remove the cache marker and rerun the script.",
+            )
+            raise SystemExit(1)
+
+        cache_marker.parent.mkdir(parents=True, exist_ok=True)
+        if shutil.which("brew") is not None:
+            print("Installing rustup with Homebrew...")
+            try:
+                subprocess.check_call(["brew", "install", "rustup"])
+            except subprocess.CalledProcessError as exc:
+                print(f"Homebrew failed to install rustup: {exc}")
+                raise SystemExit(exc.returncode)
+            _run_rustup_setup(["rustup-init", "-y"])
+        else:
+            if shutil.which("curl") is None:
+                print(
+                    "curl is required to install the Rust toolchain. "
+                    "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
+                )
+                raise SystemExit(1)
+            print("Installing Rust toolchain via rustup...")
+            _run_rustup_setup(
+                "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+                shell=True,
+            )
+        installed = True
+        cache_marker.write_text("ok")
+
     try:
         subprocess.check_call(["cargo", "--version"], stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:

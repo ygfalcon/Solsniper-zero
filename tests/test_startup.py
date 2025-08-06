@@ -409,14 +409,15 @@ def test_ensure_endpoints_failure(monkeypatch, capsys):
     assert "dex_base_url" in out
 
 
-def test_ensure_cargo_requires_curl(monkeypatch, capsys):
+def test_ensure_cargo_requires_curl(monkeypatch, capsys, tmp_path):
     from scripts import startup
 
     def fake_which(cmd):
-        return None if cmd in {"cargo", "curl"} else "/usr/bin/" + cmd
+        return None if cmd in {"cargo", "curl", "brew"} else "/usr/bin/" + cmd
 
     monkeypatch.setattr(startup.shutil, "which", fake_which)
     monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup, "ROOT", tmp_path)
 
     with pytest.raises(SystemExit):
         startup.ensure_cargo()
@@ -425,23 +426,7 @@ def test_ensure_cargo_requires_curl(monkeypatch, capsys):
     assert "curl is required" in out
 
 
-def test_ensure_cargo_requires_brew_on_macos(monkeypatch, capsys):
-    from scripts import startup
-
-    def fake_which(cmd):
-        return None if cmd in {"cargo", "brew"} else "/usr/bin/" + cmd
-
-    monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
-
-    with pytest.raises(SystemExit):
-        startup.ensure_cargo()
-
-    out = capsys.readouterr().out.lower()
-    assert "homebrew" in out and "mac_setup.py" in out
-
-
-def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):
+def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys, tmp_path):
     from scripts import startup
 
     def fake_which(cmd):
@@ -450,6 +435,7 @@ def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):
     monkeypatch.setattr(startup.shutil, "which", fake_which)
     monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
     monkeypatch.setattr(startup.subprocess, "check_call", lambda *a, **k: None)
+    monkeypatch.setattr(startup, "ROOT", tmp_path)
 
     with pytest.raises(SystemExit):
         startup.ensure_cargo()
@@ -458,7 +444,7 @@ def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):
     assert "pkg-config" in out and "cmake" in out
 
 
-def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch):
+def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch, tmp_path):
     from scripts import startup
 
     installed = {
@@ -475,7 +461,7 @@ def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch):
 
     def fake_check_call(cmd, **kwargs):
         calls.append(cmd)
-        if cmd[:2] == ["brew", "install"]:
+        if cmd[:2] == ["brew", "install"] and "rustup" not in cmd:
             for tool in ("pkg-config", "cmake"):
                 installed[tool] = f"/usr/local/bin/{tool}"
 
@@ -483,10 +469,61 @@ def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch):
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
     monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup, "ROOT", tmp_path)
 
     startup.ensure_cargo()
 
     assert ["brew", "install", "pkg-config", "cmake"] in calls
+
+
+def test_ensure_cargo_installs_rustup_with_brew(monkeypatch, tmp_path):
+    from scripts import startup
+
+    installed = {"cargo": None, "brew": "/usr/local/bin/brew"}
+
+    def fake_which(cmd: str):
+        return installed.get(cmd, f"/usr/bin/{cmd}")
+
+    calls: list[list[str] | str] = []
+
+    def fake_check_call(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[:2] == ["brew", "install"] and "rustup" in cmd:
+            installed["cargo"] = "/usr/bin/cargo"
+        if cmd == ["cargo", "--version"]:
+            return
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(startup, "ROOT", tmp_path)
+
+    startup.ensure_cargo()
+
+    assert ["brew", "install", "rustup"] in calls
+    assert ["rustup-init", "-y"] in calls
+    assert (tmp_path / ".cache" / "cargo-installed").exists()
+
+
+def test_ensure_cargo_skips_install_when_cached(monkeypatch, tmp_path, capsys):
+    from scripts import startup
+
+    def fake_which(cmd: str):
+        return None if cmd == "cargo" else f"/usr/bin/{cmd}"
+
+    marker = tmp_path / ".cache" / "cargo-installed"
+    marker.parent.mkdir()
+    marker.write_text("ok")
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup, "ROOT", tmp_path)
+
+    with pytest.raises(SystemExit):
+        startup.ensure_cargo()
+
+    out = capsys.readouterr().out.lower()
+    assert "previously installed" in out
 
 
 def test_main_calls_ensure_endpoints(monkeypatch):
