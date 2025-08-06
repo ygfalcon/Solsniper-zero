@@ -68,7 +68,7 @@ def main() -> None:
     updated = False
     for key, env, desc in PROMPTS:
         val = os.getenv(env) or cfg.get(key)
-        missing = val in (None, "", "YOUR_BIRDEYE_KEY")
+        missing = val in (None, "", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY")
         if missing:
             if args.auto and key in AUTO_DEFAULTS:
                 cfg[key] = AUTO_DEFAULTS[key]
@@ -81,6 +81,11 @@ def main() -> None:
             if inp:
                 cfg[key] = inp
                 updated = True
+            else:
+                # remove empty values so they are not exported
+                if key in cfg:
+                    cfg.pop(key, None)
+                    updated = True
     if updated:
         save_config(cfg)
         print(f"Configuration saved to {CONFIG_PATH}")
