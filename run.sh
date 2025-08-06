@@ -60,6 +60,14 @@ else
     echo "No GPU detected; using CPU mode"
 fi
 
+# Use the Metal Performance Shaders backend on Apple GPUs
+if [ -z "${TORCH_DEVICE:-}" ] && [ "$(uname -s)" = "Darwin" ]; then
+    if command -v sysctl >/dev/null 2>&1 && \
+       sysctl -n machdep.cpu.brand_string 2>/dev/null | grep -qi 'apple'; then
+        export TORCH_DEVICE="mps"
+    fi
+fi
+
 # Configure Rayon thread pool if not already set
 if [ -z "$RAYON_NUM_THREADS" ]; then
     if command -v nproc >/dev/null 2>&1; then
@@ -216,14 +224,19 @@ if [ $NO_METRICS -eq 0 ]; then
     trap 'kill $AGG_PID 2>/dev/null; rm -f "$METRICS_LOG"' EXIT
 fi
 
+torch_args=()
+if [ -n "${TORCH_DEVICE:-}" ]; then
+    torch_args+=(--device "$TORCH_DEVICE")
+fi
+
 if [ "$1" = "--daemon" ]; then
     shift
-    python -m solhunter_zero.train_cli --daemon "$@"
+    python -m solhunter_zero.train_cli --daemon "${torch_args[@]}" "$@"
 elif [ "$#" -eq 0 ] || [ "$1" = "--auto" ]; then
     if [ "$1" = "--auto" ]; then
         shift
     fi
-    python -m solhunter_zero.main --auto "$@"
+    python -m solhunter_zero.main --auto "${torch_args[@]}" "$@"
 else
-    python -m solhunter_zero.main "$@"
+    python -m solhunter_zero.main "${torch_args[@]}" "$@"
 fi
