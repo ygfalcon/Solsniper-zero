@@ -27,6 +27,12 @@ export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 # Configure GPU-related environment variables
 eval "$("$PY" -m solhunter_zero.device --setup-env)"
 
+"$PY" - <<'PY'
+import torch
+from solhunter_zero.device import get_default_device
+torch.set_default_device(get_default_device())
+PY
+
 # Configure Rayon thread pool if not already set
 if [ -z "${RAYON_NUM_THREADS:-}" ]; then
     export RAYON_NUM_THREADS="$("$PY" -m scripts.threading)"
