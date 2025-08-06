@@ -20,7 +20,7 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
 fi
 
 # Configure Rayon thread pool if not already set
-if [ -z "$RAYON_NUM_THREADS" ]; then
+if [ -z "${RAYON_NUM_THREADS:-}" ]; then
   if command -v nproc >/dev/null 2>&1; then
     export RAYON_NUM_THREADS="$(nproc)"
   elif command -v getconf >/dev/null 2>&1; then
