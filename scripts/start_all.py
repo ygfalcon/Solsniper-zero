@@ -12,7 +12,7 @@ import socket
 import threading
 from pathlib import Path
 from typing import IO
-from solhunter_zero.config import load_config, apply_env_overrides
+from solhunter_zero.config import load_config, apply_env_overrides, set_env_from_config
 from solhunter_zero import data_sync
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +46,10 @@ def _stream_stderr(pipe: IO[bytes]) -> None:
 
 def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
     env = os.environ.copy()
+    for var in ENV_VARS:
+        val = os.getenv(var)
+        if val is not None:
+            env[var] = val
     stderr = subprocess.PIPE if stream_stderr else None
     proc = subprocess.Popen(cmd, env=env, stderr=stderr)
     PROCS.append(proc)
@@ -94,6 +98,7 @@ cfg = get_config_file()
 cfg_data = {}
 if cfg:
     cfg_data = apply_env_overrides(load_config(cfg))
+    set_env_from_config(cfg_data)
 interval = float(
     cfg_data.get(
         "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
