@@ -11,8 +11,8 @@ raydium_ws_url = ""
 jupiter_ws_url = ""
 phoenix_ws_url = ""
 meteora_ws_url = ""
-order_book_ws_url = ""
-depth_service = false  # start the Rust depth_service automatically when true
+order_book_ws_url = "wss://api.mainnet-beta.solana.com"
+depth_service = true  # start the Rust depth_service automatically when true
 # IPC paths for the depth_service (change if running on another host)
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
@@ -100,8 +100,8 @@ fee_weight = 1.0  # weight applied to per-venue fees during rebalances
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
-priority_rpc = "https://rpc.example"
-jito_rpc_url = ""  # Jito block-engine endpoint
+priority_rpc = "https://api.mainnet-beta.solana.com"
+jito_rpc_url = "https://mainnet.block-engine.jito.wtf"  # Jito block-engine endpoint
 jito_auth = ""  # authentication token for Jito
 jito_ws_url = ""  # Jito searcher websocket
 jito_ws_auth = ""  # websocket auth token

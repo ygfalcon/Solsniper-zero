@@ -1,7 +1,9 @@
 # Quick Start
 
 - make start runs scripts/startup.py for guided setup.
-- Run `cp config.example.toml config.toml` and edit the values.
+- Run `cp config.example.toml config.toml`. The bundled config uses public
+  RPC endpoints so a demo run works out of the box, but it must be edited
+  before live trading.
 - Set `AUTO_SELECT_KEYPAIR=1` to always use a single keypair.
 - Execute `./run.sh --auto` to start trading automatically.
 - Launch the Web UI with `python -m solhunter_zero.ui`.

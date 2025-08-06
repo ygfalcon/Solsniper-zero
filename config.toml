@@ -1,5 +1,5 @@
 birdeye_api_key = "YOUR_BIRDEYE_API_KEY"
-solana_rpc_url = "https://solana-mainnet.example.com"
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
 dex_base_url = "https://dex.mainnet.example/api"
 dex_testnet_url = "https://dex.testnet.example/api"
 orca_api_url = "https://api.orca.so"
@@ -11,8 +11,8 @@ raydium_ws_url = ""
 jupiter_ws_url = ""
 phoenix_ws_url = ""
 meteora_ws_url = ""
-order_book_ws_url = ""
-depth_service = false  # start the Rust depth_service automatically when true
+order_book_ws_url = "wss://api.mainnet-beta.solana.com"
+depth_service = true  # start the Rust depth_service automatically when true
 # IPC paths for the depth_service (change if running on another host)
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
@@ -100,9 +100,9 @@ fee_weight = 1.0  # weight applied to per-venue fees during rebalances
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
-jito_rpc_url = "https://block-engine.jito.example.com"  # Jito block-engine endpoint
+jito_rpc_url = "https://mainnet.block-engine.jito.wtf"  # Jito block-engine endpoint
 jito_auth = "YOUR_JITO_AUTH_TOKEN"  # authentication token for Jito
-priority_rpc = "https://rpc.mainnet.example.com"
+priority_rpc = "https://api.mainnet-beta.solana.com"
 jito_ws_url = ""  # Jito searcher websocket
 jito_ws_auth = ""  # websocket auth token
 event_bus_url = ""  # external event bus websocket

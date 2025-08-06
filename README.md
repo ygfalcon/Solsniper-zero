@@ -157,10 +157,11 @@ Key discovery options:
 
    An example configuration file named `config.example.toml` is included in
    the project root. Run `cp config.example.toml config.toml` (or copy it to
-   `config.yaml`) and edit the values. A high risk preset called
-   `config.highrisk.toml` is also provided. The example configuration loads
-   several built‑in **agents** that replace the previous static strategy
-   modules.
+   `config.yaml`). The bundled values use public RPC endpoints so a demo run
+   works out of the box, but you must review and edit them before live
+   trading. A high risk preset called `config.highrisk.toml` is also provided.
+   The example configuration loads several built‑in **agents** that replace
+   the previous static strategy modules.
 
 ## Paper Trading
 
