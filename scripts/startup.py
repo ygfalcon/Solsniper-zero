@@ -12,6 +12,7 @@ import subprocess
 import shutil
 import time
 from pathlib import Path
+import json
 
 from scripts import deps
 
@@ -624,6 +625,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print system diagnostics and exit",
     )
+    parser.add_argument(
+        "--no-diagnostics",
+        action="store_true",
+        help="Suppress post-run diagnostics collection",
+    )
     args, rest = parser.parse_known_args(argv)
 
     if args.diagnostics:
@@ -711,23 +717,41 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Active keypair: {active_keypair or 'none'}")
     print(f"  GPU device: {gpu_device}")
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
-    os.execv(
-        sys.executable,
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest],
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
     )
+
+    if not args.no_diagnostics:
+        from scripts import diagnostics
+
+        info = diagnostics.collect()
+        summary = ", ".join(f"{k}={v}" for k, v in info.items())
+        print(f"Diagnostics summary: {summary}")
+        out_path = Path("diagnostics.json")
+        try:
+            out_path.write_text(json.dumps(info, indent=2))
+        except Exception:
+            pass
+        else:
+            print(f"Full diagnostics written to {out_path}")
+
+    return proc.returncode
 
 
 def run(argv: list[str] | None = None) -> int:
+    args_list = argv or sys.argv[1:]
     try:
         code = main(argv)
     except SystemExit as exc:
-        code = exc.code
+        code = exc.code if isinstance(exc.code, int) else 1
     except Exception:
-        from scripts import diagnostics
+        if "--no-diagnostics" not in args_list:
+            from scripts import diagnostics
 
-        diagnostics.main()
+            diagnostics.main()
         raise
-    if code:
+    if code and "--no-diagnostics" not in args_list:
         from scripts import diagnostics
 
         diagnostics.main()
