@@ -310,56 +310,56 @@ def test_ensure_endpoints_failure(monkeypatch, capsys):
 
 
 def test_ensure_cargo_requires_curl(monkeypatch, capsys):
-    from scripts import startup
+    from scripts import rust_utils
 
     def fake_which(cmd):
         return None if cmd in {"cargo", "curl"} else "/usr/bin/" + cmd
 
-    monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(rust_utils.shutil, "which", fake_which)
+    monkeypatch.setattr(rust_utils.platform, "system", lambda: "Linux")
 
     with pytest.raises(SystemExit):
-        startup.ensure_cargo()
+        rust_utils.ensure_cargo()
 
     out = capsys.readouterr().out.lower()
     assert "curl is required" in out
 
 
 def test_ensure_cargo_requires_brew_on_macos(monkeypatch, capsys):
-    from scripts import startup
+    from scripts import rust_utils
 
     def fake_which(cmd):
         return None if cmd in {"cargo", "brew"} else "/usr/bin/" + cmd
 
-    monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(rust_utils.shutil, "which", fake_which)
+    monkeypatch.setattr(rust_utils.platform, "system", lambda: "Darwin")
 
     with pytest.raises(SystemExit):
-        startup.ensure_cargo()
+        rust_utils.ensure_cargo()
 
     out = capsys.readouterr().out.lower()
     assert "homebrew" in out and "mac_setup.sh" in out
 
 
 def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):
-    from scripts import startup
+    from scripts import rust_utils
 
     def fake_which(cmd):
         return None if cmd in {"pkg-config", "cmake"} else "/usr/bin/" + cmd
 
-    monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
-    monkeypatch.setattr(startup.subprocess, "check_call", lambda *a, **k: None)
+    monkeypatch.setattr(rust_utils.shutil, "which", fake_which)
+    monkeypatch.setattr(rust_utils.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(rust_utils.subprocess, "check_call", lambda *a, **k: None)
 
     with pytest.raises(SystemExit):
-        startup.ensure_cargo()
+        rust_utils.ensure_cargo()
 
     out = capsys.readouterr().out.lower()
     assert "pkg-config" in out and "cmake" in out
 
 
 def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch):
-    from scripts import startup
+    from scripts import rust_utils
 
     installed = {
         "cargo": "/usr/bin/cargo",
@@ -379,12 +379,12 @@ def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch):
             for tool in ("pkg-config", "cmake"):
                 installed[tool] = f"/usr/local/bin/{tool}"
 
-    monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
-    monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(rust_utils.shutil, "which", fake_which)
+    monkeypatch.setattr(rust_utils.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(rust_utils.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(rust_utils.subprocess, "check_call", fake_check_call)
 
-    startup.ensure_cargo()
+    rust_utils.ensure_cargo()
 
     assert ["brew", "install", "pkg-config", "cmake"] in calls
 

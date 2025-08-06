@@ -13,12 +13,13 @@ import threading
 from pathlib import Path
 from typing import IO
 from solhunter_zero.config import (
-    load_config,
-    apply_env_overrides,
-    set_env_from_config,
     ENV_VARS as CONFIG_ENV_VARS,
+    apply_env_overrides,
+    load_config,
+    set_env_from_config,
 )
 from solhunter_zero import data_sync
+from scripts.rust_utils import build_depth_service, build_route_ffi, ensure_cargo
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -155,42 +156,9 @@ except OSError as exc:
     print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
     sys.exit(1)
 data_sync.start_scheduler(interval=interval, db_path=db_path)
-depth_bin = ROOT / "target" / "release" / "depth_service"
-if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
-    print("depth_service binary not found, building with cargo...")
-    try:
-        result = subprocess.run(
-            [
-                "cargo",
-                "build",
-                "--manifest-path",
-                str(ROOT / "depth_service" / "Cargo.toml"),
-                "--release",
-            ]
-        )
-    except FileNotFoundError:
-        print(
-            "cargo is not installed. Please run 'cargo build --manifest-path "
-            "depth_service/Cargo.toml --release'",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if result.returncode != 0:
-        print(
-            "Failed to build depth_service. Please run "
-            "'cargo build --manifest-path depth_service/Cargo.toml --release' "
-            "manually.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
-        print(
-            "depth_service binary missing or not executable after build. "
-            "Please run 'cargo build --manifest-path "
-            "depth_service/Cargo.toml --release'.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+ensure_cargo()
+build_route_ffi()
+depth_bin = build_depth_service()
 cmd = [str(depth_bin)]
 if cfg:
     cmd += ["--config", cfg]
