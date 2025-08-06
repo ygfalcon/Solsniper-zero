@@ -383,35 +383,6 @@ def ensure_wallet_cli() -> None:
         print("'solhunter-wallet' still not available after installation. Aborting.")
         raise SystemExit(1)
 
-
-def ensure_default_keypair() -> None:
-    """Create and select a default keypair if none is active.
-
-    The helper checks for ``keypairs/active`` and, when missing, invokes the
-    ``scripts/setup_default_keypair.sh`` helper via ``subprocess``.  The shell
-    script prints the mnemonic only when it generates one.  In that case the
-    mnemonic is echoed here with guidance to store it securely.
-    """
-
-    active_file = ROOT / "keypairs" / "active"
-    if active_file.exists():
-        return
-
-    setup_script = ROOT / "scripts" / "setup_default_keypair.sh"
-    try:
-        result = subprocess.run(
-            ["bash", str(setup_script)], capture_output=True, text=True, check=True
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        print(f"Failed to run {setup_script}: {exc}")
-        raise SystemExit(1)
-
-    mnemonic = result.stdout.strip()
-    if mnemonic:
-        print(f"Generated mnemonic: {mnemonic}")
-        print("Please store this mnemonic securely; it will not be shown again.")
-
-
 def ensure_keypair() -> None:
     """Ensure a usable keypair exists and is selected."""
 
