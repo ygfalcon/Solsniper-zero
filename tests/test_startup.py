@@ -58,3 +58,26 @@ def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
     assert wallet.list_keypairs() == ["temp"]
     assert wallet.get_active_keypair_name() == "temp"
     assert (tmp_path / "temp.json").exists()
+
+
+def test_ensure_deps_installs_optional(monkeypatch):
+    from scripts import startup
+
+    calls: list[list[str]] = []
+
+    def fake_check_call(cmd):
+        calls.append(cmd)
+        return 0
+
+    results = [([], ["faiss", "sentence_transformers", "torch"]), ([], [])]
+    monkeypatch.setattr(startup, "check_deps", lambda: results.pop(0))
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+
+    startup.ensure_deps()
+
+    assert [c[-1] for c in calls] == [
+        "faiss-cpu",
+        "sentence-transformers",
+        "torch",
+    ]
+    assert not results  # ensure check_deps called twice

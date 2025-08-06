@@ -36,9 +36,49 @@ def check_deps() -> tuple[list[str], list[str]]:
 
 def ensure_deps() -> None:
     req, opt = check_deps()
-    if req or opt:
-        print("Installing dependencies...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", ".[uvloop]"])
+    if not req and not opt:
+        return
+
+    if req:
+        print("Installing required dependencies...")
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", ".[uvloop]"]
+            )
+        except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+            print(f"Failed to install required dependencies: {exc}")
+            raise SystemExit(exc.returncode)
+
+    if opt:
+        print("Installing optional dependencies...")
+        mapping = {
+            "faiss": "faiss-cpu",
+            "sentence_transformers": "sentence-transformers",
+            "torch": "torch",
+        }
+        for name in opt:
+            pkg = mapping.get(name, name.replace("_", "-"))
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", pkg]
+                )
+            except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
+                print(f"Failed to install optional dependency '{pkg}': {exc}")
+                raise SystemExit(exc.returncode)
+
+    req_after, opt_after = check_deps()
+    if req_after or opt_after:
+        if req_after:
+            print(
+                "Missing required dependencies after installation: "
+                + ", ".join(req_after)
+            )
+        if opt_after:
+            print(
+                "Missing optional dependencies after installation: "
+                + ", ".join(opt_after)
+            )
+        raise SystemExit(1)
 
 
 def ensure_config() -> None:
