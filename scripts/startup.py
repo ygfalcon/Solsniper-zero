@@ -7,6 +7,7 @@ import argparse
 import os
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 
 from solhunter_zero.config import load_config, validate_config
@@ -111,6 +112,17 @@ def ensure_rpc() -> None:
         raise SystemExit(1)
 
 
+def ensure_cargo() -> None:
+    if shutil.which("cargo") is None:
+        print("Installing Rust toolchain via rustup...")
+        subprocess.check_call(
+            "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+            shell=True,
+        )
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
@@ -130,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_rpc_check:
         ensure_rpc()
-
+    ensure_cargo()
     os.execv("./run.sh", ["./run.sh", "--auto", *rest])
 
 
