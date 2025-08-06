@@ -12,17 +12,19 @@ import sys
 import time
 from pathlib import Path
 
+from scripts.logging_utils import set_verbosity, step
+
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
-    print("Running:", " ".join(cmd))
+    step("Running: " + " ".join(cmd))
     return subprocess.run(cmd, check=check, text=True, **kwargs)
 
 
 def ensure_xcode(non_interactive: bool) -> None:
     if subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
         return
-    print("Installing Xcode command line tools...")
+    step("Installing Xcode command line tools...")
     subprocess.run(["xcode-select", "--install"], check=False)
     elapsed = 0
     timeout = 300
@@ -51,7 +53,7 @@ def _apply_brew_env() -> None:
     for line in out.splitlines():
         if not line.startswith("export "):
             continue
-        key, val = line[len("export ") :].split("=", 1)
+        key, val = line[len("export "):].split("=", 1)
         val = val.strip().strip('"')
         if key == "PATH":
             os.environ[key] = f"{val}:{os.environ.get(key, '')}"
@@ -61,7 +63,7 @@ def _apply_brew_env() -> None:
 
 def ensure_homebrew() -> None:
     if shutil.which("brew") is None:
-        print("Homebrew not found. Installing...")
+        step("Homebrew not found. Installing...")
         _run([
             "/bin/bash",
             "-c",
@@ -109,7 +111,7 @@ def ensure_profile() -> None:
         with profile.open("a") as fh:
             fh.write(brew_env)
             fh.write("\n")
-        print(f"Updated {profile} with Homebrew environment.")
+        step(f"Updated {profile} with Homebrew environment.")
     cargo_line = 'source "$HOME/.cargo/env"'
     if cargo_line not in content:
         with profile.open("a") as fh:
@@ -151,7 +153,14 @@ def verify_tools() -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--non-interactive", action="store_true")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    group.add_argument("--quiet", action="store_true", help="Suppress non-essential output")
     args = parser.parse_args(argv)
+    if args.quiet:
+        set_verbosity(False)
+    elif args.verbose:
+        set_verbosity(True)
     if platform.system() != "Darwin":
         raise SystemExit("mac_setup is only intended for macOS")
     ensure_xcode(args.non_interactive)

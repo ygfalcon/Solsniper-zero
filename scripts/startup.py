@@ -17,6 +17,7 @@ from pathlib import Path
 import json
 
 from scripts import deps
+from scripts.logging_utils import set_verbosity, step
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -51,11 +52,11 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     if venv_dir.exists():
         if not python.exists() or not os.access(str(python), os.X_OK):
-            print("Virtual environment missing interpreter; recreating .venv...")
+            step("Virtual environment missing interpreter; recreating .venv...")
             shutil.rmtree(venv_dir)
 
     if not venv_dir.exists():
-        print("Creating virtual environment in .venv...")
+        step("Creating virtual environment in .venv...")
         try:
             subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
@@ -80,7 +81,7 @@ def _pip_install(*args: str, retries: int = 3) -> None:
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
             wait = 2 ** (attempt - 1)
-            print(
+            step(
                 f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
             )
             time.sleep(wait)
@@ -104,7 +105,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             if shutil.which(cmd) is None:
                 missing_tools.append(cmd)
         if missing_tools:
-            print(
+            step(
                 "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
             )
             try:
@@ -118,7 +119,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     req, opt = deps.check_deps()
     if not req and not install_optional:
         if opt:
-            print(
+            step(
                 "Optional modules missing: "
                 + ", ".join(opt)
                 + " (features disabled)."
@@ -153,11 +154,11 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         ]
 
     if req:
-        print("Installing required dependencies...")
+        step("Installing required dependencies...")
         _pip_install(".[uvloop]", *extra_index)
 
     if install_optional and "torch" in opt and extra_index:
-        print(
+        step(
             "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
         )
         _pip_install("torch==2.1.0", "torchvision==0.16.0", *extra_index)
@@ -168,7 +169,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         import torch
 
         if not torch.backends.mps.is_available():
-            print(
+            step(
                 "MPS backend not available; attempting to reinstall Metal wheel..."
             )
             try:
@@ -179,7 +180,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                     *extra_index,
                 )
             except SystemExit:
-                print("Failed to reinstall torch with Metal wheels.")
+                step("Failed to reinstall torch with Metal wheels.")
             importlib.reload(torch)
             if not torch.backends.mps.is_available():
                 raise SystemExit(
@@ -189,7 +190,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                 )
 
     if install_optional and opt:
-        print("Installing optional dependencies...")
+        step("Installing optional dependencies...")
         mapping = {
             "faiss": "faiss-cpu",
             "sentence_transformers": "sentence-transformers",
@@ -222,7 +223,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             + ", ".join(req_after)
         )
     if missing_opt:
-        print(
+        step(
             "Optional modules missing: "
             + ", ".join(missing_opt)
             + " (features disabled)."
@@ -277,7 +278,7 @@ def ensure_wallet_cli() -> None:
     if shutil.which("solhunter-wallet") is not None:
         return
 
-    print("'solhunter-wallet' command not found. Installing the package...")
+    step("'solhunter-wallet' command not found. Installing the package...")
     try:
         _pip_install(".")
     except SystemExit:
@@ -313,8 +314,8 @@ def ensure_default_keypair() -> None:
 
     mnemonic = result.stdout.strip()
     if mnemonic:
-        print(f"Generated mnemonic: {mnemonic}")
-        print("Please store this mnemonic securely; it will not be shown again.")
+        step(f"Generated mnemonic: {mnemonic}")
+        step("Please store this mnemonic securely; it will not be shown again.")
 
 
 def ensure_keypair() -> None:
@@ -343,7 +344,7 @@ def ensure_keypair() -> None:
         if one_click:
             log.info(msg)
         else:
-            print(msg)
+            step(msg)
 
     def _wallet_cmd(*args: str) -> list[str]:
         if shutil.which("solhunter-wallet") is not None:
@@ -488,6 +489,7 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
                 f" Retrying in {wait} seconds...",
             )
             time.sleep(wait)
+
 
 def ensure_cargo() -> None:
     installed = False
@@ -659,7 +661,19 @@ def ensure_depth_service() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ensure_venv(argv)
+    args_list = list(argv) if argv is not None else sys.argv[1:]
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_group = pre_parser.add_mutually_exclusive_group()
+    pre_group.add_argument("--verbose", action="store_true")
+    pre_group.add_argument("--quiet", action="store_true")
+    pre_args, _ = pre_parser.parse_known_args(args_list)
+    verbose = True
+    if pre_args.quiet:
+        verbose = False
+    elif pre_args.verbose:
+        verbose = True
+    set_verbosity(verbose)
+    ensure_venv(args_list)
 
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
@@ -702,7 +716,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Suppress post-run diagnostics collection",
     )
-    args, rest = parser.parse_known_args(argv)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    group.add_argument("--quiet", action="store_true", help="Suppress non-essential output")
+    args, rest = parser.parse_known_args(args_list)
+
+    if args.quiet:
+        set_verbosity(False)
+    elif args.verbose:
+        set_verbosity(True)
 
     if args.diagnostics:
         from scripts import diagnostics
@@ -721,9 +743,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        step("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
+            step("Use '--allow-rosetta' to continue anyway.")
             return 1
 
     if not args.skip_deps:
@@ -800,11 +822,11 @@ def main(argv: list[str] | None = None) -> int:
             pass
         if code:
             return code
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    step("Startup summary:")
+    step(f"  Config file: {config_path or 'none'}")
+    step(f"  Active keypair: {active_keypair or 'none'}")
+    step(f"  GPU device: {gpu_device}")
+    step(f"  RPC endpoint: {rpc_url} ({rpc_status})")
 
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
@@ -815,14 +837,14 @@ def main(argv: list[str] | None = None) -> int:
 
         info = diagnostics.collect()
         summary = ", ".join(f"{k}={v}" for k, v in info.items())
-        print(f"Diagnostics summary: {summary}")
+        step(f"Diagnostics summary: {summary}")
         out_path = Path("diagnostics.json")
         try:
             out_path.write_text(json.dumps(info, indent=2))
         except Exception:
             pass
         else:
-            print(f"Full diagnostics written to {out_path}")
+            step(f"Full diagnostics written to {out_path}")
 
     return proc.returncode
 
