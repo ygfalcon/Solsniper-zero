@@ -462,6 +462,36 @@ async def _demo_route_ffi() -> Dict[str, object]:
     return {"path": path, "profit": float(profit)}
 
 
+async def _demo_jito_stream() -> List[dict]:
+    """Stream a deterministic pending swap via :mod:`jito_stream`."""
+
+    try:
+        from . import jito_stream
+    except Exception as exc:  # pragma: no cover - optional dependency
+        print(f"Jito stream demo skipped: {exc}")
+        used_trade_types.add("jito_stream")
+        return []
+
+    async def fake_stream(_url: str, *, auth: str | None = None):
+        yield {
+            "pendingTransactions": [
+                {"swap": {"token": "tok", "size": 1.0, "slippage": 0.1}}
+            ]
+        }
+
+    orig_stream = jito_stream.stream_pending_transactions
+    jito_stream.stream_pending_transactions = fake_stream  # type: ignore[assignment]
+    swaps: List[dict] = []
+    try:
+        async for swap in jito_stream.stream_pending_swaps("ws://demo"):
+            swaps.append(swap)
+            break
+    finally:
+        jito_stream.stream_pending_transactions = orig_stream  # type: ignore[assignment]
+    used_trade_types.add("jito_stream")
+    return swaps
+
+
 def run_rl_demo(report_dir: Path) -> float:
     """Run a tiny RL demo and write training metrics.
 
@@ -1026,12 +1056,20 @@ def main(argv: List[str] | None = None) -> None:
 
     # Exercise trade types via lightweight stubs
     async def _exercise_trade_types() -> Dict[str, object]:
-        arb, fl_sig, sniped, pools, route = await asyncio.gather(
+        (
+            arb,
+            fl_sig,
+            sniped,
+            pools,
+            route,
+            jito_swaps,
+        ) = await asyncio.gather(
             _demo_arbitrage(),
             _demo_flash_loan(),
             _demo_sniper(),
             _demo_dex_scanner(),
             _demo_route_ffi(),
+            _demo_jito_stream(),
         )
         rl_reward = _demo_rl_agent()
         arb_path = arb.get("path") if isinstance(arb, dict) else None
@@ -1047,6 +1085,7 @@ def main(argv: List[str] | None = None) -> None:
             "sniper_tokens": sniped,
             "dex_new_pools": pools,
             "rl_reward": rl_reward,
+            "jito_swaps": jito_swaps,
         }
 
     trade_outputs = asyncio.run(_exercise_trade_types())
