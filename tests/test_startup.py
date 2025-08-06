@@ -20,6 +20,58 @@ def test_startup_help():
     assert 'usage' in out
 
 
+def test_startup_repair_clears_markers(monkeypatch, capsys):
+    import platform
+    from scripts import startup
+
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+
+    cargo_marker = startup.ROOT / ".cache" / "cargo-installed"
+    cargo_marker.parent.mkdir(parents=True, exist_ok=True)
+    cargo_marker.write_text("ok")
+
+    from solhunter_zero import device
+
+    device.MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+    device.MPS_SENTINEL.write_text("ok")
+
+    called = {}
+
+    def fake_prepare(non_interactive=True):
+        called["called"] = True
+        return {
+            "success": False,
+            "steps": {"xcode": {"status": "error", "message": "boom"}}
+        }
+
+    monkeypatch.setattr("scripts.mac_setup.prepare_macos_env", fake_prepare)
+    monkeypatch.setattr("scripts.mac_setup.apply_brew_env", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup.device, "ensure_gpu_env", lambda: {})
+    monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
+    monkeypatch.setattr(startup, "check_internet", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+
+    code = startup.main([
+        "--repair",
+        "--skip-preflight",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-setup",
+        "--skip-deps",
+        "--no-diagnostics",
+    ])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "Manual fix for xcode" in out
+    assert called["called"]
+    assert not cargo_marker.exists()
+    assert not device.MPS_SENTINEL.exists()
+
+
 def test_mac_startup_prereqs(monkeypatch):
     """Mac-specific startup helpers run without errors."""
     import platform
