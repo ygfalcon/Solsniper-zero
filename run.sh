@@ -59,6 +59,13 @@ check_deps() {
 
 run_cargo_build() {
     local output status
+    if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+        if command -v rustup >/dev/null 2>&1; then
+            if ! rustup target list --installed 2>/dev/null | grep -q '^aarch64-apple-darwin$'; then
+                rustup target add aarch64-apple-darwin
+            fi
+        fi
+    fi
     set +e
     output=$(cargo build "$@" 2>&1)
     status=$?
