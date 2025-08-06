@@ -40,10 +40,10 @@ if [ "$(uname -s)" = "Darwin" ]; then
   export PYTORCH_ENABLE_MPS_FALLBACK=1
 fi
 
-if [ ! -f "config.toml" ]; then
-  cp config.example.toml config.toml
-  echo "Created default config.toml from config.example.toml"
-fi
+"$PY" - <<'PY'
+from scripts.startup import ensure_config
+ensure_config()
+PY
 
 if [ "$(uname -s)" = "Darwin" ]; then
   if ! command -v brew >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
