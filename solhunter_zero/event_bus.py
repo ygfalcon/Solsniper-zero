@@ -58,6 +58,29 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     nats = None
 
+
+def _broker_preflight() -> None:
+    """Ensure optional broker dependencies are installed when configured."""
+    urls: list[str] = []
+    url = os.getenv("BROKER_URL")
+    if url:
+        urls.append(url)
+    more = os.getenv("BROKER_URLS")
+    if more:
+        urls.extend(u.strip() for u in more.split(",") if u.strip())
+    for u in urls:
+        if u.startswith(("redis://", "rediss://")) and aioredis is None:
+            raise RuntimeError(
+                "redis broker configured via BROKER_URL(S) but redis package is not installed"
+            )
+        if u.startswith("nats://") and nats is None:
+            raise RuntimeError(
+                "nats broker configured via BROKER_URL(S) but nats-py package is not installed"
+            )
+
+
+_broker_preflight()
+
 from asyncio import Queue
 
 
