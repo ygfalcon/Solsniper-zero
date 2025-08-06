@@ -44,4 +44,4 @@ if [ ! -f "config.toml" ]; then
   echo "Created default config.toml from config.example.toml"
 fi
 
-"$PY" scripts/startup.py --one-click
+"$PY" scripts/startup.py --one-click || { rc=$?; echo "Startup failed"; read -n1 -s; exit $rc; }
