@@ -130,10 +130,11 @@ def ensure_keypair() -> None:
 
 def ensure_rpc() -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
-    rpc_url = os.environ.get("SOLANA_RPC_URL")
-    if not rpc_url:
-        print("SOLANA_RPC_URL environment variable is not set.")
-        raise SystemExit(1)
+    rpc_url = os.environ.get(
+        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+    )
+    if not os.environ.get("SOLANA_RPC_URL"):
+        print(f"Using default RPC URL {rpc_url}")
 
     import json
     import urllib.request
