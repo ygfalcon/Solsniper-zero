@@ -15,6 +15,7 @@ import contextlib
 import io
 from pathlib import Path
 import json
+import importlib.util
 
 from scripts import deps
 
@@ -202,11 +203,13 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             )
             raise SystemExit(1)
     req, opt = deps.check_deps()
-    if not req and not install_optional:
-        if opt:
-            print(
-                "Optional modules missing: " + ", ".join(opt) + " (features disabled)."
-            )
+    if req:
+        print("Missing required modules: " + ", ".join(req))
+    if opt:
+        print(
+            "Optional modules missing: " + ", ".join(opt) + " (features disabled)."
+        )
+    if not req and not (install_optional and opt):
         return
 
     # Ensure ``pip`` is available before attempting installations.
@@ -238,6 +241,13 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     if req:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]", *extra_index)
+        failed_req = [m for m in req if importlib.util.find_spec(m) is None]
+        if failed_req:
+            print(
+                "Missing required dependencies after installation: "
+                + ", ".join(failed_req)
+            )
+            raise SystemExit(1)
 
     if install_optional and extra_index:
         try:
@@ -274,20 +284,13 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             pkg = mapping.get(name, name.replace("_", "-"))
             _pip_install(pkg, *extra_index)
 
-    req_after, opt_after = deps.check_deps()
-    missing_opt = list(opt_after)
-    if req_after:
-        print(
-            "Missing required dependencies after installation: " + ", ".join(req_after)
-        )
-    if missing_opt:
-        print(
-            "Optional modules missing: "
-            + ", ".join(missing_opt)
-            + " (features disabled)."
-        )
-    if req_after:
-        raise SystemExit(1)
+        missing_opt = [m for m in opt if importlib.util.find_spec(m) is None]
+        if missing_opt:
+            print(
+                "Optional modules missing: "
+                + ", ".join(missing_opt)
+                + " (features disabled)."
+            )
 
 
 def ensure_config() -> None:
