@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from collections.abc import Callable
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
@@ -152,34 +153,81 @@ def verify_tools() -> None:
         raise SystemExit(1)
 
 
-def prepare_macos_env(non_interactive: bool = True) -> bool:
+MANUAL_FIXES = {
+    "xcode": "Install Xcode command line tools with 'xcode-select --install' and rerun the script.",
+    "homebrew": "Install Homebrew from https://brew.sh and ensure it is on your PATH.",
+    "brew_packages": "Run 'brew install python@3.11 rustup-init pkg-config cmake protobuf'.",
+    "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
+    "pip_torch": (
+        "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip '"
+        "'torch==2.1.0 torchvision==0.16.0 --extra-index-url https://download.pytorch.org/whl/metal'."
+    ),
+    "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
+    "profile": (
+        "Add 'eval $(brew shellenv)' and 'source \"$HOME/.cargo/env\"' to your shell profile"
+        " so the tools are available in new shells."
+    ),
+}
+
+
+def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     """Ensure core macOS development tools are installed.
 
-    Returns ``True`` on success and ``False`` when any step fails.
+    Returns a report dictionary describing the status of each setup step.
+    The returned mapping contains a ``steps`` dict with per-step ``status`` and
+    an overall ``success`` boolean.
     """
-    try:
-        ensure_xcode(non_interactive)
-        ensure_homebrew()
-        install_brew_packages()
-        ensure_rustup()
-        upgrade_pip_and_torch()
-        verify_tools()
-        ensure_profile()
-    except SystemExit as exc:
-        if exc.code:
-            print(f"macOS setup failed: {exc}", file=sys.stderr)
-            return False
-    except Exception as exc:  # pragma: no cover - unexpected failure
-        print(f"macOS setup failed: {exc}", file=sys.stderr)
-        return False
-    return True
+
+    report: dict[str, object] = {"steps": {}, "success": True}
+
+    steps: list[tuple[str, Callable[[], None]]] = [
+        ("xcode", lambda: ensure_xcode(non_interactive)),
+        ("homebrew", ensure_homebrew),
+        ("brew_packages", install_brew_packages),
+        ("rustup", ensure_rustup),
+        ("pip_torch", upgrade_pip_and_torch),
+        ("verify_tools", verify_tools),
+        ("profile", ensure_profile),
+    ]
+
+    for idx, (name, func) in enumerate(steps):
+        try:
+            func()
+        except SystemExit as exc:
+            if exc.code:
+                report["steps"][name] = {
+                    "status": "error",
+                    "message": str(exc),
+                }
+                report["success"] = False
+                # mark remaining steps as skipped
+                for n, _ in steps[idx + 1 :]:
+                    report["steps"][n] = {"status": "skipped"}
+                break
+        except Exception as exc:  # pragma: no cover - unexpected failure
+            report["steps"][name] = {"status": "error", "message": str(exc)}
+            report["success"] = False
+            for n, _ in steps[idx + 1 :]:
+                report["steps"][n] = {"status": "skipped"}
+            break
+        else:
+            report["steps"][name] = {"status": "ok"}
+
+    return report
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--non-interactive", action="store_true")
     args = parser.parse_args(argv)
-    if not prepare_macos_env(args.non_interactive):
+    report = prepare_macos_env(args.non_interactive)
+    for step, info in report["steps"].items():
+        msg = info.get("message", "")
+        if msg:
+            print(f"{step}: {info['status']} - {msg}")
+        else:
+            print(f"{step}: {info['status']}")
+    if not report.get("success"):
         raise SystemExit(1)
 
 
