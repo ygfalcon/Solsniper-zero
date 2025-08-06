@@ -52,7 +52,13 @@ def ensure_config() -> None:
 def ensure_keypair() -> None:
     from solhunter_zero import wallet
 
-    if wallet.list_keypairs():
+    keypairs = wallet.list_keypairs()
+    active = wallet.get_active_keypair_name()
+    if keypairs:
+        if len(keypairs) == 1 and active is None:
+            name = keypairs[0]
+            wallet.select_keypair(name)
+            print(f"Automatically selected keypair '{name}'.")
         return
 
     print("No keypairs found in 'keypairs/' directory.")
