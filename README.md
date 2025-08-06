@@ -10,7 +10,7 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `python start.py --auto` (or `./run.sh --auto` on Unix-like systems) or toggle **Full Auto Mode** in the GUI for a fully automated launch.
+2. Run `./run.sh` for a fully automated launch. This script executes `python start.py --one-click --full-deps` and forwards any additional options.
    On macOS, double-click `start.command` to invoke `start.py` from the Finder.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
@@ -58,10 +58,10 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running
-  `python -m solhunter_zero.main --auto` (or `./run.sh` on Unix) performs
-  the same installation when dependencies are missing. On Apple
-  Silicon machines the script also installs the Metal PyTorch wheel if
-  it isn't already present.
+  `./run.sh` (which invokes `python start.py --one-click --full-deps`) or
+  `python -m solhunter_zero.main --auto` performs the same installation
+  when dependencies are missing. On Apple Silicon machines the script
+  also installs the Metal PyTorch wheel if it isn't already present.
 
   The `uvloop` dependency is optional but recommended for reduced event
   loop latency on Unix-like systems. When installed it lowers asyncio
@@ -281,7 +281,7 @@ python scripts/paper_test.py --capital 100 --iterations 100
 The `depth_service` crate provides low‑latency order book snapshots and
 direct transaction submission to the Solana RPC. It is required for trading
 and starts automatically when using `make start` or
-`python -m solhunter_zero.main --auto` (or `./run.sh --auto` on Unix).
+`python -m solhunter_zero.main --auto` (or `./run.sh` on Unix).
 
 Install the Rust toolchain if `cargo` isn't available:
 `curl https://sh.rustup.rs -sSf | sh`. More details at
@@ -568,7 +568,7 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
 15. **Run the bot**
    ```bash
-   python -m solhunter_zero.main --auto  # or ./run.sh --auto on Unix
+   python -m solhunter_zero.main --auto  # or ./run.sh on Unix
    ```
 16. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
@@ -621,7 +621,7 @@ profit calculation so routes are ranked based on the borrowed size.
    The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
 Running `scripts/startup.py` handles these steps interactively and forwards any options to the cross-platform entry point
-`python -m solhunter_zero.main --auto` (or `./run.sh --auto` on Unix), which performs a fully automated launch using the bundled defaults.
+`./run.sh` (or `python -m solhunter_zero.main --auto`), which performs a fully automated launch using the bundled defaults.
 
    The script ensures the `solhunter-wallet` command-line tool is available, loads the active configuration (falling back to `config/default.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
 
@@ -1581,10 +1581,10 @@ This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
   service.
 - **Missing keypair** — ensure a valid Solana keypair file is available.
   Set `KEYPAIR_PATH` or `SOLANA_KEYPAIR` to its path or place it in the
-  `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so the launcher (`python -m
-  solhunter_zero.main --auto` or `./run.sh` on Unix) or the Web UI select the
+  `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so the launcher
+  (`./run.sh` or `python -m solhunter_zero.main --auto`) or the Web UI select the
   sole available key automatically.
-- **Service not running** — `depth_service` starts automatically with `make start` or `python -m solhunter_zero.main --auto` (or `./run.sh --auto` on Unix). If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
+- **Service not running** — `depth_service` starts automatically with `make start` or `python -m solhunter_zero.main --auto` (or `./run.sh` on Unix). If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
 - **Slow routing** — the Rust service computes paths much faster. Leave
   `USE_SERVICE_ROUTE` enabled unless debugging the Python fallback.
 
