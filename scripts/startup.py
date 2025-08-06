@@ -62,6 +62,48 @@ def ensure_venv(argv: list[str] | None) -> None:
             print(f"Failed to create .venv: {exc}")
             raise SystemExit(1)
 
+    if platform.system() == "Darwin":
+        try:
+            info = subprocess.check_output(
+                [
+                    str(python),
+                    "-c",
+                    (
+                        "import json, platform, sys;"
+                        "print(json.dumps({'machine': platform.machine(), 'version': sys.version_info[:3]}))"
+                    ),
+                ],
+                text=True,
+            )
+            data = json.loads(info)
+            machine = data.get("machine")
+            version = tuple(data.get("version", []))
+        except Exception as exc:  # pragma: no cover - hard failure
+            print(f"Failed to inspect virtual environment interpreter: {exc}")
+            machine = None
+            version = (0, 0, 0)
+
+        if machine != "arm64" or version < (3, 11):
+            brew_python = shutil.which("python3.11")
+            if not brew_python:
+                print(
+                    "python3.11 from Homebrew not found. "
+                    "Install it with 'brew install python@3.11'."
+                )
+                raise SystemExit(1)
+            print("Recreating .venv using Homebrew python3.11...")
+            shutil.rmtree(venv_dir, ignore_errors=True)
+            try:
+                subprocess.check_call([brew_python, "-m", "venv", str(venv_dir)])
+            except (subprocess.CalledProcessError, OSError) as exc:
+                print(f"Failed to create .venv with Homebrew python3.11: {exc}")
+                raise SystemExit(1)
+            python = (
+                venv_dir
+                / ("Scripts" if os.name == "nt" else "bin")
+                / ("python.exe" if os.name == "nt" else "python")
+            )
+
     if Path(sys.prefix) != venv_dir:
         os.execv(str(python), [str(python), *sys.argv])
 
