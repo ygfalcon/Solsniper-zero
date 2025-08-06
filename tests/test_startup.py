@@ -89,6 +89,15 @@ def test_ensure_deps_installs_optional(monkeypatch):
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
 
+    class Dummy:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(startup.urllib.request, "urlopen", lambda *a, **k: Dummy())
+
     startup.ensure_deps()
 
     assert calls[0] == [
@@ -125,6 +134,28 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
+    class Dummy:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(startup.urllib.request, "urlopen", lambda *a, **k: Dummy())
+
+    class FakeMPS:
+        @staticmethod
+        def is_available():
+            return True
+
+    class FakeBackends:
+        mps = FakeMPS()
+
+    class FakeTorch:
+        backends = FakeBackends()
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+
     startup.ensure_deps()
 
     assert calls == [
@@ -133,13 +164,31 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
             "-m",
             "pip",
             "install",
-            "torch",
-            "torchvision",
+            "torch==2.1.0",
+            "torchvision==0.16.0",
             "--extra-index-url",
             "https://download.pytorch.org/whl/metal",
         ]
     ]
     assert not results
+
+
+def test_ensure_deps_network_unreachable(monkeypatch, capsys):
+    from scripts import startup
+    import urllib.error
+
+    monkeypatch.setattr(startup.deps, "check_deps", lambda: (["foo"], []))
+
+    def fake_urlopen(*args, **kwargs):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(startup.urllib.request, "urlopen", fake_urlopen)
+
+    with pytest.raises(SystemExit):
+        startup.ensure_deps()
+
+    out = capsys.readouterr().out.lower()
+    assert "network unreachable" in out
 
 
 def test_ensure_endpoints_success(monkeypatch):
