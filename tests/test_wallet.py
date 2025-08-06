@@ -95,3 +95,14 @@ def test_generate_default_keypair(tmp_path, monkeypatch):
     assert len(mnemonic.split()) == 24
     assert (mnemonic_path.stat().st_mode & 0o777) == 0o600
     assert os.environ["MNEMONIC"] == mnemonic
+
+
+def test_ensure_default_keypair(tmp_path, monkeypatch):
+    setup_wallet(tmp_path, monkeypatch)
+
+    name, mnemonic_path = wallet.ensure_default_keypair()
+
+    assert name == "default"
+    assert mnemonic_path == tmp_path / "default.mnemonic"
+    assert wallet.list_keypairs() == ["default"]
+    assert wallet.get_active_keypair_name() == "default"
