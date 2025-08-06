@@ -1,14 +1,27 @@
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 
 def test_startup_help():
-    result = subprocess.run([sys.executable, 'scripts/startup.py', '--help'], capture_output=True, text=True)
+    env = os.environ.copy()
+    root = Path(__file__).resolve().parent.parent
+    env["PYTHONPATH"] = str(root)
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.startup", "--help"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=root,
+    )
     assert result.returncode == 0
     out = result.stdout.lower() + result.stderr.lower()
-    assert 'usage' in out
+    assert "usage" in out
+    assert "torch_metal_version" in out
+    assert "torchvision_metal_version" in out
 
 
 def test_cluster_setup_assemble(tmp_path):
@@ -115,21 +128,21 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
         calls.append(cmd)
         return 0
 
-    results = [
-        ([], ["torch"]),
-        ([], []),
-    ]
+    results = [([], ["torch"]), ([], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
-    import types, sys
+    import types
+
     dummy_torch = types.SimpleNamespace()
     dummy_torch.backends = types.SimpleNamespace()
     dummy_torch.backends.mps = types.SimpleNamespace()
     dummy_torch.backends.mps.is_available = lambda: True
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
+    monkeypatch.setenv("TORCH_METAL_VERSION", "9.9.9")
+    monkeypatch.setenv("TORCHVISION_METAL_VERSION", "8.8.8")
 
     startup.ensure_deps()
 
@@ -139,8 +152,8 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
             "-m",
             "pip",
             "install",
-            "torch==2.1.0",
-            "torchvision==0.16.0",
+            "torch==9.9.9",
+            "torchvision==8.8.8",
             "--extra-index-url",
             "https://download.pytorch.org/whl/metal",
         ]
@@ -181,8 +194,8 @@ def test_ensure_deps_requires_mps(monkeypatch):
         "pip",
         "install",
         "--force-reinstall",
-        "torch==2.1.0",
-        "torchvision==0.16.0",
+        f"torch=={startup.DEFAULT_TORCH_METAL_VERSION}",
+        f"torchvision=={startup.DEFAULT_TORCHVISION_METAL_VERSION}",
         "--extra-index-url",
         "https://download.pytorch.org/whl/metal",
     ]

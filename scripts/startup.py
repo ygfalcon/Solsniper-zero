@@ -19,6 +19,9 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 
+DEFAULT_TORCH_METAL_VERSION = "2.1.0"
+DEFAULT_TORCHVISION_METAL_VERSION = "0.16.0"
+
 if platform.system() == "Darwin" and platform.machine() == "arm64":
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
@@ -94,9 +97,15 @@ def ensure_deps() -> None:
             print(f"Failed to install required dependencies: {exc}")
             raise SystemExit(exc.returncode)
 
+    torch_version = os.environ.get("TORCH_METAL_VERSION", DEFAULT_TORCH_METAL_VERSION)
+    torchvision_version = os.environ.get(
+        "TORCHVISION_METAL_VERSION", DEFAULT_TORCHVISION_METAL_VERSION
+    )
+
     if "torch" in opt and platform.system() == "Darwin" and platform.machine() == "arm64":
         print(
-            "Installing torch==2.1.0 and torchvision==0.16.0 for macOS arm64 with Metal support..."
+            f"Installing torch=={torch_version} and torchvision=={torchvision_version} "
+            "for macOS arm64 with Metal support..."
         )
         try:
             subprocess.check_call(
@@ -105,9 +114,8 @@ def ensure_deps() -> None:
                     "-m",
                     "pip",
                     "install",
-                    # Pinned versions: update together when upgrading Metal wheels.
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
+                    f"torch=={torch_version}",
+                    f"torchvision=={torchvision_version}",
                     "--extra-index-url",
                     "https://download.pytorch.org/whl/metal",
                 ]
@@ -133,8 +141,8 @@ def ensure_deps() -> None:
                         "pip",
                         "install",
                         "--force-reinstall",
-                        "torch==2.1.0",
-                        "torchvision==0.16.0",
+                        f"torch=={torch_version}",
+                        f"torchvision=={torchvision_version}",
                         "--extra-index-url",
                         "https://download.pytorch.org/whl/metal",
                     ]
@@ -145,7 +153,7 @@ def ensure_deps() -> None:
             if not torch.backends.mps.is_available():
                 raise SystemExit(
                     "MPS backend still not available. Please install the Metal wheel manually:\n"
-                    "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url "
+                    f"pip install torch=={torch_version} torchvision=={torchvision_version} --extra-index-url "
                     "https://download.pytorch.org/whl/metal"
                 )
 
@@ -476,7 +484,15 @@ def ensure_route_ffi() -> None:
 def main(argv: list[str] | None = None) -> int:
     ensure_venv(argv)
 
-    parser = argparse.ArgumentParser(description="Guided setup and launch")
+    parser = argparse.ArgumentParser(
+        description="Guided setup and launch",
+        epilog=(
+            "Environment variables:\n"
+            f"  TORCH_METAL_VERSION       Override torch Metal wheel version (default: {DEFAULT_TORCH_METAL_VERSION})\n"
+            f"  TORCHVISION_METAL_VERSION Override torchvision Metal wheel version (default: {DEFAULT_TORCHVISION_METAL_VERSION})"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
     parser.add_argument("--skip-setup", action="store_true", help="Skip config and wallet prompts")
     parser.add_argument(

@@ -187,6 +187,9 @@ forwards to `./run.sh --auto` for a fully automated start.
    pip install torch==2.1.0 torchvision==0.16.0 \
      --extra-index-url https://download.pytorch.org/whl/metal
    ```
+   The `scripts/startup.py` helper uses these versions by default. Set the
+   `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION` environment variables to
+   override the PyTorch and torchvision versions it installs.
 4. Enable CPU fallback for unsupported MPS operations:
    ```bash
    export PYTORCH_ENABLE_MPS_FALLBACK=1
@@ -906,6 +909,9 @@ Install the ARM64 wheels for PyTorch on Apple M1/M2 machines:
 pip install torch==2.1.0 torchvision==0.16.0 \
   --extra-index-url https://download.pytorch.org/whl/metal
 ```
+
+`scripts/startup.py` installs these versions by default. Override them by setting
+`TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION` before running the helper.
 
 Enable the Metal backend for GPU acceleration:
 
