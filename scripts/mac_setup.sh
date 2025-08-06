@@ -46,6 +46,10 @@ if ! grep -Fq 'HOMEBREW_PREFIX' "$PROFILE_FILE" 2>/dev/null; then
   brew shellenv >> "$PROFILE_FILE"
 fi
 
+# Refresh Homebrew environment for the current shell.
+# This is idempotent and safe even if Homebrew was already installed.
+eval "$(brew shellenv)"
+
 # Update Homebrew and install packages
 brew update
 brew install python@3.11 rustup-init pkg-config cmake protobuf
