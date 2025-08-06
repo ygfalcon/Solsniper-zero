@@ -294,7 +294,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-rpc-check", action="store_true", help="Skip Solana RPC availability check"
     )
+    parser.add_argument(
+        "--one-click",
+        action="store_true",
+        help="Enable fully automated non-interactive startup",
+    )
     args, rest = parser.parse_known_args(argv)
+
+    if args.one_click:
+        args.skip_rpc_check = True
+        rest = ["--non-interactive", *rest]
 
     if not args.skip_deps:
         ensure_deps()
