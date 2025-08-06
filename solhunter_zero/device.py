@@ -20,6 +20,7 @@ def detect_gpu() -> bool:
     """
 
     if torch is None:
+        logging.getLogger(__name__).warning("PyTorch is not installed; GPU unavailable")
         return False
     try:
         system = platform.system()
@@ -30,9 +31,33 @@ def detect_gpu() -> bool:
                     "Running under Rosetta (x86_64); GPU unavailable"
                 )
                 return False
-            return bool(torch.backends.mps.is_available())
-        return bool(torch.cuda.is_available())
+            if not getattr(torch.backends, "mps", None):
+                logging.getLogger(__name__).warning(
+                    "MPS backend not present; GPU unavailable"
+                )
+                return False
+            if not torch.backends.mps.is_built():
+                logging.getLogger(__name__).warning(
+                    "MPS backend not built; GPU unavailable"
+                )
+                return False
+            if os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") != "1":
+                logging.getLogger(__name__).warning(
+                    "PYTORCH_ENABLE_MPS_FALLBACK is not set to '1'; GPU unavailable"
+                )
+                return False
+            if not torch.backends.mps.is_available():
+                logging.getLogger(__name__).warning(
+                    "MPS backend not available"
+                )
+                return False
+            return True
+        if not torch.cuda.is_available():
+            logging.getLogger(__name__).warning("CUDA backend not available")
+            return False
+        return True
     except Exception:
+        logging.getLogger(__name__).exception("Exception during GPU detection")
         return False
 
 
