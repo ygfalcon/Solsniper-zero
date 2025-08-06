@@ -370,6 +370,12 @@ def ensure_cargo() -> None:
             )
             raise SystemExit(1)
         if platform.system() == "Darwin":
+            if shutil.which("brew") is None:
+                print(
+                    "Homebrew is required to install the Rust toolchain. "
+                    "Install it by running scripts/mac_setup.sh and re-run this script.",
+                )
+                raise SystemExit(1)
             try:
                 subprocess.check_call(
                     ["xcode-select", "-p"],
