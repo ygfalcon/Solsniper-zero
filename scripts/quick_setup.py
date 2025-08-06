@@ -6,14 +6,25 @@ import os
 import shutil
 from pathlib import Path
 import sys
+import subprocess
 import tomllib
 import argparse
 
 try:
     import tomli_w  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    print("The 'tomli-w' package is required. Install it with 'pip install tomli-w'.", file=sys.stderr)
-    sys.exit(1)
+except ImportError:  # pragma: no cover - optional dependency
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "tomli-w"])
+        import tomli_w  # type: ignore
+    except subprocess.CalledProcessError:
+        print("Failed to install 'tomli-w'. Please install it manually.", file=sys.stderr)
+        sys.exit(1)
+    except ImportError:
+        print(
+            "The 'tomli-w' package is required. Install it with 'pip install tomli-w'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 CONFIG_PATH = Path("config.toml")
 EXAMPLE_PATH = Path("config.example.toml")
