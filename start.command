@@ -12,7 +12,7 @@ else
 fi
 
 if [[ "$(uname)" == "Darwin" ]]; then
-  THREADS="$($PYTHON -m scripts.threading 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+  THREADS="$($PYTHON -m solhunter_zero.system cpu-count 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
   export RAYON_NUM_THREADS="$THREADS"
   exec arch -arm64 "$PYTHON" scripts/startup.py --one-click --full-deps "$@"
 else

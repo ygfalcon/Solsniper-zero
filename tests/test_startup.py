@@ -60,7 +60,7 @@ def test_start_command_sets_rayon_threads_on_darwin(tmp_path):
         "#!/bin/bash\n"
         "if [ \"$1\" = '-V' ]; then\n"
         "  echo 'Python 3.11.0'\n"
-        "elif [ \"$1\" = '-m' ] && [ \"$2\" = 'scripts.threading' ]; then\n"
+        "elif [ \"$1\" = '-m' ] && [ \"$2\" = 'solhunter_zero.system' ] && [ \"$3\" = 'cpu-count' ]; then\n"
         "  echo 6\n"
         "else\n"
         "  echo RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n"
