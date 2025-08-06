@@ -62,6 +62,30 @@ def check_dependencies() -> Check:
     return True, "All dependencies available"
 
 
+def check_homebrew() -> Check:
+    """Verify that the Homebrew package manager is installed."""
+    brew = shutil.which("brew")  # type: ignore[name-defined]
+    if not brew:
+        return False, "Homebrew not found"
+    try:
+        subprocess.run([brew, "--version"], check=True, capture_output=True)
+    except Exception:
+        return False, "brew failed to execute"
+    return True, "Homebrew available"
+
+
+def check_rustup() -> Check:
+    """Verify that rustup is installed."""
+    rustup = shutil.which("rustup")  # type: ignore[name-defined]
+    if not rustup:
+        return False, "rustup not found"
+    try:
+        subprocess.run([rustup, "--version"], check=True, capture_output=True)
+    except Exception:
+        return False, "rustup failed to execute"
+    return True, "rustup available"
+
+
 def check_rust_toolchain() -> Check:
     """Verify that the Rust toolchain is installed."""
     rustc = shutil.which("rustc")  # type: ignore[name-defined]
@@ -137,6 +161,8 @@ def check_gpu() -> Check:
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Python", check_python_version),
     ("Dependencies", check_dependencies),
+    ("Homebrew", check_homebrew),
+    ("Rustup", check_rustup),
     ("Rust", check_rust_toolchain),
     ("Xcode CLT", check_xcode_clt),
     ("Config", check_config_file),
