@@ -3,6 +3,11 @@
 
 set -euo pipefail
 
+if [ ! -f "config.toml" ]; then
+    cp config.example.toml config.toml
+    echo "Created default config.toml from config.example.toml"
+fi
+
 python - <<'PY'
 import sys
 if sys.version_info < (3, 11):
