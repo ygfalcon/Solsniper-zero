@@ -116,9 +116,13 @@ def _pip_install(*args: str, retries: int = 3) -> None:
 def ensure_deps(*, install_optional: bool = False) -> None:
     if platform.system() == "Darwin":
         from scripts import mac_setup
-
-        report = mac_setup.ensure_tools()
+        report = mac_setup.prepare_macos_env(non_interactive=True)
         if not report.get("success"):
+            for step, info in report.get("steps", {}).items():
+                if info.get("status") == "error":
+                    fix = mac_setup.MANUAL_FIXES.get(step)
+                    if fix:
+                        print(f"Manual fix for {step}: {fix}")
             print(
                 "macOS environment preparation failed. Please address the issues above and re-run.",
             )
