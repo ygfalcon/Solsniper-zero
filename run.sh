@@ -63,22 +63,26 @@ EOF
     fi
 fi
 
-if command -v cargo >/dev/null 2>&1; then
-    if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-        cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
-        cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null
-        if [ ! -f solhunter_zero/libroute_ffi.so ]; then
-            echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
-            exit 1
-        fi
-    fi
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "Installing Rust toolchain via rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "Error: 'cargo' is not installed." >&2
-    echo "Install Rust from https://www.rust-lang.org/tools/install" >&2
     exit 1
 fi
+
+if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+    cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel
+    cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ 2>/dev/null
+    if [ ! -f solhunter_zero/libroute_ffi.so ]; then
+        echo "Error: libroute_ffi.so was not copied to solhunter_zero." >&2
+        exit 1
+    fi
+fi
+
 cargo build --manifest-path depth_service/Cargo.toml --release
 
 python -m solhunter_zero.metrics_aggregator &
