@@ -75,9 +75,12 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     if keypair:
         args.extend(["--keypair", keypair])
 
+    socket_path = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
+    socket_path = Path(socket_path).resolve()
+    socket_path.parent.mkdir(parents=True, exist_ok=True)
+
     proc = subprocess.Popen(args)
 
-    socket_path = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
     timeout = float(os.getenv("DEPTH_START_TIMEOUT", "5") or 5)
 
     async def wait_for_socket() -> None:
