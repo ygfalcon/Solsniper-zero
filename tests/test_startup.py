@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -45,11 +46,9 @@ solana_keypair = "kp2"
 
 def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
+    monkeypatch.setenv("AUTO_SELECT_KEYPAIR", "1")
     import sys
     sys.modules.pop("solhunter_zero.wallet", None)
-
-    inputs = iter(["", ""])  # path prompt, mnemonic prompt
-    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     from scripts.startup import ensure_keypair
 
@@ -60,6 +59,7 @@ def test_ensure_keypair_generates_temp(tmp_path, monkeypatch):
     assert wallet.list_keypairs() == ["temp"]
     assert wallet.get_active_keypair_name() == "temp"
     assert (tmp_path / "temp.json").exists()
+    assert os.getenv("KEYPAIR_PATH") == str(tmp_path / "temp.json")
 
 
 def test_ensure_deps_installs_optional(monkeypatch):

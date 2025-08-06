@@ -222,7 +222,6 @@ def ensure_wallet_cli() -> None:
 
 def ensure_keypair() -> None:
     from solhunter_zero import wallet
-    from bip_utils import Bip39MnemonicGenerator
 
     def _wallet_cmd(*args: str) -> list[str]:
         if shutil.which("solhunter-wallet") is not None:
@@ -235,12 +234,29 @@ def ensure_keypair() -> None:
         if len(keypairs) == 1 and active is None:
             name = keypairs[0]
             wallet.select_keypair(name)
+            os.environ.setdefault(
+                "KEYPAIR_PATH", os.path.join(wallet.KEYPAIR_DIR, name + ".json")
+            )
             print(f"Automatically selected keypair '{name}'.")
+        elif active and not os.getenv("KEYPAIR_PATH"):
+            os.environ["KEYPAIR_PATH"] = os.path.join(
+                wallet.KEYPAIR_DIR, active + ".json"
+            )
+        return
+
+    if os.getenv("AUTO_SELECT_KEYPAIR") == "1":
+        kp = wallet.Keypair()
+        wallet.save_keypair("temp", list(kp.to_bytes()))
+        wallet.select_keypair("temp")
+        path = os.path.join(wallet.KEYPAIR_DIR, "temp.json")
+        os.environ["KEYPAIR_PATH"] = path
+        print("Generated temporary keypair 'temp' and selected it.")
         return
 
     mnemonic = os.environ.get("MNEMONIC")
     keypair_json = os.environ.get("KEYPAIR_JSON")
     if not mnemonic and not keypair_json:
+        from bip_utils import Bip39MnemonicGenerator  # lazy import
         mnemonic = str(Bip39MnemonicGenerator().FromWordsNumber(24))
         passphrase = os.environ.get("PASSPHRASE", "")
         subprocess.check_call(
@@ -248,6 +264,8 @@ def ensure_keypair() -> None:
         )
         subprocess.check_call(_wallet_cmd("select", "default"))
         os.environ.setdefault("MNEMONIC", mnemonic)
+        path = os.path.join(wallet.KEYPAIR_DIR, "default.json")
+        os.environ.setdefault("KEYPAIR_PATH", path)
         name = wallet.get_active_keypair_name() or "default"
         print(f"Generated mnemonic: {mnemonic}")
         print(f"Automatically generated keypair '{name}' and selected it.")
@@ -257,6 +275,7 @@ def ensure_keypair() -> None:
     if keypair_json:
         subprocess.check_call(_wallet_cmd("save", "default", keypair_json))
         subprocess.check_call(_wallet_cmd("select", "default"))
+        os.environ["KEYPAIR_PATH"] = os.path.join(wallet.KEYPAIR_DIR, "default.json")
         print("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         return
 
@@ -266,6 +285,7 @@ def ensure_keypair() -> None:
             _wallet_cmd("derive", "default", mnemonic, "--passphrase", passphrase)
         )
         subprocess.check_call(_wallet_cmd("select", "default"))
+        os.environ["KEYPAIR_PATH"] = os.path.join(wallet.KEYPAIR_DIR, "default.json")
         print("Keypair saved from MNEMONIC and selected as 'default'.")
         return
 
