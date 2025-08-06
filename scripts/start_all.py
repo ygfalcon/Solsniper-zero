@@ -38,6 +38,13 @@ ENV_VARS = [
 ]
 
 
+def validate_env() -> None:
+    for name in ENV_VARS:
+        if not os.getenv(name):
+            print(f"Required env var {name} is not set", file=sys.stderr)
+            sys.exit(1)
+
+
 def _stream_stderr(pipe: IO[bytes]) -> None:
     for line in iter(pipe.readline, b""):
         sys.stderr.buffer.write(line)
@@ -88,6 +95,8 @@ def stop_all(*_: object) -> None:
 
 signal.signal(signal.SIGINT, stop_all)
 signal.signal(signal.SIGTERM, stop_all)
+
+validate_env()
 
 # Launch depth service and RL daemon first
 cfg = get_config_file()
