@@ -5,6 +5,7 @@
 - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
 - Execute `./run.sh --auto` for a fully automated launch. It auto-selects the sole keypair and active config,
   verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
+- On macOS M1+ run `./run.sh --start-all` to install Metal support and launch all services together.
 - Set `AUTO_SELECT_KEYPAIR=1` to have the Web UI pick the single keypair automatically.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.

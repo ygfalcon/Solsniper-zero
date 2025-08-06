@@ -59,7 +59,8 @@ up automatically. Select this file from the UI or set
   `python -m solhunter_zero.main --auto` (or `./run.sh` on Unix) performs
   the same installation when dependencies are missing. On Apple
   Silicon machines the script also installs the Metal PyTorch wheel if
-  it isn't already present.
+  it isn't already present. On macOS M1+ run `./run.sh --start-all` to
+  install Metal support and launch all services in one step.
 
   The `uvloop` dependency is optional but recommended for reduced event
   loop latency on Unix-like systems. When installed it lowers asyncio
@@ -866,6 +867,9 @@ Install the ARM64 wheels for PyTorch on Apple M1/M2 machines:
 pip install torch==2.1.0 torchvision==0.16.0 \
   --extra-index-url https://download.pytorch.org/whl/metal
 ```
+
+On macOS M1+ run `./run.sh --start-all` to install these Metal wheels and
+launch all required services automatically.
 
 Enable the Metal backend for GPU acceleration:
 
