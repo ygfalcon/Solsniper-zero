@@ -19,4 +19,15 @@ if (( PY_MAJOR < 3 || (PY_MAJOR == 3 && PY_MINOR < 11) )); then
   exit 1
 fi
 
+if [ "$(uname -m)" != "arm64" ]; then
+  if command -v arch >/dev/null 2>&1; then
+    arch -arm64 "$PY" scripts/startup.py --one-click && exit 0
+    echo "Error: arm64 Python is required. Install the arm64 version of Python." >&2
+    exit 1
+  else
+    echo "Error: arm64 Python is required. Install the arm64 version of Python." >&2
+    exit 1
+  fi
+fi
+
 "$PY" scripts/startup.py --one-click
