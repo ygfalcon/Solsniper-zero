@@ -58,6 +58,7 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device
+from solhunter_zero.device import METAL_EXTRA_INDEX
 
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
@@ -227,10 +228,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             raise SystemExit(pip_check.returncode)
     extra_index: list[str] = []
     if platform.system() == "Darwin" and platform.machine() == "arm64":
-        extra_index = [
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/metal",
-        ]
+        extra_index = list(METAL_EXTRA_INDEX)
 
     if req:
         print("Installing required dependencies...")
