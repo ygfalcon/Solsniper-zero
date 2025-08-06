@@ -286,6 +286,37 @@ def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys):
     assert "pkg-config" in out and "cmake" in out
 
 
+def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch):
+    from scripts import startup
+
+    installed = {
+        "cargo": "/usr/bin/cargo",
+        "pkg-config": None,
+        "cmake": None,
+        "brew": "/usr/local/bin/brew",
+    }
+
+    def fake_which(cmd: str):
+        return installed.get(cmd, f"/usr/bin/{cmd}")
+
+    calls: list[list[str]] = []
+
+    def fake_check_call(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[:2] == ["brew", "install"]:
+            for tool in ("pkg-config", "cmake"):
+                installed[tool] = f"/usr/local/bin/{tool}"
+
+    monkeypatch.setattr(startup.shutil, "which", fake_which)
+    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
+
+    startup.ensure_cargo()
+
+    assert ["brew", "install", "pkg-config", "cmake"] in calls
+
+
 def test_main_calls_ensure_endpoints(monkeypatch):
     from scripts import startup
 
