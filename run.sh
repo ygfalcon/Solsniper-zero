@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
+# Requires Python 3.11 or higher.
+
 set -e
+
+python - <<'PY'
+import sys
+if sys.version_info < (3, 11):
+    print("Error: Python 3.11 or higher is required.", file=sys.stderr)
+    sys.exit(1)
+PY
 
 export DEPTH_SERVICE=${DEPTH_SERVICE:-true}
 
