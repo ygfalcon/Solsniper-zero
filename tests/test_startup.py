@@ -404,7 +404,6 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
@@ -434,7 +433,6 @@ def test_main_skips_endpoint_check(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
@@ -474,7 +472,6 @@ def test_main_preflight_success(monkeypatch):
     import types as _types, sys
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
@@ -498,7 +495,6 @@ def test_main_preflight_failure(monkeypatch, capsys):
     import types
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
@@ -578,7 +574,6 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
