@@ -6,7 +6,7 @@ import os
 import torch
 
 
-def get_default_device() -> str | None:
+def get_default_backend() -> str | None:
     """Return the default GPU backend if available.
 
     This checks for a usable CUDA or MPS device via PyTorch first and then

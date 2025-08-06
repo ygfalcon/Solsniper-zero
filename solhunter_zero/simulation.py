@@ -29,11 +29,11 @@ import numpy as np
 from . import onchain_metrics, models
 from .http import get_session
 from solhunter_zero.lru import TTLCache
-from .device import get_default_device
+from .device import get_default_backend
 
 # Optional GPU acceleration for simulations
 _use_gpu_env = os.getenv("USE_GPU_SIM")
-_GPU_BACKEND = get_default_device()
+_GPU_BACKEND = get_default_backend()
 if _use_gpu_env is not None:
     USE_GPU_SIM = str(_use_gpu_env).lower() in {"1", "true", "yes"}
     if not USE_GPU_SIM:
