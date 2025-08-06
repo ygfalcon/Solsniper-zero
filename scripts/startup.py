@@ -412,8 +412,16 @@ def ensure_default_keypair() -> None:
         print("Please store this mnemonic securely; it will not be shown again.")
 
 
-def ensure_keypair() -> None:
-    """Ensure a usable keypair exists and is selected."""
+def ensure_keypair() -> tuple[str, Path, Path | None]:
+    """Ensure a usable keypair exists and is selected.
+
+    Returns
+    -------
+    tuple[str, Path, Path | None]
+        The active keypair name, the path to the keypair file and, when a new
+        keypair is generated, the path to the mnemonic file.  ``mnemonic_path``
+        is ``None`` when an existing keypair is used.
+    """
 
     import logging
     from pathlib import Path
@@ -453,7 +461,7 @@ def ensure_keypair() -> None:
     else:
         _msg(f"Using keypair '{name}'.")
 
-    return
+    return name, keypair_path, mnemonic_path
 
 
 def ensure_endpoints(cfg: dict) -> None:
@@ -818,7 +826,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from solhunter_zero.bootstrap import bootstrap
 
-    bootstrap(one_click=args.one_click)
+    keypair_name, keypair_path, mnemonic_path = bootstrap(one_click=args.one_click)
 
     from solhunter_zero import device
 
@@ -831,7 +839,7 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
     os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
     config_path: str | None = None
-    active_keypair: str | None = None
+    active_keypair: str | None = keypair_name
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
@@ -894,6 +902,10 @@ def main(argv: list[str] | None = None) -> int:
     print("Startup summary:")
     print(f"  Config file: {config_path or 'none'}")
     print(f"  Active keypair: {active_keypair or 'none'}")
+    if keypair_path:
+        print(f"  Keypair path: {keypair_path}")
+    if mnemonic_path:
+        print(f"  Mnemonic path: {mnemonic_path}")
     print(f"  GPU device: {gpu_device}")
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
 

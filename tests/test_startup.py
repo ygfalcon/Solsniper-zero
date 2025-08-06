@@ -156,13 +156,17 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wallet, "generate_default_keypair", wrapped)
 
-    ensure_keypair()
+    name, keypair_path, mnemonic_path = ensure_keypair()
 
+    assert name == "default"
+    assert keypair_path == tmp_path / "default.json"
+    assert mnemonic_path is not None
     assert calls["count"] == 1
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"
     assert (tmp_path / "default.json").exists()
     mn = tmp_path / "default.mnemonic"
+    assert mn == mnemonic_path
     assert mn.exists()
     assert mn.read_text().strip()
     assert (mn.stat().st_mode & 0o777) == 0o600
@@ -190,8 +194,11 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wallet, "generate_default_keypair", boom)
 
-    ensure_keypair()
+    name, keypair_path, mnemonic_path = ensure_keypair()
 
+    assert name == "default"
+    assert keypair_path == Path(wallet.KEYPAIR_DIR) / "default.json"
+    assert mnemonic_path is None
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"
     assert (Path(wallet.KEYPAIR_DIR) / "default.json").exists()
@@ -478,7 +485,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: (None, None, None))
     monkeypatch.setattr(startup, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
@@ -513,7 +520,7 @@ def test_main_skips_endpoint_check(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: (None, None, None))
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
@@ -554,7 +561,7 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: (None, None, None))
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     import types as _types, sys
@@ -652,7 +659,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(startup, "ensure_keypair", lambda: (None, None, None))
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
