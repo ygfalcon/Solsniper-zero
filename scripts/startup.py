@@ -754,10 +754,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
-        if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
-            return 1
+        if args.allow_rosetta:
+            print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        else:
+            os.execvp(
+                "arch",
+                ["arch", "-arm64", sys.executable, *sys.argv],
+            )
 
     from solhunter_zero.bootstrap import bootstrap
 
