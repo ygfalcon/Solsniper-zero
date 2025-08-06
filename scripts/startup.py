@@ -165,6 +165,32 @@ def ensure_deps() -> None:
                     "https://download.pytorch.org/whl/metal"
                 )
 
+        version = torch.__version__
+        print(f"Detected torch version {version}")
+        if version < "2.1.0" or not torch.backends.mps.is_built():
+            print(
+                "Torch version < 2.1.0 or MPS backend not built; attempting to reinstall Metal wheel..."
+            )
+            try:
+                _pip_install(
+                    "--force-reinstall",
+                    "torch==2.1.0",
+                    "torchvision==0.16.0",
+                    "--extra-index-url",
+                    "https://download.pytorch.org/whl/metal",
+                )
+            except SystemExit:
+                print("Failed to reinstall torch with Metal wheels.")
+            importlib.reload(torch)
+            version = torch.__version__
+            print(f"Detected torch version {version}")
+            if version < "2.1.0" or not torch.backends.mps.is_built():
+                raise SystemExit(
+                    "Torch does not meet requirements. Please install the Metal wheel manually:\n"
+                    "pip install torch==2.1.0 torchvision==0.16.0 --extra-index-url "
+                    "https://download.pytorch.org/whl/metal"
+                )
+
     if opt:
         print("Installing optional dependencies...")
         mapping = {
