@@ -2,6 +2,7 @@
 # Requires Python 3.11 or higher.
 
 set -euo pipefail
+exec > >(tee -a startup.log) 2>&1
 
 PY=$(command -v python3 || command -v python)
 
