@@ -12,7 +12,12 @@ import socket
 import threading
 from pathlib import Path
 from typing import IO
-from solhunter_zero.config import load_config, apply_env_overrides, set_env_from_config
+from solhunter_zero.config import (
+    load_config,
+    apply_env_overrides,
+    set_env_from_config,
+    ENV_VARS as CONFIG_ENV_VARS,
+)
 from solhunter_zero import data_sync
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,10 +44,28 @@ ENV_VARS = [
 
 
 def validate_env() -> None:
+    cfg_data = {}
+    cfg = get_config_file()
+    if cfg:
+        cfg_data = apply_env_overrides(load_config(cfg))
+    env_to_key = {v: k for k, v in CONFIG_ENV_VARS.items()}
+    missing: list[str] = []
     for name in ENV_VARS:
         if not os.getenv(name):
+            val = None
+            key = env_to_key.get(name)
+            if key:
+                val = cfg_data.get(key)
+            if val is None:
+                val = cfg_data.get(name)
+            if val is not None:
+                os.environ[name] = str(val)
+            if not os.getenv(name):
+                missing.append(name)
+    if missing:
+        for name in missing:
             print(f"Required env var {name} is not set", file=sys.stderr)
-            sys.exit(1)
+        sys.exit(1)
 
 
 def _stream_stderr(pipe: IO[bytes]) -> None:
