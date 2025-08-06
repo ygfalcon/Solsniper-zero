@@ -157,6 +157,7 @@ def ensure_venv(argv: list[str] | None) -> None:
 def _pip_install(*args: str, retries: int = 3) -> None:
     """Run ``pip install`` with retries and exponential backoff."""
     errors: list[str] = []
+    result: subprocess.CompletedProcess[str] | None = None
     for attempt in range(1, retries + 1):
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", *args],
@@ -172,10 +173,19 @@ def _pip_install(*args: str, retries: int = 3) -> None:
                 f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
             )
             time.sleep(wait)
-    print(f"Failed to install {' '.join(args)} after {retries} attempts:")
+    assert result is not None
+    print(
+        f"Failed to install {' '.join(args)} after {retries} attempts:",
+        file=sys.stderr,
+    )
     for err in errors:
         if err:
-            print(err)
+            print(err, file=sys.stderr)
+    print(
+        "You can retry manually with:"
+        f" {sys.executable} -m pip install {' '.join(args)}",
+        file=sys.stderr,
+    )
     raise SystemExit(result.returncode)
 
 
@@ -263,14 +273,17 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 
     if req:
         print("Installing required dependencies...")
-        _pip_install(".[uvloop]", *extra_index)
+        spec = ".[uvloop]"
+        print(f"Installing {spec}...")
+        _pip_install(spec, *extra_index)
 
     if install_optional and extra_index:
         try:
             device.ensure_torch_with_metal()
         except Exception as exc:
-            print(str(exc))
-            raise SystemExit(1)
+            msg = str(exc)
+            print(msg)
+            raise SystemExit(msg)
         if "torch" in opt:
             opt.remove("torch")
 
@@ -294,10 +307,13 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         if "msgpack" in mods:
             extras.append("msgpack")
         if extras:
-            _pip_install(f".[{','.join(extras)}]", *extra_index)
+            spec = f".[{','.join(extras)}]"
+            print(f"Installing {spec}...")
+            _pip_install(spec, *extra_index)
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
+            print(f"Installing {pkg}...")
             _pip_install(pkg, *extra_index)
 
     req_after, opt_after = deps.check_deps()

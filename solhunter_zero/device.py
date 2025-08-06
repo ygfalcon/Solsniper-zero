@@ -31,25 +31,23 @@ def ensure_torch_with_metal() -> None:
 
     global torch
     try:
-        if torch is not None and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        if (
+            torch is not None
+            and sys.modules.get("torch") is torch
+            and getattr(torch.backends, "mps", None)
+            and torch.backends.mps.is_available()
+        ):
             return
     except Exception:
         pass
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "torch==2.1.0",
-        "torchvision==0.16.0",
-        *extra_index,
-    ]
+    from scripts.startup import _pip_install
+
     try:
-        subprocess.check_call(cmd)
-    except Exception:  # pragma: no cover - installation failure
+        _pip_install("torch==2.1.0", "torchvision==0.16.0", *extra_index)
+    except SystemExit as exc:  # pragma: no cover - installation failure
         logger.exception("PyTorch installation failed")
-        raise RuntimeError("Failed to install MPS-enabled PyTorch")
+        raise RuntimeError("Failed to install MPS-enabled PyTorch") from exc
 
     importlib.invalidate_caches()
     torch = importlib.import_module("torch")
@@ -57,26 +55,20 @@ def ensure_torch_with_metal() -> None:
     if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
         logger.warning("MPS backend not available; attempting to reinstall Metal wheel")
         try:
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--force-reinstall",
-                    "torch==2.1.0",
-                    "torchvision==0.16.0",
-                    *extra_index,
-                ]
+            _pip_install(
+                "--force-reinstall",
+                "torch==2.1.0",
+                "torchvision==0.16.0",
+                *extra_index,
             )
-        except Exception:  # pragma: no cover - installation failure
+        except SystemExit as exc:  # pragma: no cover - installation failure
             logger.exception("PyTorch reinstallation failed")
-            raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
+            raise RuntimeError("Failed to reinstall MPS-enabled PyTorch") from exc
         importlib.invalidate_caches()
         torch = importlib.reload(torch)
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
             raise RuntimeError(
-                "MPS backend still not available. Install manually with: pip install "
+                "MPS backend still not available. install the Metal wheel manually with: pip install "
                 "torch==2.1.0 torchvision==0.16.0 --extra-index-url "
                 "https://download.pytorch.org/whl/metal",
             )
