@@ -166,6 +166,39 @@ Key discovery options:
    several built‑in **agents** that replace the previous static strategy
    modules.
 
+## macOS Setup
+
+macOS users can launch the bot using the bundled `start.command` script.
+Double‑clicking it opens a terminal, installs any missing dependencies and
+forwards to `./run.sh --auto` for a fully automated start.
+
+### Required dependencies
+
+1. Install the Xcode command line tools:
+   ```bash
+   xcode-select --install
+   ```
+2. Install Homebrew packages:
+   ```bash
+   brew install python@3.11 pkg-config cmake rust protobuf
+   ```
+3. Install the Metal-enabled PyTorch build (for Apple Silicon):
+   ```bash
+   pip install torch==2.1.0 torchvision==0.16.0 \
+     --extra-index-url https://download.pytorch.org/whl/metal
+   ```
+
+### Troubleshooting
+
+- **`start.command` cannot be opened** – run `chmod +x start.command` or
+  right-click and choose *Open*.
+- **`python` not found** – ensure Python 3.11 is installed and on your
+  `PATH`.
+- **Torch missing MPS backend** – confirm the Metal wheel installed and that
+  macOS 13+ is in use. Validate with `python -c "import torch; print(torch.backends.mps.is_available())"`.
+- **Permission denied** – Gatekeeper may block the script; allow it via
+  System Preferences or run from Terminal.
+
 ## Docker Compose
 
 Build and run inside containers without installing Python or Rust locally. The
