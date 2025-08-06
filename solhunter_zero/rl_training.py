@@ -20,7 +20,7 @@ except Exception:  # pragma: no cover - psutil optional
     )
 from .multi_rl import PopulationRL
 from .advanced_memory import AdvancedMemory
-from .device import get_default_device
+from solhunter_zero.device import get_default_device
 
 try:
     from numba import njit  # type: ignore
@@ -1037,15 +1037,12 @@ class RLTraining:
             except Exception:  # pragma: no cover - corrupt file
                 pass
         if device is None:
-            if torch.backends.mps.is_available():
-                device = "mps"
-            else:
-                device = get_default_device().type
+            device = get_default_device()
         self.device = device
         from .models import load_compiled_model
 
         self.jit_model = load_compiled_model(str(self.model_path), device)
-        acc = "gpu" if device == "cuda" else device
+        acc = "gpu" if device.type == "cuda" else device.type
         kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
         if acc != "cpu":
             kwargs["devices"] = 1
@@ -1196,12 +1193,9 @@ def _train_model(
             pass
 
     if device is None:
-        if torch.backends.mps.is_available():
-            device = "mps"
-        else:
-            device = get_default_device().type
+        device = get_default_device()
 
-    acc = "gpu" if device == "cuda" else device
+    acc = "gpu" if device.type == "cuda" else device.type
     kwargs = dict(max_epochs=3, accelerator=acc, enable_progress_bar=False)
     if acc != "cpu":
         kwargs["devices"] = 1
