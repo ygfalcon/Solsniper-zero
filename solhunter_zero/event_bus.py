@@ -1126,6 +1126,76 @@ async def disconnect_broker() -> None:
                 pass
 
 
+async def verify_broker_connection(
+    urls: Sequence[str] | str | None = None, *, timeout: float = 1.0
+) -> bool:
+    """Return ``True`` if a publish/subscribe round-trip succeeds.
+
+    When ``urls`` is ``None`` the configured broker URLs are used. Any
+    failures are logged and ``False`` is returned. This function performs a
+    lightweight ping by publishing a message to a temporary channel and
+    awaiting its delivery.
+    """
+
+    if urls is None:
+        try:
+            urls = _get_broker_urls()
+        except Exception:
+            urls = []
+    if isinstance(urls, str):
+        urls = [urls]
+    if not urls:
+        return True
+
+    ok = True
+    for url in urls:
+        try:
+            if url.startswith("redis://") or url.startswith("rediss://"):
+                if aioredis is None:
+                    raise RuntimeError(
+                        "redis package required for redis broker"
+                    )
+                conn = aioredis.from_url(url)
+                pubsub = conn.pubsub()
+                ch = f"_verify_{os.urandom(4).hex()}"
+                await pubsub.subscribe(ch)
+                await conn.publish(ch, b"ping")
+                msg = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=timeout
+                )
+                await pubsub.unsubscribe(ch)
+                await conn.close()
+                if not msg:
+                    raise RuntimeError("no message received")
+            elif url.startswith("nats://"):
+                if nats is None:
+                    raise RuntimeError(
+                        "nats-py package required for nats broker"
+                    )
+                nc = nats.NATS()
+                await nc.connect(servers=[url])
+                subj = f"_verify_{os.urandom(4).hex()}"
+                fut = asyncio.get_event_loop().create_future()
+
+                async def _cb(msg):
+                    if not fut.done():
+                        fut.set_result(msg.data)
+
+                await nc.subscribe(subj, cb=_cb)
+                await nc.publish(subj, b"ping")
+                await asyncio.wait_for(fut, timeout)
+                await nc.drain()
+                await nc.close()
+            else:
+                raise ValueError(f"unsupported broker url: {url}")
+        except Exception as exc:  # pragma: no cover - network issues
+            logging.getLogger(__name__).error(
+                "broker verification failed for %s: %s", url, exc
+            )
+            ok = False
+    return ok
+
+
 async def start_ws_server(host: str = "localhost", port: int = 8765):
     """Start websocket server broadcasting published events."""
     if not websockets:
