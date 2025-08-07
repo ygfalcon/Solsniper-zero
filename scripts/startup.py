@@ -391,7 +391,7 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.full_deps:
         os.environ["SOLHUNTER_INSTALL_OPTIONAL"] = "1"
-    if args.skip_setup or args.one_click:
+    if args.skip_setup:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
@@ -441,38 +441,21 @@ def main(argv: list[str] | None = None) -> int:
     check_disk_space(1 << 30)
     from solhunter_zero.bootstrap import bootstrap
 
-    # ``bootstrap`` performs its own config and keypair setup.  These steps have
-    # already been handled above, so instruct it to skip them to avoid duplicate
-    # work and simplify testing.
-    os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
-    if args.skip_deps:
-        os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
-    try:
-        bootstrap(one_click=args.one_click)
-    finally:
-        os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
-        if args.skip_deps:
-            os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
-
     config_path: Path | None = None
     keypair_path: Path | None = None
     mnemonic_path: Path | None = None
     active_keypair: str | None = None
 
-    if args.one_click and not args.skip_setup:
-        bootstrap(one_click=True)
-        from solhunter_zero import wallet
-        from solhunter_zero.config import find_config_file
-
-        cfg_path = find_config_file()
-        if cfg_path is not None:
-            config_path = Path(cfg_path)
-        active_keypair = wallet.get_active_keypair_name()
-        if active_keypair:
-            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
-            mn = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.mnemonic"
-            if mn.exists():
-                mnemonic_path = mn
+    result = None
+    try:
+        result = bootstrap(one_click=args.one_click)
+    finally:
+        if args.skip_setup:
+            os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
+        if args.skip_deps:
+            os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
+    if result:
+        config_path, keypair_path, mnemonic_path, active_keypair = result
 
     gpu_env = device.initialize_gpu()
     gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
@@ -505,6 +488,10 @@ def main(argv: list[str] | None = None) -> int:
             active_keypair = wallet.get_active_keypair_name()
         if keypair_path is None and active_keypair:
             keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
+        if mnemonic_path is None and active_keypair:
+            mn = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.mnemonic"
+            if mn.exists():
+                mnemonic_path = mn
 
     ensure_cargo()
     log_startup_info(
