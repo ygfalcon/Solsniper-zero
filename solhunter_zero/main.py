@@ -160,7 +160,7 @@ from . import order_book_ws
 
 from .memory import Memory
 from .portfolio import Portfolio
-from .exchange import place_order_async
+from .exchange import place_order_async, ensure_wallet_funds
 from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
 from .agents.discovery import DiscoveryAgent
@@ -208,6 +208,12 @@ async def _run_iteration(
         arbitrage_threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
     if arbitrage_amount is None:
         arbitrage_amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
+
+    if keypair and not dry_run and not offline:
+        has_funds = await ensure_wallet_funds(keypair, testnet=testnet)
+        if not has_funds:
+            logging.error("Insufficient wallet funds; aborting iteration")
+            return
 
     scan_kwargs = {
         "offline": offline,

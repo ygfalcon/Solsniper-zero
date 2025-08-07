@@ -18,7 +18,7 @@ from solders.transaction import VersionedTransaction
 from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
 
-from .gas import get_current_fee_async
+from .gas import get_current_fee_async, LAMPORTS_PER_SOL
 from .config import load_dex_config
 
 
@@ -89,6 +89,32 @@ VENUE_URLS = {
     "phoenix": PHOENIX_DEX_URL,
     "meteora": METEORA_DEX_URL,
 }
+
+
+async def ensure_wallet_funds(
+    keypair: Keypair, *, testnet: bool = False
+) -> bool:
+    """Return ``True`` if ``keypair`` has enough SOL to cover fees.
+
+    This checks the account balance via ``AsyncClient`` and compares it
+    against the current network fee.  A ``False`` result indicates the
+    caller should abort any transaction.
+    """
+
+    try:
+        async with AsyncClient(RPC_TESTNET_URL if testnet else RPC_URL) as client:
+            resp = await client.get_balance(keypair.pubkey())
+        balance = getattr(resp, "value", 0) / LAMPORTS_PER_SOL
+        fee = await get_current_fee_async(testnet=testnet)
+        if balance < fee:
+            logger.error(
+                "Wallet balance %.6f SOL below required %.6f SOL", balance, fee
+            )
+            return False
+        return True
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error("Failed to check wallet balance: %s", exc)
+        return False
 
 
 def _sign_transaction(tx_b64: str, keypair: Keypair) -> VersionedTransaction:
