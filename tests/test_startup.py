@@ -52,8 +52,13 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     def fake_gpu_env():
         os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"
-        os.environ["SOLHUNTER_GPU_DEVICE"] = "none"
-        return {"SOLHUNTER_GPU_AVAILABLE": "0", "SOLHUNTER_GPU_DEVICE": "none"}
+        os.environ["SOLHUNTER_GPU_DEVICE"] = "cpu"
+        os.environ["TORCH_DEVICE"] = "cpu"
+        return {
+            "SOLHUNTER_GPU_AVAILABLE": "0",
+            "SOLHUNTER_GPU_DEVICE": "cpu",
+            "TORCH_DEVICE": "cpu",
+        }
 
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
