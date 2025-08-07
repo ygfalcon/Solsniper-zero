@@ -259,6 +259,11 @@ you to override them when invoking commands or in container settings.
 An [`.env.example`](.env.example) file documents common variables and provides
 sample values to copy or adapt.
 
+When `config.toml` defines a value that is missing from the environment,
+`configure_environment` now appends the corresponding `KEY=value` pair to
+`.env`. The file is created automatically if needed and existing content is
+preserved.
+
 ## Paper Trading
 
 Before committing real SOL, you can evaluate strategies using the paper
