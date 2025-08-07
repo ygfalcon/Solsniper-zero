@@ -136,6 +136,11 @@ def main(argv: list[str] | None = None) -> NoReturn:
         idx = 1 if argv and argv[0] == "--one-click" else 0
         argv.insert(idx, "--full-deps")
 
+    one_click = "--one-click" in argv
+    if one_click:
+        os.environ.setdefault("SOLHUNTER_ONE_CLICK", "1")
+        os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
+
     python_exe = sys.executable
     startup = ROOT / "scripts" / "startup.py"
     cmd = [python_exe, str(startup), *argv]

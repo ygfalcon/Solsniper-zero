@@ -304,6 +304,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args, rest = parser.parse_known_args(argv)
 
+    if args.one_click:
+        os.environ["SOLHUNTER_ONE_CLICK"] = "1"
+    one_click = os.getenv("SOLHUNTER_ONE_CLICK") == "1"
+    if one_click:
+        os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
+
     # Run early environment checks before any heavy work
     print("Checking disk space...")
     try:
@@ -365,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
             ensure_wallet_cli()
         except SystemExit as exc:
             return exc.code if isinstance(exc.code, int) else 1
-        info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
+        info = select_active_keypair(auto=True if ran_quick_setup else one_click)
         active_keypair = info.name
         keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
         mnemonic_path = info.mnemonic_path
@@ -402,12 +408,19 @@ def main(argv: list[str] | None = None) -> int:
 
         check_disk_space(1 << 30)
         b_code = 0
+        prev_one_click = os.environ.get("SOLHUNTER_ONE_CLICK")
+        os.environ["SOLHUNTER_ONE_CLICK"] = "1"
         try:
-            bootstrap(one_click=True)
+            bootstrap()
         except SystemExit as exc:
             b_code = exc.code if isinstance(exc.code, int) else 1
         except Exception:
             b_code = 1
+        finally:
+            if prev_one_click is None:
+                os.environ.pop("SOLHUNTER_ONE_CLICK", None)
+            else:
+                os.environ["SOLHUNTER_ONE_CLICK"] = prev_one_click
 
         stdout_buf = io.StringIO()
         with contextlib.redirect_stdout(stdout_buf):
@@ -432,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
 
         diagnostics.main()
         return 0
-    if args.one_click:
+    if one_click:
         rest = ["--non-interactive", *rest]
 
     if not args.skip_deps:
@@ -440,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_route_ffi()
         ensure_depth_service()
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
-    if args.skip_setup or args.one_click:
+    if args.skip_setup or one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
@@ -473,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.skip_rpc_check:
         rpc_status = "skipped"
     else:
-        ensure_rpc(warn_only=args.one_click)
+        ensure_rpc(warn_only=one_click)
         rpc_status = "reachable"
     from solhunter_zero.bootstrap import bootstrap
 
@@ -482,7 +495,7 @@ def main(argv: list[str] | None = None) -> int:
     # work and simplify testing.
     os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
     try:
-        bootstrap(one_click=args.one_click)
+        bootstrap()
     finally:
         os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
 
@@ -579,6 +592,9 @@ def run(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
     if "--one-click" not in args_list:
         args_list.insert(0, "--one-click")
+    if "--one-click" in args_list:
+        os.environ.setdefault("SOLHUNTER_ONE_CLICK", "1")
+        os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
     try:
         code = main(args_list)
     except SystemExit as exc:

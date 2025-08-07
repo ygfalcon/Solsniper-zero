@@ -11,10 +11,11 @@ Both helpers are thin wrappers around existing functionality in the
 codebase but provide a consistent entry point for scripts.
 
 ``select_active_keypair`` respects the ``AUTO_SELECT_KEYPAIR`` environment
-variable.  When the variable is set to ``"1"`` or when ``auto=True`` is
-passed the sole keypair is chosen without prompting.  The command line
-interfaces expose flags such as ``--auto`` or ``--one-click`` to set this
-variable implicitly.
+variable and the higher level ``SOLHUNTER_ONE_CLICK`` flag.  When either
+variable is set to ``"1"`` or when ``auto=True`` is passed the sole keypair
+is chosen without prompting.  Command line interfaces may set
+``SOLHUNTER_ONE_CLICK`` or the legacy ``AUTO_SELECT_KEYPAIR`` to enable this
+behaviour implicitly.
 """
 
 from __future__ import annotations
@@ -47,6 +48,8 @@ def select_active_keypair(auto: bool = True) -> wallet.KeypairInfo:
         keypairs exist.
     """
 
-    if auto and os.getenv("AUTO_SELECT_KEYPAIR") is None:
+    if os.getenv("SOLHUNTER_ONE_CLICK") == "1":
+        os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
+    elif auto and os.getenv("AUTO_SELECT_KEYPAIR") is None:
         os.environ["AUTO_SELECT_KEYPAIR"] = "1"
     return wallet.setup_default_keypair()

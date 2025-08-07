@@ -80,8 +80,20 @@ def test_one_click_launch(monkeypatch, capsys):
 
     monkeypatch.setattr(os, "execvp", fake_execvp)
 
+    prev_one_click = os.environ.get("SOLHUNTER_ONE_CLICK")
+    prev_auto = os.environ.get("AUTO_SELECT_KEYPAIR")
     with pytest.raises(SystemExit) as exc:
         launcher.main(["--one-click", "--skip-deps", "--skip-preflight"])
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "SolHunter Zero launch complete – system ready." in out
+    assert os.environ.get("SOLHUNTER_ONE_CLICK") == "1"
+    assert os.environ.get("AUTO_SELECT_KEYPAIR") == "1"
+    if prev_one_click is None:
+        os.environ.pop("SOLHUNTER_ONE_CLICK", None)
+    else:
+        os.environ["SOLHUNTER_ONE_CLICK"] = prev_one_click
+    if prev_auto is None:
+        os.environ.pop("AUTO_SELECT_KEYPAIR", None)
+    else:
+        os.environ["AUTO_SELECT_KEYPAIR"] = prev_auto

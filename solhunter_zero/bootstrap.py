@@ -42,7 +42,7 @@ def ensure_keypair() -> tuple["wallet.KeypairInfo", Path]:
     """
 
     log = logging.getLogger(__name__)
-    one_click = os.getenv("AUTO_SELECT_KEYPAIR") == "1"
+    one_click = os.getenv("SOLHUNTER_ONE_CLICK") == "1"
 
     def _msg(msg: str) -> None:
         if one_click:
@@ -94,6 +94,8 @@ def bootstrap(one_click: bool = False) -> None:
     device.initialize_gpu()
 
     if one_click:
+        os.environ["SOLHUNTER_ONE_CLICK"] = "1"
+    if os.getenv("SOLHUNTER_ONE_CLICK") == "1":
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
 
     if os.getenv("SOLHUNTER_SKIP_VENV") != "1":
