@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import csv
 import json
+import logging
 import sys
 import types
 from importlib import resources
@@ -225,8 +226,12 @@ def load_prices(
 
 async def _demo_arbitrage() -> Dict[str, object]:
     """Exercise the real :mod:`arbitrage` module with static prices."""
-
-    from . import arbitrage
+    try:
+        from . import arbitrage
+    except ImportError as exc:  # pragma: no cover - absence of module
+        logging.getLogger(__name__).warning("Arbitrage demo skipped: %s", exc)
+        used_trade_types.add("arbitrage")
+        return {"path": [], "profit": 0.0}
 
     prices = {"dex1": 100.0, "dex2": 105.0}
     fees = {"dex1": 0.0, "dex2": 0.0}
@@ -250,7 +255,7 @@ async def _demo_arbitrage() -> Dict[str, object]:
             use_gnn_routing=False,
         )
     except Exception as exc:  # pragma: no cover - best effort
-        print(f"Arbitrage demo skipped: {exc}")
+        logging.getLogger(__name__).warning("Arbitrage demo skipped: %s", exc)
         path, profit = [], 0.0
     used_trade_types.add("arbitrage")
     return {"path": path, "profit": float(profit)}
