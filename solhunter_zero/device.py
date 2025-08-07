@@ -17,29 +17,34 @@ METAL_EXTRA_INDEX = [
     "https://download.pytorch.org/whl/metal",
 ]
 
-DEFAULT_TORCH_METAL_VERSION = "2.1.0"
-DEFAULT_TORCHVISION_METAL_VERSION = "0.16.0"
 INSTALL_TIMEOUT = 600
 
-def _load_torch_versions() -> tuple[str, str]:
+
+def load_torch_metal_versions() -> tuple[str, str]:
+    """Return ``torch`` and ``torchvision`` versions for Metal wheels.
+
+    The versions are loaded from the ``TORCH_METAL_VERSION`` and
+    ``TORCHVISION_METAL_VERSION`` environment variables or the ``[torch]``
+    section of ``config.toml``.  A :class:`RuntimeError` is raised when neither
+    source provides the required values.
+    """
+
     torch_ver = os.getenv("TORCH_METAL_VERSION")
     vision_ver = os.getenv("TORCHVISION_METAL_VERSION")
-    if torch_ver and vision_ver:
-        return torch_ver, vision_ver
-    try:
-        from .config import load_config
-        cfg = load_config()
-        torch_cfg = cfg.get("torch", {})
-        torch_ver = torch_ver or torch_cfg.get("torch_metal_version")
-        vision_ver = vision_ver or torch_cfg.get("torchvision_metal_version")
-    except Exception:
-        pass
-    return (
-        torch_ver or DEFAULT_TORCH_METAL_VERSION,
-        vision_ver or DEFAULT_TORCHVISION_METAL_VERSION,
-    )
+    if not (torch_ver and vision_ver):
+        try:
+            from .config import load_config
 
-TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = _load_torch_versions()
+            cfg = load_config()
+            torch_cfg = cfg.get("torch", {})
+            torch_ver = torch_ver or torch_cfg.get("torch_metal_version")
+            vision_ver = vision_ver or torch_cfg.get("torchvision_metal_version")
+        except Exception:
+            pass
+    return torch_ver or "", vision_ver or ""
+
+
+TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
 
 def _read_sentinel_versions() -> tuple[str, str] | None:

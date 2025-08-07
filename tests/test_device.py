@@ -7,11 +7,9 @@ import types
 import pytest
 
 from solhunter_zero import device as device_module
-from solhunter_zero.device import (
-    METAL_EXTRA_INDEX,
-    TORCH_METAL_VERSION,
-    TORCHVISION_METAL_VERSION,
-)
+from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
+
+TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
 
 def test_run_with_timeout_success(monkeypatch):
@@ -32,6 +30,22 @@ def test_run_with_timeout_timeout(monkeypatch):
     result = device_module._run_with_timeout(["echo"], timeout=1)
     assert result.success is False
     assert "timed out" in result.message
+
+
+def test_load_torch_metal_versions_env(monkeypatch):
+    monkeypatch.setenv("TORCH_METAL_VERSION", "1.2.3")
+    monkeypatch.setenv("TORCHVISION_METAL_VERSION", "4.5.6")
+    assert device_module.load_torch_metal_versions() == ("1.2.3", "4.5.6")
+
+
+def test_load_torch_metal_versions_config(monkeypatch):
+    monkeypatch.delenv("TORCH_METAL_VERSION", raising=False)
+    monkeypatch.delenv("TORCHVISION_METAL_VERSION", raising=False)
+    monkeypatch.setattr(
+        "solhunter_zero.config.load_config",
+        lambda: {"torch": {"torch_metal_version": "7.7", "torchvision_metal_version": "8.8"}},
+    )
+    assert device_module.load_torch_metal_versions() == ("7.7", "8.8")
 
 
 def test_detect_gpu_and_get_default_device_mps(monkeypatch):
