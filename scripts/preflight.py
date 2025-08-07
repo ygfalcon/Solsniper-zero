@@ -81,8 +81,8 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
     try:
         with open(ROOT / "preflight.json", "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2)
-    except OSError:
-        pass
+    except OSError as exc:
+        log_startup("preflight.json write failed: %s", exc)
 
     lines: List[str] = []
     failures: List[Tuple[str, str]] = []
@@ -97,8 +97,8 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
         with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
             for line in lines:
                 log.write(line + "\n")
-    except OSError:
-        pass
+    except OSError as exc:
+        log_startup("preflight.log write failed: %s", exc)
     for name, msg in failures:
         log_startup(f"Preflight failure: {name} - {msg}")
 
