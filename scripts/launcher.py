@@ -75,10 +75,7 @@ def find_python() -> str:
         except Exception:
             prepare_macos_env = None  # type: ignore
         if prepare_macos_env is not None:
-            print(
-                "Python 3.11 not found; running macOS setup...",
-                file=sys.stderr,
-            )
+            log_warning("Python 3.11 not found; running macOS setup...")
             prepare_macos_env(non_interactive=True, force=True)
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
@@ -93,7 +90,7 @@ def find_python() -> str:
         )
     else:
         message += " Please install Python 3.11 and try again."
-    print(message, file=sys.stderr)
+    log_error(message)
     raise SystemExit(1)
 
 
@@ -107,6 +104,11 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.startup_logging import (
+    log_warning,
+    log_error,
+    capture_exceptions,
+)  # noqa: E402
 
 rotate_startup_log()
 ensure_venv(None)
@@ -121,6 +123,7 @@ os.chdir(ROOT)
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
 
 
+@capture_exceptions
 def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
 

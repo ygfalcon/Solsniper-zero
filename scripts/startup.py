@@ -32,6 +32,12 @@ from solhunter_zero.bootstrap_utils import (
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.startup_logging import (
+    log_info,
+    log_warning,
+    log_error,
+    capture_exceptions,
+)  # noqa: E402
 
 rotate_startup_log()
 env_config.configure_environment(ROOT)
@@ -78,8 +84,8 @@ def ensure_wallet_cli() -> None:
     """Ensure the ``solhunter-wallet`` CLI is available."""
 
     if shutil.which("solhunter-wallet") is None:
-        print(
-            "'solhunter-wallet' command not found. Install the package providing it and re-run.",
+        log_error(
+            "'solhunter-wallet' command not found. Install the package providing it and re-run."
         )
         raise SystemExit(1)
 
@@ -126,17 +132,16 @@ def check_disk_space(min_bytes: int) -> None:
     try:
         _, _, free = shutil.disk_usage(ROOT)
     except OSError as exc:  # pragma: no cover - unexpected failure
-        print(f"Unable to determine free disk space: {exc}")
+        log_error(f"Unable to determine free disk space: {exc}")
         raise SystemExit(1)
 
     if free < min_bytes:
         required_gb = min_bytes / (1024 ** 3)
         free_gb = free / (1024 ** 3)
-        print(
-            f"Insufficient disk space: {free_gb:.2f} GB available,"
-            f" {required_gb:.2f} GB required."
+        log_error(
+            f"Insufficient disk space: {free_gb:.2f} GB available, {required_gb:.2f} GB required."
         )
-        print("Please free up disk space and try again.")
+        log_error("Please free up disk space and try again.")
         raise SystemExit(1)
 
 
@@ -159,15 +164,13 @@ def check_internet(url: str = "https://example.com") -> None:
                 return
         except Exception as exc:  # pragma: no cover - network failure
             if attempt == 2:
-                print(
-                    f"Failed to reach {url} after 3 attempts: {exc}. "
-                    "Check your internet connection."
+                log_error(
+                    f"Failed to reach {url} after 3 attempts: {exc}. Check your internet connection."
                 )
                 raise SystemExit(1)
             wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
-                f"Retrying in {wait} seconds..."
+            log_warning(
+                f"Attempt {attempt + 1} failed to reach {url}: {exc}. Retrying in {wait} seconds..."
             )
             time.sleep(wait)
 
@@ -176,7 +179,7 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
     if not os.environ.get("SOLANA_RPC_URL"):
-        print(f"Using default RPC URL {rpc_url}")
+        log_info(f"Using default RPC URL {rpc_url}")
 
     import json
     import urllib.request
@@ -198,14 +201,13 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
                     " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
                 )
                 if warn_only:
-                    print(f"Warning: {msg}")
+                    log_warning(msg)
                     return
-                print(msg)
+                log_error(msg)
                 raise SystemExit(1)
             wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}.",
-                f" Retrying in {wait} seconds...",
+            log_warning(
+                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}. Retrying in {wait} seconds..."
             )
             time.sleep(wait)
 
@@ -294,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             cfg_data = tomllib.load(fh)
         cfg_data = config_schema.validate_config(cfg_data)
     except (Exception, SystemExit) as exc:
-        print(f"Invalid configuration: {exc}")
+        log_error(f"Invalid configuration: {exc}")
         try:
             resp = input(
                 "Run quick setup to regenerate configuration? [y/N]: "
@@ -323,13 +325,13 @@ def main(argv: list[str] | None = None) -> int:
         for step, info in report.get("steps", {}).items():
             msg = info.get("message", "")
             if msg:
-                print(f"{step}: {info['status']} - {msg}")
+                log_info(f"{step}: {info['status']} - {msg}")
             else:
-                print(f"{step}: {info['status']}")
+                log_info(f"{step}: {info['status']}")
             if info.get("status") == "error":
                 fix = mac_setup.MANUAL_FIXES.get(step)
                 if fix:
-                    print(f"Manual fix for {step}: {fix}")
+                    log_info(f"Manual fix for {step}: {fix}")
         # Clear cache markers so subsequent steps rerun fully
         (ROOT / ".cache" / "cargo-installed").unlink(missing_ok=True)
         device.MPS_SENTINEL.unlink(missing_ok=True)
@@ -359,9 +361,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(out)
         passes = len(re.findall(r": OK\b", out))
         fails = len(re.findall(r": FAIL\b", out))
-        print(
-            f"Self-test summary: bootstrap {'PASS' if b_code == 0 else 'FAIL'}, "
-            f"preflight: {passes} passed, {fails} failed."
+        log_info(
+            f"Self-test summary: bootstrap {'PASS' if b_code == 0 else 'FAIL'}, preflight: {passes} passed, {fails} failed."
         )
         return b_code or p_code
 
@@ -380,16 +381,15 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
-        print(
-            "Python 3.11 or higher is required. "
-            "Please install Python 3.11 following the instructions in README.md."
+        log_error(
+            "Python 3.11 or higher is required. Please install Python 3.11 following the instructions in README.md."
         )
         return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        log_warning("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
+            log_warning("Use '--allow-rosetta' to continue anyway.")
             return 1
 
     if not args.skip_preflight:
@@ -496,12 +496,12 @@ def main(argv: list[str] | None = None) -> int:
         mnemonic_path=mnemonic_path,
         active_keypair=active_keypair,
     )
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
-    print(f"  HTTP endpoints: {endpoint_status}")
+    log_info("Startup summary:")
+    log_info(f"  Config file: {config_path or 'none'}")
+    log_info(f"  Active keypair: {active_keypair or 'none'}")
+    log_info(f"  GPU device: {gpu_device}")
+    log_info(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    log_info(f"  HTTP endpoints: {endpoint_status}")
 
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
@@ -512,14 +512,14 @@ def main(argv: list[str] | None = None) -> int:
 
         info = diagnostics.collect()
         summary = ", ".join(f"{k}={v}" for k, v in info.items())
-        print(f"Diagnostics summary: {summary}")
+        log_info(f"Diagnostics summary: {summary}")
         out_path = Path("diagnostics.json")
         try:
             out_path.write_text(json.dumps(info, indent=2))
         except Exception:
             pass
         else:
-            print(f"Full diagnostics written to {out_path}")
+            log_info(f"Full diagnostics written to {out_path}")
 
     # Run a post-execution health check and append the results to startup.log.
     from scripts import healthcheck
@@ -560,6 +560,7 @@ def main(argv: list[str] | None = None) -> int:
     return proc.returncode or hc_code
 
 
+@capture_exceptions
 def run(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
     if "--one-click" not in args_list:
