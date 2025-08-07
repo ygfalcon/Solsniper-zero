@@ -418,6 +418,43 @@ def ensure_gpu_env() -> dict[str, str]:
     return env
 
 
+def verify_gpu() -> tuple[bool, str]:
+    """Verify GPU availability and configure environment variables.
+
+    The function ensures :func:`ensure_gpu_env` has been executed so
+    ``SOLHUNTER_GPU_*`` variables are always populated.  If a GPU backend is
+    detected the returned message indicates the device in use, otherwise a hint
+    explaining how to enable GPU support is provided.
+    """
+
+    hint = (
+        "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
+        "scripts/mac_setup.py to enable GPU support"
+    )
+
+    env_available = os.environ.get("SOLHUNTER_GPU_AVAILABLE")
+    env_device = os.environ.get("SOLHUNTER_GPU_DEVICE")
+    if env_available is not None:
+        if env_available == "1":
+            return True, f"Using GPU device: {env_device or 'unknown'}"
+        return False, hint
+
+    try:
+        if not detect_gpu():
+            ensure_gpu_env()
+            return False, hint
+        try:
+            dev = get_default_device("auto")
+        except Exception as exc:
+            ensure_gpu_env()
+            return False, f"GPU detected but unusable: {exc}"
+        env = ensure_gpu_env()
+        return True, f"Using GPU device: {env.get('TORCH_DEVICE', dev)}"
+    except Exception as exc:  # pragma: no cover - defensive
+        ensure_gpu_env()
+        return False, str(exc)
+
+
 _GPU_LOGGED = False
 
 
@@ -431,6 +468,7 @@ def initialize_gpu() -> dict[str, str]:
     The mapping of environment variables is returned in all cases.
     """
 
+    verify_gpu()
     env = ensure_gpu_env()
     global _GPU_LOGGED
     if not _GPU_LOGGED:
