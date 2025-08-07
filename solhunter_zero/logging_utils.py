@@ -14,3 +14,22 @@ def log_startup(message: str) -> None:
             fh.write(f"{timestamp} {message}\n")
     except OSError:
         pass
+
+
+def rotate_log(path: Path, max_bytes: int) -> None:
+    """Rotate or truncate *path* before writing new output.
+
+    When ``path`` exists and its size exceeds ``max_bytes`` it is moved to a
+    ``.1`` backup. Otherwise the file is truncated to start fresh.
+    """
+
+    if not path.exists():
+        return
+    try:
+        if path.stat().st_size > max_bytes:
+            backup = path.with_suffix(path.suffix + ".1")
+            path.replace(backup)
+        else:
+            path.write_text("")
+    except OSError:
+        pass

@@ -718,12 +718,13 @@ def test_main_preflight_failure(monkeypatch, capsys):
 
 
 def test_preflight_log_rotation(tmp_path):
-    from scripts import startup
+    from solhunter_zero.logging_utils import rotate_log
+
     log_path = tmp_path / "preflight.log"
     log_path.write_text("x" * 20)
     rotated = tmp_path / "preflight.log.1"
 
-    startup.rotate_preflight_log(log_path, max_bytes=10)
+    rotate_log(log_path, 10)
 
     assert rotated.exists()
     assert not log_path.exists()
@@ -731,11 +732,13 @@ def test_preflight_log_rotation(tmp_path):
 
 def test_startup_log_rotation(tmp_path):
     from scripts import startup
+    from solhunter_zero.logging_utils import rotate_log
+
     log_path = tmp_path / "startup.log"
     log_path.write_text("x" * (startup.MAX_STARTUP_LOG_SIZE + 1))
     rotated = tmp_path / "startup.log.1"
 
-    startup.rotate_startup_log(log_path)
+    rotate_log(log_path, startup.MAX_STARTUP_LOG_SIZE)
 
     assert rotated.exists()
     assert not log_path.exists()
