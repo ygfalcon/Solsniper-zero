@@ -28,6 +28,19 @@ except Exception:  # pragma: no cover - optional import for CI
     TORCHVISION_METAL_VERSION = ""
 
 
+def ensure_arm64() -> None:
+    """Re-exec the current script under arm64 on macOS."""
+    if platform.system() == "Darwin" and platform.machine() == "x86_64":
+        script = Path(sys.argv[0]).resolve()
+        cmd = ["arch", "-arm64", sys.executable, str(script), *sys.argv[1:]]
+        try:
+            os.execvp(cmd[0], cmd)
+        except OSError as exc:  # pragma: no cover - hard failure
+            msg = (
+                f"Failed to re-exec {script.name} via 'arch -arm64': {exc}\n"
+                "Please use 'python start.py'."
+            )
+            raise SystemExit(msg)
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:

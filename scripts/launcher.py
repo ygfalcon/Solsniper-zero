@@ -5,6 +5,10 @@ This module re-exports :func:`solhunter_zero.launcher.main`.
 """
 from __future__ import annotations
 
+from solhunter_zero.macos_setup import ensure_arm64
+
+ensure_arm64()
+
 import warnings
 
 from solhunter_zero.launcher import main
