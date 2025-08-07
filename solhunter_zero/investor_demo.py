@@ -13,12 +13,18 @@ import csv
 import json
 import sys
 import types
+import importlib
 from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
 import threading
 
-from .price_stream_manager import PriceStreamManager
+from .strategy_manager import StrategyManager
+
+try:  # optional websockets dependency
+    from .price_stream_manager import PriceStreamManager
+except Exception:  # pragma: no cover - optional
+    PriceStreamManager = None  # type: ignore[assignment]
 
 try:  # SQLAlchemy is optional; fall back to a simple in-memory implementation
     from .memory import Memory  # type: ignore
@@ -220,6 +226,102 @@ def load_prices(
             out[token] = _parse(entries)
         return out
     raise ValueError("Price data must be a list or mapping of token to list")
+
+
+def discover_agent_strategies() -> Tuple[List[str], List[Tuple[str, Callable]]]:
+    """Return module names and backtest strategies defined in ``agents``."""
+
+    base = Path(__file__).resolve().parent / "agents"
+    modules: List[str] = []
+    strategies: List[Tuple[str, Callable]] = []
+    for file in base.glob("*.py"):
+        if file.name.startswith("_") or file.name == "__init__.py":
+            continue
+        mod_name = f"solhunter_demo_{file.stem}"
+        try:
+            spec = importlib.util.spec_from_file_location(mod_name, file)
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+                sys.modules[mod_name] = mod
+            else:
+                continue
+        except Exception:
+            continue
+        strat = getattr(mod, "STRATEGY", None)
+        if isinstance(strat, tuple) and len(strat) == 2:
+            modules.append(mod_name)
+            strategies.append(strat)
+    return modules, strategies
+
+
+def run_one_click_trading_demo(report_dir: Path) -> None:
+    """Backtest all demo strategies and write summary reports."""
+
+    report_dir = Path(report_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    modules, strategies = discover_agent_strategies()
+
+    # Instantiate StrategyManager to exercise strategy loading
+    StrategyManager(modules)
+
+    loaded = load_prices()
+    if isinstance(loaded, dict):
+        prices = next(iter(loaded.values()))[0]
+    else:
+        prices = loaded[0]
+
+    import statistics
+
+    strat_returns: Dict[str, List[float]] = {}
+    for name, func in strategies:
+        rets = func(prices)
+        strat_returns[name] = rets
+        cum = []
+        total = 1.0
+        for r in rets:
+            total *= 1 + r
+            cum.append(total - 1)
+        roi = cum[-1] if cum else 0.0
+        vol = statistics.pstdev(rets) if len(rets) > 1 else 0.0
+        mean = statistics.mean(rets) if rets else 0.0
+        sharpe = mean / vol if vol else 0.0
+        res = {
+            "name": name,
+            "roi": roi,
+            "sharpe": sharpe,
+            "max_drawdown": max_drawdown(rets),
+            "volatility": vol,
+            "cumulative_returns": cum,
+        }
+        (report_dir / f"{name}.json").write_text(json.dumps(res, indent=2))
+
+    weights = {name: 1.0 for name, _ in strategies}
+    portfolio_rets = compute_weighted_returns(prices, weights)
+    cum = []
+    total = 1.0
+    for r in portfolio_rets:
+        total *= 1 + r
+        cum.append(total - 1)
+    roi = cum[-1] if cum else 0.0
+    vol = statistics.pstdev(portfolio_rets) if len(portfolio_rets) > 1 else 0.0
+    mean = statistics.mean(portfolio_rets) if portfolio_rets else 0.0
+    sharpe = mean / vol if vol else 0.0
+    portfolio = {
+        "name": "portfolio",
+        "roi": roi,
+        "sharpe": sharpe,
+        "max_drawdown": max_drawdown(portfolio_rets),
+        "volatility": vol,
+        "cumulative_returns": cum,
+    }
+    (report_dir / "portfolio.json").write_text(json.dumps(portfolio, indent=2))
+    with (report_dir / "portfolio.csv").open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["step", "cumulative_return"])
+        for idx, val in enumerate(cum):
+            writer.writerow([idx, val])
 
 
 async def _demo_arbitrage() -> Dict[str, object]:

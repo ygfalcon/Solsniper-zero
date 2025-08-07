@@ -96,6 +96,22 @@ For a guided setup you can run `scripts/startup.py` which checks dependencies, v
 
 On macOS, double-click `start.command` (or run `./run.sh` from Terminal) for a one-click launch that executes the same Python entry point via `start.py`.
 
+## Investor Staging Showcase
+
+The repository bundles a lightweight backtest that exercises every demo strategy
+under `solhunter_zero/agents`. Run it with the `solhunter-one-click` command or
+double-click `one_click_trading_demo.command` (alternatively execute
+`./one_click_trading_demo.sh`). The demo loads a small price dataset,
+backtests each strategy and a combined portfolio, then writes JSON and CSV
+reports to the chosen directory:
+
+```bash
+solhunter-one-click --reports demo_reports
+```
+
+This provides a quick way to inspect strategy performance without any manual
+setup beyond downloading the repository.
+
 Developers embedding SolHunter Zero can initialize the environment
 programmatically:
 
