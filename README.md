@@ -110,6 +110,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
 
 1. **Launch** — In Finder, double-click `start.command` (a wrapper for `scripts/launcher.py`) to begin the automated setup.
    If the file isn't executable, run `chmod +x start.command` from Terminal and try again.
+   Alternatively, run `make setup` from Terminal to invoke `./start.py --one-click` directly.
 2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  
    Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.
 3. **GPU detection** — The launcher runs `solhunter_zero.device --check-gpu` and sets `TORCH_DEVICE=mps` when an Apple GPU is available.
