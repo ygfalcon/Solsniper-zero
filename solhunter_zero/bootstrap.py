@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
@@ -11,6 +12,7 @@ from solhunter_zero.bootstrap_utils import (
 from scripts.startup import ensure_keypair
 from .config_bootstrap import ensure_config
 from . import wallet
+from . import env
 
 import solhunter_zero.device as device
 
@@ -20,8 +22,10 @@ def bootstrap(one_click: bool = False) -> None:
 
     This helper mirrors the setup performed by ``scripts/startup.py`` and can
     be used by entry points that need to guarantee the project is ready to run
-    programmatically.
+    programmatically. It automatically loads the project's ``.env`` file,
+    making it self-contained regarding environment setup.
     """
+    env.load_env_file(Path(__file__).resolve().parent.parent / ".env")
     device.ensure_gpu_env()
 
     if one_click:
