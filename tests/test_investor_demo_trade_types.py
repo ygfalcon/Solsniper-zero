@@ -26,6 +26,22 @@ def test_demo_arbitrage(monkeypatch):
     assert investor_demo.used_trade_types == {"arbitrage"}
 
 
+def test_demo_arbitrage_import_error(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name.endswith("arbitrage"):
+            raise ImportError("no module")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    res = asyncio.run(investor_demo._demo_arbitrage())
+    assert res == {"path": [], "profit": 0.0}
+    assert investor_demo.used_trade_types == {"arbitrage"}
+
+
 def test_demo_flash_loan():
     sig = asyncio.run(investor_demo._demo_flash_loan())
     assert sig == "demo_sig"
