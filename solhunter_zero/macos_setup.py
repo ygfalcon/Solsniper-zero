@@ -55,6 +55,33 @@ def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedPr
     return subprocess.run(cmd, check=check, text=True, **kwargs)
 
 
+def _run_with_retry(
+    cmd: list[str], *, retries: int = 3, backoff: float = 1.0
+) -> None:
+    """Run ``cmd`` with retries and exponential backoff.
+
+    Retries the command ``retries`` times sleeping ``backoff`` seconds doubled
+    each attempt.  If all attempts fail a ``RuntimeError`` is raised so the
+    caller can surface the failure in the setup report.
+    """
+
+    for attempt in range(1, retries + 1):
+        try:
+            _run(cmd, check=True)
+            return
+        except subprocess.CalledProcessError as exc:
+            if attempt == retries:
+                raise RuntimeError(
+                    f"command {' '.join(cmd)} failed after {retries} attempts"
+                ) from exc
+            sleep_for = backoff * 2 ** (attempt - 1)
+            print(
+                f"Command {' '.join(cmd)} failed (attempt {attempt}/{retries}). "
+                f"Retrying in {sleep_for} seconds..."
+            )
+            time.sleep(sleep_for)
+
+
 def ensure_network() -> None:
     """Abort if no network connectivity is available."""
     try:
@@ -133,8 +160,8 @@ def ensure_homebrew() -> None:
 
 
 def install_brew_packages() -> None:
-    _run(["brew", "update"], check=False)
-    _run(
+    _run_with_retry(["brew", "update"])
+    _run_with_retry(
         [
             "brew",
             "install",
@@ -143,8 +170,7 @@ def install_brew_packages() -> None:
             "pkg-config",
             "cmake",
             "protobuf",
-        ],
-        check=False,
+        ]
     )
     apply_brew_env()
 
@@ -189,10 +215,10 @@ def ensure_profile() -> None:
 def upgrade_pip_and_torch() -> None:
     if shutil.which("python3.11") is None:
         return
-    _run(["python3.11", "-m", "pip", "install", "--upgrade", "pip"], check=False)
+    _run_with_retry(["python3.11", "-m", "pip", "install", "--upgrade", "pip"])
     if not TORCH_METAL_VERSION or not TORCHVISION_METAL_VERSION:
         return
-    _run(
+    _run_with_retry(
         [
             "python3.11",
             "-m",
@@ -201,8 +227,7 @@ def upgrade_pip_and_torch() -> None:
             f"torch=={TORCH_METAL_VERSION}",
             f"torchvision=={TORCHVISION_METAL_VERSION}",
             *METAL_EXTRA_INDEX,
-        ],
-        check=False,
+        ]
     )
 
 
