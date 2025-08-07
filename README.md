@@ -681,6 +681,12 @@ Enable a lightweight reinforcement‑learning stub:
 python scripts/investor_demo.py --rl-demo --reports reports
 ```
 
+Run a canned learning loop that rotates strategy weights:
+
+```bash
+python scripts/investor_demo.py --learn --reports reports
+```
+
 Exercise the full system with heavier dependencies:
 
 ```bash

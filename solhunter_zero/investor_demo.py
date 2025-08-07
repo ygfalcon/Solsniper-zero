@@ -621,6 +621,27 @@ def _demo_rl_agent() -> float:
     return run_rl_demo(report_dir)
 
 
+def _learning_demo(prices: List[float], iterations: int = 3) -> None:
+    """Run a tiny learning loop rotating strategy weights.
+
+    This uses the ``_demo_rl_agent`` stub to generate a reward each iteration
+    and cycles through a canned set of strategy weights.  The reward and the
+    next set of weights are printed so that the learning progression can be
+    observed without heavy dependencies.
+    """
+
+    order = ["buy_hold", "momentum", "mean_reversion"]
+    weights: Dict[str, float] = {order[0]: 1.0}
+    for i in range(iterations):
+        reward = _demo_rl_agent()
+        port_ret = sum(compute_weighted_returns(prices, weights))
+        print(
+            f"Learning iteration {i + 1}: reward {reward:.2f} "
+            f"portfolio {port_ret:.4f} weights {weights}"
+        )
+        weights = {order[(i + 1) % len(order)]: 1.0}
+
+
 def main(argv: List[str] | None = None) -> None:
     used_trade_types.clear()
     try:
@@ -683,6 +704,11 @@ def main(argv: List[str] | None = None) -> None:
         help="Run a lightweight RL demo using a tiny pre-trained stub",
     )
     parser.add_argument(
+        "--learn",
+        action="store_true",
+        help="Run a tiny learning loop that rotates strategy weights",
+    )
+    parser.add_argument(
         "--price-streams",
         default=None,
         help="Comma-separated venue=url pairs for live price streams",
@@ -706,7 +732,7 @@ def main(argv: List[str] | None = None) -> None:
 
     global FULL_SYSTEM, RL_DEMO, RL_REPORT_DIR
     FULL_SYSTEM = bool(args.full_system)
-    RL_DEMO = bool(args.rl_demo or args.full_system)
+    RL_DEMO = bool(args.rl_demo or args.full_system or args.learn)
     RL_REPORT_DIR = args.reports
 
     loaded = load_prices(args.data, preset)
@@ -1156,6 +1182,9 @@ def main(argv: List[str] | None = None) -> None:
         )
 
     print(f"Wrote reports to {args.reports}")
+
+    if args.learn:
+        _learning_demo(prices)
 
     if stream_mgr is not None and _stream_loop is not None:
         asyncio.run_coroutine_threadsafe(stream_mgr.stop(), _stream_loop).result()
