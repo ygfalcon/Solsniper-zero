@@ -23,7 +23,6 @@ from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero.bootstrap_utils import (
-    _pip_install,
     ensure_deps,
     ensure_depth_service,
     ensure_route_ffi,
@@ -76,25 +75,12 @@ def rotate_preflight_log(
 
 
 def ensure_wallet_cli() -> None:
-    """Ensure the ``solhunter-wallet`` CLI is available.
-
-    If the command is missing, attempt to install the current package which
-    provides it. On failure, instruct the user and abort gracefully.
-    """
-    if shutil.which("solhunter-wallet") is not None:
-        return
-
-    print("'solhunter-wallet' command not found. Installing the package...")
-    try:
-        _pip_install(".")
-    except SystemExit:
-        print(
-            "Failed to install 'solhunter-wallet'. Please run 'pip install .' manually."
-        )
-        raise
+    """Ensure the ``solhunter-wallet`` CLI is available."""
 
     if shutil.which("solhunter-wallet") is None:
-        print("'solhunter-wallet' still not available after installation. Aborting.")
+        print(
+            "'solhunter-wallet' command not found. Install the package providing it and re-run.",
+        )
         raise SystemExit(1)
 
 
@@ -387,10 +373,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.one_click:
         rest = ["--non-interactive", *rest]
 
-    if args.skip_deps:
-        os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
-    if args.full_deps:
-        os.environ["SOLHUNTER_INSTALL_OPTIONAL"] = "1"
+    if not args.skip_deps:
+        ensure_deps(install_optional=args.full_deps)
+    os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
@@ -445,14 +430,10 @@ def main(argv: list[str] | None = None) -> int:
     # already been handled above, so instruct it to skip them to avoid duplicate
     # work and simplify testing.
     os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
-    if args.skip_deps:
-        os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     try:
         bootstrap(one_click=args.one_click)
     finally:
         os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
-        if args.skip_deps:
-            os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
 
     config_path: Path | None = None
     keypair_path: Path | None = None
@@ -505,6 +486,8 @@ def main(argv: list[str] | None = None) -> int:
             active_keypair = wallet.get_active_keypair_name()
         if keypair_path is None and active_keypair:
             keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
+
+    os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
 
     ensure_cargo()
     log_startup_info(
