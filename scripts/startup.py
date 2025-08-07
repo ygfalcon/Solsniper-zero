@@ -493,6 +493,11 @@ def main(argv: list[str] | None = None) -> int:
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
     )
 
+    if proc.returncode == 0:
+        msg = "SolHunter Zero launch complete – system ready."
+        print(msg)
+        log_startup(msg)
+
     if not args.no_diagnostics:
         from scripts import diagnostics
 
