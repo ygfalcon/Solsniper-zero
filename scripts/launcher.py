@@ -5,7 +5,15 @@ This module re-exports :func:`solhunter_zero.launcher.main`.
 """
 from __future__ import annotations
 
+import platform
+import sys
 import warnings
+
+if platform.machine() != "arm64":
+    print(
+        "Non-arm64 Python detected. Please install an arm64 build of Python to run SolHunter Zero.",
+    )
+    raise SystemExit(1)
 
 from solhunter_zero.launcher import main
 
