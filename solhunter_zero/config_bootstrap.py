@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import shutil
+import shutil  # used for copying template configs
 import subprocess
 import sys
 from pathlib import Path
