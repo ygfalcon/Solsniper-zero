@@ -50,7 +50,12 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     monkeypatch.setattr("scripts.mac_setup.apply_brew_env", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup.device, "ensure_gpu_env", lambda: {})
+    def fake_gpu_env():
+        os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"
+        os.environ["SOLHUNTER_GPU_DEVICE"] = "none"
+        return {"SOLHUNTER_GPU_AVAILABLE": "0", "SOLHUNTER_GPU_DEVICE": "none"}
+
+    monkeypatch.setattr(startup.device, "ensure_gpu_env", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
     monkeypatch.setattr(startup, "check_internet", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
