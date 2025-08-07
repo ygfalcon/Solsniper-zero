@@ -2,8 +2,8 @@
 torch_metal_version = "2.1.0"
 torchvision_metal_version = "0.16.0"
 
-birdeye_api_key = ""  # leaving it blank disables BirdEye integration until a real key is provided
-solana_rpc_url = "https://solana-mainnet.example.com"
+birdeye_api_key = "BD1234567890ABCDEFGHIJKL"  # BirdEye API key
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
 dex_base_url = "https://quote-api.jup.ag"  # public Jupiter endpoint; override for custom providers
 dex_testnet_url = "https://quote-api.jup.ag"  # same base for devnet/testnet; override as needed
 orca_api_url = "https://api.orca.so"
@@ -37,16 +37,16 @@ orca_dex_url = "https://dex.orca.so"
 raydium_dex_url = "https://dex.raydium.io"
 phoenix_dex_url = "https://dex.phoenix.trade"
 meteora_dex_url = "https://dex.meteora.ag"
-metrics_base_url = "https://metrics.example.com/api"
+metrics_base_url = "https://api.coingecko.com/api/v3"
 metrics_url = ""
 # Optional paths to trained ML models
 # PRICE_MODEL_PATH = "models/price.pt"   # LSTM or transformer
 # ACTIVITY_MODEL_PATH = "models/activity.pt"
 # VAR_MODEL_PATH = "models/var.pt"   # VaR forecaster
-news_feeds = "https://news.example.com/rss"
+news_feeds = "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://www.coindesk.com/arc/outboundfeeds/rss/"
 twitter_feeds = ""
 discord_feeds = ""
-dex_listing_ws_url = "wss://dex.example/ws"
+dex_listing_ws_url = "wss://api.dexscreener.com/latest/dex/ws"
 discovery_method = "websocket"
 # Sell thresholds
 stop_loss = 0.1
@@ -106,9 +106,9 @@ fee_weight = 1.0  # weight applied to per-venue fees during rebalances
 # Multipliers applied to the compute-unit price derived from mempool rate
 priority_fees = "0,1,2"
 # Comma-separated RPC URLs used for priority submission
-jito_rpc_url = "https://block-engine.jito.example.com"  # Jito block-engine endpoint
+jito_rpc_url = "https://mainnet.block-engine.jito.wtf"  # Jito block-engine endpoint
 jito_auth = "YOUR_JITO_AUTH_TOKEN"  # authentication token for Jito
-priority_rpc = "https://rpc.mainnet.example.com"
+priority_rpc = "https://rpc.ankr.com/solana"
 jito_ws_url = ""  # Jito searcher websocket
 jito_ws_auth = ""  # websocket auth token
 event_bus_url = ""  # external event bus websocket
