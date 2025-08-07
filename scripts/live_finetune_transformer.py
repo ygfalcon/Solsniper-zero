@@ -5,13 +5,21 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+
 import solhunter_zero.device as device
-
-from solhunter_zero.offline_data import OfflineData
 from solhunter_zero import models
+from solhunter_zero.offline_data import OfflineData
 
 
-async def train_loop(db_url: str, model_path: Path, device: torch.device, seq_len: int, batch_size: int, interval: float, lr: float) -> None:
+async def train_loop(
+    db_url: str,
+    model_path: Path,
+    device: torch.device,
+    seq_len: int,
+    batch_size: int,
+    interval: float,
+    lr: float,
+) -> None:
     data = OfflineData(db_url)
     while True:
         snaps = data.list_snapshots()
@@ -43,7 +51,9 @@ async def train_loop(db_url: str, model_path: Path, device: torch.device, seq_le
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Fine-tune transformer model during trading")
+    p = argparse.ArgumentParser(
+        description="Fine-tune transformer model during trading"
+    )
     p.add_argument("--db", default="sqlite:///offline_data.db")
     p.add_argument("--model", default="transformer_model.pt")
     p.add_argument("--device", default="auto")
@@ -55,7 +65,17 @@ def main() -> None:
 
     dev = device.get_default_device(args.device)
 
-    asyncio.run(train_loop(args.db, Path(args.model), dev, args.seq_len, args.batch_size, args.interval, args.lr))
+    asyncio.run(
+        train_loop(
+            args.db,
+            Path(args.model),
+            dev,
+            args.seq_len,
+            args.batch_size,
+            args.interval,
+            args.lr,
+        )
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

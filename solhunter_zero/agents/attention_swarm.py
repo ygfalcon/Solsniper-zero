@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-from typing import Sequence, Iterable, Dict, Any
+from typing import Any, Dict, Iterable, Sequence
 
 try:
     import torch
     import torch.nn as nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for AttentionSwarm"
-            )
+            raise ImportError("torch is required for AttentionSwarm")
 
     torch = nn = _TorchStub()  # type: ignore
 import numpy as np
 
-from ..regime import detect_regime
 from ..advanced_memory import AdvancedMemory
 from ..device import get_default_device
+from ..regime import detect_regime
 
 
 class AttentionSwarm(nn.Module):
@@ -44,7 +43,9 @@ class AttentionSwarm(nn.Module):
         nhead = max(1, min(4, input_dim))
         if input_dim % nhead != 0:
             nhead = 1
-        layer = nn.TransformerEncoderLayer(input_dim, nhead=nhead, dim_feedforward=hidden_dim)
+        layer = nn.TransformerEncoderLayer(
+            input_dim, nhead=nhead, dim_feedforward=hidden_dim
+        )
         self.encoder = nn.TransformerEncoder(layer, num_layers)
         self.fc = nn.Linear(input_dim, num_agents)
         self.softmax = nn.Softmax(dim=-1)
@@ -99,21 +100,23 @@ def make_training_data(
     if not trades:
         raise ValueError("no trades in memory")
 
-    windows = [trades[i:i + window] for i in range(0, len(trades) - window, window)]
+    windows = [trades[i : i + window] for i in range(0, len(trades) - window, window)]
     feats: list[list[float]] = []
     for w in windows:
         rois = _window_rois(w, agents)
         prices = [float(t.price) for t in w]
         regime = detect_regime(prices)
         reg_val = 1.0 if regime == "bull" else -1.0 if regime == "bear" else 0.0
-        vol = float(np.std(prices) / (np.mean(prices) or 1.0)) if len(prices) > 1 else 0.0
+        vol = (
+            float(np.std(prices) / (np.mean(prices) or 1.0)) if len(prices) > 1 else 0.0
+        )
         row = [rois[a] for a in agents] + [reg_val, vol]
         feats.append(row)
 
     X_seq = []
     y = []
     for i in range(len(feats) - seq_len):
-        X_seq.append(feats[i:i + seq_len])
+        X_seq.append(feats[i : i + seq_len])
         target = feats[i + seq_len][: len(agents)]
         t = np.array(target, dtype=np.float32)
         t = np.exp(t) / np.sum(np.exp(t))
@@ -143,7 +146,11 @@ def train_attention_swarm(
     X = X.to(device)
     y = y.to(device)
     model = AttentionSwarm(
-        len(agents), seq_len=seq_len, hidden_dim=hidden_dim, num_layers=num_layers, device=device
+        len(agents),
+        seq_len=seq_len,
+        hidden_dim=hidden_dim,
+        num_layers=num_layers,
+        device=device,
     )
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
@@ -175,4 +182,3 @@ def load_model(path: str, *, device: str | None = None) -> AttentionSwarm:
     model.load_state_dict(obj["state"])
     model.eval()
     return model
-

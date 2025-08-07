@@ -1,14 +1,13 @@
-
 from __future__ import annotations
 
 import logging
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Import helpers via the main module so tests can monkeypatch them there
 from . import main as main_module
-from .portfolio import Portfolio, dynamic_order_size
 from .agents.conviction import predict_price_movement
+from .portfolio import Portfolio, dynamic_order_size
 from .risk import RiskManager
 from .simulation import SimulationResult as _SimRes
 
@@ -41,16 +40,22 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
     if pos:
         roi = portfolio.position_roi(token, price) if price else 0.0
         if stop_loss and roi <= -stop_loss:
-            return [{"token": token, "side": "sell", "amount": pos.amount, "price": price}]
+            return [
+                {"token": token, "side": "sell", "amount": pos.amount, "price": price}
+            ]
         if take_profit and roi >= take_profit:
-            return [{"token": token, "side": "sell", "amount": pos.amount, "price": price}]
+            return [
+                {"token": token, "side": "sell", "amount": pos.amount, "price": price}
+            ]
         if should_sell(
             sims,
             trailing_stop=trailing_stop or None,
             current_price=price if price else None,
             high_price=pos.high_price,
         ):
-            return [{"token": token, "side": "sell", "amount": pos.amount, "price": price}]
+            return [
+                {"token": token, "side": "sell", "amount": pos.amount, "price": price}
+            ]
 
     actions: List[Dict[str, Any]] = []
     if should_buy(sims):
@@ -117,6 +122,8 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
             min_portfolio_value=adj.min_portfolio_value,
         )
         if amount > 0:
-            actions.append({"token": token, "side": "buy", "amount": amount, "price": price})
+            actions.append(
+                {"token": token, "side": "buy", "amount": amount, "price": price}
+            )
 
     return actions

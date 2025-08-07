@@ -1,6 +1,7 @@
 import pytest
+
 torch = pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.agents.attention_swarm import AttentionSwarm, save_model, load_model
+from solhunter_zero.agents.attention_swarm import AttentionSwarm, load_model, save_model
 
 
 def test_load_model_device_cuda(tmp_path, monkeypatch):
@@ -18,9 +19,10 @@ def test_load_model_device_cuda(tmp_path, monkeypatch):
 
     monkeypatch.setattr(torch.nn.Module, "to", fake_to)
     orig_load = torch.load
-    monkeypatch.setattr(torch, "load", lambda p, map_location=None: orig_load(p, map_location="cpu"))
+    monkeypatch.setattr(
+        torch, "load", lambda p, map_location=None: orig_load(p, map_location="cpu")
+    )
 
     loaded = load_model(str(path), device="cuda")
     assert loaded.device.type == "cuda"
     assert getattr(loaded, "_dev").type == "cuda"
-

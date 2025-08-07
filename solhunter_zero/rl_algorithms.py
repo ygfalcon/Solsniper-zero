@@ -4,6 +4,7 @@ try:
     import torch
     from torch import nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Module:
             def __init__(self, *a, **k) -> None:

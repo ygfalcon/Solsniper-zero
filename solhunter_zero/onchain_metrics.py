@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-from typing import List, Dict
-
-import asyncio
+from typing import Dict, List
 
 try:
     from solana.publickey import PublicKey  # type: ignore
 except Exception:  # pragma: no cover - minimal stub when solana is missing
+
     class PublicKey(str):
         def __new__(cls, value: str):
             return str.__new__(cls, value)
 
-    import types
     import sys
+    import types
 
     mod = types.ModuleType("solana.publickey")
     mod.PublicKey = PublicKey
@@ -25,16 +25,17 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
 from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
 
-from .scanner_onchain import (
-    scan_tokens_onchain,
-    scan_tokens_onchain_sync,
-    fetch_mempool_tx_rate,
-    fetch_whale_wallet_activity,
-    fetch_average_swap_size,
-)
+from solhunter_zero.lru import TTLCache
+
 from .exchange import DEX_BASE_URL
 from .http import get_session
-from solhunter_zero.lru import TTLCache
+from .scanner_onchain import (
+    fetch_average_swap_size,
+    fetch_mempool_tx_rate,
+    fetch_whale_wallet_activity,
+    scan_tokens_onchain,
+    scan_tokens_onchain_sync,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,9 @@ TOKEN_VOLUME_CACHE_TTL = float(os.getenv("TOKEN_VOLUME_CACHE_TTL", "30") or 30)
 TOKEN_VOLUME_CACHE = TTLCache(maxsize=1024, ttl=TOKEN_VOLUME_CACHE_TTL)
 
 # cache of computed top volume token lists
-TOP_VOLUME_TOKENS_CACHE_TTL = float(os.getenv("TOP_VOLUME_TOKENS_CACHE_TTL", "60") or 60)
+TOP_VOLUME_TOKENS_CACHE_TTL = float(
+    os.getenv("TOP_VOLUME_TOKENS_CACHE_TTL", "60") or 60
+)
 TOP_VOLUME_TOKENS_CACHE = TTLCache(maxsize=32, ttl=TOP_VOLUME_TOKENS_CACHE_TTL)
 
 
@@ -103,6 +106,7 @@ def top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
 
     async def _gather_vols() -> list[tuple[str, float]]:
         async with AsyncClient(rpc_url) as client:
+
             async def _fetch(tok: str) -> tuple[str, float]:
                 cached = TOKEN_VOLUME_CACHE.get(tok)
                 if cached is not None:
@@ -143,6 +147,7 @@ async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
         return []
 
     async with AsyncClient(rpc_url) as client:
+
         async def _fetch(tok: str) -> tuple[str, float]:
             cached = TOKEN_VOLUME_CACHE.get(tok)
             if cached is not None:
@@ -165,7 +170,9 @@ async def async_top_volume_tokens(rpc_url: str, limit: int = 10) -> list[str]:
     return result
 
 
-async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Dict[str, float]:
+async def fetch_dex_metrics_async(
+    token: str, base_url: str | None = None
+) -> Dict[str, float]:
     """Return real-time liquidity, orderbook depth and volume for ``token``.
 
     Parameters
@@ -209,7 +216,9 @@ async def fetch_dex_metrics_async(token: str, base_url: str | None = None) -> Di
     return await DEX_METRICS_CACHE.get_or_set_async(cache_key, _compute)
 
 
-async def fetch_dex_metrics(token: str, base_url: str | None = None) -> Dict[str, float]:
+async def fetch_dex_metrics(
+    token: str, base_url: str | None = None
+) -> Dict[str, float]:
     """Awaitable wrapper for :func:`fetch_dex_metrics_async`."""
 
     return await fetch_dex_metrics_async(token, base_url)

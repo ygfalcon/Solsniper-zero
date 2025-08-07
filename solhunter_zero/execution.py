@@ -6,14 +6,10 @@ import asyncio
 import os
 import time
 
+from .depth_client import DEPTH_SERVICE_SOCKET
+from .depth_client import auto_exec as service_auto_exec
+from .depth_client import stream_depth, submit_raw_tx
 from .event_bus import subscription
-
-from .depth_client import (
-    stream_depth,
-    submit_raw_tx,
-    auto_exec as service_auto_exec,
-    DEPTH_SERVICE_SOCKET,
-)
 
 USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
 
@@ -81,9 +77,7 @@ class EventExecutor:
                 await asyncio.Future()
             return
 
-        async for update in stream_depth(
-            self.token, rate_limit=self.rate_limit
-        ):
+        async for update in stream_depth(self.token, rate_limit=self.rate_limit):
             await self._handle_update({self.token: update})
 
 
@@ -118,4 +112,3 @@ async def run_event_loop(
         await _feed()
     else:
         await asyncio.gather(execer.run(), _feed())
-

@@ -7,6 +7,7 @@ try:
     import torch
     import torch.nn as nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -17,14 +18,10 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for var_forecaster"
-                )
+                raise ImportError("torch is required for var_forecaster")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for var_forecaster"
-            )
+            raise ImportError("torch is required for var_forecaster")
 
     torch = nn = _TorchStub()  # type: ignore
 import numpy as np
@@ -35,7 +32,9 @@ from ..risk import value_at_risk
 class VaRForecaster(nn.Module):
     """LSTM network forecasting next-period VaR."""
 
-    def __init__(self, seq_len: int = 30, hidden_dim: int = 32, num_layers: int = 2) -> None:
+    def __init__(
+        self, seq_len: int = 30, hidden_dim: int = 32, num_layers: int = 2
+    ) -> None:
         super().__init__()
         self.seq_len = seq_len
         self.lstm = nn.LSTM(1, hidden_dim, num_layers, batch_first=True)
@@ -49,12 +48,18 @@ class VaRForecaster(nn.Module):
     def predict(self, prices: Sequence[float]) -> float:
         self.eval()
         with torch.no_grad():
-            arr = torch.tensor(prices[-self.seq_len:], dtype=torch.float32).unsqueeze(0).unsqueeze(-1)
+            arr = (
+                torch.tensor(prices[-self.seq_len :], dtype=torch.float32)
+                .unsqueeze(0)
+                .unsqueeze(-1)
+            )
             pred = self(arr)
             return float(pred.item())
 
 
-def make_var_dataset(prices: Sequence[float], seq_len: int = 30, confidence: float = 0.95) -> Tuple[torch.Tensor, torch.Tensor]:
+def make_var_dataset(
+    prices: Sequence[float], seq_len: int = 30, confidence: float = 0.95
+) -> Tuple[torch.Tensor, torch.Tensor]:
     arr = torch.tensor(prices, dtype=torch.float32)
     n = len(arr) - seq_len - 1
     if n <= 0:
@@ -130,4 +135,3 @@ def get_model(path: str | None, *, reload: bool = False) -> VaRForecaster | None
     model = load_var_model(path)
     _MODEL_CACHE[path] = (mtime, model)
     return model
-

@@ -35,6 +35,7 @@ sys.modules["solhunter_zero.system"] = system_mod
 # Provide dummy implementations that emit messages when invoked so the test can
 # assert that the script attempted each action.
 
+
 def _fake_gpu_env():
     env = {
         "SOLHUNTER_GPU_AVAILABLE": "0",
@@ -45,6 +46,7 @@ def _fake_gpu_env():
         print(f"{k}={v}")
         os.environ[k] = v
     return env
+
 
 # Dummy device module
 
@@ -58,9 +60,11 @@ sys.modules["solhunter_zero.device"] = dummy_device
 
 # Dummy config utils with automatic keypair selection
 
+
 def _fake_select_keypair(auto=True):
     print("Selected keypair: default")
     return types.SimpleNamespace(name="default", mnemonic_path=None)
+
 
 config_utils_mod = types.ModuleType("solhunter_zero.config_utils")
 config_utils_mod.select_active_keypair = _fake_select_keypair

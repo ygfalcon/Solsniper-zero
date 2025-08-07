@@ -15,4 +15,3 @@ def test_no_rl_metrics(tmp_path, monkeypatch, dummy_mem):
 
     highlights = json.loads((tmp_path / "highlights.json").read_text())
     assert highlights.get("rl_reward") == 0.0
-

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Iterable, Dict, Any
+from typing import Any, Dict, Iterable
 
+from ..multi_rl import PopulationRL
 from . import BaseAgent
 from .memory import MemoryAgent
-from ..multi_rl import PopulationRL
 
 
 class RLWeightAgent(BaseAgent):

@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-import logging
-import aiohttp
 import asyncio
+import logging
 import xml.etree.ElementTree as ET
 from typing import Iterable, List
+
+import aiohttp
 
 from .http import get_session
 
 try:
     from transformers import pipeline
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     def pipeline(*args, **kwargs):  # type: ignore
-        raise ImportError(
-            "transformers is required for sentiment analysis features"
-        )
+        raise ImportError("transformers is required for sentiment analysis features")
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def get_pipeline() -> pipeline:
             model="distilbert-base-uncased-finetuned-sst-2-english",
         )
     return _pipeline
+
 
 async def fetch_headlines_async(
     feed_urls: Iterable[str],
@@ -73,7 +75,10 @@ async def fetch_headlines_async(
             async with session.get(url, timeout=10) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-        except (aiohttp.ClientError, ValueError) as exc:  # pragma: no cover - network errors
+        except (
+            aiohttp.ClientError,
+            ValueError,
+        ) as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch twitter feed %s: %s", url, exc)
             continue
         posts = data.get("posts", [])
@@ -86,7 +91,10 @@ async def fetch_headlines_async(
             async with session.get(url, timeout=10) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-        except (aiohttp.ClientError, ValueError) as exc:  # pragma: no cover - network errors
+        except (
+            aiohttp.ClientError,
+            ValueError,
+        ) as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch discord feed %s: %s", url, exc)
             continue
         messages = data.get("messages", [])
@@ -114,6 +122,7 @@ def fetch_headlines(
         )
     )
 
+
 def compute_sentiment(text: str) -> float:
     """Return a sentiment score for ``text`` between -1 and 1 using DistilBERT."""
     if not text.strip():
@@ -129,6 +138,7 @@ def compute_sentiment(text: str) -> float:
     if label.startswith("neg"):
         return -score
     return score
+
 
 async def fetch_sentiment_async(
     feed_urls: Iterable[str],

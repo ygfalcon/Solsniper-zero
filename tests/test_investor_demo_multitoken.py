@@ -31,8 +31,7 @@ def test_investor_demo_multitoken(tmp_path, capsys):
     top_token = highlights["top_token"]
     top_strategy = highlights["top_strategy"]
     assert any(
-        row["token"] == top_token and row["config"] == top_strategy
-        for row in summary
+        row["token"] == top_token and row["config"] == top_strategy for row in summary
     )
 
     trade_hist = json.loads((tmp_path / "trade_history.json").read_text())
@@ -48,4 +47,3 @@ def test_investor_demo_multitoken(tmp_path, capsys):
                 assert (
                     tmp_path / f"{token}_{name}.png"
                 ).exists(), f"Missing plot {token}_{name}.png"
-

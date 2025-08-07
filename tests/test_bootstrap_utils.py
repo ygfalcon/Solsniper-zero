@@ -1,4 +1,5 @@
 import platform
+
 from solhunter_zero import bootstrap_utils
 
 
@@ -15,9 +16,7 @@ def test_ensure_deps_runs_prepare_macos_env(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare_macos_env
     )
-    monkeypatch.setattr(
-        "solhunter_zero.macos_setup.mac_setup_completed", lambda: False
-    )
+    monkeypatch.setattr("solhunter_zero.macos_setup.mac_setup_completed", lambda: False)
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
@@ -40,9 +39,7 @@ def test_mac_setup_marker_skips_prepare(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare_macos_env
     )
-    monkeypatch.setattr(
-        "solhunter_zero.macos_setup.mac_setup_completed", lambda: True
-    )
+    monkeypatch.setattr("solhunter_zero.macos_setup.mac_setup_completed", lambda: True)
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
@@ -65,10 +62,13 @@ def test_deps_marker_skips_install(monkeypatch):
     )
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
-    import types, sys
+    import sys
+    import types
+
     dummy_preflight = types.SimpleNamespace(check_internet=lambda: None)
     monkeypatch.setitem(sys.modules, "scripts.preflight", dummy_preflight)
     import importlib
+
     orig_find_spec = importlib.util.find_spec
 
     def fake_find_spec(name):
@@ -109,10 +109,13 @@ def test_force_env_var_reinstalls(monkeypatch):
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
     monkeypatch.setenv("SOLHUNTER_FORCE_DEPS", "1")
-    import types, sys
+    import sys
+    import types
+
     dummy_preflight = types.SimpleNamespace(check_internet=lambda: None)
     monkeypatch.setitem(sys.modules, "scripts.preflight", dummy_preflight)
     import importlib
+
     orig_find_spec = importlib.util.find_spec
 
     def fake_find_spec(name):

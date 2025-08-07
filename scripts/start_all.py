@@ -3,21 +3,21 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import subprocess
 import sys
-import time
 import threading
-import logging
+import time
 from pathlib import Path
 from typing import IO
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
-from solhunter_zero.paths import ROOT
-from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
 from solhunter_zero import env  # noqa: E402
+from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
+from solhunter_zero.paths import ROOT
 
 setup_logging("startup")
 env.load_env_file(ROOT / ".env")
@@ -30,19 +30,19 @@ from solhunter_zero.system import set_rayon_threads  # noqa: E402
 device.ensure_gpu_env()
 set_rayon_threads()
 
-from solhunter_zero.config import (  # noqa: E402
-    set_env_from_config,
-    ensure_config_file,
-    validate_env,
-    REQUIRED_ENV_VARS,
-)
 from solhunter_zero import data_sync  # noqa: E402
+from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
+from solhunter_zero.config import (  # noqa: E402
+    REQUIRED_ENV_VARS,
+    ensure_config_file,
+    set_env_from_config,
+    validate_env,
+)
 from solhunter_zero.service_launcher import (  # noqa: E402
     start_depth_service,
     start_rl_daemon,
     wait_for_depth_ws,
 )
-from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 
 if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     from solhunter_zero import autopilot
@@ -108,9 +108,7 @@ set_env_from_config(cfg_data)
 
 # Launch depth service and RL daemon first
 interval = float(
-    cfg_data.get(
-        "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
-    )
+    cfg_data.get("offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600"))
 )
 db_path = cfg_data.get("rl_db_path", "offline_data.db")
 Path(db_path).parent.mkdir(parents=True, exist_ok=True)

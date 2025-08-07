@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Tuple, Dict, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 FEE_RATE = 0.001  # 0.1% per trade
 
 import numpy as np
-
 
 # Strategies now optionally accept historical liquidity/depth data to
 # simulate slippage and execution costs.
@@ -36,7 +35,9 @@ class StrategyResult:
     cumulative_returns: List[float]
 
 
-def buy_and_hold(prices: List[float], liquidity: Optional[List[float]] = None) -> List[float]:
+def buy_and_hold(
+    prices: List[float], liquidity: Optional[List[float]] = None
+) -> List[float]:
     """Return daily returns for a buy and hold approach including costs."""
 
     rets: List[float] = []
@@ -46,7 +47,9 @@ def buy_and_hold(prices: List[float], liquidity: Optional[List[float]] = None) -
     return rets
 
 
-def momentum(prices: List[float], liquidity: Optional[List[float]] = None) -> List[float]:
+def momentum(
+    prices: List[float], liquidity: Optional[List[float]] = None
+) -> List[float]:
     """Return returns when buying only on positive momentum."""
 
     returns: List[float] = []
@@ -182,7 +185,9 @@ def backtest_configs(
 
     results = []
     for name, weights in configs:
-        res = backtest_weighted(prices, weights, liquidity=liquidity, strategies=strategies)
+        res = backtest_weighted(
+            prices, weights, liquidity=liquidity, strategies=strategies
+        )
         results.append(
             StrategyResult(
                 name=name,

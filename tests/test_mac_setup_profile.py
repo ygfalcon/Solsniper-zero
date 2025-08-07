@@ -9,7 +9,9 @@ def test_ensure_profile_idempotent(tmp_path, monkeypatch):
 
     # Fake brew shellenv output
     brew_env = 'export HOMEBREW_PREFIX="/custom"\nexport PATH="/custom/bin:$PATH"'
-    monkeypatch.setattr(mac_setup.subprocess, "check_output", lambda cmd, text=True: brew_env)
+    monkeypatch.setattr(
+        mac_setup.subprocess, "check_output", lambda cmd, text=True: brew_env
+    )
 
     # First run
     mac_setup.ensure_profile()
@@ -20,5 +22,5 @@ def test_ensure_profile_idempotent(tmp_path, monkeypatch):
     content_second = profile.read_text()
 
     assert content_first == content_second
-    assert content_second.count('HOMEBREW_PREFIX') == 1
+    assert content_second.count("HOMEBREW_PREFIX") == 1
     assert content_second.count('source "$HOME/.cargo/env"') == 1

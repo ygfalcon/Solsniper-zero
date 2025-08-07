@@ -1,6 +1,7 @@
-import pytest
-import types
 import sys
+import types
+
+import pytest
 
 fake_ws_api = types.ModuleType("solana.rpc.websocket_api")
 fake_ws_api.RpcTransactionLogsFilterMentions = object

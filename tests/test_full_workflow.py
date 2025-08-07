@@ -1,12 +1,13 @@
 import asyncio
+import importlib.machinery
 import sys
 import types
+
 import numpy as np
-import importlib.machinery
 import pytest
+
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
-
 
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
@@ -15,22 +16,18 @@ _faiss_mod = types.ModuleType("faiss")
 _faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
 sys.modules.setdefault("faiss", _faiss_mod)
 _st_mod = types.ModuleType("sentence_transformers")
-_st_mod.__spec__ = importlib.machinery.ModuleSpec(
-    "sentence_transformers", None
-)
+_st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
 sys.modules.setdefault("sentence_transformers", _st_mod)
-sys.modules["sentence_transformers"].SentenceTransformer = (
-    lambda *a, **k: types.SimpleNamespace(
-        get_sentence_embedding_dimension=lambda: 1,
-        encode=lambda x: np.zeros((1, 1)),
-    )
+sys.modules[
+    "sentence_transformers"
+].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
+    get_sentence_embedding_dimension=lambda: 1,
+    encode=lambda x: np.zeros((1, 1)),
 )
 sklearn = types.ModuleType("sklearn")
 sklearn.__spec__ = importlib.machinery.ModuleSpec("sklearn", None)
 sys.modules.setdefault("sklearn", sklearn)
-sys.modules["sklearn.linear_model"] = types.SimpleNamespace(
-    LinearRegression=object
-)
+sys.modules["sklearn.linear_model"] = types.SimpleNamespace(LinearRegression=object)
 sys.modules["sklearn.ensemble"] = types.SimpleNamespace(
     GradientBoostingRegressor=object, RandomForestRegressor=object
 )
@@ -42,9 +39,7 @@ sys.modules["xgboost"] = _xgb_mod
 # Ensure websocket RPC API never connects over network
 if importlib.util.find_spec("solana.rpc.websocket_api") is None:
     ws_mod = types.ModuleType("solana.rpc.websocket_api")
-    ws_mod.__spec__ = importlib.machinery.ModuleSpec(
-        "solana.rpc.websocket_api", None
-    )
+    ws_mod.__spec__ = importlib.machinery.ModuleSpec("solana.rpc.websocket_api", None)
     ws_mod.connect = lambda *a, **k: None
     ws_mod.RpcTransactionLogsFilterMentions = object
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
@@ -63,9 +58,7 @@ def test_full_workflow(monkeypatch):
     async def fake_discover(self, **kwargs):
         return ["TOK"]
 
-    monkeypatch.setattr(
-        main_module.DiscoveryAgent, "discover_tokens", fake_discover
-    )
+    monkeypatch.setattr(main_module.DiscoveryAgent, "discover_tokens", fake_discover)
 
     monkeypatch.setattr(
         main_module,

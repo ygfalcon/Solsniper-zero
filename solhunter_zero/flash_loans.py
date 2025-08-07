@@ -1,19 +1,18 @@
-import os
 import base64
 import logging
-from typing import Optional, Sequence, Mapping
+import os
+from typing import Mapping, Optional, Sequence
 
 try:  # pragma: no cover - optional dependencies
-    from solders.instruction import Instruction, AccountMeta  # type: ignore
-    from solders.pubkey import Pubkey  # type: ignore
+    from solana.rpc.async_api import AsyncClient  # type: ignore
+    from solders.hash import Hash  # type: ignore
+    from solders.instruction import AccountMeta, Instruction  # type: ignore
     from solders.keypair import Keypair  # type: ignore
     from solders.message import MessageV0  # type: ignore
+    from solders.pubkey import Pubkey  # type: ignore
     from solders.transaction import VersionedTransaction  # type: ignore
-    from solders.hash import Hash  # type: ignore
-    from solana.rpc.async_api import AsyncClient  # type: ignore
-    _DEPS_OK = bool(
-        hasattr(Keypair, "sign_message") and hasattr(Pubkey, "from_string")
-    )
+
+    _DEPS_OK = bool(hasattr(Keypair, "sign_message") and hasattr(Pubkey, "from_string"))
 except Exception:  # pragma: no cover - missing deps
     _DEPS_OK = False
 
@@ -71,9 +70,7 @@ if not _DEPS_OK:  # pragma: no cover - fallback stubs
 
     class VersionedTransaction:
         @staticmethod
-        def populate(
-            _msg: MessageV0, _sigs: Sequence[bytes]
-        ) -> "VersionedTransaction":
+        def populate(_msg: MessageV0, _sigs: Sequence[bytes]) -> "VersionedTransaction":
             return VersionedTransaction()
 
         def __bytes__(self) -> bytes:  # pragma: no cover - simple stub

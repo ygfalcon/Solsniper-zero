@@ -4,8 +4,8 @@ import types
 
 import pytest
 
-from solhunter_zero import investor_demo
 import solhunter_zero.resource_monitor as rm
+from solhunter_zero import investor_demo
 
 
 @pytest.mark.timeout(30)
@@ -55,7 +55,7 @@ def test_investor_demo_metrics(tmp_path, monkeypatch, dummy_mem, capital):
             roi = total - 1
             mean = sum(returns) / len(returns)
             variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-            vol = variance ** 0.5
+            vol = variance**0.5
             sharpe = mean / vol if vol else 0.0
             dd = investor_demo.max_drawdown(returns)
         else:
@@ -67,12 +67,14 @@ def test_investor_demo_metrics(tmp_path, monkeypatch, dummy_mem, capital):
         }
 
     reports = tmp_path / f"run_{int(capital)}"
-    investor_demo.main([
-        "--reports",
-        str(reports),
-        "--capital",
-        str(capital),
-    ])
+    investor_demo.main(
+        [
+            "--reports",
+            str(reports),
+            "--capital",
+            str(capital),
+        ]
+    )
 
     summary = json.loads((reports / "summary.json").read_text())
     metrics = {row["config"]: row for row in summary}
@@ -112,9 +114,7 @@ def test_resource_usage_logging(tmp_path, monkeypatch, dummy_mem, capsys):
 
     investor_demo.main(["--reports", str(tmp_path)])
     captured = capsys.readouterr()
-    assert (
-        "Resource usage - CPU: 11.00% Memory: 22.00%" in captured.out
-    )
+    assert "Resource usage - CPU: 11.00% Memory: 22.00%" in captured.out
 
     highlights = json.loads((tmp_path / "highlights.json").read_text())
     assert highlights.get("cpu_usage") == 11.0

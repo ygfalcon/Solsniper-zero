@@ -4,8 +4,10 @@ import time
 import solhunter_zero.arbitrage as arb
 from solhunter_zero.event_bus import publish
 
+
 async def const_price(_):
     return 1.0
+
 
 async def high_price(_):
     return 1.2
@@ -29,14 +31,18 @@ def test_route_cache_reuse(monkeypatch):
 
     start = time.perf_counter()
     asyncio.run(
-        arb.detect_and_execute_arbitrage("tok", [const_price, high_price], threshold=0.0, amount=1.0)
+        arb.detect_and_execute_arbitrage(
+            "tok", [const_price, high_price], threshold=0.0, amount=1.0
+        )
     )
     first = time.perf_counter() - start
     assert calls["count"] == 1
 
     start = time.perf_counter()
     asyncio.run(
-        arb.detect_and_execute_arbitrage("tok", [const_price, high_price], threshold=0.0, amount=1.0)
+        arb.detect_and_execute_arbitrage(
+            "tok", [const_price, high_price], threshold=0.0, amount=1.0
+        )
     )
     second = time.perf_counter() - start
     assert calls["count"] == 1
@@ -59,13 +65,17 @@ def test_cache_invalidation(monkeypatch):
     arb.invalidate_route()
 
     asyncio.run(
-        arb.detect_and_execute_arbitrage("tok", [const_price, high_price], threshold=0.0, amount=1.0)
+        arb.detect_and_execute_arbitrage(
+            "tok", [const_price, high_price], threshold=0.0, amount=1.0
+        )
     )
     assert calls["count"] == 1
 
     publish("depth_update", {"tok": {"depth": 2.0}})
 
     asyncio.run(
-        arb.detect_and_execute_arbitrage("tok", [const_price, high_price], threshold=0.0, amount=1.0)
+        arb.detect_and_execute_arbitrage(
+            "tok", [const_price, high_price], threshold=0.0, amount=1.0
+        )
     )
     assert calls["count"] == 2

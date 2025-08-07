@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any, Sequence
+from typing import Any, Dict, List, Sequence
 
 import numpy as np
 
-from . import BaseAgent
 from ..portfolio import Portfolio
 from ..prices import fetch_token_prices_async
 from ..risk import RiskManager, compute_live_covariance
+from . import BaseAgent
 
 
 class PortfolioOptimizer(BaseAgent):
@@ -74,12 +74,16 @@ class PortfolioOptimizer(BaseAgent):
                 continue
             amount = abs(diff) * total / price
             if diff > 0:
-                actions.append({"token": tok, "side": "buy", "amount": amount, "price": price})
+                actions.append(
+                    {"token": tok, "side": "buy", "amount": amount, "price": price}
+                )
             else:
                 pos = portfolio.balances.get(tok)
                 if pos:
                     amount = min(amount, pos.amount)
-                    actions.append({"token": tok, "side": "sell", "amount": amount, "price": price})
+                    actions.append(
+                        {"token": tok, "side": "sell", "amount": amount, "price": price}
+                    )
         return actions
 
     # ------------------------------------------------------------------
@@ -95,7 +99,9 @@ class PortfolioOptimizer(BaseAgent):
         prices = await fetch_token_prices_async(tokens)
         portfolio.record_prices(prices)
         returns = {tok: self._expected_return(tok) for tok in tokens}
-        cov = compute_live_covariance({t: portfolio.price_history.get(t, []) for t in tokens})
+        cov = compute_live_covariance(
+            {t: portfolio.price_history.get(t, []) for t in tokens}
+        )
         base_weights = self._mean_variance_weights(cov, [returns[t] for t in tokens])
         weights = {tok: w for tok, w in zip(tokens, base_weights)}
 

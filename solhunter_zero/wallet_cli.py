@@ -1,5 +1,6 @@
-from argparse import ArgumentParser
 import asyncio
+from argparse import ArgumentParser
+
 from . import wallet
 from .http import close_session
 from .util import install_uvloop

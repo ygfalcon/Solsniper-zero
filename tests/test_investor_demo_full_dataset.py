@@ -5,7 +5,6 @@ import pytest
 
 from solhunter_zero import investor_demo
 
-
 MAX_DATA_POINTS = 5000
 
 

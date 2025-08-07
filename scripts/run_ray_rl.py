@@ -11,7 +11,9 @@ def main() -> None:
     p.add_argument("--actors", type=int, default=1)
     args = p.parse_args()
 
-    trainer = RayTraining(db_url=args.db, model_path=args.model, algo=args.algo, num_actors=args.actors)
+    trainer = RayTraining(
+        db_url=args.db, model_path=args.model, algo=args.algo, num_actors=args.actors
+    )
     trainer.train()
     trainer.close()
 

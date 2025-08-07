@@ -13,15 +13,16 @@ from .system import set_rayon_threads
 
 # Configure Rayon parallelism for the Rust FFI
 set_rayon_threads()
-from .http import get_session, loads, dumps
+import contextlib
 import heapq
 import time
 from typing import List
-import numpy as np
-import contextlib
 
-from .dynamic_limit import _target_concurrency, _step_limit
+import numpy as np
+
 from . import resource_monitor
+from .dynamic_limit import _step_limit, _target_concurrency
+from .http import dumps, get_session, loads
 
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
@@ -55,13 +56,13 @@ else:  # pragma: no cover - numba available
 
 
 from typing import (
-    Callable,
+    AsyncGenerator,
     Awaitable,
+    Callable,
+    Mapping,
+    Optional,
     Sequence,
     Tuple,
-    Optional,
-    AsyncGenerator,
-    Mapping,
 )
 
 try:  # optional rust ffi
@@ -74,25 +75,24 @@ except Exception:  # pragma: no cover - ffi unavailable
     _HAS_PARALLEL = False
 
 import aiohttp
-from .scanner_common import JUPITER_WS_URL
+from solders.instruction import Instruction
+from solders.keypair import Keypair
+from solders.pubkey import Pubkey
 
+from . import depth_client, order_book_ws
+from .config import load_dex_config
+from .depth_client import prepare_signed_tx, stream_depth
 from .exchange import (
-    place_order_async,
+    DEX_BASE_URL,
     ORCA_DEX_URL,
     RAYDIUM_DEX_URL,
-    DEX_BASE_URL,
-    VENUE_URLS,
     SWAP_PATH,
+    VENUE_URLS,
+    place_order_async,
 )
-from .config import load_dex_config
-from . import order_book_ws
-from . import depth_client
-from .depth_client import stream_depth, prepare_signed_tx
 from .execution import EventExecutor
 from .flash_loans import borrow_flash, repay_flash
-from solders.instruction import Instruction
-from solders.pubkey import Pubkey
-from solders.keypair import Keypair
+from .scanner_common import JUPITER_WS_URL
 
 logger = logging.getLogger(__name__)
 
@@ -398,7 +398,8 @@ GNN_MODEL_PATH = os.getenv("GNN_MODEL_PATH", "route_gnn.pt")
 ROUTE_GENERATOR_PATH = os.getenv("ROUTE_GENERATOR_PATH", "route_generator.pt")
 
 from solhunter_zero.lru import LRUCache, TTLCache
-from .event_bus import subscribe, publish
+
+from .event_bus import publish, subscribe
 from .prices import get_cached_price, update_price_cache
 
 ROUTE_CACHE = LRUCache(maxsize=128)

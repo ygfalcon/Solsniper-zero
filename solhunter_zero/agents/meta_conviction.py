@@ -2,19 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import List, Dict, Any, Iterable
+from typing import Any, Dict, Iterable, List
 
 import numpy as np
 
-from .. import models
-from .. import simulation
+from .. import models, simulation
+from ..portfolio import Portfolio
 from ..simulation import fetch_token_metrics
-
 from . import BaseAgent
-from .simulation import SimulationAgent
 from .conviction import ConvictionAgent
 from .ramanujan_agent import RamanujanAgent
-from ..portfolio import Portfolio
+from .simulation import SimulationAgent
 
 
 class MetaConvictionAgent(BaseAgent):
@@ -76,9 +74,15 @@ class MetaConvictionAgent(BaseAgent):
         imbalance: float | None = None,
     ) -> List[Dict[str, Any]]:
         results = await asyncio.gather(
-            self.sim_agent.propose_trade(token, portfolio, depth=depth, imbalance=imbalance),
-            self.conv_agent.propose_trade(token, portfolio, depth=depth, imbalance=imbalance),
-            self.ram_agent.propose_trade(token, portfolio, depth=depth, imbalance=imbalance),
+            self.sim_agent.propose_trade(
+                token, portfolio, depth=depth, imbalance=imbalance
+            ),
+            self.conv_agent.propose_trade(
+                token, portfolio, depth=depth, imbalance=imbalance
+            ),
+            self.ram_agent.propose_trade(
+                token, portfolio, depth=depth, imbalance=imbalance
+            ),
         )
 
         agents = [self.sim_agent, self.conv_agent, self.ram_agent]
@@ -104,5 +108,7 @@ class MetaConvictionAgent(BaseAgent):
         if conviction < 0:
             pos = portfolio.balances.get(token)
             if pos:
-                return [{"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}]
+                return [
+                    {"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}
+                ]
         return []

@@ -1,29 +1,35 @@
 import asyncio
+import importlib.machinery
+import importlib.util
 import json
-import websockets
-import pytest
 import sys
 import types
-import importlib.util
-import importlib.machinery
+
+import pytest
+import websockets
 
 if importlib.util.find_spec("solders") is None:
     mod = types.ModuleType("solders")
     mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
     sys.modules.setdefault("solders", mod)
-    sys.modules.setdefault("solders.keypair", types.SimpleNamespace(Keypair=type("Keypair", (), {})))
+    sys.modules.setdefault(
+        "solders.keypair", types.SimpleNamespace(Keypair=type("Keypair", (), {}))
+    )
     sys.modules.setdefault("solders.pubkey", types.SimpleNamespace(Pubkey=object))
-    sys.modules.setdefault("solders.instruction", types.SimpleNamespace(Instruction=object))
+    sys.modules.setdefault(
+        "solders.instruction", types.SimpleNamespace(Instruction=object)
+    )
 if importlib.util.find_spec("aiofiles") is None:
     aiof = types.ModuleType("aiofiles")
     aiof.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)
     sys.modules.setdefault("aiofiles", aiof)
 
-from solhunter_zero.price_stream_manager import PriceStreamManager
-from solhunter_zero.agents.arbitrage import ArbitrageAgent
-from solhunter_zero.portfolio import Portfolio
-from solhunter_zero.event_bus import subscribe
 import os
+
+from solhunter_zero.agents.arbitrage import ArbitrageAgent
+from solhunter_zero.event_bus import subscribe
+from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.price_stream_manager import PriceStreamManager
 
 
 @pytest.mark.asyncio

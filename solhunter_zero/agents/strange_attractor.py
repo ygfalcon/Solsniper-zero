@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -15,8 +15,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     faiss = None
 
-from . import BaseAgent
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class StrangeAttractorAgent(BaseAgent):
@@ -24,7 +24,9 @@ class StrangeAttractorAgent(BaseAgent):
 
     name = "vanta"
 
-    def __init__(self, divergence: float = 1.0, index_path: str = "attractor.index") -> None:
+    def __init__(
+        self, divergence: float = 1.0, index_path: str = "attractor.index"
+    ) -> None:
         self.divergence = divergence
         self.index_path = index_path
         if faiss is not None:
@@ -59,7 +61,9 @@ class StrangeAttractorAgent(BaseAgent):
         return [dx, dy, dz]
 
     # ------------------------------------------------------------------
-    def _compute_attractor(self, depth: float, entropy: float, velocity: float) -> np.ndarray:
+    def _compute_attractor(
+        self, depth: float, entropy: float, velocity: float
+    ) -> np.ndarray:
         init = np.array([depth, entropy, velocity], dtype="float64")
         if solve_ivp is not None:
             res = solve_ivp(

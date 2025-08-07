@@ -1,10 +1,11 @@
 import asyncio
-import sys
-import types
-import numpy as np
 import importlib.machinery
 import importlib.util
+import sys
+import types
 from pathlib import Path
+
+import numpy as np
 
 import tests.stubs  # noqa: F401  # ensures heavy deps are stubbed
 
@@ -15,11 +16,11 @@ sys.modules.setdefault("faiss", _faiss_mod)
 _st_mod = types.ModuleType("sentence_transformers")
 _st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
 sys.modules.setdefault("sentence_transformers", _st_mod)
-sys.modules["sentence_transformers"].SentenceTransformer = (
-    lambda *a, **k: types.SimpleNamespace(
-        get_sentence_embedding_dimension=lambda: 1,
-        encode=lambda x: np.zeros((1, 1)),
-    )
+sys.modules[
+    "sentence_transformers"
+].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
+    get_sentence_embedding_dimension=lambda: 1,
+    encode=lambda x: np.zeros((1, 1)),
 )
 
 sklearn = types.ModuleType("sklearn")
@@ -37,23 +38,22 @@ sys.modules.setdefault("xgboost", _xgb_mod)
 
 if importlib.util.find_spec("solana.rpc.websocket_api") is None:
     ws_mod = types.ModuleType("solana.rpc.websocket_api")
-    ws_mod.__spec__ = importlib.machinery.ModuleSpec(
-        "solana.rpc.websocket_api", None
-    )
+    ws_mod.__spec__ = importlib.machinery.ModuleSpec("solana.rpc.websocket_api", None)
     ws_mod.connect = lambda *a, **k: None
     ws_mod.RpcTransactionLogsFilterMentions = object
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 else:
     import solana.rpc.websocket_api as ws_mod
+
     ws_mod.connect = lambda *a, **k: None
     if not hasattr(ws_mod, "RpcTransactionLogsFilterMentions"):
         ws_mod.RpcTransactionLogsFilterMentions = object
 
+from solhunter_zero import arbitrage, flash_loans
 from solhunter_zero import main as main_module
-from solhunter_zero.trade_analyzer import TradeAnalyzer
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from solhunter_zero.simulation import SimulationResult
-from solhunter_zero import arbitrage, flash_loans
+from solhunter_zero.trade_analyzer import TradeAnalyzer
 
 
 def test_paper_trading_extended(monkeypatch):
@@ -73,9 +73,7 @@ def test_paper_trading_extended(monkeypatch):
     async def fake_discover(self, **kwargs):
         return ["TOK"]
 
-    monkeypatch.setattr(
-        main_module.DiscoveryAgent, "discover_tokens", fake_discover
-    )
+    monkeypatch.setattr(main_module.DiscoveryAgent, "discover_tokens", fake_discover)
 
     monkeypatch.setattr(
         main_module,
@@ -130,9 +128,7 @@ def test_paper_trading_extended(monkeypatch):
         await flash_loans.borrow_flash(amount, token)
         await flash_loans.repay_flash(amount, token)
 
-    monkeypatch.setattr(
-        arbitrage, "detect_and_execute_arbitrage", fake_arbitrage
-    )
+    monkeypatch.setattr(arbitrage, "detect_and_execute_arbitrage", fake_arbitrage)
 
     for _ in range(100):
         asyncio.run(

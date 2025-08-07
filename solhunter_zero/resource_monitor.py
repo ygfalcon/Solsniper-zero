@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Optional
-import logging
 
 try:  # pragma: no cover - optional dependency
     import psutil

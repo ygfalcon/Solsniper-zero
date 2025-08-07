@@ -5,6 +5,7 @@ from typing import Any
 try:
     import torch
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         def __getattr__(self, name):
             raise ImportError("torch is required for ray_training")
@@ -12,15 +13,15 @@ except ImportError as exc:  # pragma: no cover - optional dependency
     torch = _TorchStub()  # type: ignore
 
 try:
-    import ray
-    from ray.rllib.algorithms.ppo import PPOConfig
-    from ray.rllib.algorithms.dqn import DQNConfig
     import gym
+    import ray
+    from ray.rllib.algorithms.dqn import DQNConfig
+    from ray.rllib.algorithms.ppo import PPOConfig
 except Exception:  # pragma: no cover - ray optional
     ray = None
 
-from .rl_training import _TradeDataset
 from .offline_data import OfflineData
+from .rl_training import _TradeDataset
 
 
 class _OfflineDatasetEnv(gym.Env):
@@ -74,7 +75,9 @@ async def _load_dataset(db_url: str, regime_weight: float) -> _TradeDataset:
 
 @ray.remote
 class _RayWorker:
-    def __init__(self, *, db_url: str, model_path: str | Path, algo: str, regime_weight: float):
+    def __init__(
+        self, *, db_url: str, model_path: str | Path, algo: str, regime_weight: float
+    ):
         dataset = asyncio.run(_load_dataset(db_url, regime_weight))
         self.model_path = Path(model_path)
         self.trainer = _build_trainer(dataset, algo)
@@ -104,8 +107,15 @@ class RayTraining:
         if ray is None:  # pragma: no cover - missing dependency
             raise RuntimeError("ray is not available")
         ray.init(ignore_reinit_error=True)
-        opts = dict(db_url=db_url, model_path=str(model_path), algo=algo, regime_weight=regime_weight)
-        self.actors = [_RayWorker.remote(**opts) for _ in range(max(1, int(num_actors)))]
+        opts = dict(
+            db_url=db_url,
+            model_path=str(model_path),
+            algo=algo,
+            regime_weight=regime_weight,
+        )
+        self.actors = [
+            _RayWorker.remote(**opts) for _ in range(max(1, int(num_actors)))
+        ]
 
     def train(self) -> None:
         ray.get([a.train.remote() for a in self.actors])

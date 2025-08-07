@@ -109,7 +109,6 @@ def test_stream_new_tokens_keyword(monkeypatch):
     monkeypatch.setattr(ws_scanner, "connect", fake_connect)
 
     async def run():
-
         gen = ws_scanner.stream_new_tokens("ws://node", keywords=["cool"])
 
         token = await asyncio.wait_for(anext(gen), timeout=0.1)

@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import pytest
+
 pytest.importorskip("google.protobuf")
 import websockets
 from aiohttp import web
@@ -146,15 +147,27 @@ async def test_depth_service_diff_updates(tmp_path):
             return web.json_response(
                 {
                     "jsonrpc": "2.0",
-                    "result": {"context": {"slot": 1}, "value": {"blockhash": "11111111111111111111111111111111", "lastValidBlockHeight": 1}},
+                    "result": {
+                        "context": {"slot": 1},
+                        "value": {
+                            "blockhash": "11111111111111111111111111111111",
+                            "lastValidBlockHeight": 1,
+                        },
+                    },
                     "id": data.get("id"),
                 }
             )
         elif method == "getVersion":
             return web.json_response(
-                {"jsonrpc": "2.0", "result": {"solana-core": "1.18.0"}, "id": data.get("id")}
+                {
+                    "jsonrpc": "2.0",
+                    "result": {"solana-core": "1.18.0"},
+                    "id": data.get("id"),
+                }
             )
-        return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+        return web.json_response(
+            {"jsonrpc": "2.0", "result": None, "id": data.get("id")}
+        )
 
     rpc_app = web.Application()
     rpc_app.router.add_post("/", rpc_handler)

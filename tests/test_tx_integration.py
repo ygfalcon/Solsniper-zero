@@ -1,14 +1,15 @@
 import asyncio
 import base64
 import json
+
 import pytest
 
 try:
-    from solders.keypair import Keypair
-    from solders.pubkey import Pubkey
     from solders.hash import Hash
-    from solders.instruction import Instruction, AccountMeta
+    from solders.instruction import AccountMeta, Instruction
+    from solders.keypair import Keypair
     from solders.message import MessageV0
+    from solders.pubkey import Pubkey
     from solders.transaction import VersionedTransaction
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     pytest.skip("solders is required", allow_module_level=True)
@@ -45,7 +46,8 @@ def test_submit_real_tx(monkeypatch):
     kp = Keypair()
     ix = Instruction(
         Pubkey.from_string("11111111111111111111111111111111"),
-        b"", [AccountMeta(kp.pubkey(), True, True)]
+        b"",
+        [AccountMeta(kp.pubkey(), True, True)],
     )
     msg = MessageV0.try_compile(kp.pubkey(), [ix], [], Hash.new_unique())
     sig = kp.sign_message(bytes(msg))

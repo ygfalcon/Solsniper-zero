@@ -1,6 +1,7 @@
 import importlib
 import sys
 import types
+
 import pytest
 
 pytest.importorskip("google.protobuf")
@@ -14,7 +15,9 @@ if importlib.util.find_spec("solana") is None:
     )
     sys.modules.setdefault(
         "solana.rpc.websocket_api",
-        types.SimpleNamespace(connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object),
+        types.SimpleNamespace(
+            connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object
+        ),
     )
     sys.modules.setdefault(
         "solana.publickey", types.SimpleNamespace(PublicKey=lambda v: v)
@@ -25,8 +28,12 @@ if importlib.util.find_spec("solders") is None:
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
-    sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
-    sys.modules["solders.instruction"] = types.SimpleNamespace(Instruction=object, AccountMeta=object)
+    sys.modules["solders.transaction"] = types.SimpleNamespace(
+        VersionedTransaction=object
+    )
+    sys.modules["solders.instruction"] = types.SimpleNamespace(
+        Instruction=object, AccountMeta=object
+    )
 try:
     importlib.import_module("google.protobuf")
 except Exception:
@@ -43,7 +50,9 @@ except Exception:
     protobuf.descriptor_pool = descriptor_pool
     protobuf.symbol_database = symbol_database
     protobuf.internal = internal
-    protobuf.runtime_version = types.SimpleNamespace(ValidateProtobufRuntimeVersion=lambda *a, **k: None)
+    protobuf.runtime_version = types.SimpleNamespace(
+        ValidateProtobufRuntimeVersion=lambda *a, **k: None
+    )
     google.protobuf = protobuf
     sys.modules.setdefault("google", google)
     sys.modules.setdefault("google.protobuf", protobuf)
@@ -55,6 +64,7 @@ except Exception:
 
 import solhunter_zero.arbitrage as arb
 
+
 def test_best_route_parallel_called(monkeypatch):
     monkeypatch.setattr(arb._routeffi, "available", lambda: True)
     monkeypatch.setattr(arb, "USE_FFI_ROUTE", True)
@@ -65,10 +75,13 @@ def test_best_route_parallel_called(monkeypatch):
         return ["dex1", "dex2"], 0.0
 
     monkeypatch.setattr(arb._routeffi, "best_route_parallel", fake_parallel)
-    monkeypatch.setattr(arb._routeffi, "best_route", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("serial")))
+    monkeypatch.setattr(
+        arb._routeffi,
+        "best_route",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("serial")),
+    )
     monkeypatch.setattr(arb._routeffi, "parallel_enabled", lambda: True)
 
     prices = {"dex1": 1.0, "dex2": 1.1}
     arb._best_route(prices, 1.0)
     assert called.get("parallel", False)
-

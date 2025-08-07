@@ -1,4 +1,5 @@
 import asyncio
+
 import aiohttp
 
 from solhunter_zero.mev_executor import MEVExecutor
@@ -31,9 +32,7 @@ def test_jito_auth_failure(monkeypatch):
     async def fake_get_session():
         return FakeSession()
 
-    monkeypatch.setattr(
-        "solhunter_zero.mev_executor.get_session", fake_get_session
-    )
+    monkeypatch.setattr("solhunter_zero.mev_executor.get_session", fake_get_session)
 
     mev = MEVExecutor("TOK", jito_rpc_url="http://jito")
     sigs = asyncio.run(_run_exec(mev, ["A", "B"]))
@@ -51,9 +50,7 @@ def test_jito_connection_failure(monkeypatch):
     async def fake_get_session():
         return FakeSession()
 
-    monkeypatch.setattr(
-        "solhunter_zero.mev_executor.get_session", fake_get_session
-    )
+    monkeypatch.setattr("solhunter_zero.mev_executor.get_session", fake_get_session)
 
     mev = MEVExecutor("TOK", jito_rpc_url="http://jito", jito_auth="T")
     sigs = asyncio.run(_run_exec(mev, ["A"]))

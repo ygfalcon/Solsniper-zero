@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from . import BaseAgent
 from ..portfolio import Portfolio
 from ..prices import fetch_token_prices_async
+from . import BaseAgent
 
 
 class HedgingAgent(BaseAgent):
@@ -41,6 +41,8 @@ class HedgingAgent(BaseAgent):
             price = prices.get(tok, 0.0)
             amount = abs(diff) * total / price if price > 0 else 0.0
             side = "sell" if diff > 0 else "buy"
-            actions.append({"token": tok, "side": side, "amount": amount, "price": price})
+            actions.append(
+                {"token": tok, "side": side, "amount": amount, "price": price}
+            )
 
         return actions

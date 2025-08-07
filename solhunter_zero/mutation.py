@@ -4,14 +4,14 @@ import copy
 import json
 import os
 import random
-from typing import Iterable, Dict
+from typing import Dict, Iterable
 
 from .agents import BaseAgent
-
 
 # ----------------------------------------------------------------------
 #  Agent cloning helpers
 # ----------------------------------------------------------------------
+
 
 def clone_agent(agent: BaseAgent, name: str | None = None, **params) -> BaseAgent:
     """Return a deep copy of ``agent`` with optional parameter overrides."""
@@ -50,6 +50,7 @@ def mutate_agent(
 # ----------------------------------------------------------------------
 #  Mutation state persistence
 # ----------------------------------------------------------------------
+
 
 def load_state(path: str) -> dict:
     try:

@@ -1,17 +1,21 @@
-import importlib
 import asyncio
+import importlib
 import time
+
 import pytest
+
 import solhunter_zero.arbitrage as arb
 
 
 @pytest.fixture
 def ensure_ffi(monkeypatch):
-    from pathlib import Path
-    import subprocess
     import importlib
+    import subprocess
+    from pathlib import Path
 
-    lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+    lib_path = (
+        Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+    )
     if not lib_path.exists():
         subprocess.run(
             [
@@ -34,7 +38,9 @@ def test_refresh_costs_updates_latency(monkeypatch):
     mod = importlib.reload(arb)
 
     latencies = {"jupiter": 0.12}
-    monkeypatch.setattr(mod, "measure_dex_latency", lambda urls=None, attempts=3: latencies)
+    monkeypatch.setattr(
+        mod, "measure_dex_latency", lambda urls=None, attempts=3: latencies
+    )
     mod.MEASURE_DEX_LATENCY = True
 
     _, _, lat = mod.refresh_costs()
@@ -193,7 +199,11 @@ async def test_measure_latency_ffi(monkeypatch, ensure_ffi):
         return {k: 0.01 for k in urls}
 
     monkeypatch.setattr(mod._routeffi, "measure_latency", fake_measure)
-    monkeypatch.setattr(mod, "_ping_url", lambda *a, **k: (_ for _ in ()).throw(AssertionError("called")))
+    monkeypatch.setattr(
+        mod,
+        "_ping_url",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("called")),
+    )
 
     res = await mod.measure_dex_latency_async({"d": "u"}, attempts=1)
     assert res == {"d": 0.01}

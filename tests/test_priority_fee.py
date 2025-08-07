@@ -1,5 +1,6 @@
 import asyncio
 import types
+
 import pytest
 
 from solhunter_zero import gas

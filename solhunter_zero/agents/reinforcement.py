@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
+from ..portfolio import Portfolio
 from . import BaseAgent
 from .memory import MemoryAgent
-from ..portfolio import Portfolio
 
 
 class ReinforcementAgent(BaseAgent):
@@ -26,7 +26,9 @@ class ReinforcementAgent(BaseAgent):
         self.learning_rate = learning_rate
         self.epsilon = epsilon
         self.discount = discount
-        self.q: Dict[str, Dict[str, float]] = defaultdict(lambda: {"buy": 0.0, "sell": 0.0})
+        self.q: Dict[str, Dict[str, float]] = defaultdict(
+            lambda: {"buy": 0.0, "sell": 0.0}
+        )
         self._last_id: int = 0
 
     def train(self) -> None:
@@ -67,5 +69,12 @@ class ReinforcementAgent(BaseAgent):
 
         position = portfolio.balances.get(token)
         if position:
-            return [{"token": token, "side": "sell", "amount": position.amount, "price": 0.0}]
+            return [
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": position.amount,
+                    "price": 0.0,
+                }
+            ]
         return []

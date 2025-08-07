@@ -1,9 +1,6 @@
 import pytest
-from solhunter_zero.portfolio import (
-    Portfolio,
-    calculate_order_size,
-    dynamic_order_size,
-)
+
+from solhunter_zero.portfolio import Portfolio, calculate_order_size, dynamic_order_size
 from solhunter_zero.risk import RiskManager
 
 
@@ -343,5 +340,3 @@ def test_calculate_order_size_risk_manager_metrics():
         max_risk_per_token=rm.max_risk_per_token,
     )
     assert dynamic < base
-
-

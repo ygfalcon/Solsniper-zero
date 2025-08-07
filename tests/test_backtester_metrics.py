@@ -1,12 +1,14 @@
-import numpy as np
 import importlib.util
 from pathlib import Path
+
+import numpy as np
 
 # Load backtester module directly
 _path = Path(__file__).resolve().parents[1] / "solhunter_zero" / "backtester.py"
 spec = importlib.util.spec_from_file_location("backtester", _path)
 backtester = importlib.util.module_from_spec(spec)
 import sys
+
 sys.modules[spec.name] = backtester
 assert spec.loader is not None
 spec.loader.exec_module(backtester)
@@ -14,12 +16,16 @@ spec.loader.exec_module(backtester)
 
 def test_metric_calculations_known_series():
     prices = [100.0, 110.0, 105.0, 120.0]
-    results = backtester.backtest_strategies(prices, strategies=[("buy_hold", backtester.buy_and_hold)])
+    results = backtester.backtest_strategies(
+        prices, strategies=[("buy_hold", backtester.buy_and_hold)]
+    )
     assert len(results) == 1
     res = results[0]
 
     # compute expected values
-    rets = [backtester._net_return(prices[i - 1], prices[i]) for i in range(1, len(prices))]
+    rets = [
+        backtester._net_return(prices[i - 1], prices[i]) for i in range(1, len(prices))
+    ]
     arr = np.array(rets, dtype=float)
     cum = np.cumprod(1 + arr)
     cum_returns = cum - 1

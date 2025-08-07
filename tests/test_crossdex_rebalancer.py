@@ -1,7 +1,8 @@
 import asyncio
+
 from solhunter_zero.agents.crossdex_rebalancer import CrossDEXRebalancer
-from solhunter_zero.agents.portfolio_optimizer import PortfolioOptimizer
 from solhunter_zero.agents.execution import ExecutionAgent
+from solhunter_zero.agents.portfolio_optimizer import PortfolioOptimizer
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -29,7 +30,10 @@ def test_crossdex_split(monkeypatch):
 
     monkeypatch.setattr(
         "solhunter_zero.agents.crossdex_rebalancer.snapshot",
-        lambda t: ({"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}}, 0.0),
+        lambda t: (
+            {"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}},
+            0.0,
+        ),
     )
 
     monkeypatch.setattr(
@@ -110,7 +114,10 @@ def test_crossdex_latency_update(monkeypatch):
 
     monkeypatch.setattr(
         "solhunter_zero.agents.crossdex_rebalancer.snapshot",
-        lambda t: ({"dexA": {"bids": 50, "asks": 50}, "dexB": {"bids": 50, "asks": 50}}, 0.0),
+        lambda t: (
+            {"dexA": {"bids": 50, "asks": 50}, "dexB": {"bids": 50, "asks": 50}},
+            0.0,
+        ),
     )
 
     monkeypatch.setattr(
@@ -166,8 +173,14 @@ def test_crossdex_depth_window(monkeypatch):
 
     from solhunter_zero.event_bus import publish
 
-    publish("depth_update", {"tok": {"dexA": {"bids": 100, "asks": 100}, "dexB": {"bids": 20, "asks": 20}}})
-    publish("depth_update", {"tok": {"dexA": {"bids": 10, "asks": 10}, "dexB": {"bids": 20, "asks": 20}}})
+    publish(
+        "depth_update",
+        {"tok": {"dexA": {"bids": 100, "asks": 100}, "dexB": {"bids": 20, "asks": 20}}},
+    )
+    publish(
+        "depth_update",
+        {"tok": {"dexA": {"bids": 10, "asks": 10}, "dexB": {"bids": 20, "asks": 20}}},
+    )
 
     asyncio.run(agent.propose_trade("tok", pf))
     agent.close()

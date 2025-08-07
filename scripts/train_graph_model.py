@@ -1,9 +1,9 @@
 import argparse
 import asyncio
 
-from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.models import save_model
 from solhunter_zero.models.graph_price_model import train_graph_model
+from solhunter_zero.offline_data import OfflineData
 
 
 async def _load_snaps(data: OfflineData, token: str | None):

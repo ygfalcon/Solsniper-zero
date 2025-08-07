@@ -70,7 +70,9 @@ def build_rust_component(
 
 
 def ensure_route_ffi() -> None:
-    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libname = (
+        "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    )
     libpath = ROOT / "solhunter_zero" / libname
     if libpath.exists():
         return

@@ -1,10 +1,10 @@
 import asyncio
 import json
 import logging
-from contextlib import suppress
-from typing import Mapping, Iterable, Dict, Any
-
 import os
+from contextlib import suppress
+from typing import Any, Dict, Iterable, Mapping
+
 import websockets
 
 _WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
@@ -12,6 +12,7 @@ _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 from .event_bus import publish
 
 logger = logging.getLogger(__name__)
+
 
 class PriceStreamManager:
     """Manage websocket price streams and publish updates."""
@@ -71,4 +72,3 @@ class PriceStreamManager:
                 logger.error("price stream error for %s: %s", venue, exc)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30)
-

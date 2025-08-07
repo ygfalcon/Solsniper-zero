@@ -37,12 +37,8 @@ def test_discover_tokens_retries_on_empty_scan(monkeypatch, caplog):
     async def fake_sleep(delay):
         sleep_calls.append(delay)
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.discovery.scan_tokens_async", fake_scan
-    )
-    monkeypatch.setattr(
-        "solhunter_zero.agents.discovery.asyncio.sleep", fake_sleep
-    )
+    monkeypatch.setattr("solhunter_zero.agents.discovery.scan_tokens_async", fake_scan)
+    monkeypatch.setattr("solhunter_zero.agents.discovery.asyncio.sleep", fake_sleep)
     monkeypatch.setenv("TOKEN_DISCOVERY_BACKOFF", "1.5")
 
     agent = DiscoveryAgent()
@@ -72,16 +68,14 @@ def test_discover_tokens_retries_on_empty_merge(monkeypatch, caplog):
     async def fake_sleep(delay):
         sleep_calls.append(delay)
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.discovery.merge_sources", fake_merge
-    )
+    monkeypatch.setattr("solhunter_zero.agents.discovery.merge_sources", fake_merge)
     monkeypatch.setattr(
         "solhunter_zero.agents.discovery.scan_tokens_async",
-        lambda *a, **k: (_ for _ in ()).throw(AssertionError("scan should not be called")),
+        lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("scan should not be called")
+        ),
     )
-    monkeypatch.setattr(
-        "solhunter_zero.agents.discovery.asyncio.sleep", fake_sleep
-    )
+    monkeypatch.setattr("solhunter_zero.agents.discovery.asyncio.sleep", fake_sleep)
     monkeypatch.setenv("TOKEN_DISCOVERY_BACKOFF", "0")
 
     agent = DiscoveryAgent()

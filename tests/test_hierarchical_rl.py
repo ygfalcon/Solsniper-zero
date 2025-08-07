@@ -17,7 +17,9 @@ if importlib.util.find_spec("torch") is None:
     torch_mod.Tensor = object
     torch_mod.device = type("device", (), {})
     torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch_mod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_available=lambda: False)
+    )
     torch_mod.nn = torch_nn
     sys.modules.setdefault("torch", torch_mod)
     sys.modules.setdefault("torch.nn", torch_nn)
@@ -28,17 +30,23 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc"] = types.ModuleType("rpc")
     sys.modules["solana.rpc.api"] = types.SimpleNamespace(Client=object)
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
-    sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(connect=lambda *a, **k: None)
+    sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(
+        connect=lambda *a, **k: None
+    )
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 if importlib.util.find_spec("solders") is None:
     s_mod = types.ModuleType("solders")
     s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
     sys.modules.setdefault("solders", s_mod)
-    sys.modules["solders.keypair"] = types.SimpleNamespace(Keypair=type("Keypair", (), {}))
+    sys.modules["solders.keypair"] = types.SimpleNamespace(
+        Keypair=type("Keypair", (), {})
+    )
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
-    sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
+    sys.modules["solders.transaction"] = types.SimpleNamespace(
+        VersionedTransaction=object
+    )
 if importlib.util.find_spec("watchfiles") is None:
     watch_mod = types.ModuleType("watchfiles")
     watch_mod.awatch = lambda *a, **k: iter(())
@@ -55,20 +63,27 @@ if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
 sys.modules["transformers"].pipeline = dummy_trans.pipeline
 if importlib.util.find_spec("sentence_transformers") is None:
-    sys.modules.setdefault("sentence_transformers", types.ModuleType("sentence_transformers"))
+    sys.modules.setdefault(
+        "sentence_transformers", types.ModuleType("sentence_transformers")
+    )
 import types
 
 # Stub out heavy rl_training dependency
 dummy_rl_mod = types.ModuleType("solhunter_zero.rl_training")
+
+
 class _DummyRL:
     def __init__(self, *a, **k):
         self.controller = types.SimpleNamespace(population=[])
+
     def train_controller(self, names):
         if not self.controller.population:
             return {n: 1.0 for n in names}
         cfg = self.controller.population[0]
         w = cfg.get("weights", {})
         return {n: float(w.get(n, 1.0)) for n in names}
+
+
 dummy_rl_mod.MultiAgentRL = _DummyRL
 sys.modules.setdefault("solhunter_zero.rl_training", dummy_rl_mod)
 from solhunter_zero.swarm_coordinator import SwarmCoordinator
@@ -76,14 +91,19 @@ from solhunter_zero.swarm_coordinator import SwarmCoordinator
 
 class HierarchicalRLAgent:
     name = "hierarchical_rl"
+
     def __init__(self, rl):
         self.rl = rl
         self.weights = {}
+
     def train(self, agent_names):
         self.weights = self.rl.train_controller(agent_names)
         return self.weights
+
     async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
         return []
+
+
 class DummyMemory:
     def __init__(self):
         self.trades = []
@@ -120,12 +140,21 @@ def test_hierarchical_rl_agent_trains(tmp_path):
 def test_swarm_coordinator_filters_hierarchical_agent(tmp_path):
     mem_agent = DummyMemoryAgent()
     from types import SimpleNamespace
+
     mem_agent.memory.trades.extend(
         [
-            SimpleNamespace(token="tok", direction="buy", amount=1, price=2, reason="a1"),
-            SimpleNamespace(token="tok", direction="sell", amount=1, price=1, reason="a1"),
-            SimpleNamespace(token="tok", direction="buy", amount=1, price=1, reason="a2"),
-            SimpleNamespace(token="tok", direction="sell", amount=1, price=2, reason="a2"),
+            SimpleNamespace(
+                token="tok", direction="buy", amount=1, price=2, reason="a1"
+            ),
+            SimpleNamespace(
+                token="tok", direction="sell", amount=1, price=1, reason="a1"
+            ),
+            SimpleNamespace(
+                token="tok", direction="buy", amount=1, price=1, reason="a2"
+            ),
+            SimpleNamespace(
+                token="tok", direction="sell", amount=1, price=2, reason="a2"
+            ),
         ]
     )
     rl = _DummyRL()
@@ -142,6 +171,7 @@ def test_swarm_coordinator_filters_hierarchical_agent(tmp_path):
 
 def test_train_policy_updates_weights():
     from types import SimpleNamespace
+
     from solhunter_zero.hierarchical_rl import HighLevelPolicyNetwork, train_policy
 
     trades = [
@@ -154,8 +184,9 @@ def test_train_policy_updates_weights():
     w = train_policy(model, trades, ["a1", "a2"], lr=1.0, epochs=1)
     assert w["a1"] > w["a2"]
 
-from solhunter_zero.hierarchical_rl import SupervisorAgent
+
 from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.hierarchical_rl import SupervisorAgent
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -201,7 +232,15 @@ def test_agent_manager_hierarchical_policy(tmp_path):
     class Dummy(DummyAgent):
         async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
             calls.append(self.name)
-            return [{"agent": self.name, "token": token, "side": "buy", "amount": 1.0, "price": 1.0}]
+            return [
+                {
+                    "agent": self.name,
+                    "token": token,
+                    "side": "buy",
+                    "amount": 1.0,
+                    "price": 1.0,
+                }
+            ]
 
     agents = [Dummy("a1"), Dummy("a2")]
     mgr = AgentManager(

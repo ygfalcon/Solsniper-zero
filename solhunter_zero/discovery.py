@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from .scanner_common import fetch_trending_tokens_async
+from . import onchain_metrics
 from .mempool_scanner import (
     stream_ranked_mempool_tokens,
     stream_ranked_mempool_tokens_with_depth,
 )
+from .scanner_common import fetch_trending_tokens_async
 from .scanner_onchain import scan_tokens_onchain
-from . import onchain_metrics
 
 
 async def _metrics_for(token: str, rpc_url: str) -> tuple[float, float]:

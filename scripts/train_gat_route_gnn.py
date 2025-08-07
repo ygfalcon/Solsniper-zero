@@ -4,6 +4,7 @@ import asyncio
 from solhunter_zero.memory import Memory
 from solhunter_zero.models import save_route_gnn, train_route_gnn
 
+
 async def _load_data(mem: Memory, token: str | None):
     trades = await mem.list_trades(token=token)
     routes = []

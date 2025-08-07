@@ -1,9 +1,11 @@
 import pytest
+
 from solhunter_zero.memory import Memory
 
 # create memory instances outside any running event loop
-mem_sync = Memory('sqlite:///:memory:')
-mem_async = Memory('sqlite:///:memory:')
+mem_sync = Memory("sqlite:///:memory:")
+mem_async = Memory("sqlite:///:memory:")
+
 
 @pytest.mark.asyncio
 async def test_log_and_list_vars_async():

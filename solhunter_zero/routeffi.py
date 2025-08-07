@@ -1,11 +1,11 @@
-from .jsonutil import dumps, loads
-import os
 import ctypes
-import struct
 import logging
-import time
+import os
 import platform
+import struct
+import time
 
+from .jsonutil import dumps, loads
 from .system import set_rayon_threads
 
 # Ensure Rayon thread count is configured for FFI
@@ -340,12 +340,15 @@ if LIB is not None:
                 if ptr:
                     LIB.free_buffer(ptr, out_len.value)
             bin_time = time.perf_counter() - start
-            _BEST_ROUTE_FUNC = _best_route_bin if bin_time <= json_time else _best_route_json
+            _BEST_ROUTE_FUNC = (
+                _best_route_bin if bin_time <= json_time else _best_route_json
+            )
         else:
-            _BEST_ROUTE_FUNC = _best_route_json if hasattr(LIB, "best_route_json") else None
+            _BEST_ROUTE_FUNC = (
+                _best_route_json if hasattr(LIB, "best_route_json") else None
+            )
     except Exception:
         _BEST_ROUTE_FUNC = _best_route_json
-
 
 
 def available() -> bool:
@@ -359,8 +362,6 @@ def parallel_enabled() -> bool:
     if flag is None:
         return False
     return bool(flag())
-
-
 
 
 def decode_token_agg(buf: bytes) -> dict | None:
@@ -425,7 +426,9 @@ def best_route_parallel(
             latency=latency,
             max_hops=max_hops,
         )
-    if _BEST_ROUTE_FUNC is _best_route_json and hasattr(LIB, "best_route_parallel_json"):
+    if _BEST_ROUTE_FUNC is _best_route_json and hasattr(
+        LIB, "best_route_parallel_json"
+    ):
         return _best_route_parallel_json(
             prices,
             amount,

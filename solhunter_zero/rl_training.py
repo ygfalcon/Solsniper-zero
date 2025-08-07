@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
-import datetime
-from pathlib import Path
-from typing import Any, Iterable, List, Tuple
-from contextlib import suppress
-from concurrent.futures import ProcessPoolExecutor
 import time
 from collections import deque
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import suppress
+from pathlib import Path
+from typing import Any, Iterable, List, Tuple
 
 try:  # pragma: no cover - optional dependency
     import psutil
@@ -18,9 +18,10 @@ except Exception:  # pragma: no cover - psutil optional
     logging.getLogger(__name__).warning(
         "psutil not installed; RL worker scaling will use defaults"
     )
-from .multi_rl import PopulationRL
-from .advanced_memory import AdvancedMemory
 from solhunter_zero.device import get_default_device
+
+from .advanced_memory import AdvancedMemory
+from .multi_rl import PopulationRL
 from .system import detect_cpu_count
 
 try:
@@ -42,19 +43,16 @@ import numpy as np
 try:  # pragma: no cover - optional dependency
     import torch
     from torch import nn
-    from torch.utils.data import Dataset, DataLoader
+    from torch.utils.data import DataLoader, Dataset
 except ImportError as exc:  # pragma: no cover - optional
+
     class _TorchStub:
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for RL training"
-            )
+            raise ImportError("torch is required for RL training")
 
     class _DatasetStub:
         def __init__(self, *a, **k) -> None:
-            raise ImportError(
-                "torch is required for RL training"
-            )
+            raise ImportError("torch is required for RL training")
 
     torch = nn = _TorchStub()  # type: ignore
     Dataset = DataLoader = _DatasetStub  # type: ignore
@@ -89,13 +87,12 @@ except Exception:  # pragma: no cover - optional dependency
 
     pl = _PL()
 
+from .config import get_broker_urls
+from .event_bus import _BROKER_URLS  # type: ignore
+from .event_bus import connect_broker, publish, subscription
+from .news import fetch_sentiment
 from .offline_data import OfflineData
 from .simulation import predict_price_movement
-from .news import fetch_sentiment
-from .event_bus import publish, subscription, connect_broker
-from .event_bus import _BROKER_URLS  # type: ignore
-from .config import get_broker_urls
-
 
 _CPU_USAGE = 0.0
 _CPU_SUB: tuple | None = None
@@ -114,9 +111,7 @@ def _get_cpu_usage(callback: Callable[[], float] | None = None) -> float:
         def _update(payload: Any) -> None:
             global _CPU_USAGE
             try:
-                _CPU_USAGE = float(
-                    payload.get("cpu", payload.get("usage", payload))
-                )
+                _CPU_USAGE = float(payload.get("cpu", payload.get("usage", payload)))
             except Exception:
                 pass
 
@@ -641,8 +636,8 @@ class TradeDataModule(pl.LightningDataModule):
             mem = np.load(self.mmap_path, mmap_mode="r")
             snaps_arr = mem["snapshots"]
             trades_arr = mem["trades"]
-            from types import SimpleNamespace
             from datetime import datetime
+            from types import SimpleNamespace
 
             trades = [
                 SimpleNamespace(
@@ -1071,7 +1066,7 @@ class RLTraining:
         await self.data.setup()
         self.trainer.fit(self.model, self.data)
         torch.save(self.model.state_dict(), self.model_path)
-        from .models import export_torchscript, export_onnx
+        from .models import export_onnx, export_torchscript
 
         try:
             export_torchscript(self.model.cpu(), self.model_path.with_suffix(".ptc"))
@@ -1322,7 +1317,7 @@ def fit(
     with suppress(Exception):
         model.load_state_dict(state)
     torch.save(model.state_dict(), path)
-    from .models import export_torchscript, export_onnx
+    from .models import export_onnx, export_torchscript
 
     try:
         export_torchscript(model.cpu(), path.with_suffix(".ptc"))

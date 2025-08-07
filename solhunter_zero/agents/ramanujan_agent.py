@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from . import BaseAgent
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class RamanujanAgent(BaseAgent):
@@ -30,9 +30,13 @@ class RamanujanAgent(BaseAgent):
         score = math.tanh(math.sin(digest % 1000))
 
         if score > self.threshold:
-            return [{"token": token, "side": "buy", "amount": self.amount, "price": 0.0}]
+            return [
+                {"token": token, "side": "buy", "amount": self.amount, "price": 0.0}
+            ]
         if score < -self.threshold:
             pos = portfolio.balances.get(token)
             if pos:
-                return [{"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}]
+                return [
+                    {"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}
+                ]
         return []

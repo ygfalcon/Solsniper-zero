@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any, Iterable, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, Iterable, List
 
-from . import BaseAgent
-from ..portfolio import Portfolio
 from ..mempool_scanner import stream_ranked_mempool_tokens
 from ..news import fetch_sentiment_async
+from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class MomentumAgent(BaseAgent):
@@ -67,6 +67,8 @@ class MomentumAgent(BaseAgent):
 
         if token in portfolio.balances and score < self.threshold * 0.5:
             pos = portfolio.balances[token]
-            return [{"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}]
+            return [
+                {"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}
+            ]
 
         return []

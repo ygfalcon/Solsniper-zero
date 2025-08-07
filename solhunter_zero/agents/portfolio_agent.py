@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
-
-from . import BaseAgent
+from typing import Any, Dict, List
 
 from ..portfolio import Portfolio, calculate_order_size
+from . import BaseAgent
 
 
 class PortfolioAgent(BaseAgent):
@@ -32,7 +31,9 @@ class PortfolioAgent(BaseAgent):
             excess = allocation - self.max_allocation
             amount = pos.amount * excess / allocation
             if amount > 0:
-                actions.append({"token": token, "side": "sell", "amount": amount, "price": 0.0})
+                actions.append(
+                    {"token": token, "side": "sell", "amount": amount, "price": 0.0}
+                )
         elif allocation < self.max_allocation and not portfolio.balances:
             size = calculate_order_size(
                 1.0,
@@ -42,7 +43,8 @@ class PortfolioAgent(BaseAgent):
                 current_allocation=allocation,
             )
             if size > 0:
-                actions.append({"token": token, "side": "buy", "amount": size, "price": 0.0})
+                actions.append(
+                    {"token": token, "side": "buy", "amount": size, "price": 0.0}
+                )
 
         return actions
-

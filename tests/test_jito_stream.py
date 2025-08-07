@@ -1,8 +1,8 @@
 import asyncio
-import solhunter_zero.jito_stream
 
-from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
+import solhunter_zero.jito_stream
 from solhunter_zero.agents.flashloan_sandwich import FlashloanSandwichAgent
+from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
 
 
 async def fake_jito(url, *, auth=None):
@@ -28,6 +28,7 @@ def test_mev_sandwich_from_jito(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.agents.mev_sandwich._fetch_swap_tx_message", fake_fetch
     )
+
     async def fake_prepare(msg):
         return f"TX_{msg}"
 
@@ -71,6 +72,7 @@ def test_flashloan_sandwich_from_jito(monkeypatch):
         "solhunter_zero.agents.flashloan_sandwich._fetch_swap_tx_message",
         fake_fetch,
     )
+
     async def fake_prepare2(msg):
         return f"TX_{msg}"
 

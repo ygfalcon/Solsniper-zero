@@ -1,5 +1,6 @@
 import subprocess
 import sys
+
 from solhunter_zero.memory import Memory
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 
@@ -40,16 +41,21 @@ def test_cli_analyze_trades(tmp_path):
     cfg.write_text("""[agent_weights]\na1 = 1.0\na2 = 1.0\n""")
 
     out = tmp_path / "out.toml"
-    run_cli([
-        "--analyze-trades",
-        "--memory",
-        f"sqlite:///{db}",
-        "-c",
-        str(cfg),
-        "--weights-out",
-        str(out),
-    ])
+    run_cli(
+        [
+            "--analyze-trades",
+            "--memory",
+            f"sqlite:///{db}",
+            "-c",
+            str(cfg),
+            "--weights-out",
+            str(out),
+        ]
+    )
 
-    data = {line.split("=")[0].strip(): float(line.split("=")[1]) for line in out.read_text().splitlines()}
+    data = {
+        line.split("=")[0].strip(): float(line.split("=")[1])
+        for line in out.read_text().splitlines()
+    }
     assert data["a1"] > 1.0
     assert data["a2"] < 1.0

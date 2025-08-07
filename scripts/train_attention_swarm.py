@@ -1,9 +1,7 @@
 import argparse
+
 from solhunter_zero.advanced_memory import AdvancedMemory
-from solhunter_zero.agents.attention_swarm import (
-    train_attention_swarm,
-    save_model,
-)
+from solhunter_zero.agents.attention_swarm import save_model, train_attention_swarm
 
 
 def main() -> None:

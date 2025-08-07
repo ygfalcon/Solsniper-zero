@@ -1,5 +1,5 @@
-import time
 import datetime as dt
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -10,10 +10,10 @@ def _build_old(trades, snaps):
     trade_list = list(trades)
     n = len(trade_list)
     tokens = np.array([t.token for t in trade_list])
-    timestamps = np.array([
-        getattr(t, "timestamp", dt.datetime.utcnow()).timestamp()
-        for t in trade_list
-    ], dtype=np.float64)
+    timestamps = np.array(
+        [getattr(t, "timestamp", dt.datetime.utcnow()).timestamp() for t in trade_list],
+        dtype=np.float64,
+    )
 
     snap_map = {}
     for s in snaps:
@@ -23,10 +23,18 @@ def _build_old(trades, snaps):
         seq.sort(key=lambda x: x.timestamp)
         snap_data[token] = {
             "ts": np.array([s.timestamp.timestamp() for s in seq], dtype=np.float64),
-            "depth": np.array([float(getattr(s, "depth", 0.0)) for s in seq], dtype=np.float32),
-            "slippage": np.array([float(getattr(s, "slippage", 0.0)) for s in seq], dtype=np.float32),
-            "imbalance": np.array([float(getattr(s, "imbalance", 0.0)) for s in seq], dtype=np.float32),
-            "tx_rate": np.array([float(getattr(s, "tx_rate", 0.0)) for s in seq], dtype=np.float32),
+            "depth": np.array(
+                [float(getattr(s, "depth", 0.0)) for s in seq], dtype=np.float32
+            ),
+            "slippage": np.array(
+                [float(getattr(s, "slippage", 0.0)) for s in seq], dtype=np.float32
+            ),
+            "imbalance": np.array(
+                [float(getattr(s, "imbalance", 0.0)) for s in seq], dtype=np.float32
+            ),
+            "tx_rate": np.array(
+                [float(getattr(s, "tx_rate", 0.0)) for s in seq], dtype=np.float32
+            ),
         }
 
     depth = np.zeros(n, dtype=np.float32)
@@ -46,9 +54,10 @@ def _build_new(trades, snaps):
     trade_list = list(trades)
     n = len(trade_list)
     tokens = np.array([t.token for t in trade_list], dtype=object)
-    timestamps = np.array([
-        getattr(t, "timestamp", dt.datetime.utcnow()).timestamp() for t in trade_list
-    ], dtype=np.float64)
+    timestamps = np.array(
+        [getattr(t, "timestamp", dt.datetime.utcnow()).timestamp() for t in trade_list],
+        dtype=np.float64,
+    )
 
     snap_tokens = []
     snap_ts = []
@@ -82,13 +91,22 @@ def _build_new(trades, snaps):
 
 def test_dataset_build_speed():
     now = dt.datetime.utcnow()
-    trades = [SimpleNamespace(token=f"tok{i%5}", price=1.0, amount=1.0, timestamp=now)
-              for i in range(100000)]
-    snaps = [SimpleNamespace(token=f"tok{i%5}", depth=1.0, slippage=0.1, imbalance=0.0,
-                             tx_rate=0.0, timestamp=now)
-             for i in range(50000)]
+    trades = [
+        SimpleNamespace(token=f"tok{i%5}", price=1.0, amount=1.0, timestamp=now)
+        for i in range(100000)
+    ]
+    snaps = [
+        SimpleNamespace(
+            token=f"tok{i%5}",
+            depth=1.0,
+            slippage=0.1,
+            imbalance=0.0,
+            tx_rate=0.0,
+            timestamp=now,
+        )
+        for i in range(50000)
+    ]
 
     old_time = _build_old(trades, snaps)
     new_time = _build_new(trades, snaps)
     assert new_time <= old_time * 1.2
-

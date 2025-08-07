@@ -1,9 +1,9 @@
-import pytest
-import aiohttp
 import asyncio
-from solhunter_zero import http
 
-from solhunter_zero import onchain_metrics
+import aiohttp
+import pytest
+
+from solhunter_zero import http, onchain_metrics
 
 
 # reset global state before each test
@@ -87,13 +87,23 @@ def test_top_volume_tokens_error(monkeypatch):
 
 def test_async_top_volume_tokens(monkeypatch):
     tokens = ["t1", "t2", "t3"]
-    tx_data = {"t1": [{"amount": 1.0}, {"amount": 3.0}], "t2": [{"amount": 5.0}], "t3": []}
+    tx_data = {
+        "t1": [{"amount": 1.0}, {"amount": 3.0}],
+        "t2": [{"amount": 5.0}],
+        "t3": [],
+    }
 
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: asyncio.sleep(0, tokens))
-    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: FakeAsyncClient(url, tx_data))
+    monkeypatch.setattr(
+        onchain_metrics, "scan_tokens_onchain", lambda url: asyncio.sleep(0, tokens)
+    )
+    monkeypatch.setattr(
+        onchain_metrics, "AsyncClient", lambda url: FakeAsyncClient(url, tx_data)
+    )
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
-    result = asyncio.run(onchain_metrics.async_top_volume_tokens("http://node", limit=2))
+    result = asyncio.run(
+        onchain_metrics.async_top_volume_tokens("http://node", limit=2)
+    )
     assert result == ["t2", "t1"]
 
 
@@ -107,8 +117,12 @@ def test_async_top_volume_tokens_cache(monkeypatch):
             calls["gets"] += 1
             return await super().get_signatures_for_address(addr)
 
-    monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", lambda url: asyncio.sleep(0, tokens))
-    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(
+        onchain_metrics, "scan_tokens_onchain", lambda url: asyncio.sleep(0, tokens)
+    )
+    monkeypatch.setattr(
+        onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data)
+    )
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
     onchain_metrics.TOKEN_VOLUME_CACHE.ttl = 60
@@ -135,7 +149,9 @@ def test_top_volume_tokens_cache(monkeypatch):
         return tokens
 
     monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain_sync", fake_scan)
-    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(
+        onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data)
+    )
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
     onchain_metrics.TOP_VOLUME_TOKENS_CACHE.ttl = 60
@@ -165,7 +181,9 @@ def test_async_top_volume_tokens_list_cache(monkeypatch):
         return tokens
 
     monkeypatch.setattr(onchain_metrics, "scan_tokens_onchain", fake_scan)
-    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data))
+    monkeypatch.setattr(
+        onchain_metrics, "AsyncClient", lambda url: CountingClient(url, tx_data)
+    )
     monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
 
     onchain_metrics.TOP_VOLUME_TOKENS_CACHE.ttl = 60
@@ -364,9 +382,13 @@ def test_order_book_depth_change(monkeypatch):
 
 
 def test_collect_onchain_insights(monkeypatch):
-    monkeypatch.setattr(onchain_metrics, "order_book_depth_change", lambda t, base_url=None: 0.5)
+    monkeypatch.setattr(
+        onchain_metrics, "order_book_depth_change", lambda t, base_url=None: 0.5
+    )
     monkeypatch.setattr(onchain_metrics, "fetch_mempool_tx_rate", lambda t, u: 2.0)
-    monkeypatch.setattr(onchain_metrics, "fetch_whale_wallet_activity", lambda t, u: 0.1)
+    monkeypatch.setattr(
+        onchain_metrics, "fetch_whale_wallet_activity", lambda t, u: 0.1
+    )
     monkeypatch.setattr(onchain_metrics, "fetch_average_swap_size", lambda t, u: 1.5)
 
     data = onchain_metrics.collect_onchain_insights("tok", "http://node")

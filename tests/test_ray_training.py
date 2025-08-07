@@ -8,8 +8,8 @@ torch_spec = importlib.util.find_spec("torch")
 if torch_spec is None:
     pytest.skip("torch not installed", allow_module_level=True)
 
-from solhunter_zero.ray_training import RayTraining
 from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.ray_training import RayTraining
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,7 @@
 import asyncio
-import json
 import importlib
 import importlib.util
+import json
 import re
 import sys
 import threading
@@ -63,8 +63,9 @@ async def test_investor_demo_price_streams(tmp_path, monkeypatch):
     spec.loader.exec_module(websockets)
     sys.modules["websockets"] = websockets
 
-    import solhunter_zero.price_stream_manager as psm
     import solhunter_zero.investor_demo as demo_mod
+    import solhunter_zero.price_stream_manager as psm
+
     importlib.reload(psm)
     investor_demo = importlib.reload(demo_mod)
 

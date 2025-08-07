@@ -1,5 +1,7 @@
 import argparse
+
 import pytest
+
 from solhunter_zero import investor_demo
 
 

@@ -1,4 +1,5 @@
 import asyncio
+
 from solhunter_zero.agents.mev_sandwich import MEVSandwichAgent
 
 
@@ -90,7 +91,9 @@ def test_mev_sandwich_jito(monkeypatch):
     created = {}
 
     class FakeMEV:
-        def __init__(self, token, *, priority_rpc=None, jito_rpc_url=None, jito_auth=None, **_):
+        def __init__(
+            self, token, *, priority_rpc=None, jito_rpc_url=None, jito_auth=None, **_
+        ):
             created["jito_url"] = jito_rpc_url
             created["jito_auth"] = jito_auth
 

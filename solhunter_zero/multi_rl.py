@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-from .http import dumps
 import os
 import random
 from typing import Any, List
 
 from .agents.memory import MemoryAgent
+from .http import dumps
 
 
 class PopulationRL:
@@ -110,6 +110,7 @@ class PopulationRL:
 
 if __name__ == "__main__":  # pragma: no cover - simple CLI
     import argparse
+
     from .memory import Memory
 
     ap = argparse.ArgumentParser(description="Evolve RL population weights")
@@ -123,7 +124,8 @@ if __name__ == "__main__":  # pragma: no cover - simple CLI
         os.environ["RL_NUM_WORKERS"] = str(args.num_workers)
 
     mgr = MemoryAgent(Memory(args.memory))
-    rl = PopulationRL(mgr, population_size=args.population_size, weights_path=args.weights_path)
+    rl = PopulationRL(
+        mgr, population_size=args.population_size, weights_path=args.weights_path
+    )
     best = rl.evolve()
     print(dumps(best).decode())
-

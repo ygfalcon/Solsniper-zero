@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any, Iterable
+from typing import Any, Dict, Iterable, List
 
-from . import BaseAgent
+from ..news import fetch_sentiment_async
 from ..portfolio import Portfolio
 from ..scanner_common import fetch_trending_tokens_async
 from ..simulation import fetch_token_metrics_async
-from ..news import fetch_sentiment_async
+from . import BaseAgent
 
 
 class TrendAgent(BaseAgent):

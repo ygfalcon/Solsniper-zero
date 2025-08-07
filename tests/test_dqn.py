@@ -1,14 +1,17 @@
 import asyncio
 
+import pytest
+
 from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio, Position
 from solhunter_zero.replay import ReplayBuffer
-import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-import torch
 import random
+
+import torch
 
 torch.manual_seed(0)
 random.seed(0)
@@ -25,7 +28,9 @@ def test_dqn_agent_buy(tmp_path):
     mem.log_trade(token="tok", direction="buy", amount=1, price=1)
     mem.log_trade(token="tok", direction="sell", amount=1, price=2)
     mem_agent = MemoryAgent(mem)
-    agent = DQNAgent(memory_agent=mem_agent, epsilon=0.0, model_path=tmp_path / "dqn.pt")
+    agent = DQNAgent(
+        memory_agent=mem_agent, epsilon=0.0, model_path=tmp_path / "dqn.pt"
+    )
     pf = DummyPortfolio()
     actions = asyncio.run(agent.propose_trade("tok", pf))
     assert actions and actions[0]["side"] == "buy"
@@ -36,7 +41,9 @@ def test_dqn_agent_sell(tmp_path):
     mem.log_trade(token="tok", direction="buy", amount=1, price=2)
     mem.log_trade(token="tok", direction="sell", amount=1, price=1)
     mem_agent = MemoryAgent(mem)
-    agent = DQNAgent(memory_agent=mem_agent, epsilon=0.0, model_path=tmp_path / "dqn.pt")
+    agent = DQNAgent(
+        memory_agent=mem_agent, epsilon=0.0, model_path=tmp_path / "dqn.pt"
+    )
     pf = DummyPortfolio()
     pf.balances["tok"] = Position("tok", 1, 1.0, 1.0)
     actions = asyncio.run(agent.propose_trade("tok", pf))

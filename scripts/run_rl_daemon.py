@@ -2,12 +2,12 @@ import argparse
 import asyncio
 import os
 
-from solhunter_zero.rl_daemon import RLDaemon
-from solhunter_zero.agents.dqn import DQNAgent
-from solhunter_zero.agents.ppo_agent import PPOAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
 import solhunter_zero.device as device
+from solhunter_zero.agents.dqn import DQNAgent
+from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.ppo_agent import PPOAgent
+from solhunter_zero.memory import Memory
+from solhunter_zero.rl_daemon import RLDaemon
 
 
 async def main() -> None:

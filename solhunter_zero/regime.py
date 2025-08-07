@@ -1,10 +1,9 @@
 from __future__ import annotations
-from typing import Sequence
 
 import os
+from typing import Sequence
 
 from .models.regime_classifier import get_model as _get_regime_model
-
 from .regime_cluster import cluster_regime
 
 

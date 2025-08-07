@@ -43,7 +43,9 @@ def test_load_torch_metal_versions_config(monkeypatch):
     monkeypatch.delenv("TORCHVISION_METAL_VERSION", raising=False)
     monkeypatch.setattr(
         "solhunter_zero.config.load_config",
-        lambda: {"torch": {"torch_metal_version": "7.7", "torchvision_metal_version": "8.8"}},
+        lambda: {
+            "torch": {"torch_metal_version": "7.7", "torchvision_metal_version": "8.8"}
+        },
     )
     assert device_module.load_torch_metal_versions() == ("7.7", "8.8")
 
@@ -85,7 +87,9 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
     monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
     torch_stub = types.SimpleNamespace(
         backends=types.SimpleNamespace(
-            mps=types.SimpleNamespace(is_built=lambda: False, is_available=lambda: False)
+            mps=types.SimpleNamespace(
+                is_built=lambda: False, is_available=lambda: False
+            )
         ),
         cuda=types.SimpleNamespace(is_available=lambda: False),
     )
@@ -140,7 +144,9 @@ def test_ensure_torch_with_metal_failure_does_not_write_sentinel(
     assert not sentinel.exists()
 
 
-@pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
+@pytest.mark.skipif(
+    platform.system() != "Darwin", reason="MPS is only available on macOS"
+)
 def test_configure_gpu_env_mps(monkeypatch):
     monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
     torch_stub = types.SimpleNamespace(
@@ -165,7 +171,9 @@ def test_configure_gpu_env_mps(monkeypatch):
     assert os.environ["SOLHUNTER_GPU_DEVICE"] == "mps"
 
 
-@pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
+@pytest.mark.skipif(
+    platform.system() != "Darwin", reason="MPS is only available on macOS"
+)
 def test_configure_gpu_env_mps_unavailable(monkeypatch):
     monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
     torch_stub = types.SimpleNamespace(
@@ -197,7 +205,11 @@ def test_initialize_gpu_installs_before_verify(monkeypatch, tmp_path):
         call_order.append("verify")
 
     def fake_env() -> dict[str, str]:
-        return {"SOLHUNTER_GPU_AVAILABLE": "1", "SOLHUNTER_GPU_DEVICE": "mps", "TORCH_DEVICE": "mps"}
+        return {
+            "SOLHUNTER_GPU_AVAILABLE": "1",
+            "SOLHUNTER_GPU_DEVICE": "mps",
+            "TORCH_DEVICE": "mps",
+        }
 
     monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")

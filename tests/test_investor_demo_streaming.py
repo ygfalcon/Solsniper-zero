@@ -1,6 +1,6 @@
 import asyncio
-import json
 import importlib.util
+import json
 import sys
 
 # Restore real websockets implementation if stubs are present

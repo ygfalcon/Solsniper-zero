@@ -2,18 +2,28 @@ import asyncio
 import inspect
 import time
 
-from tests.stubs import stub_numpy
+from solhunter_zero import order_book_ws
 from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.portfolio import Portfolio
-from solhunter_zero import order_book_ws
+from tests.stubs import stub_numpy
 
 
 class DummyAgent:
     def __init__(self, name):
         self.name = name
 
-    async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None, rl_action=None, summary=None):
+    async def propose_trade(
+        self,
+        token,
+        portfolio,
+        *,
+        depth=None,
+        imbalance=None,
+        rl_action=None,
+        summary=None,
+    ):
         return []
+
 
 def _baseline(swarm, token, portfolio):
     depth, imbalance, _ = order_book_ws.snapshot(token)
@@ -51,4 +61,3 @@ def test_propose_cached_faster(monkeypatch):
     baseline_time = asyncio.run(measure(baseline))
     cached_time = asyncio.run(measure(cached))
     assert cached_time <= baseline_time
-

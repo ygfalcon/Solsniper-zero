@@ -1,12 +1,16 @@
 import pytest
+
 pytest.importorskip("numpy")
 pytest.importorskip("faiss")
-import numpy as np, faiss
+import faiss
+import numpy as np
+
 if getattr(np, "_STUB", False) or getattr(faiss, "_STUB", False):
     pytest.skip("requires real numpy/faiss", allow_module_level=True)
 
-from solhunter_zero.advanced_memory import AdvancedMemory
 import sys
+
+from solhunter_zero.advanced_memory import AdvancedMemory
 
 
 def test_insert_search_persist(tmp_path, monkeypatch):
@@ -63,6 +67,7 @@ def test_replicated_trade_dedup(tmp_path, monkeypatch):
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx), replicate=True)
 
     from uuid import uuid4
+
     from solhunter_zero.event_bus import publish
     from solhunter_zero.schemas import TradeLogged
 
@@ -89,7 +94,7 @@ def test_sync_interval_env(tmp_path, monkeypatch):
 
     AdvancedMemory(
         url=f"sqlite:///{tmp_path/'env.db'}",
-        index_path=str(tmp_path/'env.index'),
+        index_path=str(tmp_path / "env.index"),
         replicate=True,
     )
 
@@ -109,7 +114,7 @@ def test_sync_interval_param(tmp_path, monkeypatch):
 
     AdvancedMemory(
         url=f"sqlite:///{tmp_path/'param.db'}",
-        index_path=str(tmp_path/'param.index'),
+        index_path=str(tmp_path / "param.index"),
         replicate=True,
         sync_interval=1.0,
     )
@@ -145,12 +150,15 @@ def test_memory_sync_exchange(tmp_path, monkeypatch):
 
 def test_cluster_trades_groups(tmp_path, monkeypatch):
     monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
-    import numpy as np
-    import faiss
     import importlib
+
+    import faiss
+    import numpy as np
+
     sys.modules["numpy"] = np
     sys.modules["faiss"] = faiss
     import solhunter_zero.advanced_memory as am
+
     am = importlib.reload(am)
     am.faiss = faiss
 
@@ -177,10 +185,38 @@ def test_cluster_trades_groups(tmp_path, monkeypatch):
     mem.index = faiss.IndexIDMap2(faiss.IndexFlatL2(mem.model.dim))
     mem.cpu_index = None
 
-    a = mem.log_trade(token="T", direction="buy", amount=1, price=1, context="bull run", emotion="greedy")
-    b = mem.log_trade(token="T", direction="sell", amount=1, price=2, context="bullish vibes", emotion="greedy")
-    c = mem.log_trade(token="T", direction="buy", amount=1, price=2, context="bear drop", emotion="fear")
-    d = mem.log_trade(token="T", direction="sell", amount=1, price=1, context="bearish slump", emotion="fear")
+    a = mem.log_trade(
+        token="T",
+        direction="buy",
+        amount=1,
+        price=1,
+        context="bull run",
+        emotion="greedy",
+    )
+    b = mem.log_trade(
+        token="T",
+        direction="sell",
+        amount=1,
+        price=2,
+        context="bullish vibes",
+        emotion="greedy",
+    )
+    c = mem.log_trade(
+        token="T",
+        direction="buy",
+        amount=1,
+        price=2,
+        context="bear drop",
+        emotion="fear",
+    )
+    d = mem.log_trade(
+        token="T",
+        direction="sell",
+        amount=1,
+        price=1,
+        context="bearish slump",
+        emotion="fear",
+    )
 
     clusters = mem.cluster_trades(num_clusters=2)
     assert clusters[a] == clusters[b]
@@ -203,12 +239,22 @@ def test_cluster_trades_groups(tmp_path, monkeypatch):
 
 def test_close_and_reopen(tmp_path, monkeypatch):
     monkeypatch.setenv("GPU_MEMORY_INDEX", "0")
-    import sys, importlib
-    for m in ["numpy", "faiss", "requests", "requests.exceptions", "sentence_transformers"]:
+    import importlib
+    import sys
+
+    for m in [
+        "numpy",
+        "faiss",
+        "requests",
+        "requests.exceptions",
+        "sentence_transformers",
+    ]:
         sys.modules.pop(m, None)
-    import numpy as np
     import faiss
+    import numpy as np
+
     import solhunter_zero.advanced_memory as am
+
     am = importlib.reload(am)
 
     class DummyModel:
@@ -231,4 +277,3 @@ def test_close_and_reopen(tmp_path, monkeypatch):
     trades = mem2.list_trades()
     assert len(trades) == 1
     assert mem2.index is not None and mem2.index.ntotal == 1
-

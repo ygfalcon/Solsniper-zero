@@ -14,11 +14,11 @@ constructor so tests can override them.
 from __future__ import annotations
 
 import ast
-from typing import Dict, List, Any, Sequence, Mapping
+from typing import Any, Dict, List, Mapping, Sequence
 
-from . import BaseAgent
+from ..datasets.artifact_math import DEFAULT_PATH, load_artifact_math
 from ..portfolio import Portfolio
-from ..datasets.artifact_math import load_artifact_math, DEFAULT_PATH
+from . import BaseAgent
 
 
 # ---------------------------------------------------------------------------
@@ -107,8 +107,12 @@ class ArtifactMathAgent(BaseAgent):
         series = map_glyph_series(list(token), mapping)
         score = aggregate_scores(series)
         if score > self.threshold:
-            return [{"token": token, "side": "buy", "amount": self.amount, "price": 0.0}]
+            return [
+                {"token": token, "side": "buy", "amount": self.amount, "price": 0.0}
+            ]
         if score < -self.threshold and token in portfolio.balances:
             pos = portfolio.balances[token]
-            return [{"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}]
+            return [
+                {"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}
+            ]
         return []

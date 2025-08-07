@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
 import asyncio
 import inspect
+from typing import Any, Dict, List
 
-from . import BaseAgent
-from ..memory import Memory
 from ..advanced_memory import AdvancedMemory
+from ..memory import Memory
 from ..offline_data import OfflineData
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class MemoryAgent(BaseAgent):

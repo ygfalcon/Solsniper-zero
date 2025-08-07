@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from solhunter_zero.agents.portfolio_optimizer import PortfolioOptimizer
@@ -28,7 +29,9 @@ def test_optimizer_prefers_higher_returns(monkeypatch):
         lambda self, t: {"a": 0.2, "b": 0.0}.get(t, 0.0),
     )
 
-    opt = PortfolioOptimizer(risk_manager=RiskManager(max_allocation=1.0), threshold=0.0)
+    opt = PortfolioOptimizer(
+        risk_manager=RiskManager(max_allocation=1.0), threshold=0.0
+    )
     actions = asyncio.run(opt.propose_trade("a", pf))
     sides = {(a["token"], a["side"]) for a in actions}
     assert ("a", "buy") in sides

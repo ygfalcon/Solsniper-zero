@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Iterable, Sequence, Tuple, Any
 from pathlib import Path
+from typing import Any, Iterable, Sequence, Tuple
 
 import solhunter_zero.device as device_module
 
@@ -10,6 +10,7 @@ try:
     import torch
     import torch.nn as nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:  # pragma: no cover - typing placeholder
             pass
@@ -20,39 +21,37 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for model operations"
-                )
+                raise ImportError("torch is required for model operations")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for model operations"
-            )
+            raise ImportError("torch is required for model operations")
 
     torch = nn = _TorchStub()  # type: ignore
 
-from .token_activity_model import ActivityModel
-from .graph_price_model import GraphPriceModel, load_graph_model
 from .gnn import (
-    RouteGNN,
     GATRouteGNN,
-    train_route_gnn,
-    save_route_gnn,
+    RouteGNN,
     load_route_gnn,
     rank_routes,
+    save_route_gnn,
+    train_route_gnn,
 )
+from .graph_price_model import GraphPriceModel, load_graph_model
 from .route_generator import (
     RouteGenerator,
-    train_route_generator,
-    save_route_generator,
     load_route_generator,
+    save_route_generator,
+    train_route_generator,
 )
+from .token_activity_model import ActivityModel
 
 
 class PriceModel(nn.Module):
     """Simple LSTM based predictor."""
 
-    def __init__(self, input_dim: int, hidden_dim: int = 32, num_layers: int = 2) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dim: int = 32, num_layers: int = 2
+    ) -> None:
         super().__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, 1)
@@ -74,7 +73,9 @@ class PriceModel(nn.Module):
 class TransformerModel(nn.Module):
     """Simple transformer encoder based predictor."""
 
-    def __init__(self, input_dim: int, hidden_dim: int = 32, num_layers: int = 2) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dim: int = 32, num_layers: int = 2
+    ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -105,7 +106,9 @@ class TransformerModel(nn.Module):
 class DeepLSTMModel(nn.Module):
     """Deeper LSTM network for price prediction."""
 
-    def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 4) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dim: int = 64, num_layers: int = 4
+    ) -> None:
         super().__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, 1)
@@ -119,12 +122,16 @@ class DeepLSTMModel(nn.Module):
 class DeepTransformerModel(nn.Module):
     """Transformer with additional layers."""
 
-    def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 4) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dim: int = 64, num_layers: int = 4
+    ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        layer = nn.TransformerEncoderLayer(input_dim, nhead=8, dim_feedforward=hidden_dim)
+        layer = nn.TransformerEncoderLayer(
+            input_dim, nhead=8, dim_feedforward=hidden_dim
+        )
         self.encoder = nn.TransformerEncoder(layer, num_layers)
         self.fc = nn.Linear(input_dim, 1)
 
@@ -144,12 +151,16 @@ class DeepTransformerModel(nn.Module):
 class XLTransformerModel(nn.Module):
     """Very deep transformer encoder for complex patterns."""
 
-    def __init__(self, input_dim: int, hidden_dim: int = 128, num_layers: int = 8) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dim: int = 128, num_layers: int = 8
+    ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        layer = nn.TransformerEncoderLayer(input_dim, nhead=8, dim_feedforward=hidden_dim)
+        layer = nn.TransformerEncoderLayer(
+            input_dim, nhead=8, dim_feedforward=hidden_dim
+        )
         self.encoder = nn.TransformerEncoder(layer, num_layers)
         self.fc = nn.Linear(input_dim, 1)
 
@@ -223,7 +234,17 @@ def save_model(model: nn.Module, path: str) -> None:
 def load_model(path: str) -> nn.Module:
     """Load a saved ML model from ``path``."""
     obj = torch.load(path, map_location="cpu")
-    if isinstance(obj, (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel, GraphPriceModel)):
+    if isinstance(
+        obj,
+        (
+            PriceModel,
+            TransformerModel,
+            DeepLSTMModel,
+            DeepTransformerModel,
+            XLTransformerModel,
+            GraphPriceModel,
+        ),
+    ):
         obj.eval()
         return obj
     if isinstance(obj, dict) and "state" in obj:
@@ -330,7 +351,11 @@ def load_compiled_model(
         try:
             import onnxruntime as ort  # type: ignore
 
-            prov = ["CUDAExecutionProvider", "CPUExecutionProvider"] if dev.type == "cuda" else ["CPUExecutionProvider"]
+            prov = (
+                ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                if dev.type == "cuda"
+                else ["CPUExecutionProvider"]
+            )
             session = ort.InferenceSession(os.fspath(onnx_path), providers=prov)
             return _ONNXModule(session).to(dev)
         except Exception:
@@ -356,16 +381,40 @@ def make_training_data(
     p = torch.tensor(list(prices), dtype=torch.float32)
     l = torch.tensor(list(liquidity), dtype=torch.float32)
     d = torch.tensor(list(depth), dtype=torch.float32)
-    td = torch.tensor(list(total_depth), dtype=torch.float32) if total_depth is not None else torch.zeros_like(p)
-    s = torch.tensor(list(slippage), dtype=torch.float32) if slippage is not None else torch.zeros_like(p)
-    v = torch.tensor(list(volume), dtype=torch.float32) if volume is not None else torch.zeros_like(p)
+    td = (
+        torch.tensor(list(total_depth), dtype=torch.float32)
+        if total_depth is not None
+        else torch.zeros_like(p)
+    )
+    s = (
+        torch.tensor(list(slippage), dtype=torch.float32)
+        if slippage is not None
+        else torch.zeros_like(p)
+    )
+    v = (
+        torch.tensor(list(volume), dtype=torch.float32)
+        if volume is not None
+        else torch.zeros_like(p)
+    )
     if tx_counts is None:
         t = torch.zeros_like(p)
     else:
         t = torch.tensor(list(tx_counts), dtype=torch.float32)
-    m = torch.tensor(list(mempool_rates), dtype=torch.float32) if mempool_rates is not None else torch.zeros_like(p)
-    w = torch.tensor(list(whale_shares), dtype=torch.float32) if whale_shares is not None else torch.zeros_like(p)
-    sp = torch.tensor(list(spreads), dtype=torch.float32) if spreads is not None else torch.zeros_like(p)
+    m = (
+        torch.tensor(list(mempool_rates), dtype=torch.float32)
+        if mempool_rates is not None
+        else torch.zeros_like(p)
+    )
+    w = (
+        torch.tensor(list(whale_shares), dtype=torch.float32)
+        if whale_shares is not None
+        else torch.zeros_like(p)
+    )
+    sp = (
+        torch.tensor(list(spreads), dtype=torch.float32)
+        if spreads is not None
+        else torch.zeros_like(p)
+    )
 
     n = len(p) - seq_len
     if n <= 0:
@@ -524,7 +573,9 @@ def train_deep_transformer_model(
         spreads,
         seq_len,
     )
-    model = DeepTransformerModel(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers)
+    model = DeepTransformerModel(
+        X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers
+    )
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
@@ -583,18 +634,40 @@ def train_xl_transformer_model(
     return model
 
 
-def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tuple[torch.Tensor, torch.Tensor]:
+def make_snapshot_training_data(
+    snaps: Sequence[Any], seq_len: int = 30
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Construct dataset tensors from :class:`OfflineData` snapshots."""
     prices = torch.tensor([float(s.price) for s in snaps], dtype=torch.float32)
     depth = torch.tensor([float(s.depth) for s in snaps], dtype=torch.float32)
-    agg_depth = torch.tensor([float(getattr(s, "total_depth", 0.0)) for s in snaps], dtype=torch.float32)
-    slip = torch.tensor([float(getattr(s, "slippage", 0.0)) for s in snaps], dtype=torch.float32)
-    vol = torch.tensor([float(getattr(s, "volume", 0.0)) for s in snaps], dtype=torch.float32)
-    imb = torch.tensor([float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=torch.float32)
-    rate = torch.tensor([float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=torch.float32)
-    whales = torch.tensor([float(getattr(s, "whale_share", getattr(s, "whale_activity", 0.0))) for s in snaps], dtype=torch.float32)
-    spread = torch.tensor([float(getattr(s, "spread", 0.0)) for s in snaps], dtype=torch.float32)
-    sent = torch.tensor([float(getattr(s, "sentiment", 0.0)) for s in snaps], dtype=torch.float32)
+    agg_depth = torch.tensor(
+        [float(getattr(s, "total_depth", 0.0)) for s in snaps], dtype=torch.float32
+    )
+    slip = torch.tensor(
+        [float(getattr(s, "slippage", 0.0)) for s in snaps], dtype=torch.float32
+    )
+    vol = torch.tensor(
+        [float(getattr(s, "volume", 0.0)) for s in snaps], dtype=torch.float32
+    )
+    imb = torch.tensor(
+        [float(getattr(s, "imbalance", 0.0)) for s in snaps], dtype=torch.float32
+    )
+    rate = torch.tensor(
+        [float(getattr(s, "tx_rate", 0.0)) for s in snaps], dtype=torch.float32
+    )
+    whales = torch.tensor(
+        [
+            float(getattr(s, "whale_share", getattr(s, "whale_activity", 0.0)))
+            for s in snaps
+        ],
+        dtype=torch.float32,
+    )
+    spread = torch.tensor(
+        [float(getattr(s, "spread", 0.0)) for s in snaps], dtype=torch.float32
+    )
+    sent = torch.tensor(
+        [float(getattr(s, "sentiment", 0.0)) for s in snaps], dtype=torch.float32
+    )
 
     n = len(prices) - seq_len
     if n <= 0:
@@ -603,18 +676,21 @@ def make_snapshot_training_data(snaps: Sequence[Any], seq_len: int = 30) -> Tupl
     seqs = []
     targets = []
     for i in range(n):
-        seq = torch.stack([
-            prices[i:i+seq_len],
-            depth[i:i+seq_len],
-            agg_depth[i:i+seq_len],
-            slip[i:i+seq_len],
-            vol[i:i+seq_len],
-            imb[i:i+seq_len],
-            rate[i:i+seq_len],
-            whales[i:i+seq_len],
-            spread[i:i+seq_len],
-            sent[i:i+seq_len],
-        ], dim=1)
+        seq = torch.stack(
+            [
+                prices[i : i + seq_len],
+                depth[i : i + seq_len],
+                agg_depth[i : i + seq_len],
+                slip[i : i + seq_len],
+                vol[i : i + seq_len],
+                imb[i : i + seq_len],
+                rate[i : i + seq_len],
+                whales[i : i + seq_len],
+                spread[i : i + seq_len],
+                sent[i : i + seq_len],
+            ],
+            dim=1,
+        )
         seqs.append(seq)
         p0 = prices[i + seq_len - 1]
         p1 = prices[i + seq_len]

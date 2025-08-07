@@ -3,17 +3,16 @@
 
 from __future__ import annotations
 
-import sys
-
 import argparse
-import os
-import platform
-import subprocess
-import shutil
 import contextlib
 import io
-from pathlib import Path
 import json
+import os
+import platform
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
@@ -22,22 +21,17 @@ from solhunter_zero.paths import ROOT
 os.chdir(ROOT)
 sys.path[0] = str(ROOT)
 
-from scripts import preflight  # noqa: E402
-from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
-from solhunter_zero import preflight_utils  # noqa: E402
-from solhunter_zero.bootstrap_utils import (
-    ensure_deps,
-    ensure_venv,
-    ensure_endpoints,
-)
-
 import solhunter_zero.env_config as env_config  # noqa: E402
-from solhunter_zero.logging_utils import (
+from scripts import deps  # noqa: E402
+from scripts import preflight  # noqa: E402
+from solhunter_zero import preflight_utils  # noqa: E402
+from solhunter_zero.bootstrap_utils import ensure_deps, ensure_endpoints, ensure_venv
+from solhunter_zero.logging_utils import (  # noqa: E402
     log_startup,
-    setup_logging,
     rotate_preflight_log,
-)  # noqa: E402
+    setup_logging,
+)
 
 
 def ensure_route_ffi() -> None:
@@ -50,6 +44,7 @@ def ensure_depth_service() -> None:
     from solhunter_zero.build_utils import ensure_depth_service as _ensure_depth_service
 
     _ensure_depth_service()
+
 
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     script = Path(__file__).resolve()
@@ -88,8 +83,13 @@ def ensure_wallet_cli() -> None:
         raise SystemExit(1)
 
 
-def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | None = None,
-                     mnemonic_path: Path | None = None, active_keypair: str | None = None) -> None:
+def log_startup_info(
+    *,
+    config_path: Path | None = None,
+    keypair_path: Path | None = None,
+    mnemonic_path: Path | None = None,
+    active_keypair: str | None = None,
+) -> None:
     """Append startup details to ``startup.log``."""
 
     lines: list[str] = []
@@ -117,6 +117,8 @@ def run_quick_setup() -> str | None:
         return find_config_file()
     except Exception:
         return None
+
+
 def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
@@ -124,8 +126,8 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
         print(f"Using default RPC URL {rpc_url}")
 
     import json
-    import urllib.request
     import time
+    import urllib.request
 
     payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getHealth"}).encode()
     req = urllib.request.Request(
@@ -250,9 +252,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             log_startup("Internet connectivity check passed")
 
+    from solhunter_zero import wallet
     from solhunter_zero.config_bootstrap import ensure_config
     from solhunter_zero.config_utils import select_active_keypair
-    from solhunter_zero import wallet
 
     cfg_data: dict = {}
     config_path: Path | None = None
@@ -308,8 +310,9 @@ def main(argv: list[str] | None = None) -> int:
         device.MPS_SENTINEL.unlink(missing_ok=True)
 
     if args.self_test:
-        from solhunter_zero.bootstrap import bootstrap
         import re
+
+        from solhunter_zero.bootstrap import bootstrap
 
         preflight_utils.check_disk_space(1 << 30)
         b_code = 0
@@ -404,9 +407,7 @@ def main(argv: list[str] | None = None) -> int:
 
     gpu_env = device.initialize_gpu()
     gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
-    rpc_url = os.environ.get(
-        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-    )
+    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
 

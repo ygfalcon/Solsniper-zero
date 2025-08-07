@@ -1,8 +1,9 @@
 try:
     import torch
     from torch import nn
-    from torch.utils.data import Dataset, DataLoader
+    from torch.utils.data import DataLoader, Dataset
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -13,34 +14,31 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for graph_price_model"
-                )
+                raise ImportError("torch is required for graph_price_model")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for graph_price_model"
-            )
+            raise ImportError("torch is required for graph_price_model")
 
     class _DatasetStub:
         def __init__(self, *a, **k) -> None:
-            raise ImportError(
-                "torch is required for graph_price_model"
-            )
+            raise ImportError("torch is required for graph_price_model")
 
     torch = nn = _TorchStub()  # type: ignore
     Dataset = DataLoader = _DatasetStub  # type: ignore
 from collections import defaultdict
-from typing import Sequence, Any
+from typing import Any, Sequence
 
 try:  # optional dependency
     from torch_geometric.nn import SAGEConv
+
     HAS_PYG = True
 except Exception:  # pragma: no cover - optional
     HAS_PYG = False
 
 
-def _collate(batch: Sequence[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]):
+def _collate(
+    batch: Sequence[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
+):
     nodes_list = []
     edge_list = []
     batch_vec = []
@@ -82,18 +80,24 @@ class GraphPriceDataset(Dataset):
             for tok in self.tokens:
                 s0 = groups[tok][i]
                 s1 = groups[tok][i + 1]
-                feats.append([
-                    float(s0.price),
-                    float(s0.depth),
-                    float(getattr(s0, "total_depth", 0.0)),
-                    float(getattr(s0, "slippage", 0.0)),
-                    float(getattr(s0, "volume", 0.0)),
-                    float(getattr(s0, "imbalance", 0.0)),
-                    float(getattr(s0, "tx_rate", 0.0)),
-                    float(getattr(s0, "whale_share", getattr(s0, "whale_activity", 0.0))),
-                    float(getattr(s0, "spread", 0.0)),
-                    float(getattr(s0, "sentiment", 0.0)),
-                ])
+                feats.append(
+                    [
+                        float(s0.price),
+                        float(s0.depth),
+                        float(getattr(s0, "total_depth", 0.0)),
+                        float(getattr(s0, "slippage", 0.0)),
+                        float(getattr(s0, "volume", 0.0)),
+                        float(getattr(s0, "imbalance", 0.0)),
+                        float(getattr(s0, "tx_rate", 0.0)),
+                        float(
+                            getattr(
+                                s0, "whale_share", getattr(s0, "whale_activity", 0.0)
+                            )
+                        ),
+                        float(getattr(s0, "spread", 0.0)),
+                        float(getattr(s0, "sentiment", 0.0)),
+                    ]
+                )
                 rois.append((float(s1.price) - float(s0.price)) / float(s0.price))
             self.nodes.append(torch.tensor(feats, dtype=torch.float32))
             self.targets.append(torch.tensor(rois, dtype=torch.float32))
@@ -135,7 +139,9 @@ class GraphPriceModel(nn.Module):
             self.fc1 = nn.Linear(hidden_dim, hidden_dim)
         self.out = nn.Linear(hidden_dim, 1)
 
-    def forward(self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor
+    ) -> torch.Tensor:
         x = torch.relu(self.embed(nodes))
         if HAS_PYG:
             x = torch.relu(self.conv1(x, edge_index))
@@ -188,7 +194,9 @@ def load_graph_model(path: str) -> GraphPriceModel:
         return obj
     if isinstance(obj, dict) and "state" in obj:
         cfg = obj.get("cfg", {})
-        model = GraphPriceModel(cfg.get("input_dim", 10), hidden_dim=cfg.get("hidden_dim", 32))
+        model = GraphPriceModel(
+            cfg.get("input_dim", 10), hidden_dim=cfg.get("hidden_dim", 32)
+        )
         model.load_state_dict(obj["state"])
         model.eval()
         return model

@@ -46,9 +46,5 @@ def test_investor_demo_short_weights(tmp_path, monkeypatch, dummy_mem):
     assert short_metrics["wins"] > 0 and short_metrics["losses"] > 0
 
     history = json.loads((tmp_path / "trade_history.json").read_text())
-    actions = {
-        row["action"]
-        for row in history
-        if row.get("strategy") == "short_mix"
-    }
+    actions = {row["action"] for row in history if row.get("strategy") == "short_mix"}
     assert {"buy", "sell"} <= actions

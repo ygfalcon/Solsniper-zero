@@ -9,6 +9,7 @@ from .simulation import fetch_token_metrics_async
 
 logger = logging.getLogger(__name__)
 
+
 async def stream_market_data(
     token: str,
     *,

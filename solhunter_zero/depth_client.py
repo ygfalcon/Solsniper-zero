@@ -1,5 +1,5 @@
-import os
 import mmap
+import os
 
 from .system import set_rayon_threads
 
@@ -7,21 +7,19 @@ from .system import set_rayon_threads
 set_rayon_threads()
 
 import asyncio
-import time
 import atexit
-from contextlib import suppress
 import struct
-from typing import AsyncGenerator, Dict, Any, Optional, Tuple
-from . import routeffi
+import time
+from contextlib import suppress
+from typing import Any, AsyncGenerator, Dict, Optional, Tuple
 
 import aiohttp
-from .http import get_session, loads, dumps
 
-from .event_bus import publish, subscription
-from .config import get_depth_ws_addr
 from . import event_pb2 as pb
-
-from . import order_book_ws
+from . import order_book_ws, routeffi
+from .config import get_depth_ws_addr
+from .event_bus import publish, subscription
+from .http import dumps, get_session, loads
 
 DEPTH_SERVICE_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 

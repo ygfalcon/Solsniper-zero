@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from . import BaseAgent
 from ..portfolio import Portfolio
 from ..prices import fetch_token_prices_async
+from . import BaseAgent
 
 
 class PortfolioManager(BaseAgent):
@@ -45,13 +45,17 @@ class PortfolioManager(BaseAgent):
         if not self.exited and roi <= self.exit_threshold and portfolio.balances:
             for tok, pos in portfolio.balances.items():
                 price = prices.get(tok, 0.0)
-                actions.append({"token": tok, "side": "sell", "amount": pos.amount, "price": price})
+                actions.append(
+                    {"token": tok, "side": "sell", "amount": pos.amount, "price": price}
+                )
             self.exited = True
             return actions
 
         if self.exited and roi >= self.reentry_threshold:
             price = prices.get(token, 0.0)
-            actions.append({"token": token, "side": "buy", "amount": 1.0, "price": price})
+            actions.append(
+                {"token": token, "side": "buy", "amount": 1.0, "price": price}
+            )
             self.exited = False
             return actions
 
@@ -67,10 +71,14 @@ class PortfolioManager(BaseAgent):
             if current > upper:
                 diff_val = current - target
                 amount = diff_val / price
-                actions.append({"token": token, "side": "sell", "amount": amount, "price": price})
+                actions.append(
+                    {"token": token, "side": "sell", "amount": amount, "price": price}
+                )
             elif current < lower:
                 diff_val = target - current
                 amount = diff_val / price
-                actions.append({"token": token, "side": "buy", "amount": amount, "price": price})
+                actions.append(
+                    {"token": token, "side": "buy", "amount": amount, "price": price}
+                )
 
         return actions

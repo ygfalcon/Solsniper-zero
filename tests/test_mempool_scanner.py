@@ -1,8 +1,9 @@
 import asyncio
 
 import solhunter_zero.mempool_scanner as mp_scanner
-from solhunter_zero import dynamic_limit
-from solhunter_zero import scanner_common, event_bus, resource_monitor as rm
+from solhunter_zero import dynamic_limit, event_bus
+from solhunter_zero import resource_monitor as rm
+from solhunter_zero import scanner_common
 
 scanner_common.TOKEN_SUFFIX = ""
 

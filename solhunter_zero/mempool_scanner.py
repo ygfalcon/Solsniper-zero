@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import re
-import os
-import statistics
 import contextlib
+import logging
+import os
+import re
+import statistics
 import time
 from collections import deque
-from typing import AsyncGenerator, Iterable, Dict, Any, Deque
+from typing import Any, AsyncGenerator, Deque, Dict, Iterable
 
-from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
+from .dynamic_limit import _step_limit, _target_concurrency
 from .event_bus import subscription
 from .system import detect_cpu_count
 
@@ -34,7 +34,8 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
         def _key(self):  # mimic solana-py attribute
             return getattr(self, "_solder", self)
 
-    import types, sys
+    import sys
+    import types
 
     mod = types.ModuleType("solana.publickey")
     mod.PublicKey = PublicKey
@@ -42,12 +43,10 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
 
 from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
 
-from .scanner_onchain import TOKEN_PROGRAM_ID
+from . import onchain_metrics, order_book_ws, scanner_onchain
 from .dex_scanner import DEX_PROGRAM_ID
-from .scanner_common import TOKEN_SUFFIX, TOKEN_KEYWORDS, token_matches
-from . import onchain_metrics
-from . import scanner_onchain
-from . import order_book_ws
+from .scanner_common import TOKEN_KEYWORDS, TOKEN_SUFFIX, token_matches
+from .scanner_onchain import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
 

@@ -27,6 +27,6 @@ def test_investor_demo_default_performance(tmp_path):
     investor_demo.main(argv)
     duration = time.perf_counter() - start
 
-    assert duration < MAX_SECONDS_DEFAULT, (
-        f"Investor demo took {duration:.2f}s"
-    )  # pragma: no cover
+    assert (
+        duration < MAX_SECONDS_DEFAULT
+    ), f"Investor demo took {duration:.2f}s"  # pragma: no cover

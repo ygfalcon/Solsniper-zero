@@ -1,4 +1,5 @@
 import asyncio
+
 from solhunter_zero.agents.flashloan_sandwich import FlashloanSandwichAgent
 
 
@@ -93,6 +94,7 @@ def test_flashloan_sandwich_ratio(monkeypatch):
         "solhunter_zero.agents.flashloan_sandwich._fetch_swap_tx_message",
         fake_fetch,
     )
+
     async def fake_prepare(msg):
         return f"TX_{msg}"
 
@@ -182,7 +184,9 @@ def test_flashloan_sandwich_jito(monkeypatch):
     created = {}
 
     class FakeMEV:
-        def __init__(self, token, *, priority_rpc=None, jito_rpc_url=None, jito_auth=None, **_):
+        def __init__(
+            self, token, *, priority_rpc=None, jito_rpc_url=None, jito_auth=None, **_
+        ):
             created["jito_url"] = jito_rpc_url
             created["jito_auth"] = jito_auth
 

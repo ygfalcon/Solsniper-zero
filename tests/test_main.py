@@ -1,11 +1,11 @@
-import os
 import logging
-import types
+import os
 import sys
+import types
 
 os.environ.setdefault("SOLANA_RPC_URL", "http://localhost")
 os.environ.setdefault("DEX_BASE_URL", "http://localhost")
-os.environ.setdefault("AGENTS", "[\"dummy\"]")
+os.environ.setdefault("AGENTS", '["dummy"]')
 _cfg_path = os.path.join(os.path.dirname(__file__), "tmp_config.toml")
 with open(_cfg_path, "w", encoding="utf-8") as _f:
     _f.write("solana_rpc_url='http://localhost'\n")
@@ -34,12 +34,15 @@ except Exception:  # pragma: no cover - optional dependency
     sys.modules["pydantic"] = dummy_pydantic
 
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
-from solhunter_zero import main as main_module
-from solhunter_zero.simulation import SimulationResult
 import asyncio
 import json
+
+from solhunter_zero import main as main_module
+from solhunter_zero.simulation import SimulationResult
+
 pytest.importorskip("solders")
 from solders.keypair import Keypair
 
@@ -49,13 +52,13 @@ def _stub_arbitrage(monkeypatch):
     async def _fake(*_a, **_k):
         return None
 
-    monkeypatch.setattr(
-        main_module.arbitrage, "detect_and_execute_arbitrage", _fake
-    )
+    monkeypatch.setattr(main_module.arbitrage, "detect_and_execute_arbitrage", _fake)
     monkeypatch.setattr(main_module, "warm_cache", lambda *_a, **_k: None)
     monkeypatch.setattr(main_module.AgentManager, "from_config", lambda _cfg: None)
+
     async def _fake_start_ws_server(*a, **k):
         return None
+
     monkeypatch.setattr(main_module.event_bus, "start_ws_server", _fake_start_ws_server)
 
 
@@ -78,7 +81,6 @@ def test_main_invokes_place_order(monkeypatch):
             return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
-
 
     called = {}
 
@@ -112,8 +114,10 @@ def test_main_invokes_place_order(monkeypatch):
     monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
     monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
+
     async def _noop(*_a, **_k):
         return None
+
     monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop)
     monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
     monkeypatch.setattr(main_module, "fetch_dex_metrics_async", lambda *_a, **_k: {})
@@ -130,14 +134,15 @@ def test_main_invokes_place_order(monkeypatch):
     assert called["args"][0] == "tok"
 
 
-
 # codex/add-offline-option-to-solhunter_zero.main
 
 
 def test_main_offline(monkeypatch):
     recorded = {}
 
-    async def fake_discover_tokens(self, *, offline=False, token_file=None, method=None):
+    async def fake_discover_tokens(
+        self, *, offline=False, token_file=None, method=None
+    ):
         recorded["offline"] = offline
         return ["tok"]
 
@@ -174,7 +179,9 @@ def test_main_offline(monkeypatch):
     monkeypatch.setattr(main_module.asyncio, "sleep", fake_sleep)
 
     with pytest.raises(SystemExit):
-        main_module.main(memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True)
+        main_module.main(
+            memory_path="sqlite:///:memory:", loop_delay=0, dry_run=True, offline=True
+        )
 
     assert recorded["offline"] is True
 
@@ -183,7 +190,6 @@ def test_run_iteration_sells(monkeypatch):
     pf = main_module.Portfolio(path=None)
     pf.add("tok", 2, 1.0)
     mem = main_module.Memory("sqlite:///:memory:")
-
 
     async def fake_discover_tokens(self, *_a, **_k):
         return []
@@ -197,7 +203,14 @@ def test_run_iteration_sells(monkeypatch):
             pass
 
         async def evaluate(self, token, portfolio):
-            return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+            return [
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": portfolio.balances[token].amount,
+                    "price": 0,
+                }
+            ]
 
         def list_missing(self):
             return []
@@ -247,7 +260,6 @@ def test_run_iteration_stop_loss(monkeypatch):
     pf.add("tok", 1, 10.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-
     async def fake_discover_tokens(self, *_a, **_k):
         return []
 
@@ -260,7 +272,14 @@ def test_run_iteration_stop_loss(monkeypatch):
             pass
 
         async def evaluate(self, token, portfolio):
-            return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+            return [
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": portfolio.balances[token].amount,
+                    "price": 0,
+                }
+            ]
 
         def list_missing(self):
             return []
@@ -310,7 +329,6 @@ def test_run_iteration_take_profit(monkeypatch):
     pf.add("tok", 1, 10.0)
     mem = main_module.Memory("sqlite:///:memory:")
 
-
     async def fake_discover_tokens(self, *_a, **_k):
         return []
 
@@ -323,7 +341,14 @@ def test_run_iteration_take_profit(monkeypatch):
             pass
 
         async def evaluate(self, token, portfolio):
-            return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+            return [
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": portfolio.balances[token].amount,
+                    "price": 0,
+                }
+            ]
 
         def list_missing(self):
             return []
@@ -382,6 +407,7 @@ def test_discovery_methods(monkeypatch, method, target):
     called = {}
 
     import solhunter_zero.scanner_common as scanner_common
+
     scanner_common.BIRDEYE_API_KEY = None
     scanner_common.HEADERS.clear()
 
@@ -400,21 +426,29 @@ def test_discovery_methods(monkeypatch, method, target):
 
     if target.endswith("stream_new_tokens") or target.endswith("stream_mempool_tokens"):
         monkeypatch.setattr(target, fake_gen)
-    elif "async" in target or target.endswith("scan_tokens_onchain") or target.endswith("scan_new_pools"):
+    elif (
+        "async" in target
+        or target.endswith("scan_tokens_onchain")
+        or target.endswith("scan_new_pools")
+    ):
         monkeypatch.setattr(target, fake_async)
     else:
         monkeypatch.setattr(target, fake_sync)
 
     import solhunter_zero.token_scanner as async_scanner_mod
+
     async def fake_trend():
         return []
+
     monkeypatch.setattr(async_scanner_mod, "fetch_trending_tokens_async", fake_trend)
     monkeypatch.setattr(async_scanner_mod, "fetch_raydium_listings_async", fake_trend)
     monkeypatch.setattr(async_scanner_mod, "fetch_orca_listings_async", fake_trend)
 
     method_name = method
 
-    async def fake_discover_tokens(self, *, offline=False, token_file=None, method=None):
+    async def fake_discover_tokens(
+        self, *, offline=False, token_file=None, method=None
+    ):
         return await async_scanner_mod.scan_tokens_async(
             offline=offline,
             token_file=token_file,
@@ -436,6 +470,7 @@ def test_discovery_methods(monkeypatch, method, target):
             return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
+
     async def _fake_place_order(*a, **k):
         return None
 
@@ -622,6 +657,7 @@ def test_flashloan_amount_scales_with_portfolio(monkeypatch):
     monkeypatch.setattr(
         main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
     )
+
     async def fake_log_trade(*a, **k):
         pass
 
@@ -672,6 +708,7 @@ def test_flashloan_amount_scales_with_portfolio(monkeypatch):
 
 def test_run_auto_uses_default_and_selects_key(monkeypatch, tmp_path):
     import solhunter_zero.config as cfg_mod
+
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(tmp_path / "cfg"))
     monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfg" / "active"))
     monkeypatch.setattr(main_module, "CONFIG_DIR", str(tmp_path / "cfg"))
@@ -679,7 +716,9 @@ def test_run_auto_uses_default_and_selects_key(monkeypatch, tmp_path):
 
     keys_dir = tmp_path / "keys"
     monkeypatch.setattr(main_module.wallet, "KEYPAIR_DIR", str(keys_dir))
-    monkeypatch.setattr(main_module.wallet, "ACTIVE_KEYPAIR_FILE", str(keys_dir / "active"))
+    monkeypatch.setattr(
+        main_module.wallet, "ACTIVE_KEYPAIR_FILE", str(keys_dir / "active")
+    )
     os.makedirs(keys_dir, exist_ok=True)
 
     kp = Keypair()
@@ -693,10 +732,16 @@ def test_run_auto_uses_default_and_selects_key(monkeypatch, tmp_path):
         called["path"] = kwargs.get("config_path")
 
     monkeypatch.setattr(main_module, "main", fake_main)
+
     async def fake_sync():
         called["sync"] = True
-    import sys, types
-    sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=fake_sync)
+
+    import sys
+    import types
+
+    sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(
+        sync_recent=fake_sync
+    )
     if hasattr(main_module, "data_sync"):
         main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
 
@@ -710,6 +755,7 @@ def test_run_auto_uses_default_and_selects_key(monkeypatch, tmp_path):
 def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
     cfg_dir = tmp_path / "cfg"
     import solhunter_zero.config as cfg_mod
+
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", str(cfg_dir))
     monkeypatch.setattr(cfg_mod, "ACTIVE_CONFIG_FILE", str(cfg_dir / "active"))
     monkeypatch.setattr(main_module, "CONFIG_DIR", str(cfg_dir))
@@ -724,10 +770,16 @@ def test_run_auto_uses_selected_config(monkeypatch, tmp_path):
         called["path"] = kwargs.get("config_path")
 
     monkeypatch.setattr(main_module, "main", fake_main)
+
     async def fake_sync():
         called["sync"] = True
-    import sys, types
-    sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=fake_sync)
+
+    import sys
+    import types
+
+    sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(
+        sync_recent=fake_sync
+    )
     if hasattr(main_module, "data_sync"):
         main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
 
@@ -740,7 +792,9 @@ def test_run_iteration_agent_manager(monkeypatch):
     pf = main_module.Portfolio(path=None)
     mem = main_module.Memory("sqlite:///:memory:")
 
-    async def fake_scan_tokens_async(*, offline=False, token_file=None, method="websocket"):
+    async def fake_scan_tokens_async(
+        *, offline=False, token_file=None, method="websocket"
+    ):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan_tokens_async)
@@ -751,7 +805,9 @@ def test_run_iteration_agent_manager(monkeypatch):
         async def execute(self, token, portfolio):
             called["token"] = token
 
-    asyncio.run(main_module._run_iteration(mem, pf, dry_run=True, agent_manager=DummyManager()))
+    asyncio.run(
+        main_module._run_iteration(mem, pf, dry_run=True, agent_manager=DummyManager())
+    )
 
     assert called.get("token") == "tok"
 
@@ -785,6 +841,7 @@ def test_main_uses_agent_manager(monkeypatch, tmp_path):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan)
+
     async def _fake_place_order2(*a, **k):
         return None
 
@@ -820,6 +877,7 @@ def test_scheduler_adjusts_delay(monkeypatch):
         main_module._LAST_TOKENS = ["tok"]
 
     monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
+
     async def fake_fetch(t, base_url=None):
         return metrics.pop(0)
 
@@ -941,6 +999,7 @@ def test_agent_manager_evolves(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module, "AgentManager", DummyManager)
     monkeypatch.setattr(main_module, "StrategyManager", lambda *a, **k: None)
     monkeypatch.setattr(main_module, "_run_iteration", fake_run_iteration)
+
     async def fake_fetch(*_a, **_k):
         return {}
 
@@ -979,7 +1038,9 @@ def test_ensure_connectivity_warns_on_ws_failure(monkeypatch, caplog):
 
     import solhunter_zero.dex_ws as dex_ws
 
-    monkeypatch.setattr(dex_ws, "stream_listed_tokens", lambda *_a, **_k: _make_failing_stream())
+    monkeypatch.setattr(
+        dex_ws, "stream_listed_tokens", lambda *_a, **_k: _make_failing_stream()
+    )
 
     caplog.set_level(logging.WARNING)
     main_module.ensure_connectivity()
@@ -997,8 +1058,9 @@ def test_ensure_connectivity_raises_on_ws_failure(monkeypatch):
 
     import solhunter_zero.dex_ws as dex_ws
 
-    monkeypatch.setattr(dex_ws, "stream_listed_tokens", lambda *_a, **_k: _make_failing_stream())
+    monkeypatch.setattr(
+        dex_ws, "stream_listed_tokens", lambda *_a, **_k: _make_failing_stream()
+    )
 
     with pytest.raises(RuntimeError):
         main_module.ensure_connectivity()
-

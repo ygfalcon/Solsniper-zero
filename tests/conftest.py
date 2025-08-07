@@ -1,8 +1,9 @@
+import importlib.machinery
+import importlib.util
 import os
 import sys
 import types
-import importlib.util
-import importlib.machinery
+
 import pytest
 
 _orig_find_spec = importlib.util.find_spec
@@ -203,17 +204,28 @@ if importlib.util.find_spec("solders") is None:
     kp_mod.Keypair = Keypair
     kp_mod.__spec__ = importlib.machinery.ModuleSpec("solders.keypair", None)
     sys.modules["solders.keypair"] = kp_mod
-    for name in ["pubkey", "hash", "message", "transaction", "instruction", "signature"]:
+    for name in [
+        "pubkey",
+        "hash",
+        "message",
+        "transaction",
+        "instruction",
+        "signature",
+    ]:
         mod = types.ModuleType(f"solders.{name}")
         mod.__spec__ = importlib.machinery.ModuleSpec(f"solders.{name}", None)
         sys.modules.setdefault(f"solders.{name}", mod)
     sys.modules["solders.pubkey"].Pubkey = object
     sys.modules["solders.hash"].Hash = object
     sys.modules["solders.message"].MessageV0 = object
-    sys.modules["solders.transaction"].VersionedTransaction = type("VersionedTransaction", (), {"populate": staticmethod(lambda *a, **k: object())})
+    sys.modules["solders.transaction"].VersionedTransaction = type(
+        "VersionedTransaction", (), {"populate": staticmethod(lambda *a, **k: object())}
+    )
     sys.modules["solders.instruction"].Instruction = object
     sys.modules["solders.instruction"].AccountMeta = object
-    sys.modules["solders.signature"].Signature = type("Signature", (), {"default": staticmethod(lambda: object())})
+    sys.modules["solders.signature"].Signature = type(
+        "Signature", (), {"default": staticmethod(lambda: object())}
+    )
 
 if importlib.util.find_spec("solana") is None:
     sol_mod = types.ModuleType("solana")
@@ -239,8 +251,20 @@ if importlib.util.find_spec("solana") is None:
     rpc_mod = types.ModuleType("solana.rpc")
     rpc_mod.__spec__ = importlib.machinery.ModuleSpec("solana.rpc", None)
     sys.modules.setdefault("solana.rpc", rpc_mod)
-    sys.modules.setdefault("solana.rpc.api", types.SimpleNamespace(Client=object, __spec__=importlib.machinery.ModuleSpec("solana.rpc.api", None)))
-    sys.modules.setdefault("solana.rpc.async_api", types.SimpleNamespace(AsyncClient=object, __spec__=importlib.machinery.ModuleSpec("solana.rpc.async_api", None)))
+    sys.modules.setdefault(
+        "solana.rpc.api",
+        types.SimpleNamespace(
+            Client=object,
+            __spec__=importlib.machinery.ModuleSpec("solana.rpc.api", None),
+        ),
+    )
+    sys.modules.setdefault(
+        "solana.rpc.async_api",
+        types.SimpleNamespace(
+            AsyncClient=object,
+            __spec__=importlib.machinery.ModuleSpec("solana.rpc.async_api", None),
+        ),
+    )
     ws_mod = types.ModuleType("solana.rpc.websocket_api")
     ws_mod.__spec__ = importlib.machinery.ModuleSpec("solana.rpc.websocket_api", None)
     ws_mod.connect = lambda *a, **k: None
@@ -249,12 +273,13 @@ if importlib.util.find_spec("solana") is None:
 
 
 # Ensure project root is in sys.path when running tests directly with 'pytest'
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-import pytest
 import asyncio
+
+import pytest
 
 from solhunter_zero.http import close_session
 

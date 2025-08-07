@@ -1,10 +1,10 @@
 import argparse
 import asyncio
 
-from solhunter_zero.agents.ppo_agent import PPOAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.memory import Memory
 import solhunter_zero.device as device
+from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.ppo_agent import PPOAgent
+from solhunter_zero.memory import Memory
 
 
 async def main() -> None:
@@ -20,7 +20,9 @@ async def main() -> None:
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)
-    agent = PPOAgent(memory_agent=mem_agent, data_url=args.data, model_path=args.model, device=dev)
+    agent = PPOAgent(
+        memory_agent=mem_agent, data_url=args.data, model_path=args.model, device=dev
+    )
     agent.start_online_learning(interval=args.interval)
     await asyncio.Event().wait()
 

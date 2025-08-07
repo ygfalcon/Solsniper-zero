@@ -9,6 +9,7 @@ def test_trade_logging_with_sqlalchemy(tmp_path, monkeypatch):
     stubs.stub_sqlalchemy()
 
     import solhunter_zero.memory as memory
+
     importlib.reload(memory)
 
     class TrackingMemory(memory.Memory):
@@ -19,6 +20,7 @@ def test_trade_logging_with_sqlalchemy(tmp_path, monkeypatch):
             TrackingMemory.last_instance = self
 
     import solhunter_zero.investor_demo as investor_demo
+
     importlib.reload(investor_demo)
     monkeypatch.setattr(investor_demo, "Memory", TrackingMemory, raising=False)
 

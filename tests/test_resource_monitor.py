@@ -17,8 +17,12 @@ async def test_resource_monitor_publish(monkeypatch):
     monkeypatch.setattr(rm, "psutil", stub)
 
     received = []
-    unsub1 = event_bus.subscribe('system_metrics', lambda p: received.append(('local', p)))
-    unsub2 = event_bus.subscribe('remote_system_metrics', lambda p: received.append(('remote', p)))
+    unsub1 = event_bus.subscribe(
+        "system_metrics", lambda p: received.append(("local", p))
+    )
+    unsub2 = event_bus.subscribe(
+        "remote_system_metrics", lambda p: received.append(("remote", p))
+    )
 
     rm.start_monitor(0.01)
     await asyncio.sleep(0.05)
@@ -28,16 +32,16 @@ async def test_resource_monitor_publish(monkeypatch):
 
     assert received
     kinds = {k for k, _ in received}
-    assert 'local' in kinds
+    assert "local" in kinds
     for kind, payload in received:
-        if kind == 'local':
+        if kind == "local":
             assert payload.cpu == 5.0
             assert payload.memory == 42.0
             assert payload.proc_cpu == 1.0
         else:
-            assert payload['cpu'] == 5.0
-            assert payload['proc_cpu'] == 1.0
-            assert payload['memory'] == 42.0
+            assert payload["cpu"] == 5.0
+            assert payload["proc_cpu"] == 1.0
+            assert payload["memory"] == 42.0
 
 
 def test_get_cpu_usage_fallback(monkeypatch):
@@ -48,7 +52,7 @@ def test_get_cpu_usage_fallback(monkeypatch):
         called = True
         return 12.0
 
-    monkeypatch.setattr(rm.psutil, 'cpu_percent', fake_cpu)
+    monkeypatch.setattr(rm.psutil, "cpu_percent", fake_cpu)
     rm._CPU_PERCENT = 0.0
     rm._CPU_LAST = 0.0
     cpu = rm.get_cpu_usage()

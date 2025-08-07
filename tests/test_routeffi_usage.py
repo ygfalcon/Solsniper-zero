@@ -1,5 +1,6 @@
-import pytest
 import importlib
+
+import pytest
 
 import solhunter_zero.arbitrage as arb
 
@@ -10,10 +11,12 @@ def _build_prices():
 
 @pytest.fixture
 def ensure_ffi(monkeypatch):
-    from pathlib import Path
     import subprocess
+    from pathlib import Path
 
-    lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+    lib_path = (
+        Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+    )
     if not lib_path.exists():
         subprocess.run(
             [
@@ -36,13 +39,13 @@ def test_ffi_called(monkeypatch, ensure_ffi):
     real = arb._routeffi.best_route
 
     def wrapper(*a, **k):
-        called['used'] = True
+        called["used"] = True
         return real(*a, **k)
 
-    monkeypatch.setattr(arb._routeffi, 'best_route', wrapper)
+    monkeypatch.setattr(arb._routeffi, "best_route", wrapper)
     prices = _build_prices()
     arb._best_route(prices, 1.0)
-    assert called.get('used', False)
+    assert called.get("used", False)
 
 
 def test_ffi_matches_python(monkeypatch, ensure_ffi):
@@ -57,4 +60,3 @@ def test_default_uses_ffi(monkeypatch, ensure_ffi):
     importlib.reload(arb._routeffi)
     importlib.reload(arb)
     assert arb.USE_FFI_ROUTE
-

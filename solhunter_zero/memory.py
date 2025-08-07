@@ -1,24 +1,14 @@
 from __future__ import annotations
-import datetime
-import os
+
 import asyncio
+import datetime
 import json
+import os
 from contextlib import suppress
-from sqlalchemy import (
-    Column,
-    Integer,
-    Float,
-    String,
-    DateTime,
-    Text,
-    select,
-)
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    async_sessionmaker,
-    AsyncSession,
-)
 
 from .base_memory import BaseMemory
 from .event_bus import publish
@@ -26,11 +16,13 @@ from .schemas import TradeLogged
 
 Base = declarative_base()
 
+
 def utcnow():
     return datetime.datetime.utcnow()
 
+
 class Trade(Base):
-    __tablename__ = 'trades'
+    __tablename__ = "trades"
     id = Column(Integer, primary_key=True)
     token = Column(String, nullable=False)
     direction = Column(String, nullable=False)
@@ -72,9 +64,9 @@ def load_snapshot(path: str) -> list[dict]:
 
 
 class Memory(BaseMemory):
-    def __init__(self, url: str = 'sqlite:///memory.db'):
-        if url.startswith('sqlite:///'):
-            url = url.replace('sqlite://', 'sqlite+aiosqlite://', 1)
+    def __init__(self, url: str = "sqlite:///memory.db"):
+        if url.startswith("sqlite:///"):
+            url = url.replace("sqlite://", "sqlite+aiosqlite://", 1)
         self.engine = create_async_engine(url, echo=False, future=True)
         self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
         self._queue: asyncio.Queue[dict] | None = None
@@ -86,6 +78,7 @@ class Memory(BaseMemory):
         async def _init_models():
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
@@ -191,6 +184,7 @@ class Memory(BaseMemory):
             )
             result = await session.execute(q)
             return result.scalar_one_or_none()
+
     async def _log_var_async(self, value: float) -> None:
         await self._init_task
         async with self.Session() as session:
@@ -246,6 +240,7 @@ class Memory(BaseMemory):
             self._writer_task = None
             self._writer_started = None
         if self._queue and not self._queue.empty():
-            await self._flush([self._queue.get_nowait() for _ in range(self._queue.qsize())])
+            await self._flush(
+                [self._queue.get_nowait() for _ in range(self._queue.qsize())]
+            )
         await self.engine.dispose()
-

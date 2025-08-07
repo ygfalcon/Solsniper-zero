@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Iterable, Dict, Any, List
+from typing import Any, Dict, Iterable, List
 
 from .agents import BaseAgent
 
@@ -13,8 +13,8 @@ except Exception:  # pragma: no cover - optional
     torch = None
     nn = None
 
-from .models import load_compiled_model
 from .device import get_default_device
+from .models import load_compiled_model
 
 
 class HighLevelPolicyNetwork(nn.Module if torch else object):
@@ -28,12 +28,16 @@ class HighLevelPolicyNetwork(nn.Module if torch else object):
             self.weights = [1.0 for _ in range(num_agents)]
         self.num_agents = num_agents
 
-    def predict(self, names: Iterable[str]) -> Dict[str, float]:  # pragma: no cover - simple
+    def predict(
+        self, names: Iterable[str]
+    ) -> Dict[str, float]:  # pragma: no cover - simple
         if torch and isinstance(self.weights, torch.Tensor):
             vals: List[float] = self.weights.detach().cpu().tolist()
         else:
             vals = list(self.weights)
-        return {n: float(vals[i]) if i < len(vals) else 1.0 for i, n in enumerate(names)}
+        return {
+            n: float(vals[i]) if i < len(vals) else 1.0 for i, n in enumerate(names)
+        }
 
 
 def roi_by_agent(trades: Iterable[Any], names: Iterable[str]) -> Dict[str, float]:
@@ -100,7 +104,9 @@ def load_policy(path: str, num_agents: int) -> HighLevelPolicyNetwork:
                 data = json.load(fh)
             if isinstance(data, list) and len(data) >= num_agents:
                 if torch and isinstance(model.weights, torch.Tensor):
-                    model.weights.data = torch.tensor(data[:num_agents], dtype=torch.float32)
+                    model.weights.data = torch.tensor(
+                        data[:num_agents], dtype=torch.float32
+                    )
                 else:
                     model.weights = [float(v) for v in data[:num_agents]]
         except Exception:  # pragma: no cover - bad file
@@ -113,7 +119,9 @@ class SupervisorAgent(BaseAgent):
 
     name = "supervisor"
 
-    def __init__(self, checkpoint: str = "supervisor.json", device: str | None = None) -> None:
+    def __init__(
+        self, checkpoint: str = "supervisor.json", device: str | None = None
+    ) -> None:
         self.checkpoint = checkpoint
         try:
             self.device = str(get_default_device(device))

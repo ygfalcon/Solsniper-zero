@@ -1,8 +1,9 @@
 import asyncio
-import aiohttp
+import sys
 import time
 import types
-import sys
+
+import aiohttp
 
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
@@ -61,23 +62,31 @@ sys.modules.setdefault("solhunter_zero.event_pb2", dummy_pb)
 from solhunter_zero import data_sync
 from solhunter_zero.offline_data import OfflineData
 
+
 class FakeResp:
     def __init__(self, url):
         self.url = url
+
     async def __aenter__(self):
         return self
+
     async def __aexit__(self, exc_type, exc, tb):
         pass
+
     def raise_for_status(self):
         pass
+
     async def json(self):
         return {"snapshots": []}
+
 
 class FakeSession:
     async def __aenter__(self):
         return self
+
     async def __aexit__(self, exc_type, exc, tb):
         pass
+
     def get(self, url, timeout=10):
         return FakeResp(url)
 
@@ -98,7 +107,9 @@ def test_sync_snapshots_no_recursion(tmp_path, monkeypatch):
 
     monkeypatch.setattr(asyncio, "gather", gather_wrapper)
 
-    asyncio.run(data_sync.sync_snapshots(["A", "B"], db_path=str(db), base_url="http://api"))
+    asyncio.run(
+        data_sync.sync_snapshots(["A", "B"], db_path=str(db), base_url="http://api")
+    )
 
     assert calls.get("count") == 1
 
@@ -121,4 +132,3 @@ def test_scheduler_rotation(tmp_path, monkeypatch):
     data = OfflineData(f"sqlite:///{db}")
     snaps = asyncio.run(data.list_snapshots())
     assert len(snaps) <= 1
-

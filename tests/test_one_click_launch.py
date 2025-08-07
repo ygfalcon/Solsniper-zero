@@ -10,9 +10,11 @@ import pytest
 # Stub out the startup module so launching avoids real network activity
 fake_startup = types.ModuleType("scripts.startup")
 
+
 def _fake_run(argv):
     print("SolHunter Zero launch complete – system ready.")
     return 0
+
 
 fake_startup.run = _fake_run
 sys.modules["scripts.startup"] = fake_startup

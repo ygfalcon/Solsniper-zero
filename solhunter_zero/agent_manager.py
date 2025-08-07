@@ -1,53 +1,54 @@
 from __future__ import annotations
 
 import asyncio
-from .jsonutil import loads, dumps
-from .util import run_coro
+import inspect
 import os
 import random
-import inspect
-from typing import Iterable, Dict, Any, List
+from typing import Any, Dict, Iterable, List
 
-from .backtester import backtest_weighted, DEFAULT_STRATEGIES
-from .backtest_cli import bayesian_optimize_weights
 from .advanced_memory import AdvancedMemory
+from .backtest_cli import bayesian_optimize_weights
+from .backtester import DEFAULT_STRATEGIES, backtest_weighted
+from .jsonutil import dumps, loads
+from .util import run_coro
+
 try:
     import torch
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for AgentManager features"
-            )
+            raise ImportError("torch is required for AgentManager features")
 
     torch = _TorchStub()  # type: ignore
 
 import logging
 import tomllib
-from .trade_analyzer import TradeAnalyzer
+
 import numpy as np
 
-from .agents import BaseAgent, load_agent
-from .agents.execution import ExecutionAgent
-from .execution import EventExecutor
-from .agents.swarm import AgentSwarm
-from .agents.memory import MemoryAgent
-from .agents.emotion_agent import EmotionAgent
-from .agents.discovery import DiscoveryAgent
-from .swarm_coordinator import SwarmCoordinator
-from .agents.attention_swarm import AttentionSwarm, load_model
-from .agents.rl_weight_agent import RLWeightAgent
-from .agents.hierarchical_rl_agent import HierarchicalRLAgent
-from .device import get_default_device
-from .hierarchical_rl import SupervisorAgent
-from .regime import detect_regime
 from . import mutation
+from .agents import BaseAgent, load_agent
+from .agents.attention_swarm import AttentionSwarm, load_model
+from .agents.discovery import DiscoveryAgent
+from .agents.emotion_agent import EmotionAgent
+from .agents.execution import ExecutionAgent
+from .agents.hierarchical_rl_agent import HierarchicalRLAgent
+from .agents.memory import MemoryAgent
+from .agents.rl_weight_agent import RLWeightAgent
+from .agents.swarm import AgentSwarm
+from .datasets.sample_ticks import DEFAULT_PATH as _TICKS_PATH
+from .datasets.sample_ticks import load_sample_ticks
+from .device import get_default_device
 from .event_bus import publish, subscription
-from .schemas import ActionExecuted, WeightsUpdated
+from .execution import EventExecutor
+from .hierarchical_rl import SupervisorAgent
 from .multi_rl import PopulationRL
+from .regime import detect_regime
 from .rl_training import MultiAgentRL
-from .datasets.sample_ticks import load_sample_ticks, DEFAULT_PATH as _TICKS_PATH
-
+from .schemas import ActionExecuted, WeightsUpdated
+from .swarm_coordinator import SwarmCoordinator
+from .trade_analyzer import TradeAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +103,7 @@ class StrategySelector:
 
         ranked = sorted(names, key=lambda n: rois.get(n, 0.0), reverse=True)
         top = ranked[0]
-        second_roi = (
-            rois.get(ranked[1], 0.0) if len(ranked) > 1 else float("-inf")
-        )
+        second_roi = rois.get(ranked[1], 0.0) if len(ranked) > 1 else float("-inf")
         if rois[top] - second_roi >= self.vote_threshold:
             selected = [a for a in agents if a.name == top]
             return selected, {top: base_weights.get(top, 1.0)}
@@ -196,7 +195,9 @@ class AgentManager:
                 attn_device = os.getenv(
                     "ATTENTION_SWARM_DEVICE", str(get_default_device())
                 )
-                self.attention_swarm = load_model(attention_model_path, device=attn_device)
+                self.attention_swarm = load_model(
+                    attention_model_path, device=attn_device
+                )
             except Exception:
                 self.attention_swarm = None
 
@@ -226,9 +227,7 @@ class AgentManager:
         )
 
         self.mutation_path = (
-            str(mutation_path)
-            if mutation_path is not None
-            else "mutation_state.json"
+            str(mutation_path) if mutation_path is not None else "mutation_state.json"
         )
         self.mutation_state = mutation.load_state(self.mutation_path)
         self._restore_mutations()
@@ -256,7 +255,11 @@ class AgentManager:
         self.rl_policy: Dict[str, float] = {}
 
         def _merge_rl_weights(payload):
-            data = payload.weights if hasattr(payload, "weights") else payload.get("weights", {})
+            data = (
+                payload.weights
+                if hasattr(payload, "weights")
+                else payload.get("weights", {})
+            )
             if isinstance(data, dict):
                 try:
                     self.rl_policy = {str(k): float(v) for k, v in data.items()}
@@ -295,7 +298,9 @@ class AgentManager:
         if self.selector:
             agents, weights = self.selector.weight_agents(agents, weights)
         if self.supervisor:
-            sup_w = self.supervisor.predict_weights([a.name for a in agents], token, portfolio)
+            sup_w = self.supervisor.predict_weights(
+                [a.name for a in agents], token, portfolio
+            )
             selected = []
             for ag in agents:
                 w = sup_w.get(ag.name, 1.0)
@@ -319,6 +324,7 @@ class AgentManager:
             price = prices[-1] if prices else 0.0
             try:
                 from .order_book_ws import snapshot
+
                 depth, _imb, rate = snapshot(token)
             except Exception:
                 depth = 0.0
@@ -336,16 +342,24 @@ class AgentManager:
         if self.use_attention_swarm and self.attention_swarm:
             rois = self.coordinator._roi_by_agent([a.name for a in agents])
             prices = portfolio.price_history.get(token, [])
-            vol = float(np.std(prices) / (np.mean(prices) or 1.0)) if len(prices) > 1 else 0.0
+            vol = (
+                float(np.std(prices) / (np.mean(prices) or 1.0))
+                if len(prices) > 1
+                else 0.0
+            )
             reg_val = 1.0 if regime == "bull" else -1.0 if regime == "bear" else 0.0
-            self._attn_history.append([rois.get(a.name, 0.0) for a in agents] + [reg_val, vol])
+            self._attn_history.append(
+                [rois.get(a.name, 0.0) for a in agents] + [reg_val, vol]
+            )
             if len(self._attn_history) >= self.attention_swarm.seq_len:
-                seq = self._attn_history[-self.attention_swarm.seq_len:]
+                seq = self._attn_history[-self.attention_swarm.seq_len :]
                 pred = self.attention_swarm.predict(seq)
                 weights = {a.name: float(pred[i]) for i, a in enumerate(agents)}
                 publish("weights_updated", WeightsUpdated(weights=dict(weights)))
         swarm = AgentSwarm(agents)
-        return await swarm.propose(token, portfolio, weights=weights, rl_action=rl_action)
+        return await swarm.propose(
+            token, portfolio, weights=weights, rl_action=rl_action
+        )
 
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
@@ -368,7 +382,9 @@ class AgentManager:
                     if callable(fn):
                         try:
                             if inspect.iscoroutinefunction(fn):
-                                explain = await fn([action], token=token, portfolio=portfolio)
+                                explain = await fn(
+                                    [action], token=token, portfolio=portfolio
+                                )
                             else:
                                 explain = fn([action], token=token, portfolio=portfolio)
                         except Exception:
@@ -571,9 +587,7 @@ class AgentManager:
                 best_weights = weights
         if best_weights is None:
             return
-        changed = any(
-            self.weights.get(k) != float(v) for k, v in best_weights.items()
-        )
+        changed = any(self.weights.get(k) != float(v) for k, v in best_weights.items())
         if changed:
             for k, v in best_weights.items():
                 self.weights[str(k)] = float(v)
@@ -623,8 +637,19 @@ class AgentManager:
             if name in existing:
                 continue
             base_cls = str(info.get("base"))
-            params = info.get("params", {}) if isinstance(info.get("params", {}), dict) else {}
-            base_agent = next((a for a in self.agents if a.__class__.__name__ == base_cls or a.name == base_cls), None)
+            params = (
+                info.get("params", {})
+                if isinstance(info.get("params", {}), dict)
+                else {}
+            )
+            base_agent = next(
+                (
+                    a
+                    for a in self.agents
+                    if a.__class__.__name__ == base_cls or a.name == base_cls
+                ),
+                None,
+            )
             if base_agent is None:
                 try:
                     base_agent = load_agent(base_cls)
@@ -643,18 +668,14 @@ class AgentManager:
         base_agents = [
             a
             for a in self.agents
-            if a.name not in self._active_names()
-            and not isinstance(a, MemoryAgent)
+            if a.name not in self._active_names() and not isinstance(a, MemoryAgent)
         ]
         spawned: List[BaseAgent] = []
         if not base_agents:
             return spawned
         for _ in range(count):
             base = random.choice(base_agents)
-            name = (
-                f"{base.name}_m"
-                f"{len(self._active_names()) + 1}"
-            )
+            name = f"{base.name}_m" f"{len(self._active_names()) + 1}"
             mutated = mutation.mutate_agent(base, name=name)
             self.agents.append(mutated)
             self.mutation_state.setdefault("active", []).append(
@@ -690,9 +711,7 @@ class AgentManager:
         self.mutation_state["active"] = keep_entries
         self.mutation_state.setdefault("roi", {}).update(rois)
 
-    def save_mutation_state(
-        self, path: str | os.PathLike | None = None
-    ) -> None:
+    def save_mutation_state(self, path: str | os.PathLike | None = None) -> None:
         path = path or self.mutation_path
         if path:
             mutation.save_state(self.mutation_state, str(path))
@@ -731,7 +750,9 @@ class AgentManager:
                     self.agents.remove(agent)
                     act = self.mutation_state.get("active", [])
                     for i, info in enumerate(list(act)):
-                        if (isinstance(info, dict) and info.get("name") == agent.name) or info == agent.name:
+                        if (
+                            isinstance(info, dict) and info.get("name") == agent.name
+                        ) or info == agent.name:
                             act.pop(i)
                             break
                 else:
@@ -768,9 +789,7 @@ class AgentManager:
                 self.weights.update(opt)
                 self.coordinator.base_weights = self.weights
             except Exception as exc:
-                logger.exception(
-                    "bayesian_optimize_weights failed", exc_info=exc
-                )
+                logger.exception("bayesian_optimize_weights failed", exc_info=exc)
 
         self.prune_underperforming(threshold)
         if self.mutation_path:
@@ -880,9 +899,7 @@ class AgentManager:
         depth_service = bool(cfg.get("depth_service", False))
         priority_rpc = cfg.get("priority_rpc")
         if isinstance(priority_rpc, str):
-            priority_rpc = [
-                u.strip() for u in priority_rpc.split(",") if u.strip()
-            ]
+            priority_rpc = [u.strip() for u in priority_rpc.split(",") if u.strip()]
         elif not isinstance(priority_rpc, list):
             priority_rpc = None
         regime_weights = cfg.get("regime_weights") or {}

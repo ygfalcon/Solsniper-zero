@@ -1,9 +1,10 @@
 from __future__ import annotations
-from .jsonutil import loads, dumps
+
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Mapping
+from typing import Dict, Mapping, Optional
 
+from .jsonutil import dumps, loads
 from .risk import RiskManager
 
 try:  # Optional dependency
@@ -69,9 +70,7 @@ class Portfolio:
             f.write(dumps(data))
         publish(
             "portfolio_updated",
-            PortfolioUpdated(
-                balances={t: p.amount for t, p in self.balances.items()}
-            ),
+            PortfolioUpdated(balances={t: p.amount for t, p in self.balances.items()}),
         )
 
     async def save_async(self) -> None:
@@ -94,9 +93,7 @@ class Portfolio:
             await f.write(dumps(data))
         publish(
             "portfolio_updated",
-            PortfolioUpdated(
-                balances={t: p.amount for t, p in self.balances.items()}
-            ),
+            PortfolioUpdated(balances={t: p.amount for t, p in self.balances.items()}),
         )
 
     # position management -------------------------------------------------
@@ -124,9 +121,7 @@ class Portfolio:
         self.save()
         publish(
             "portfolio_updated",
-            PortfolioUpdated(
-                balances={t: p.amount for t, p in self.balances.items()}
-            ),
+            PortfolioUpdated(balances={t: p.amount for t, p in self.balances.items()}),
         )
 
     async def update_async(self, token: str, amount: float, price: float) -> None:
@@ -147,9 +142,7 @@ class Portfolio:
         await self.save_async()
         publish(
             "portfolio_updated",
-            PortfolioUpdated(
-                balances={t: p.amount for t, p in self.balances.items()}
-            ),
+            PortfolioUpdated(balances={t: p.amount for t, p in self.balances.items()}),
         )
 
     def remove(self, token: str) -> None:
@@ -265,12 +258,12 @@ class Portfolio:
             return
 
         from .risk import (
-            compute_live_covariance,
+            average_correlation,
             compute_live_correlation,
-            portfolio_variance,
+            compute_live_covariance,
             portfolio_cvar,
             portfolio_evar,
-            average_correlation,
+            portfolio_variance,
         )
 
         weights = self.weights()

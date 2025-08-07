@@ -1,4 +1,5 @@
 import asyncio
+
 import numpy as np
 
 from solhunter_zero.agents.fractal_agent import FractalAgent

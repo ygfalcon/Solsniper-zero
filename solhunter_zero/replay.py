@@ -1,24 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import pickle
 import random
 from argparse import ArgumentParser
-from typing import Iterable, Tuple, List
-import asyncio
+from typing import Iterable, List, Tuple
 
 from .http import close_session
 from .util import install_uvloop
 
 install_uvloop()
 
-from sqlalchemy import (
-    create_engine,
-    Column,
-    Integer,
-    Float,
-    String,
-    LargeBinary,
-)
+from sqlalchemy import Column, Float, Integer, LargeBinary, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -80,11 +73,15 @@ class ReplayBuffer:
         filtered = [e for e in exps if e.emotion != "regret"]
         if not filtered:
             return []
-        weights = [positive_weight if e.emotion == "confident" else 1.0 for e in filtered]
+        weights = [
+            positive_weight if e.emotion == "confident" else 1.0 for e in filtered
+        ]
         total = float(sum(weights))
         probs = [w / total for w in weights]
         indices = list(range(len(filtered)))
-        chosen = random.choices(indices, weights=probs, k=min(batch_size, len(filtered)))
+        chosen = random.choices(
+            indices, weights=probs, k=min(batch_size, len(filtered))
+        )
         result = []
         for idx in chosen:
             e = filtered[idx]
@@ -104,6 +101,7 @@ class ReplayBuffer:
 
 # ----------------------------------------------------------------------
 
+
 def main(argv: List[str] | None = None) -> int:
     parser = ArgumentParser(description="Inspect replay buffer")
     parser.add_argument("--db", default="sqlite:///replay.db", help="Database URL")
@@ -111,9 +109,7 @@ def main(argv: List[str] | None = None) -> int:
     buf = ReplayBuffer(args.db)
     for e in buf.list_entries():
         state = pickle.loads(e.state)
-        print(
-            f"{e.id}\t{state}\t{e.action}\t{e.reward}\t{e.emotion}\t{e.regime}"
-        )
+        print(f"{e.id}\t{state}\t{e.action}\t{e.reward}\t{e.emotion}\t{e.regime}")
     return 0
 
 

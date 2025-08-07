@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence, Dict, List, Any
+from typing import Any, Dict, List, Sequence
 
-from . import BaseAgent
-from .memory import MemoryAgent
 from ..portfolio import Portfolio
 from ..simulation import run_simulations
+from . import BaseAgent
+from .memory import MemoryAgent
 
 
 class OpportunityCostAgent(BaseAgent):
@@ -13,7 +13,11 @@ class OpportunityCostAgent(BaseAgent):
 
     name = "opportunity_cost"
 
-    def __init__(self, candidates: Sequence[str] | None = None, memory_agent: MemoryAgent | None = None) -> None:
+    def __init__(
+        self,
+        candidates: Sequence[str] | None = None,
+        memory_agent: MemoryAgent | None = None,
+    ) -> None:
         self.candidates = list(candidates or [])
         self.memory_agent = memory_agent
         self._misses: Dict[str, int] = {}
@@ -26,9 +30,7 @@ class OpportunityCostAgent(BaseAgent):
         if not mem or not hasattr(mem, "list_trades"):
             return 0
         trades = [
-            t
-            for t in mem.list_trades(token=token, limit=100)
-            if hasattr(t, "emotion")
+            t for t in mem.list_trades(token=token, limit=100) if hasattr(t, "emotion")
         ]
         if not trades:
             return 0
@@ -57,7 +59,11 @@ class OpportunityCostAgent(BaseAgent):
         sims = run_simulations(token, count=1)
         roi = sims[0].expected_roi if sims else 0.0
         mem = getattr(self.memory_agent, "memory", None) if self.memory_agent else None
-        if mem and hasattr(mem, "list_trades") and mem.list_trades(token=token, limit=1):
+        if (
+            mem
+            and hasattr(mem, "list_trades")
+            and mem.list_trades(token=token, limit=1)
+        ):
             roi += 0.01 * self._emotion_streak(token)
         return roi
 
@@ -88,5 +94,7 @@ class OpportunityCostAgent(BaseAgent):
         if self._misses.get(token, 0) >= 2:
             pos = portfolio.balances.get(token)
             if pos:
-                return [{"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}]
+                return [
+                    {"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}
+                ]
         return []

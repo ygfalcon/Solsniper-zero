@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 try:  # pragma: no cover - optional dependency
     import psutil
@@ -14,9 +14,7 @@ _KP: float = float(
     os.getenv("CONCURRENCY_SMOOTHING", os.getenv("CONCURRENCY_KP", "0.5")) or 0.5
 )
 _KI: float = float(os.getenv("CONCURRENCY_KI", "0.0") or 0.0)
-_EWM_SMOOTHING: float = float(
-    os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15
-)
+_EWM_SMOOTHING: float = float(os.getenv("CONCURRENCY_EWM_SMOOTHING", "0.15") or 0.15)
 _ERR_INT: float = 0.0
 _CPU_EMA: float = 0.0
 

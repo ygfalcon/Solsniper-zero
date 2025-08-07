@@ -4,17 +4,16 @@ import logging
 import os
 from pathlib import Path
 
+import solhunter_zero.device as device
 from solhunter_zero.bootstrap_utils import (
     DepsConfig,
     ensure_cargo,
     ensure_deps,
     ensure_venv,
 )
-from .config_bootstrap import ensure_config as _ensure_config
-from . import wallet
-from . import env
 
-import solhunter_zero.device as device
+from . import env, wallet
+from .config_bootstrap import ensure_config as _ensure_config
 from .diagnostics import write_diagnostics
 
 
@@ -66,9 +65,7 @@ def ensure_keypair() -> tuple["wallet.KeypairInfo", Path]:
             print("Removed KEYPAIR_JSON environment variable.")
         if one_click:
             raise SystemExit(1)
-        input(
-            "Press Enter to retry without KEYPAIR_JSON or Ctrl+C to abort..."
-        )
+        input("Press Enter to retry without KEYPAIR_JSON or Ctrl+C to abort...")
         result = wallet.setup_default_keypair()
     name, mnemonic_path = result.name, result.mnemonic_path
     keypair_path = Path(wallet.KEYPAIR_DIR) / f"{name}.json"
@@ -120,14 +117,13 @@ def bootstrap(one_click: bool = False) -> None:
         min_balance = float(os.getenv("MIN_STARTING_BALANCE", "0") or 0)
         if keypair_path and min_balance > 0:
             from solana.rpc.api import Client
+
             from .gas import LAMPORTS_PER_SOL
 
             try:
                 kp = wallet.load_keypair(str(keypair_path))
                 client = Client(
-                    os.getenv(
-                        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-                    )
+                    os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
                 )
                 resp = client.get_balance(kp.pubkey())
                 try:

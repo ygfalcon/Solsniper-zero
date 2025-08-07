@@ -1,18 +1,20 @@
-import base64
 import asyncio
+import base64
+
 import pytest
+
 pytest.importorskip("solders")
 
-from solders.keypair import Keypair
 from solders.hash import Hash
+from solders.instruction import Instruction
+from solders.keypair import Keypair
 from solders.message import MessageV0
 from solders.pubkey import Pubkey
-from solders.instruction import Instruction
 from solders.signature import Signature
 from solders.transaction import VersionedTransaction
 
-from solhunter_zero.exchange import place_order, place_order_async
 import solhunter_zero.exchange as exchange
+from solhunter_zero.exchange import place_order, place_order_async
 
 
 async def _no_fee_async(*a, **k):
@@ -136,11 +138,14 @@ def test_place_order_async(monkeypatch):
 
     monkeypatch.setattr("solhunter_zero.exchange.get_session", fake_get_session)
     import aiohttp
+
     monkeypatch.setattr(aiohttp, "ClientError", Exception, raising=False)
     monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
     monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", _no_fee_async)
     monkeypatch.setattr("solhunter_zero.exchange.USE_RUST_EXEC", False)
-    result = asyncio.run(place_order_async("tok", "buy", 1.0, 0.0, keypair=kp, testnet=True))
+    result = asyncio.run(
+        place_order_async("tok", "buy", 1.0, 0.0, keypair=kp, testnet=True)
+    )
     assert result["signature"] == "sig"
     assert sent["len"] > 0
 
@@ -197,10 +202,13 @@ def test_place_order_async_deducts_gas(monkeypatch):
 
     monkeypatch.setattr("solhunter_zero.exchange.get_session", fake_get_session)
     import aiohttp
+
     monkeypatch.setattr(aiohttp, "ClientError", Exception, raising=False)
     monkeypatch.setattr("solhunter_zero.exchange.AsyncClient", FakeClient)
+
     async def fake_fee(*a, **k):
         return 1.0
+
     monkeypatch.setattr("solhunter_zero.exchange.get_current_fee_async", fake_fee)
     monkeypatch.setattr("solhunter_zero.exchange.USE_RUST_EXEC", False)
 

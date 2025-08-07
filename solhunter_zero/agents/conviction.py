@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any, Iterable
-
 import os
+from typing import Any, Dict, Iterable, List
+
 import numpy as np
 
 from .. import models
-from ..simulation import (
-    run_simulations,
-    predict_price_movement as _predict_price_movement,
-    predict_token_activity as _predict_activity,
-)
 from ..news import fetch_sentiment
+from ..simulation import predict_price_movement as _predict_price_movement
+from ..simulation import predict_token_activity as _predict_activity
+from ..simulation import run_simulations
 
 
 def predict_price_movement(
@@ -25,8 +23,9 @@ def predict_token_activity(token: str, *, model_path: str | None = None) -> floa
     """Wrapper around :func:`simulation.predict_token_activity`."""
     return _predict_activity(token, model_path=model_path)
 
-from . import BaseAgent
+
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class ConvictionAgent(BaseAgent):
@@ -48,7 +47,9 @@ class ConvictionAgent(BaseAgent):
         self.threshold = threshold
         self.count = count
         self.model_path = model_path or os.getenv("PRICE_MODEL_PATH")
-        self.activity_model_path = activity_model_path or os.getenv("ACTIVITY_MODEL_PATH")
+        self.activity_model_path = activity_model_path or os.getenv(
+            "ACTIVITY_MODEL_PATH"
+        )
         self.feeds = list(feeds) if feeds else []
         self.twitter_feeds = list(twitter_feeds) if twitter_feeds else []
         self.discord_feeds = list(discord_feeds) if discord_feeds else []
@@ -64,7 +65,9 @@ class ConvictionAgent(BaseAgent):
                 )
             except Exception:
                 sentiment = 0.0
-        return predict_price_movement(token, sentiment=sentiment, model_path=self.model_path)
+        return predict_price_movement(
+            token, sentiment=sentiment, model_path=self.model_path
+        )
 
     def _predict_activity(self, token: str) -> float:
         return predict_token_activity(token, model_path=self.activity_model_path)
@@ -94,5 +97,7 @@ class ConvictionAgent(BaseAgent):
         if avg_roi < -self.threshold:
             pos = portfolio.balances.get(token)
             if pos:
-                return [{"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}]
+                return [
+                    {"token": token, "side": "sell", "amount": pos.amount, "price": 0.0}
+                ]
         return []

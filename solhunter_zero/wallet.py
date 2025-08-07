@@ -1,12 +1,14 @@
 import json
 import logging
-from dataclasses import dataclass
-from .http import loads
 import os
+from dataclasses import dataclass
 from pathlib import Path
+
 import aiofiles
+from bip_utils import Bip39SeedGenerator, Bip44, Bip44Changes, Bip44Coins
 from solders.keypair import Keypair
-from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
+
+from .http import loads
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
@@ -47,9 +49,7 @@ class KeypairInfo:
         """Return a JSON serializable representation."""
         return {
             "name": self.name,
-            "mnemonic_path": (
-                str(self.mnemonic_path) if self.mnemonic_path else None
-            ),
+            "mnemonic_path": (str(self.mnemonic_path) if self.mnemonic_path else None),
         }
 
 

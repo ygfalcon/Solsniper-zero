@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
+
 import aiohttp
 
 try:
     import orjson as _json  # type: ignore
+
     USE_ORJSON = True
 except Exception:  # pragma: no cover - optional dependency
     import json as _json  # type: ignore
+
     USE_ORJSON = False
 
 
@@ -55,11 +58,13 @@ def check_endpoint(url: str, retries: int = 3) -> None:
             )
             time.sleep(wait)
 
+
 _session: aiohttp.ClientSession | None = None
 
 # Connector limits are configurable via environment variables.
 CONNECTOR_LIMIT = int(os.getenv("HTTP_CONNECTOR_LIMIT", "0") or 0)
 CONNECTOR_LIMIT_PER_HOST = int(os.getenv("HTTP_CONNECTOR_LIMIT_PER_HOST", "0") or 0)
+
 
 async def get_session() -> aiohttp.ClientSession:
     """Return a shared :class:`aiohttp.ClientSession`."""
@@ -75,6 +80,7 @@ async def get_session() -> aiohttp.ClientSession:
         _session = aiohttp.ClientSession(connector=connector)
     return _session
 
+
 async def close_session() -> None:
     """Close the shared session if it exists."""
     global _session
@@ -84,7 +90,8 @@ async def close_session() -> None:
             await close()
     _session = None
     try:
-        from .depth_client import close_mmap, close_ipc_clients
+        from .depth_client import close_ipc_clients, close_mmap
+
         close_mmap()
         await close_ipc_clients()
     except Exception:

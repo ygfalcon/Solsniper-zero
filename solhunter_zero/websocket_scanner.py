@@ -7,25 +7,13 @@ import logging
 import re
 from typing import AsyncGenerator, Iterable
 
-from .http import get_session
-
 from solana.publickey import PublicKey
-from solana.rpc.websocket_api import (
-    RpcTransactionLogsFilterMentions,
-    connect,
-)
+from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
 
-from .scanner_onchain import TOKEN_PROGRAM_ID
 from .dex_scanner import DEX_PROGRAM_ID
-
-from .scanner_common import (
-    TOKEN_SUFFIX,
-    TOKEN_KEYWORDS,
-    JUPITER_WS_URL,
-    token_matches,
-)
-
-
+from .http import get_session
+from .scanner_common import JUPITER_WS_URL, TOKEN_KEYWORDS, TOKEN_SUFFIX, token_matches
+from .scanner_onchain import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +48,6 @@ async def stream_new_tokens(
     if not rpc_url:
         if False:
             yield None
-
 
         return
 
@@ -111,8 +98,10 @@ async def stream_new_tokens(
                             if m:
                                 mint = m.group(1)
 
-                    if name and mint and token_matches(
-                        mint, name, suffix=suffix, keywords=keywords
+                    if (
+                        name
+                        and mint
+                        and token_matches(mint, name, suffix=suffix, keywords=keywords)
                     ):
                         tokens.add(mint)
 
@@ -121,12 +110,10 @@ async def stream_new_tokens(
                         m = POOL_TOKEN_RE.search(line)
                         if m:
                             tok = m.group(1)
-                            if token_matches(tok, None, suffix=suffix, keywords=keywords):
+                            if token_matches(
+                                tok, None, suffix=suffix, keywords=keywords
+                            ):
                                 tokens.add(tok)
-
-
-
-
 
                 for token in tokens:
                     yield token
@@ -149,18 +136,15 @@ async def stream_jupiter_tokens(
 
     session = await get_session()
     async with session.ws_connect(url) as ws:
-            async for msg in ws:
-                try:
-                    data = msg.json()
-                except Exception:  # pragma: no cover - malformed message
-                    continue
-                addr = (
-                    data.get("address")
-                    or data.get("mint")
-                    or data.get("id")
-                )
-                name = data.get("name") or data.get("symbol")
-                vol = data.get("volume") or data.get("volume_24h")
-                if addr and token_matches(addr, name, vol, suffix=suffix, keywords=keywords):
-                    yield addr
-
+        async for msg in ws:
+            try:
+                data = msg.json()
+            except Exception:  # pragma: no cover - malformed message
+                continue
+            addr = data.get("address") or data.get("mint") or data.get("id")
+            name = data.get("name") or data.get("symbol")
+            vol = data.get("volume") or data.get("volume_24h")
+            if addr and token_matches(
+                addr, name, vol, suffix=suffix, keywords=keywords
+            ):
+                yield addr

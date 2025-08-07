@@ -1,9 +1,11 @@
 import asyncio
+
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 
-from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.portfolio import Portfolio, Position
 

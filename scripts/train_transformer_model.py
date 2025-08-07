@@ -1,6 +1,8 @@
 import argparse
+
 import pandas as pd
-from solhunter_zero.models import train_transformer_model, save_model
+
+from solhunter_zero.models import save_model, train_transformer_model
 
 
 def main() -> None:
@@ -32,9 +34,7 @@ def main() -> None:
         if "whale_share" in data.columns
         else None
     )
-    spread = (
-        data["spread"].astype(float).tolist() if "spread" in data.columns else None
-    )
+    spread = data["spread"].astype(float).tolist() if "spread" in data.columns else None
 
     model = train_transformer_model(
         prices,

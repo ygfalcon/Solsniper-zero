@@ -1,8 +1,9 @@
+import asyncio
 import json
 import os
-import asyncio
-import aiohttp
 import time
+
+import aiohttp
 import pytest
 
 transformers = pytest.importorskip("transformers")
@@ -10,9 +11,8 @@ if not hasattr(transformers, "pipeline"):
     transformers.pipeline = lambda *a, **k: lambda x: []
 pytest.importorskip("sklearn")
 
-from solhunter_zero import depth_client
-
 import solhunter_zero.data_sync as data_sync
+from solhunter_zero import depth_client
 from solhunter_zero.offline_data import OfflineData
 
 
@@ -25,30 +25,40 @@ async def test_sync_snapshots_and_prune(tmp_path, monkeypatch):
     class FakeResp:
         def __init__(self, url):
             called.setdefault("urls", []).append(url)
+
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def raise_for_status(self):
             pass
+
         async def json(self):
-            return {"snapshots": [
-                {"price": 1.0, "depth": 2.0, "total_depth": 3.0, "imbalance": 0.1},
-                {"price": 1.1, "depth": 2.1, "total_depth": 3.1, "imbalance": 0.2},
-            ]}
+            return {
+                "snapshots": [
+                    {"price": 1.0, "depth": 2.0, "total_depth": 3.0, "imbalance": 0.1},
+                    {"price": 1.1, "depth": 2.1, "total_depth": 3.1, "imbalance": 0.2},
+                ]
+            }
 
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=10):
             return FakeResp(url)
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment_async", lambda *a, **k: 0.0)
 
-    await data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=0.0000001, base_url="http://api")
+    await data_sync.sync_snapshots(
+        ["TOK"], db_path=str(db), limit_gb=0.0000001, base_url="http://api"
+    )
 
     data = OfflineData(f"sqlite:///{db}")
     snaps = await data.list_snapshots("TOK")
@@ -63,28 +73,37 @@ async def test_sync_snapshots_stored(tmp_path, monkeypatch):
     class FakeResp:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def raise_for_status(self):
             pass
+
         async def json(self):
-            return {"snapshots": [
-                {"price": 1.0, "depth": 2.0, "total_depth": 3.0, "imbalance": 0.1},
-                {"price": 1.1, "depth": 2.1, "total_depth": 3.1, "imbalance": 0.2},
-            ]}
+            return {
+                "snapshots": [
+                    {"price": 1.0, "depth": 2.0, "total_depth": 3.0, "imbalance": 0.1},
+                    {"price": 1.1, "depth": 2.1, "total_depth": 3.1, "imbalance": 0.2},
+                ]
+            }
 
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=10):
             return FakeResp()
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(data_sync, "fetch_sentiment_async", lambda *a, **k: 0.0)
 
-    await data_sync.sync_snapshots(["TOK"], db_path=str(db), limit_gb=1.0, base_url="http://api")
+    await data_sync.sync_snapshots(
+        ["TOK"], db_path=str(db), limit_gb=1.0, base_url="http://api"
+    )
 
     data = OfflineData(f"sqlite:///{db}")
     snaps = await data.list_snapshots("TOK")
@@ -178,10 +197,13 @@ def test_sync_concurrency(tmp_path, monkeypatch):
     class FakeResp:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def raise_for_status(self):
             pass
+
         async def json(self):
             await asyncio.sleep(0.05)
             return {"snapshots": []}
@@ -189,8 +211,10 @@ def test_sync_concurrency(tmp_path, monkeypatch):
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=10):
             return FakeResp()
 
@@ -199,13 +223,17 @@ def test_sync_concurrency(tmp_path, monkeypatch):
 
     async def run(conc):
         start = time.perf_counter()
-        await data_sync.sync_snapshots([
-            "A",
-            "B",
-        ], db_path=str(db), base_url="http://api", concurrency=conc)
+        await data_sync.sync_snapshots(
+            [
+                "A",
+                "B",
+            ],
+            db_path=str(db),
+            base_url="http://api",
+            concurrency=conc,
+        )
         return time.perf_counter() - start
 
     t1 = asyncio.run(run(1))
     t2 = asyncio.run(run(2))
     assert t2 < t1
-

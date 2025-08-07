@@ -6,8 +6,8 @@ from typing import Dict, List, Mapping, Tuple
 import numpy as np
 
 from .backtester import backtest_weighted
-from .risk import RiskManager, portfolio_cvar
 from .portfolio import hedge_allocation
+from .risk import RiskManager, portfolio_cvar
 
 
 @dataclass
@@ -67,7 +67,8 @@ def bayesian_optimize_parameters(
     """Optimise ``bounds`` using a Gaussian process."""
 
     from sklearn.gaussian_process import GaussianProcessRegressor
-    from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+    from sklearn.gaussian_process.kernels import RBF
+    from sklearn.gaussian_process.kernels import ConstantKernel as C
 
     xs = []
     ys = []

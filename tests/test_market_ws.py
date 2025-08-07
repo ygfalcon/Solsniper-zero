@@ -1,4 +1,5 @@
 import asyncio
+
 import solhunter_zero.market_ws as mws
 from solhunter_zero.simulation import SimulationResult
 
@@ -8,6 +9,7 @@ def test_listen_and_trade_triggers_buy(monkeypatch):
         yield {"token": "tok", "volume": 200}
 
     monkeypatch.setattr(mws, "subscribe_events", fake_events)
+
     async def fake_prices(tokens):
         return {t: 1.0 for t in tokens}
 
@@ -29,7 +31,9 @@ def test_listen_and_trade_triggers_buy(monkeypatch):
     monkeypatch.setattr(mws, "should_buy", lambda sims: True)
     called = {}
 
-    async def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
+    async def fake_place_order(
+        token, side, amount, price, testnet=False, dry_run=False, keypair=None
+    ):
         called["token"] = token
         return {"ok": True}
 
@@ -50,5 +54,3 @@ def test_listen_and_trade_triggers_buy(monkeypatch):
     )
 
     assert called.get("token") == "tok"
-
-

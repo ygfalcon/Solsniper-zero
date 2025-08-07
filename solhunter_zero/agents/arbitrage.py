@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import List, Dict, Any, Sequence, Callable, Awaitable, Mapping
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Sequence
 
-from . import BaseAgent
 from .. import arbitrage
 from ..arbitrage import _best_route, refresh_costs
-from ..event_bus import subscribe
 from ..depth_client import snapshot as depth_snapshot
+from ..event_bus import subscribe
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 PriceFeed = Callable[[str], Awaitable[float]]
 
@@ -102,7 +102,9 @@ class ArbitrageAgent(BaseAgent):
         token_cache = self.price_cache.setdefault(token, {})
 
         valid: Dict[str, float] = {
-            n: p for n, p in token_cache.items() if isinstance(p, (int, float)) and p > 0
+            n: p
+            for n, p in token_cache.items()
+            if isinstance(p, (int, float)) and p > 0
         }
 
         if len(valid) < 2 and self.feeds:

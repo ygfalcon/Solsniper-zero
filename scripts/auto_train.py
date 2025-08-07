@@ -3,8 +3,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from solhunter_zero.offline_data import OfflineData
 from solhunter_zero import models
+from solhunter_zero.offline_data import OfflineData
 
 
 def train_once(

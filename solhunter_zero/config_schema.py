@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from pydantic import BaseModel, AnyUrl, ValidationError, root_validator, validator
+from pydantic import AnyUrl, BaseModel, ValidationError, root_validator, validator
 
 
 class ConfigModel(BaseModel):

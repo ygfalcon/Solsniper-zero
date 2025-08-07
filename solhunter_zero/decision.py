@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import List
+
 import statistics
+from typing import List
 
 from .simulation import SimulationResult
 
@@ -52,9 +53,7 @@ def should_buy(
     roi_std = statistics.stdev(rois) if len(rois) > 1 else 0.0
     sharpe = avg_roi / roi_std if roi_std > 0 else 0.0
 
-    return (
-        avg_success >= min_success and avg_roi >= min_roi and sharpe >= min_sharpe
-    )
+    return avg_success >= min_success and avg_roi >= min_roi and sharpe >= min_sharpe
 
 
 def should_sell(

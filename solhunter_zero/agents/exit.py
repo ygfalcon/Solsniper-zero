@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from . import BaseAgent
 from ..portfolio import Portfolio
 from ..prices import fetch_token_prices_async
+from . import BaseAgent
 
 
 class ExitAgent(BaseAgent):
@@ -12,7 +12,9 @@ class ExitAgent(BaseAgent):
 
     name = "exit"
 
-    def __init__(self, trailing: float = 0.0, stop_loss: float = 0.0, take_profit: float = 0.0):
+    def __init__(
+        self, trailing: float = 0.0, stop_loss: float = 0.0, take_profit: float = 0.0
+    ):
         self.trailing = trailing
         self.stop_loss = stop_loss
         self.take_profit = take_profit
@@ -34,10 +36,28 @@ class ExitAgent(BaseAgent):
         if price:
             roi = portfolio.position_roi(token, price)
             if self.stop_loss and roi <= -self.stop_loss:
-                return [{"token": token, "side": "sell", "amount": pos.amount, "price": price}]
+                return [
+                    {
+                        "token": token,
+                        "side": "sell",
+                        "amount": pos.amount,
+                        "price": price,
+                    }
+                ]
             if self.take_profit and roi >= self.take_profit:
-                return [{"token": token, "side": "sell", "amount": pos.amount, "price": price}]
+                return [
+                    {
+                        "token": token,
+                        "side": "sell",
+                        "amount": pos.amount,
+                        "price": price,
+                    }
+                ]
 
-        if self.trailing and portfolio.trailing_stop_triggered(token, price, self.trailing):
-            return [{"token": token, "side": "sell", "amount": pos.amount, "price": price}]
+        if self.trailing and portfolio.trailing_stop_triggered(
+            token, price, self.trailing
+        ):
+            return [
+                {"token": token, "side": "sell", "amount": pos.amount, "price": price}
+            ]
         return []

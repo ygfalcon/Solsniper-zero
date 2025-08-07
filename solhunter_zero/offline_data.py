@@ -1,25 +1,15 @@
 from __future__ import annotations
 
-import datetime
-import os
-import json
 import asyncio
+import datetime
+import json
 import mmap
+import os
 from contextlib import suppress
-from sqlalchemy import (
-    Column,
-    Integer,
-    Float,
-    String,
-    DateTime,
-    select,
-    insert,
-)
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, insert, select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    async_sessionmaker,
-)
 
 Base = declarative_base()
 
@@ -77,9 +67,11 @@ class OfflineData:
         self._memmap_flush_rows = 5000
         self._memmap_count = 0
         import asyncio
+
         async def _init_models():
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
@@ -363,7 +355,9 @@ class OfflineData:
                 await self._writer_task
             self._writer_task = None
         if self._queue and not self._queue.empty():
-            await self._handle_batch([self._queue.get_nowait() for _ in range(self._queue.qsize())])
+            await self._handle_batch(
+                [self._queue.get_nowait() for _ in range(self._queue.qsize())]
+            )
         if self._memmap is not None and self._memmap_pos:
             await self._flush_memmap()
             self._memmap.close()

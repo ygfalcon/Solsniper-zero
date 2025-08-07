@@ -1,12 +1,12 @@
 import argparse
 import asyncio
 
-from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.models.onchain_forecaster import (
+    save_model,
     train_lstm,
     train_transformer,
-    save_model,
 )
+from solhunter_zero.offline_data import OfflineData
 
 
 async def _load_snaps(data: OfflineData, token: str | None):

@@ -4,9 +4,9 @@ import asyncio
 import logging
 import mmap
 import os
-import time
 import threading
-from typing import AsyncGenerator, Dict, Any, Optional, Tuple
+import time
+from typing import Any, AsyncGenerator, Dict, Optional, Tuple
 
 try:
     from watchfiles import awatch
@@ -14,8 +14,9 @@ except Exception:  # pragma: no cover - optional dependency
     awatch = None
 
 import aiohttp
-from .http import get_session, loads, dumps
+
 from . import event_pb2 as pb
+from .http import dumps, get_session, loads
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,7 @@ async def _watch_mmap(interval: float) -> None:
     """Watch :data:`_MMAP_PATH` and clear :data:`_DEPTH_CACHE` on changes."""
     if awatch is None:  # pragma: no cover - watchfiles not installed
         return
-    async for _ in awatch(
-        _MMAP_PATH, poll_delay_ms=int(interval * 1000), debounce=0
-    ):
+    async for _ in awatch(_MMAP_PATH, poll_delay_ms=int(interval * 1000), debounce=0):
         _DEPTH_CACHE.clear()
 
 
@@ -140,7 +139,11 @@ async def stream_order_book(
                 backoff = 1.0
                 reader, writer = await asyncio.open_unix_connection(path)
                 payload = dumps({"cmd": "snapshot", "token": token})
-                writer.write(payload if isinstance(payload, (bytes, bytearray)) else payload.encode())
+                writer.write(
+                    payload
+                    if isinstance(payload, (bytes, bytearray))
+                    else payload.encode()
+                )
                 await writer.drain()
                 data = await reader.read()
                 writer.close()
@@ -164,7 +167,10 @@ async def stream_order_book(
                     for k, (ts, _) in list(_DEPTH_CACHE.items()):
                         if now - ts > ORDERBOOK_CACHE_TTL:
                             _DEPTH_CACHE.pop(k, None)
-                    _DEPTH_CACHE[token] = (now, {"bids": bids, "asks": asks, "tx_rate": rate})
+                    _DEPTH_CACHE[token] = (
+                        now,
+                        {"bids": bids, "asks": asks, "tx_rate": rate},
+                    )
                     depth, imb, txr = snapshot(token)
                     yield {
                         "token": token,
@@ -214,27 +220,33 @@ async def stream_order_book(
                                     if isinstance(v, dict):
                                         bids += float(v.get("bids", 0.0))
                                         asks += float(v.get("asks", 0.0))
-                                updates = {token: {"bids": bids, "asks": asks, "tx_rate": rate}}
-                        elif msg.type == aiohttp.WSMsgType.BINARY:
-                                try:
-                                    ev = pb.Event()
-                                    ev.ParseFromString(msg.data)
-                                    if ev.topic == "depth_update" and ev.HasField("depth_update"):
-                                        entries = ev.depth_update.entries
-                                    elif ev.topic == "depth_diff" and ev.HasField("depth_diff"):
-                                        entries = ev.depth_diff.entries
-                                    else:
-                                        continue
-                                except Exception:
-                                    continue
                                 updates = {
-                                    tok: {
-                                        "bids": e.bids,
-                                        "asks": e.asks,
-                                        "tx_rate": e.tx_rate,
-                                    }
-                                    for tok, e in entries.items()
+                                    token: {"bids": bids, "asks": asks, "tx_rate": rate}
                                 }
+                        elif msg.type == aiohttp.WSMsgType.BINARY:
+                            try:
+                                ev = pb.Event()
+                                ev.ParseFromString(msg.data)
+                                if ev.topic == "depth_update" and ev.HasField(
+                                    "depth_update"
+                                ):
+                                    entries = ev.depth_update.entries
+                                elif ev.topic == "depth_diff" and ev.HasField(
+                                    "depth_diff"
+                                ):
+                                    entries = ev.depth_diff.entries
+                                else:
+                                    continue
+                            except Exception:
+                                continue
+                            updates = {
+                                tok: {
+                                    "bids": e.bids,
+                                    "asks": e.asks,
+                                    "tx_rate": e.tx_rate,
+                                }
+                                for tok, e in entries.items()
+                            }
                         else:
                             continue
 

@@ -1,25 +1,25 @@
-import os
+import asyncio
 import base64
 import logging
-from typing import Optional, Dict, Any
-import asyncio
+import os
 from contextlib import asynccontextmanager, suppress
-
-from .util import install_uvloop
+from typing import Any, Dict, Optional
 
 import aiohttp
-from .http import get_session, loads, dumps
+
+from .http import dumps, get_session, loads
+from .util import install_uvloop
 
 IPC_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
 USE_RUST_EXEC = os.getenv("USE_RUST_EXEC", "True").lower() in {"1", "true", "yes"}
 
-from solders.keypair import Keypair
-from solders.transaction import VersionedTransaction
 from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
+from solders.keypair import Keypair
+from solders.transaction import VersionedTransaction
 
-from .gas import get_current_fee_async
 from .config import load_dex_config
+from .gas import get_current_fee_async
 
 
 class OrderPlacementError(Exception):
@@ -66,6 +66,7 @@ async def close_ipc_connections() -> None:
         with suppress(Exception):
             await writer.wait_closed()
     _IPC_CONNECTIONS.clear()
+
 
 # Using Jupiter Aggregator REST API for token swaps.
 _DEX_CFG = load_dex_config()
@@ -118,7 +119,9 @@ async def _place_order_ipc(
             async with _ipc_connection(socket_path) as (reader, writer):
                 payload = {"cmd": "submit", "tx": tx_b64, "testnet": testnet}
                 data = dumps(payload)
-                writer.write(data if isinstance(data, (bytes, bytearray)) else data.encode())
+                writer.write(
+                    data if isinstance(data, (bytes, bytearray)) else data.encode()
+                )
                 await writer.drain()
                 if timeout:
                     data = await asyncio.wait_for(reader.read(), timeout)
@@ -171,6 +174,7 @@ def place_order(
         return {"dry_run": True, **payload}
 
     try:
+
         async def _post() -> dict:
             session = await get_session()
             async with session.post(url, json=payload, timeout=10) as resp:
@@ -195,8 +199,14 @@ def place_order(
         data["signature"] = str(result.value)
         return data
     except aiohttp.ClientError as exc:
-        data = getattr(exc.response, "text", "") if getattr(exc, "response", None) else ""
-        status = exc.response.status_code if getattr(exc, "response", None) else "no-response"
+        data = (
+            getattr(exc.response, "text", "") if getattr(exc, "response", None) else ""
+        )
+        status = (
+            exc.response.status_code
+            if getattr(exc, "response", None)
+            else "no-response"
+        )
         logger.error("Order failed with status %s: %s", status, data)
         raise OrderPlacementError(f"HTTP {status}: {data}") from exc
     except Exception as exc:
@@ -267,7 +277,9 @@ async def place_order_async(
         for _ in range(max_retries):
             payload = dict(payload_base, amount=remaining)
             try:
-                async with session.post(f"{url}{SWAP_PATH}", json=payload, timeout=10) as resp:
+                async with session.post(
+                    f"{url}{SWAP_PATH}", json=payload, timeout=10
+                ) as resp:
                     resp.raise_for_status()
                     data = await resp.json()
             except aiohttp.ClientError as exc:
@@ -294,7 +306,9 @@ async def place_order_async(
                 continue
             else:
                 try:
-                    async with AsyncClient(RPC_TESTNET_URL if testnet else RPC_URL) as client:
+                    async with AsyncClient(
+                        RPC_TESTNET_URL if testnet else RPC_URL
+                    ) as client:
                         result = await client.send_raw_transaction(bytes(tx))
                     data["signature"] = str(result.value)
                 except Exception as exc:
@@ -309,7 +323,9 @@ async def place_order_async(
         return None
 
     tasks = [asyncio.create_task(_submit(u)) for u in base_urls]
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout)
+    done, pending = await asyncio.wait(
+        tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout
+    )
     for p in pending:
         p.cancel()
 

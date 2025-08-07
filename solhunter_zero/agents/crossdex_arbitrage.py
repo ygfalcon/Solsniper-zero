@@ -4,31 +4,31 @@ import asyncio
 import os
 import time
 from typing import (
-    List,
-    Dict,
     Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
     Mapping,
     Sequence,
-    Callable,
-    Awaitable,
-    AsyncGenerator,
 )
 
-from . import BaseAgent
+from .. import routeffi as _routeffi
 from ..arbitrage import (
     DEX_FEES,
     DEX_GAS,
     DEX_LATENCY,
     VENUE_URLS,
-    stream_orca_prices,
-    stream_raydium_prices,
     stream_jupiter_prices,
-    stream_phoenix_prices,
     stream_meteora_prices,
+    stream_orca_prices,
+    stream_phoenix_prices,
+    stream_raydium_prices,
 )
 from ..event_bus import subscribe
-from .. import routeffi as _routeffi
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 PriceFeed = Callable[[str], Awaitable[float]]
 
@@ -156,9 +156,11 @@ class CrossDEXArbitrage(BaseAgent):
         await self._ensure_latency()
 
         token_cache = self._price_cache.setdefault(token, {})
-        price_map: Dict[str, float] = {
-            n: p for n, p in token_cache.items() if p > 0
-        } if self.use_price_streams else {}
+        price_map: Dict[str, float] = (
+            {n: p for n, p in token_cache.items() if p > 0}
+            if self.use_price_streams
+            else {}
+        )
 
         for name in self.feeds.keys():
             if self.use_price_streams:
@@ -172,7 +174,11 @@ class CrossDEXArbitrage(BaseAgent):
         if len(price_map) < 2:
             return []
 
-        func = _routeffi.best_route_parallel if _routeffi.parallel_enabled() else _routeffi.best_route
+        func = (
+            _routeffi.best_route_parallel
+            if _routeffi.parallel_enabled()
+            else _routeffi.best_route
+        )
         res = func(
             price_map,
             self.amount,
@@ -191,8 +197,24 @@ class CrossDEXArbitrage(BaseAgent):
         for i in range(len(path) - 1):
             buy = path[i]
             sell = path[i + 1]
-            actions.append({"token": token, "side": "buy", "amount": self.amount, "price": price_map[buy], "venue": buy})
-            actions.append({"token": token, "side": "sell", "amount": self.amount, "price": price_map[sell], "venue": sell})
+            actions.append(
+                {
+                    "token": token,
+                    "side": "buy",
+                    "amount": self.amount,
+                    "price": price_map[buy],
+                    "venue": buy,
+                }
+            )
+            actions.append(
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": self.amount,
+                    "price": price_map[sell],
+                    "venue": sell,
+                }
+            )
         return actions
 
     # ------------------------------------------------------------------

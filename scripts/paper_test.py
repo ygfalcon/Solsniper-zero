@@ -57,8 +57,12 @@ def main(argv: list[str] | None = None) -> int:
     print("ROI by agent:", roi_by_agent)
 
     trades = run_coro(mem.list_trades(limit=1000))
-    spent = sum(float(t.amount) * float(t.price) for t in trades if t.direction == "buy")
-    revenue = sum(float(t.amount) * float(t.price) for t in trades if t.direction == "sell")
+    spent = sum(
+        float(t.amount) * float(t.price) for t in trades if t.direction == "buy"
+    )
+    revenue = sum(
+        float(t.amount) * float(t.price) for t in trades if t.direction == "sell"
+    )
     roi = (revenue - spent) / spent if spent > 0 else 0.0
     print(f"Overall ROI: {roi:.4f}")
 

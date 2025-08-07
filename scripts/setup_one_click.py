@@ -6,12 +6,12 @@ from __future__ import annotations
 import os
 import sys
 
-from solhunter_zero.macos_setup import ensure_tools
 import solhunter_zero.env_config as env_config
-from solhunter_zero.paths import ROOT
 from scripts import quick_setup
-from solhunter_zero.bootstrap_utils import ensure_deps
 from solhunter_zero import device
+from solhunter_zero.bootstrap_utils import ensure_deps
+from solhunter_zero.macos_setup import ensure_tools
+from solhunter_zero.paths import ROOT
 
 
 def main(argv: list[str] | None = None) -> None:

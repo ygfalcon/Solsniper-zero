@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import os
 import asyncio
 import logging
-from typing import List, AsyncGenerator, Dict, Any, Iterable
+import os
+from typing import Any, AsyncGenerator, Dict, Iterable, List
 
-from . import BaseAgent
-from ..token_scanner import scan_tokens_async
-from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
-from ..scanner_common import SOLANA_RPC_URL
 from ..discovery import merge_sources
+from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
 from ..portfolio import Portfolio
-
+from ..scanner_common import SOLANA_RPC_URL
+from ..token_scanner import scan_tokens_async
+from . import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,8 @@ class DiscoveryAgent(BaseAgent):
                     "avg_swap_size",
                 ]
                 self.metrics = {
-                    d["address"]: {k: float(d.get(k, 0.0)) for k in fields} for d in data
+                    d["address"]: {k: float(d.get(k, 0.0)) for k in fields}
+                    for d in data
                 }
                 return [d["address"] for d in data]
 

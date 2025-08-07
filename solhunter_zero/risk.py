@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import logging
+import math
+import os
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
-import logging
-import os
-import math
 try:  # pragma: no cover - optional dependency
     import numpy as _np  # type: ignore
+
     if not hasattr(_np, "sort"):
         raise ImportError
     np = _np  # type: ignore
@@ -15,6 +16,7 @@ except Exception:  # pragma: no cover - numpy not available or incomplete
     np = None  # type: ignore
 
 if np is None:
+
     class _Matrix(list):  # pragma: no cover - simple matrix fallback
         @property
         def shape(self) -> tuple[int, int]:
@@ -25,9 +27,11 @@ if np is None:
         def tolist(self) -> list[list[float]]:
             return [row[:] for row in self]
 
+
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
 except Exception:  # pragma: no cover - numba not available
+
     def njit(*args, **kwargs):  # type: ignore
         if args and callable(args[0]):
             return args[0]
@@ -36,7 +40,9 @@ except Exception:  # pragma: no cover - numba not available
             return func
 
         return wrapper
+
 else:  # pragma: no cover - numba available
+
     def njit(*args, **kwargs):  # type: ignore
         def decorator(func):
             try:
@@ -48,6 +54,7 @@ else:  # pragma: no cover - numba available
             return decorator(args[0])
 
         return decorator
+
 
 from .memory import Memory
 
@@ -82,7 +89,9 @@ def hedge_ratio(a: Sequence[float], b: Sequence[float]) -> float:
         if var_b == 0:
             return 0.0
         mean_a = sum(ret_a) / len(ret_a)
-        cov = sum((ra - mean_a) * (rb - mean_b) for ra, rb in zip(ret_a, ret_b)) / len(ret_a)
+        cov = sum((ra - mean_a) * (rb - mean_b) for ra, rb in zip(ret_a, ret_b)) / len(
+            ret_a
+        )
         return cov / var_b
     arr_a = np.asarray(a[-n:], dtype=float)
     arr_b = np.asarray(b[-n:], dtype=float)
@@ -222,7 +231,7 @@ def entropic_value_at_risk(
         if all(abs(l) < 1e-12 for l in losses):
             return 0.0
         if steps <= 1:
-            ts = [10 ** -3]
+            ts = [10**-3]
         else:
             ts = [10 ** (-3 + (4) * i / (steps - 1)) for i in range(steps)]
         bound = float("inf")
@@ -274,10 +283,13 @@ def covariance_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
         cov = [[0.0] * n for _ in range(n)]
         for i in range(n):
             for j in range(n):
-                cov_ij = sum(
-                    (trimmed[i][k] - means[i]) * (trimmed[j][k] - means[j])
-                    for k in range(min_len)
-                ) / min_len
+                cov_ij = (
+                    sum(
+                        (trimmed[i][k] - means[i]) * (trimmed[j][k] - means[j])
+                        for k in range(min_len)
+                    )
+                    / min_len
+                )
                 cov[i][j] = cov_ij
         return _Matrix(cov)
     mat = np.vstack(trimmed)
@@ -412,7 +424,10 @@ def correlation_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
     if np is None:
         n = len(series)
         means = [sum(s) / min_len for s in series]
-        stds = [math.sqrt(sum((s[k] - means[i]) ** 2 for k in range(min_len)) / min_len) for i, s in enumerate(series)]
+        stds = [
+            math.sqrt(sum((s[k] - means[i]) ** 2 for k in range(min_len)) / min_len)
+            for i, s in enumerate(series)
+        ]
         corr = [[0.0] * n for _ in range(n)]
         for i in range(n):
             for j in range(n):
@@ -420,10 +435,13 @@ def correlation_matrix(prices: Mapping[str, Sequence[float]]) -> np.ndarray:
                 if denom == 0:
                     corr[i][j] = 0.0
                 else:
-                    cov_ij = sum(
-                        (series[i][k] - means[i]) * (series[j][k] - means[j])
-                        for k in range(min_len)
-                    ) / min_len
+                    cov_ij = (
+                        sum(
+                            (series[i][k] - means[i]) * (series[j][k] - means[j])
+                            for k in range(min_len)
+                        )
+                        / min_len
+                    )
                     corr[i][j] = cov_ij / denom
         return _Matrix(corr)
     mat = np.vstack(series)
@@ -580,8 +598,12 @@ class RiskManager:
         if price_history is not None and weights is not None and price_history:
             cov_matrix = covariance_matrix(price_history)
             cov_val = portfolio_variance(cov_matrix, weights.values())
-            cvar_val = PORTFOLIO_CVAR_FUNC(price_history, weights, confidence=var_confidence)
-            evar_val = PORTFOLIO_EVAR_FUNC(price_history, weights, confidence=var_confidence)
+            cvar_val = PORTFOLIO_CVAR_FUNC(
+                price_history, weights, confidence=var_confidence
+            )
+            evar_val = PORTFOLIO_EVAR_FUNC(
+                price_history, weights, confidence=var_confidence
+            )
             corr_val = average_correlation(price_history)
         if portfolio_metrics:
             if covariance is None:
@@ -627,6 +649,7 @@ class RiskManager:
         if var_model_path and prices is not None:
             try:
                 from .models.var_forecaster import get_model as _get_var_model
+
                 var_model = _get_var_model(var_model_path)
             except Exception:
                 var_model = None
@@ -635,7 +658,11 @@ class RiskManager:
                 if len(prices) >= seq_len:
                     seq = np.asarray(prices[-seq_len:], dtype=float)
                     predicted = float(var_model.predict(seq))
-                    if var_threshold is not None and predicted > var_threshold and predicted > 0:
+                    if (
+                        var_threshold is not None
+                        and predicted > var_threshold
+                        and predicted > 0
+                    ):
                         scale *= var_threshold / predicted
 
         if prices is not None and asset_cvar_threshold is not None:

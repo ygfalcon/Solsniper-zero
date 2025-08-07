@@ -1,10 +1,12 @@
 import asyncio
 import time
 from collections.abc import Mapping
+from itertools import permutations
+
 import pytest
+
 from solhunter_zero import arbitrage as arb
 from solhunter_zero.arbitrage import detect_and_execute_arbitrage
-from itertools import permutations
 
 
 async def dex1(token):
@@ -46,8 +48,8 @@ def numba_enabled(monkeypatch, request):
 @pytest.fixture(params=[False, True])
 def ffi_enabled(monkeypatch, request):
     if request.param:
-        from pathlib import Path
         import subprocess
+        from pathlib import Path
 
         lib_path = (
             Path(__file__).resolve().parents[1]

@@ -1,9 +1,9 @@
 import argparse
 import asyncio
 
-from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.models import save_model
 from solhunter_zero.models.token_activity_model import train_activity_model
+from solhunter_zero.offline_data import OfflineData
 
 
 async def _load(data: OfflineData, token: str | None):
@@ -29,4 +29,3 @@ def main() -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-

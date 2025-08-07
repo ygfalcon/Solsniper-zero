@@ -1,8 +1,9 @@
+import importlib.machinery
+import importlib.util
 import sys
 import types
-import importlib.util
-import importlib.machinery
 from pathlib import Path
+
 import pytest
 
 pytest.importorskip("google.protobuf")
@@ -27,11 +28,15 @@ if importlib.util.find_spec("torch") is None:
     torch_mod.__path__ = []
     torch_mod.Tensor = object
     torch_mod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    torch_mod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    torch_mod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_available=lambda: False)
+    )
     torch_mod.device = lambda *a, **k: types.SimpleNamespace(type="cpu")
     torch_mod.load = lambda *a, **k: {}
+
     def _save(obj, path, *a, **k):
         Path(path).touch()
+
     torch_mod.save = _save
     torch_mod.tensor = lambda *a, **k: object()
     torch_mod.zeros = lambda *a, **k: object()
@@ -72,6 +77,7 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     callbacks = types.SimpleNamespace(Callback=object)
     pl.callbacks = callbacks
     import torch.nn as _nn
+
     pl.LightningModule = type(
         "LightningModule",
         (_nn.Module,),
@@ -95,11 +101,15 @@ if importlib.util.find_spec("solders") is None:
     s_mod = types.ModuleType("solders")
     s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
     sys.modules.setdefault("solders", s_mod)
-    sys.modules["solders.keypair"] = types.SimpleNamespace(Keypair=type("Keypair", (), {}))
+    sys.modules["solders.keypair"] = types.SimpleNamespace(
+        Keypair=type("Keypair", (), {})
+    )
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
-    sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
+    sys.modules["solders.transaction"] = types.SimpleNamespace(
+        VersionedTransaction=object
+    )
 if importlib.util.find_spec("solana") is None:
     sol_mod = types.ModuleType("solana")
     sol_mod.__spec__ = importlib.machinery.ModuleSpec("solana", None)
@@ -107,7 +117,9 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc"] = types.ModuleType("rpc")
     sys.modules["solana.rpc.api"] = types.SimpleNamespace(Client=object)
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
-    sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(connect=lambda *a, **k: None)
+    sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(
+        connect=lambda *a, **k: None
+    )
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 try:
     import google
@@ -170,18 +182,22 @@ for name in [
     setattr(event_pb2, name, object())
 sys.modules.setdefault("solhunter_zero.event_pb2", event_pb2)
 
-from solhunter_zero.rl_training import RLTraining
 import solhunter_zero.rl_training as rl_training
-from solhunter_zero.offline_data import OfflineData
 from scripts import build_mmap_dataset
+from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.rl_training import RLTraining
 
 
 @pytest.mark.asyncio
 async def test_rl_training_runs(tmp_path):
     db = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db)
-    await data.log_snapshot("tok", 1.0, 1.0, total_depth=1.5, imbalance=0.0, slippage=0.0, volume=0.0)
-    await data.log_snapshot("tok", 1.1, 1.0, total_depth=1.6, imbalance=0.0, slippage=0.0, volume=0.0)
+    await data.log_snapshot(
+        "tok", 1.0, 1.0, total_depth=1.5, imbalance=0.0, slippage=0.0, volume=0.0
+    )
+    await data.log_snapshot(
+        "tok", 1.1, 1.0, total_depth=1.6, imbalance=0.0, slippage=0.0, volume=0.0
+    )
     await data.log_trade("tok", "buy", 1.0, 1.0)
     await data.log_trade("tok", "sell", 1.0, 1.1)
 
@@ -255,12 +271,16 @@ def test_workers_adjusted_each_epoch(monkeypatch):
             self.pin_memory = kw.get("pin_memory")
             self.persistent_workers = kw.get("persistent_workers")
 
-    monkeypatch.setattr(rl_training, "DataLoader", lambda *a, **kw: DummyLoader(*a, **kw))
+    monkeypatch.setattr(
+        rl_training, "DataLoader", lambda *a, **kw: DummyLoader(*a, **kw)
+    )
     monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
     monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
 
     cpu_val = {"v": 80.0}
-    dm = rl_training.TradeDataModule("db", dynamic_workers=True, cpu_callback=lambda: cpu_val["v"])
+    dm = rl_training.TradeDataModule(
+        "db", dynamic_workers=True, cpu_callback=lambda: cpu_val["v"]
+    )
     dm.dataset = DummyDataset()
     loader = dm.train_dataloader()
     cb = rl_training._DynamicWorkersCallback()
@@ -339,7 +359,9 @@ def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
             self.pin_memory = kw.get("pin_memory")
             self.persistent_workers = kw.get("persistent_workers")
 
-    monkeypatch.setattr(rl_training, "DataLoader", lambda *a, **kw: DummyLoader(*a, **kw))
+    monkeypatch.setattr(
+        rl_training, "DataLoader", lambda *a, **kw: DummyLoader(*a, **kw)
+    )
     monkeypatch.setattr(rl_training, "_TradeDataset", lambda *a, **k: DummyDataset())
     monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
     monkeypatch.setattr(rl_training.torch, "save", lambda *a, **k: None)
@@ -366,6 +388,7 @@ def test_worker_counts_update_on_metrics(monkeypatch, tmp_path):
 
 def test_calc_num_workers_cluster_env(monkeypatch):
     import types
+
     import solhunter_zero.rl_training as rl_training
 
     monkeypatch.setattr(rl_training.os, "cpu_count", lambda: 4)
@@ -374,9 +397,7 @@ def test_calc_num_workers_cluster_env(monkeypatch):
         "virtual_memory",
         lambda: types.SimpleNamespace(percent=0.0),
     )
-    monkeypatch.setattr(
-        rl_training.psutil, "cpu_percent", lambda interval=None: 20.0
-    )
+    monkeypatch.setattr(rl_training.psutil, "cpu_percent", lambda interval=None: 20.0)
 
     calls = {"count": 0}
 
@@ -398,13 +419,17 @@ def test_calc_num_workers_cluster_env(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
-    import numpy as np
     from pathlib import Path
+
+    import numpy as np
+
     from solhunter_zero.offline_data import OfflineData
 
     db_url = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db_url)
-    await data.log_snapshot("tok", 1.0, 1.0, total_depth=1.0, imbalance=0.0, slippage=0.0, volume=0.0)
+    await data.log_snapshot(
+        "tok", 1.0, 1.0, total_depth=1.0, imbalance=0.0, slippage=0.0, volume=0.0
+    )
     await data.log_trade("tok", "buy", 1.0, 1.0)
 
     mmap_dir = tmp_path / "datasets"
@@ -422,8 +447,16 @@ async def test_mmap_preferred_when_available(monkeypatch, tmp_path):
         return orig_load(path, *a, **kw)
 
     monkeypatch.setattr(np, "load", fake_load)
-    monkeypatch.setattr(OfflineData, "list_trades", lambda *a, **k: (_ for _ in ()).throw(AssertionError("db used")))
-    monkeypatch.setattr(OfflineData, "list_snapshots", lambda *a, **k: (_ for _ in ()).throw(AssertionError("db used")))
+    monkeypatch.setattr(
+        OfflineData,
+        "list_trades",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("db used")),
+    )
+    monkeypatch.setattr(
+        OfflineData,
+        "list_snapshots",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("db used")),
+    )
 
     trainer = RLTraining(db_url=db_url, model_path=tmp_path / "m.pt")
     await trainer.data.setup()
@@ -492,11 +525,15 @@ async def test_mmap_generation_disabled(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_trade_data_prefetch(monkeypatch, tmp_path):
-    import numpy as np
     import sys
+
+    import numpy as np
+
     monkeypatch.setitem(sys.modules, "numpy", np)
     import importlib
+
     import solhunter_zero.rl_training as rl_training
+
     rl_training = importlib.reload(rl_training)
     db_url = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db_url)
@@ -513,9 +550,11 @@ async def test_trade_data_prefetch(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_mmap_created_on_daemon_train(monkeypatch, tmp_path):
-    from solhunter_zero.offline_data import OfflineData
-    from scripts import build_mmap_dataset
     import psutil
+
+    from scripts import build_mmap_dataset
+    from solhunter_zero.offline_data import OfflineData
+
     monkeypatch.setattr(
         psutil,
         "Process",
@@ -554,8 +593,9 @@ async def test_mmap_created_on_daemon_train(monkeypatch, tmp_path):
 
 
 def test_prioritized_sampler(monkeypatch):
-    import types
     import datetime as dt
+    import types
+
     import solhunter_zero.rl_training as rl_training
 
     class DummySampler:
@@ -565,6 +605,7 @@ def test_prioritized_sampler(monkeypatch):
 
         def __iter__(self):
             import random
+
             total = sum(self.weights)
             probs = [w / total for w in self.weights]
             for _ in range(self.num_samples):
@@ -573,8 +614,16 @@ def test_prioritized_sampler(monkeypatch):
     monkeypatch.setattr(rl_training, "WeightedRandomSampler", DummySampler)
 
     trades = [
-        types.SimpleNamespace(token="t", side="buy", price=1.0, amount=1.0, timestamp=dt.datetime.utcnow()),
-        types.SimpleNamespace(token="t", side="sell", price=1.0, amount=2.0, timestamp=dt.datetime.utcnow()),
+        types.SimpleNamespace(
+            token="t", side="buy", price=1.0, amount=1.0, timestamp=dt.datetime.utcnow()
+        ),
+        types.SimpleNamespace(
+            token="t",
+            side="sell",
+            price=1.0,
+            amount=2.0,
+            timestamp=dt.datetime.utcnow(),
+        ),
     ]
 
     ds = rl_training._TradeDataset(trades, [])
@@ -588,9 +637,11 @@ def test_prioritized_sampler(monkeypatch):
 
 
 def test_trade_dataset_cluster_feature(monkeypatch):
-    import types
     import datetime as dt
+    import types
+
     import numpy as np
+
     import solhunter_zero.rl_training as rl_training
 
     calls = {"count": 0}
@@ -626,9 +677,10 @@ def test_trade_dataset_cluster_feature(monkeypatch):
 
 def test_models_accept_new_feature():
     import torch
-    import solhunter_zero.rl_training as rl_training
-    import solhunter_zero.rl_daemon as rl_d
+
     import solhunter_zero.rl_algorithms as rl_a
+    import solhunter_zero.rl_daemon as rl_d
+    import solhunter_zero.rl_training as rl_training
 
     x10 = torch.zeros(1, 10)
     assert rl_training.LightningPPO()(x10).shape == (1, 2)
@@ -643,5 +695,3 @@ def test_models_accept_new_feature():
     assert rl_d._PPO()(x9).shape == (1, 2)
     assert rl_a._A3C()(x9).shape == (1, 2)
     assert rl_a._DDPG()(x9).shape == (1, 1)
-
-

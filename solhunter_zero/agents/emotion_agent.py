@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Iterable
-
-from . import BaseAgent
-from ..portfolio import Portfolio
-
+from typing import Any, Dict, Iterable, List
 
 from .. import news
+from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class EmotionAgent(BaseAgent):
@@ -43,7 +41,11 @@ class EmotionAgent(BaseAgent):
         return self.sentiment
 
     def score(
-        self, conviction_delta: float, regret: float, misfires: float, sentiment: float = 0.0
+        self,
+        conviction_delta: float,
+        regret: float,
+        misfires: float,
+        sentiment: float = 0.0,
     ) -> float:
         """Combine factors into a single score."""
         return conviction_delta - regret - misfires + 2 * sentiment

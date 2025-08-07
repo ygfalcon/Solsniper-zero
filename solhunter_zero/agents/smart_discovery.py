@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List, Dict, Any, Iterable
+from typing import Any, Dict, Iterable, List
 
 from sklearn.ensemble import GradientBoostingRegressor
 
-from . import BaseAgent
+from .. import news, onchain_metrics
 from ..mempool_scanner import stream_ranked_mempool_tokens
-from .. import onchain_metrics, news
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class SmartDiscoveryAgent(BaseAgent):

@@ -1,14 +1,13 @@
 import csv
-import json
 import importlib
+import json
 import re
 
 import pytest
 
 from solhunter_zero import investor_demo
-from solhunter_zero.event_bus import subscribe, publish
+from solhunter_zero.event_bus import publish, subscribe
 from solhunter_zero.schemas import TradeLogged
-
 
 pytestmark = pytest.mark.timeout(30)
 
@@ -31,11 +30,14 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     monkeypatch.setattr(investor_demo, "hedge_allocation", fake_hedge)
     expected_rl = 7.0
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: expected_rl)
+
     async def fake_arb() -> dict:
         investor_demo.used_trade_types.add("arbitrage")
         return {"path": ["dex1", "dex2"], "profit": 4.795}
+
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arb)
     from solhunter_zero import routeffi as rffi
+
     monkeypatch.setattr(rffi, "_best_route_json", lambda *a, **k: (["r1", "r2"], 1.23))
 
     events: list[TradeLogged] = []
@@ -134,7 +136,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
             roi = cum[-1] - 1
             mean = sum(returns) / len(returns)
             variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-            vol = variance ** 0.5
+            vol = variance**0.5
             sharpe = mean / vol if vol else 0.0
             trades = sum(1 for r in returns if r != 0)
             wins = sum(1 for r in returns if r > 0)
@@ -174,7 +176,14 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     for entry in content:
         exp = expected[entry["config"]]
         csv_entry = csv_map[entry["config"]]
-        for key in ["roi", "sharpe", "drawdown", "volatility", "win_rate", "final_capital"]:
+        for key in [
+            "roi",
+            "sharpe",
+            "drawdown",
+            "volatility",
+            "win_rate",
+            "final_capital",
+        ]:
             assert entry[key] == pytest.approx(exp[key], rel=1e-6)
             assert csv_entry[key] == pytest.approx(exp[key], rel=1e-6)
         for key in ["trades", "wins", "losses"]:
@@ -189,7 +198,9 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
 
     trade_rows = list(csv.DictReader(trade_csv.open()))
     assert trade_rows, "Trade history CSV empty"
-    assert all({"capital", "action", "price", "date"} <= set(r.keys()) for r in trade_rows)
+    assert all(
+        {"capital", "action", "price", "date"} <= set(r.keys()) for r in trade_rows
+    )
     first = trade_rows[0]
     assert first["action"] == "buy"
     assert float(first["price"]) == prices[0]
@@ -257,8 +268,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
 
     # The highlighted strategy/capital pair must exist within the summary data
     assert any(
-        entry["config"] == top_strategy
-        and entry["final_capital"] == top_final_capital
+        entry["config"] == top_strategy and entry["final_capital"] == top_final_capital
         for entry in content
     ), "Highlighted top_strategy/top_final_capital mismatch with summary.json"
 
@@ -356,9 +366,7 @@ def test_investor_demo_custom_data_length(tmp_path, monkeypatch):
 
     periods_by_strategy: dict[str, set[int]] = {}
     for row in rows:
-        periods_by_strategy.setdefault(row["strategy"], set()).add(
-            int(row["period"])
-        )
+        periods_by_strategy.setdefault(row["strategy"], set()).add(int(row["period"]))
 
     expected_last = len(price_data) - 1
     for periods in periods_by_strategy.values():

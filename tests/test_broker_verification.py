@@ -1,7 +1,7 @@
 import asyncio
+import importlib
 import logging
 import types
-import importlib
 
 import pytest
 
@@ -11,6 +11,7 @@ async def test_verify_broker_connection_success(monkeypatch):
     monkeypatch.delenv("BROKER_URL", raising=False)
     monkeypatch.delenv("BROKER_URLS", raising=False)
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
 
     class FakePubSub:
@@ -53,6 +54,7 @@ async def test_verify_broker_connection_failure(monkeypatch, caplog):
     monkeypatch.delenv("BROKER_URL", raising=False)
     monkeypatch.delenv("BROKER_URLS", raising=False)
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
 
     class FakePubSub:

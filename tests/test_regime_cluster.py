@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 
 from solhunter_zero.regime import detect_regime

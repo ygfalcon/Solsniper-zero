@@ -1,9 +1,9 @@
-
 import asyncio
-import requests
+
 import aiohttp
-from solhunter_zero import prices
-from solhunter_zero import http
+import requests
+
+from solhunter_zero import http, prices
 
 
 # reset global state before each test
@@ -40,6 +40,7 @@ def test_fetch_token_prices(monkeypatch):
     class FakeSession:
         def __init__(self):
             captured["created"] = captured.get("created", 0) + 1
+
         def get(self, url, timeout=10):
             captured["url"] = url
             captured["gets"] = captured.get("gets", 0) + 1
@@ -58,18 +59,23 @@ def test_fetch_token_prices_async(monkeypatch):
     class FakeResp:
         def __init__(self, url):
             captured["url"] = url
+
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         async def json(self):
             return data
+
         def raise_for_status(self):
             pass
 
     class FakeSession:
         def __init__(self):
             captured["created"] = captured.get("created", 0) + 1
+
         def get(self, url, timeout=10):
             captured["gets"] = captured.get("gets", 0) + 1
             return FakeResp(url)
@@ -87,17 +93,18 @@ def test_fetch_token_prices_async_error(monkeypatch):
     class FakeSession:
         def __init__(self):
             pass
+
         def get(self, url, timeout=10):
             raise aiohttp.ClientError("boom")
 
     def fake_warning(msg, exc):
-        warnings['msg'] = msg
+        warnings["msg"] = msg
 
     monkeypatch.setattr(prices.logger, "warning", fake_warning)
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     result = asyncio.run(prices.fetch_token_prices_async(["tok"]))
     assert result == {}
-    assert 'msg' in warnings
+    assert "msg" in warnings
 
 
 def test_price_cache_and_session_reuse(monkeypatch):
@@ -107,18 +114,23 @@ def test_price_cache_and_session_reuse(monkeypatch):
     class FakeResp:
         def __init__(self, url):
             calls["url"] = url
+
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         async def json(self):
             return data
+
         def raise_for_status(self):
             pass
 
     class FakeSession:
         def __init__(self):
             calls["sessions"] += 1
+
         def get(self, url, timeout=10):
             calls["gets"] += 1
             return FakeResp(url)
@@ -159,4 +171,3 @@ def test_warm_cache(monkeypatch):
     monkeypatch.setattr("aiohttp.ClientSession", lambda *a, **k: FakeSession())
     prices.warm_cache(["tok"])
     assert prices.get_cached_price("tok") == 3.0
-

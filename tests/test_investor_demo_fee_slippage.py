@@ -7,7 +7,9 @@ from solhunter_zero import investor_demo
 
 
 @pytest.mark.timeout(30)
-def test_fee_slippage_reduces_returns(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fee_slippage_reduces_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     data_path = Path(__file__).parent / "data" / "prices_short.json"
 
     async def fake_arbitrage() -> dict:
@@ -35,16 +37,18 @@ def test_fee_slippage_reduces_returns(tmp_path: Path, monkeypatch: pytest.Monkey
     fee_reports = tmp_path / "fees"
 
     investor_demo.main(["--reports", str(base_reports), "--data", str(data_path)])
-    investor_demo.main([
-        "--reports",
-        str(fee_reports),
-        "--data",
-        str(data_path),
-        "--fee",
-        "0.01",
-        "--slippage",
-        "0.01",
-    ])
+    investor_demo.main(
+        [
+            "--reports",
+            str(fee_reports),
+            "--data",
+            str(data_path),
+            "--fee",
+            "0.01",
+            "--slippage",
+            "0.01",
+        ]
+    )
 
     summary1 = json.loads((base_reports / "summary.json").read_text())
     summary2 = json.loads((fee_reports / "summary.json").read_text())

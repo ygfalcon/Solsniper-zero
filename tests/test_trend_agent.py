@@ -3,25 +3,34 @@ import sys
 import types
 
 import pytest
+
 trans = pytest.importorskip("transformers")
 if not hasattr(trans, "pipeline"):
     trans.pipeline = lambda *a, **k: lambda x: []
 
 dummy_torch = types.ModuleType("torch")
 dummy_nn = types.ModuleType("torch.nn")
+
+
 class DummyModule:  # minimal stand-in for torch.nn.Module
     pass
+
+
 dummy_nn.Module = DummyModule
 dummy_torch.nn = dummy_nn
+
+
 class DummyTensor:
     pass
+
+
 dummy_torch.Tensor = DummyTensor
 sys.modules.setdefault("torch", dummy_torch)
 sys.modules.setdefault("torch.nn", dummy_nn)
 
-from solhunter_zero.agents.trend import TrendAgent
-from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agents.execution import ExecutionAgent
+from solhunter_zero.agents.trend import TrendAgent
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -76,9 +85,7 @@ def test_agent_manager_trend_integration(monkeypatch):
         captured["side"] = side
         return {"ok": True}
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.execution.place_order_async", fake_place
-    )
+    monkeypatch.setattr("solhunter_zero.agents.execution.place_order_async", fake_place)
 
     exec_agent = ExecutionAgent(rate_limit=0)
     agent = TrendAgent(volume_threshold=100.0, sentiment_threshold=0.1, feeds=["f"])

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Sequence, List, Optional
+from typing import List, Optional, Sequence
 
 import aiohttp
-from .http import get_session
 
-from .depth_client import submit_raw_tx, snapshot, DEPTH_SERVICE_SOCKET
+from .depth_client import DEPTH_SERVICE_SOCKET, snapshot, submit_raw_tx
 from .gas import adjust_priority_fee
+from .http import get_session
 
 
 class MEVExecutor:
@@ -54,6 +54,7 @@ class MEVExecutor:
         if isinstance(result, list):
             return [str(s) for s in result]
         return [None for _ in txs]
+
     async def submit_bundle(self, txs: Sequence[str]) -> List[Optional[str]]:
         """Submit ``txs`` with a compute unit price based on mempool rate."""
         if self.jito_rpc_url:

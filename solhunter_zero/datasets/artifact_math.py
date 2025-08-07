@@ -1,11 +1,12 @@
 """Loader for the simple artifact math dataset."""
 from __future__ import annotations
 
-from ..jsonutil import loads
 from importlib import resources
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Any, List, Dict
+from typing import Any, Dict, List
+
+from ..jsonutil import loads
 
 # Default dataset path relative to the package
 DEFAULT_PATH = resources.files("solhunter_zero") / "data" / "artifact_math.json"
@@ -16,7 +17,9 @@ _cache_path: str | None = None
 _cache_data: Any | None = None
 
 
-def load_artifact_math(path: Path | Traversable | str = DEFAULT_PATH) -> List[Dict[str, Any]] | Dict[str, Any]:
+def load_artifact_math(
+    path: Path | Traversable | str = DEFAULT_PATH,
+) -> List[Dict[str, Any]] | Dict[str, Any]:
     """Return the artifact math dataset located at ``path``.
 
     The result is cached on the module level; subsequent calls with the same

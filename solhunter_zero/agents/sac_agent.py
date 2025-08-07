@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import os
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -10,9 +10,10 @@ import solhunter_zero.device as device_module
 
 try:
     import torch
-    from torch import nn, optim
     import torch.nn.functional as F
+    from torch import nn, optim
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -23,25 +24,21 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for SACAgent"
-                )
+                raise ImportError("torch is required for SACAgent")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for SACAgent"
-            )
+            raise ImportError("torch is required for SACAgent")
 
     torch = nn = optim = F = _TorchStub()  # type: ignore
 
-from . import BaseAgent
-from .memory import MemoryAgent
 from ..offline_data import OfflineData
 from ..order_book_ws import snapshot
 from ..portfolio import Portfolio
-from ..replay import ReplayBuffer
 from ..regime import detect_regime
+from ..replay import ReplayBuffer
 from ..simulation import predict_price_movement as _predict_price_movement
+from . import BaseAgent
+from .memory import MemoryAgent
 
 
 def predict_price_movement(token: str, *, model_path: str | None = None) -> float:
@@ -142,6 +139,7 @@ class SACAgent(BaseAgent):
             self._load_weights()
 
         from ..event_bus import subscription
+
         self._rl_sub = subscription("rl_weights", lambda _p: self.reload_weights())
         self._rl_sub.__enter__()
 
@@ -225,8 +223,14 @@ class SACAgent(BaseAgent):
             )
             seq.append(float(t.price))
 
-    def _sample_action(self, states: torch.Tensor, deterministic: bool = False) -> tuple[torch.Tensor, torch.Tensor]:
-        actor_net = self._jit.actor if self._jit is not None and hasattr(self._jit, "actor") else self.actor
+    def _sample_action(
+        self, states: torch.Tensor, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        actor_net = (
+            self._jit.actor
+            if self._jit is not None and hasattr(self._jit, "actor")
+            else self.actor
+        )
         mean, log_std = actor_net(states)
         log_std = torch.clamp(log_std, -20, 2)
         std = log_std.exp()
@@ -235,7 +239,11 @@ class SACAgent(BaseAgent):
         else:
             z = mean + std * torch.randn_like(mean)
         action = torch.tanh(z)
-        log_prob = -0.5 * ((z - mean) / (std + 1e-6)) ** 2 - log_std - torch.log(2 - 2 * action.pow(2) + 1e-6)
+        log_prob = (
+            -0.5 * ((z - mean) / (std + 1e-6)) ** 2
+            - log_std
+            - torch.log(2 - 2 * action.pow(2) + 1e-6)
+        )
         log_prob = log_prob.sum(-1)
         return action.squeeze(-1), log_prob
 
@@ -245,9 +253,15 @@ class SACAgent(BaseAgent):
         batch = self.replay.sample(64, regime=regime)
         if not batch:
             return
-        states = torch.tensor([b[0] for b in batch], dtype=torch.float32, device=self.device)
-        actions = torch.tensor([float(b[1]) for b in batch], dtype=torch.float32, device=self.device)
-        rewards = torch.tensor([b[2] for b in batch], dtype=torch.float32, device=self.device)
+        states = torch.tensor(
+            [b[0] for b in batch], dtype=torch.float32, device=self.device
+        )
+        actions = torch.tensor(
+            [float(b[1]) for b in batch], dtype=torch.float32, device=self.device
+        )
+        rewards = torch.tensor(
+            [b[2] for b in batch], dtype=torch.float32, device=self.device
+        )
         with torch.no_grad():
             next_states = states
             next_actions, next_logp = self._sample_action(next_states)
@@ -259,24 +273,34 @@ class SACAgent(BaseAgent):
         q2 = self.q2(states, actions)
         q1_loss = F.mse_loss(q1, target_q)
         q2_loss = F.mse_loss(q2, target_q)
-        self.q1_opt.zero_grad(); q1_loss.backward(); self.q1_opt.step()
-        self.q2_opt.zero_grad(); q2_loss.backward(); self.q2_opt.step()
+        self.q1_opt.zero_grad()
+        q1_loss.backward()
+        self.q1_opt.step()
+        self.q2_opt.zero_grad()
+        q2_loss.backward()
+        self.q2_opt.step()
 
         new_actions, logp = self._sample_action(states)
         q1_pi = self.q1(states, new_actions)
         q2_pi = self.q2(states, new_actions)
         q_pi = torch.min(q1_pi, q2_pi)
         actor_loss = (self._alpha * logp - q_pi).mean()
-        self.actor_opt.zero_grad(); actor_loss.backward(); self.actor_opt.step()
+        self.actor_opt.zero_grad()
+        actor_loss.backward()
+        self.actor_opt.step()
 
         alpha_loss = -(self.log_alpha * (logp + self.target_entropy).detach()).mean()
-        self.alpha_opt.zero_grad(); alpha_loss.backward(); self.alpha_opt.step()
+        self.alpha_opt.zero_grad()
+        alpha_loss.backward()
+        self.alpha_opt.step()
         self._alpha = float(self.log_alpha.exp())
 
         for tp, p in zip(self.tq1.parameters(), self.q1.parameters()):
-            tp.data.mul_(1 - self.tau); tp.data.add_(self.tau * p.data)
+            tp.data.mul_(1 - self.tau)
+            tp.data.add_(self.tau * p.data)
         for tp, p in zip(self.tq2.parameters(), self.q2.parameters()):
-            tp.data.mul_(1 - self.tau); tp.data.add_(self.tau * p.data)
+            tp.data.mul_(1 - self.tau)
+            tp.data.add_(self.tau * p.data)
 
         self._fitted = True
         torch.save(
@@ -326,19 +350,37 @@ class SACAgent(BaseAgent):
         self._maybe_reload()
         regime = detect_regime(portfolio.price_history.get(token, []))
         self.train(regime)
-        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
+        state = torch.tensor(
+            [self._state(token, portfolio)], dtype=torch.float32, device=self.device
+        )
         action, _ = self._sample_action(state, deterministic=True)
         val = float(action.item())
         val = max(min(val, 1.0), -1.0)
         side = "buy" if val >= 0 else "sell"
         amount = abs(val)
         if side == "buy":
-            return [{"token": token, "side": "buy", "amount": amount, "price": 0.0, "agent": self.name}]
+            return [
+                {
+                    "token": token,
+                    "side": "buy",
+                    "amount": amount,
+                    "price": 0.0,
+                    "agent": self.name,
+                }
+            ]
         position = portfolio.balances.get(token)
         if position:
             amt = min(amount, float(position.amount))
             if amt > 0:
-                return [{"token": token, "side": "sell", "amount": amt, "price": 0.0, "agent": self.name}]
+                return [
+                    {
+                        "token": token,
+                        "side": "sell",
+                        "amount": amt,
+                        "price": 0.0,
+                        "agent": self.name,
+                    }
+                ]
         return []
 
     def close(self) -> None:

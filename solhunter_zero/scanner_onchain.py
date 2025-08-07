@@ -1,23 +1,25 @@
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from solhunter_zero.lru import TTLCache
-
 
 try:
     from solana.publickey import PublicKey  # type: ignore
 except Exception:  # pragma: no cover - fallback when solana lacks PublicKey
+
     class PublicKey(str):
         """Minimal stand-in for ``solana.publickey.PublicKey``."""
 
         def __new__(cls, value: str):
             return str.__new__(cls, value)
 
-    import types, sys
+    import sys
+    import types
+
     mod = types.ModuleType("solana.publickey")
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
@@ -38,9 +40,9 @@ AVG_SWAP_SIZE_CACHE = TTLCache(maxsize=256, ttl=METRIC_CACHE_TTL)
 MEMPOOL_FEATURE_HISTORY: Dict[tuple[str, str], list[list[float]]] = {}
 
 
-
-
-async def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> List[str] | List[Dict[str, Any]]:
+async def scan_tokens_onchain(
+    rpc_url: str, *, return_metrics: bool = False
+) -> List[str] | List[Dict[str, Any]]:
     """Query recent token accounts from the blockchain and return mints whose
     names end with ``bonk``.
 
@@ -77,12 +79,7 @@ async def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> 
 
     tokens: List[str] | List[Dict[str, Any]] = []
     for acc in resp.get("result", []):
-        info = (
-            acc.get("account", {})
-            .get("data", {})
-            .get("parsed", {})
-            .get("info", {})
-        )
+        info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
         name = info.get("name", "")
         mint = info.get("mint")
         if name and name.lower().endswith("bonk"):
@@ -93,14 +90,18 @@ async def scan_tokens_onchain(rpc_url: str, *, return_metrics: bool = False) -> 
                 onchain_metrics.fetch_liquidity_onchain, mint, rpc_url
             )
             if return_metrics:
-                tokens.append({"address": mint, "volume": volume, "liquidity": liquidity})
+                tokens.append(
+                    {"address": mint, "volume": volume, "liquidity": liquidity}
+                )
             else:
                 tokens.append(mint)
     logger.info("Found %d candidate on-chain tokens", len(tokens))
     return tokens
 
 
-def scan_tokens_onchain_sync(rpc_url: str, *, return_metrics: bool = False) -> List[str] | List[Dict[str, Any]]:
+def scan_tokens_onchain_sync(
+    rpc_url: str, *, return_metrics: bool = False
+) -> List[str] | List[Dict[str, Any]]:
     """Synchronous wrapper for :func:`scan_tokens_onchain`."""
 
     return asyncio.run(scan_tokens_onchain(rpc_url, return_metrics=return_metrics))

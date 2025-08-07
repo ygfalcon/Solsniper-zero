@@ -1,7 +1,8 @@
-import os
 import json
+import os
 import subprocess
 import sys
+
 import pytest
 
 try:

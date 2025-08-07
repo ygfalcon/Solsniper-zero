@@ -1,12 +1,15 @@
-from solhunter_zero.offline_data import OfflineData
 import pytest
+
+from solhunter_zero.offline_data import OfflineData
 
 
 @pytest.mark.asyncio
 async def test_offline_data_roundtrip(tmp_path):
     db = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db)
-    await data.log_snapshot("tok", 1.0, 2.0, total_depth=3.0, imbalance=0.5, slippage=0.0, volume=0.0)
+    await data.log_snapshot(
+        "tok", 1.0, 2.0, total_depth=3.0, imbalance=0.5, slippage=0.0, volume=0.0
+    )
     snaps = await data.list_snapshots("tok")
     assert snaps and snaps[0].token == "tok"
     assert snaps[0].tx_rate == 0.0
@@ -20,9 +23,10 @@ async def test_offline_data_roundtrip(tmp_path):
 
 @pytest.mark.asyncio
 async def test_async_queue_commit(tmp_path, monkeypatch):
-    from sqlalchemy.ext.asyncio import AsyncSession
-    import psutil
     import asyncio
+
+    import psutil
+    from sqlalchemy.ext.asyncio import AsyncSession
 
     commits = 0
     orig_commit = AsyncSession.commit
@@ -57,8 +61,9 @@ async def test_async_queue_commit(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_queue_flush_interval(tmp_path, monkeypatch):
-    from sqlalchemy.ext.asyncio import AsyncSession
     import asyncio
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
     commits = 0
     orig_commit = AsyncSession.commit
@@ -83,10 +88,13 @@ async def test_queue_flush_interval(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_memmap_buffer(tmp_path):
     import asyncio
+
     mmap_path = tmp_path / "buf.mmap"
     db = f"sqlite:///{tmp_path/'mmap.db'}"
     data = OfflineData(db)
-    data.start_writer(batch_size=2, interval=0.01, memmap_path=str(mmap_path), memmap_size=8192)
+    data.start_writer(
+        batch_size=2, interval=0.01, memmap_path=str(mmap_path), memmap_size=8192
+    )
     for _ in range(3):
         await data.log_snapshot("tok", 1.0, 1.0, imbalance=0.0)
     await asyncio.sleep(0.05)
@@ -118,7 +126,9 @@ async def test_export_npz_matches_manual(tmp_path):
 
     db = f"sqlite:///{tmp_path/'data.db'}"
     data = OfflineData(db)
-    await data.log_snapshot("tok", 1.0, 2.0, total_depth=3.0, imbalance=0.5, slippage=0.0, volume=0.0)
+    await data.log_snapshot(
+        "tok", 1.0, 2.0, total_depth=3.0, imbalance=0.5, slippage=0.0, volume=0.0
+    )
     await data.log_trade("tok", "buy", 1.0, 2.0)
 
     out = tmp_path / "offline.npz"
@@ -127,34 +137,40 @@ async def test_export_npz_matches_manual(tmp_path):
     snaps = await data.list_snapshots()
     trades = await data.list_trades()
 
-    exp_snaps = np.array([
-        (
-            s.token,
-            float(s.price),
-            float(s.depth),
-            float(getattr(s, "total_depth", 0.0)),
-            float(getattr(s, "slippage", 0.0)),
-            float(getattr(s, "volume", 0.0)),
-            float(s.imbalance),
-            float(getattr(s, "tx_rate", 0.0)),
-            float(getattr(s, "whale_share", 0.0)),
-            float(getattr(s, "spread", 0.0)),
-            float(getattr(s, "sentiment", 0.0)),
-            s.timestamp.timestamp(),
-        )
-        for s in snaps
-    ], dtype=npz["snapshots"].dtype)
+    exp_snaps = np.array(
+        [
+            (
+                s.token,
+                float(s.price),
+                float(s.depth),
+                float(getattr(s, "total_depth", 0.0)),
+                float(getattr(s, "slippage", 0.0)),
+                float(getattr(s, "volume", 0.0)),
+                float(s.imbalance),
+                float(getattr(s, "tx_rate", 0.0)),
+                float(getattr(s, "whale_share", 0.0)),
+                float(getattr(s, "spread", 0.0)),
+                float(getattr(s, "sentiment", 0.0)),
+                s.timestamp.timestamp(),
+            )
+            for s in snaps
+        ],
+        dtype=npz["snapshots"].dtype,
+    )
 
-    exp_trades = np.array([
-        (
-            t.token,
-            t.side,
-            float(t.price),
-            float(t.amount),
-            t.timestamp.timestamp(),
-        )
-        for t in trades
-    ], dtype=npz["trades"].dtype)
+    exp_trades = np.array(
+        [
+            (
+                t.token,
+                t.side,
+                float(t.price),
+                float(t.amount),
+                t.timestamp.timestamp(),
+            )
+            for t in trades
+        ],
+        dtype=npz["trades"].dtype,
+    )
 
     assert np.array_equal(npz["snapshots"], exp_snaps)
     assert np.array_equal(npz["trades"], exp_trades)
@@ -163,15 +179,20 @@ async def test_export_npz_matches_manual(tmp_path):
 @pytest.mark.asyncio
 async def test_flush_performance(tmp_path):
     """Verify executemany batching improves flush throughput."""
-    import time
     import asyncio
+    import time
 
     async def bench(use_memmap: bool = False):
         db = f"sqlite:///{tmp_path/'bench.db'}"
-        mmap_path = tmp_path / 'bench.mmap'
+        mmap_path = tmp_path / "bench.mmap"
         data = OfflineData(db)
         if use_memmap:
-            data.start_writer(batch_size=1000, interval=0.01, memmap_path=str(mmap_path), memmap_size=1024 * 1024)
+            data.start_writer(
+                batch_size=1000,
+                interval=0.01,
+                memmap_path=str(mmap_path),
+                memmap_size=1024 * 1024,
+            )
         else:
             data.start_writer(batch_size=1000, interval=0.01)
         start = time.perf_counter()

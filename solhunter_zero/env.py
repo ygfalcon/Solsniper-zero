@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Utilities for loading environment variables from files."""
 
-from pathlib import Path
 import os
+from pathlib import Path
 
 from .logging_utils import log_startup
 from .paths import ROOT
@@ -34,9 +34,7 @@ def load_env_file(path: Path) -> None:
                 "Please update it with your settings."
             )
         except OSError:
-            msg = (
-                f"Warning: environment file {path} not found and could not be created"
-            )
+            msg = f"Warning: environment file {path} not found and could not be created"
         print(msg)
         log_startup(msg)
         return

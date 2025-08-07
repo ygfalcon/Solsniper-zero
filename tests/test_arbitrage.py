@@ -1,11 +1,14 @@
 import asyncio
 import time
+
 import pytest
+
 pytest.importorskip("solders")
 from solders.keypair import Keypair
+
 from solhunter_zero import arbitrage as arb
-from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 from solhunter_zero import prices
+from solhunter_zero.arbitrage import detect_and_execute_arbitrage
 
 
 # reset global state before each test
@@ -568,9 +571,7 @@ def test_latency_measurement_parallel(monkeypatch):
 
     start = time.perf_counter()
     asyncio.run(
-        arb.measure_dex_latency_async(
-            {"d1": "u1", "d2": "u2", "d3": "u3"}, attempts=1
-        )
+        arb.measure_dex_latency_async({"d1": "u1", "d2": "u2", "d3": "u3"}, attempts=1)
     )
     multi = time.perf_counter() - start
 

@@ -9,6 +9,7 @@ import solhunter_zero.main as main
 
 class DummyProc:
     """Simple process stub with a predefined poll sequence."""
+
     def __init__(self, polls):
         self.polls = list(polls)
         self._last = self.polls[-1] if self.polls else None

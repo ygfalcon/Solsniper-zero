@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
+
 from solhunter_zero.config import (
-    load_config,
     apply_env_overrides,
-    set_env_from_config,
+    find_config_file,
+    load_config,
     load_dex_config,
     save_config,
+    set_env_from_config,
     validate_config,
-    find_config_file,
 )
 from solhunter_zero.event_bus import subscribe
 
@@ -39,8 +40,8 @@ def test_load_config_toml(tmp_path):
         'dex_base_url="http://dex"\n'
         'event_bus_url="ws://bus"\n'
         'agents=["sim"]\n'
-        '[agent_weights]\n'
-        'sim=1.0\n'
+        "[agent_weights]\n"
+        "sim=1.0\n"
     )
     cfg = load_config(str(path))
     assert cfg["birdeye_api_key"] == "KEY"
@@ -78,8 +79,8 @@ def test_env_var_overrides_default_search(tmp_path, monkeypatch):
         'solana_rpc_url="http://local"\n'
         'dex_base_url="http://dex"\n'
         'agents=["sim"]\n'
-        '[agent_weights]\n'
-        'sim=1.0\n'
+        "[agent_weights]\n"
+        "sim=1.0\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SOLHUNTER_CONFIG", str(override))
@@ -207,6 +208,7 @@ def test_set_env_from_config_booleans(monkeypatch):
     assert os.getenv("USE_SERVICE_EXEC") == "True"
     assert os.getenv("USE_MEV_BUNDLES") == "True"
 
+
 def test_load_dex_config_env(monkeypatch):
     monkeypatch.setenv("DEX_BASE_URL", "http://b")
     monkeypatch.setenv("ORCA_DEX_URL", "http://o")
@@ -263,4 +265,3 @@ def test_validate_config_missing():
 
     with pytest.raises(ValueError):
         validate_config(cfg)
-

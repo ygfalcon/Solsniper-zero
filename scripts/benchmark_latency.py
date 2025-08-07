@@ -3,10 +3,11 @@ import asyncio
 import base64
 import time
 
-from solhunter_zero.depth_client import stream_depth, submit_signed_tx
-from solhunter_zero.dex_scanner import scan_new_pools_sync, DEX_PROGRAM_ID
-from solhunter_zero.scanner_common import token_matches
 from solana.rpc.api import Client
+
+from solhunter_zero.depth_client import stream_depth, submit_signed_tx
+from solhunter_zero.dex_scanner import DEX_PROGRAM_ID, scan_new_pools_sync
+from solhunter_zero.scanner_common import token_matches
 
 
 async def _run(token: str, tx_b64: str, updates: int) -> None:
@@ -26,12 +27,7 @@ def _scan_new_pools_old(rpc_url: str) -> None:
     client = Client(rpc_url)
     resp = client.get_program_accounts(DEX_PROGRAM_ID, encoding="jsonParsed")
     for acc in resp.get("result", []):
-        info = (
-            acc.get("account", {})
-            .get("data", {})
-            .get("parsed", {})
-            .get("info", {})
-        )
+        info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
         for key in ("tokenA", "tokenB"):
             mint = info.get(key, {}).get("mint")
             name = info.get(key, {}).get("name")

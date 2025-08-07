@@ -21,9 +21,7 @@ def test_demo_jito_stream_events():
     unsub()
 
     assert swaps == events
-    assert swaps == [
-        {"token": "tok", "address": "tok", "size": 1.0, "slippage": 0.1}
-    ]
+    assert swaps == [{"token": "tok", "address": "tok", "size": 1.0, "slippage": 0.1}]
     assert investor_demo.used_trade_types == {"jito_stream"}
 
 

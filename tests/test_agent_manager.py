@@ -1,15 +1,16 @@
-import json
 import asyncio
+import json
+
 import pytest
 
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents.attention_swarm import AttentionSwarm
-from solhunter_zero.advanced_memory import AdvancedMemory
 from solhunter_zero import event_bus
+from solhunter_zero.advanced_memory import AdvancedMemory
+from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agents.attention_swarm import AttentionSwarm
+from solhunter_zero.agents.memory import MemoryAgent
 
 event_bus.websockets = None
 event_bus._encode_event = lambda *a, **k: b""
@@ -21,7 +22,9 @@ def test_update_weights_persists(tmp_path):
     idx = tmp_path / "idx"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
     mem_agent = MemoryAgent(mem)
-    mgr = AgentManager([], memory_agent=mem_agent, weights={"a": 1.0}, weights_path=str(path))
+    mgr = AgentManager(
+        [], memory_agent=mem_agent, weights={"a": 1.0}, weights_path=str(path)
+    )
 
     mem.log_trade(token="tok", direction="buy", amount=1, price=1, reason="a")
     mem.log_trade(token="tok", direction="sell", amount=1, price=2, reason="a")
@@ -82,6 +85,7 @@ def test_rotate_weight_configs_selects_best(tmp_path):
 
 def test_attention_swarm_device_env(monkeypatch, tmp_path):
     from solhunter_zero import agent_manager as am
+
     called = {}
 
     def fake_load(path, *, device="cpu"):
@@ -106,7 +110,9 @@ def test_close_persists_mutation_state(tmp_path):
     mem = AdvancedMemory(url=f"sqlite:///{db1}", index_path=str(idx1))
     mem_agent = MemoryAgent(mem)
     base = ConvictionAgent(threshold=0.1)
-    mgr = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(state_path))
+    mgr = AgentManager(
+        [base, mem_agent], memory_agent=mem_agent, mutation_path=str(state_path)
+    )
 
     spawned = mgr.spawn_mutations(1)
     assert spawned
@@ -118,6 +124,7 @@ def test_close_persists_mutation_state(tmp_path):
     idx2 = tmp_path / "idx2"
     mem2 = AdvancedMemory(url=f"sqlite:///{db2}", index_path=str(idx2))
     mem_agent2 = MemoryAgent(mem2)
-    mgr2 = AgentManager([base, mem_agent2], memory_agent=mem_agent2, mutation_path=str(state_path))
+    mgr2 = AgentManager(
+        [base, mem_agent2], memory_agent=mem_agent2, mutation_path=str(state_path)
+    )
     assert any(a.name == mut_name for a in mgr2.agents)
-

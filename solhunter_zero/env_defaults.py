@@ -15,14 +15,12 @@ DEFAULTS: dict[str, str] = {
     "USE_DEPTH_FEED": "0",
     "USE_RUST_EXEC": "True",
     "USE_SERVICE_EXEC": "True",
-
     # Solana RPC endpoints
     "SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com",
     "SOLANA_TESTNET_RPC_URL": "https://api.devnet.solana.com",
     "DEX_BASE_URL": "https://dex.example/api",
     "AGENTS": "['sim']",
     "AGENT_WEIGHTS": "{'sim': 1.0}",
-
     # Depth service paths and settings
     "DEPTH_SERVICE_SOCKET": "/tmp/depth_service.sock",
     "DEPTH_MMAP_PATH": "/tmp/depth_service.mmap",
@@ -30,7 +28,6 @@ DEFAULTS: dict[str, str] = {
     "DEPTH_START_TIMEOUT": "5",
     "DEPTH_MAX_RESTARTS": "1",
     "DEPTH_CACHE_TTL": "0.5",
-
     # DEX and API endpoints
     "ORCA_API_URL": "https://api.orca.so",
     "RAYDIUM_API_URL": "https://api.raydium.io",
@@ -42,7 +39,6 @@ DEFAULTS: dict[str, str] = {
     "METEORA_WS_URL": "",
     "JUPITER_WS_URL": "wss://stats.jup.ag/ws",
     "DEX_LISTING_WS_URL": "",
-
     # Scanning defaults
     "TOKEN_SUFFIX": "bonk",
     "TOKEN_KEYWORDS": "",
@@ -55,23 +51,19 @@ DEFAULTS: dict[str, str] = {
     "MEMPOOL_STATS_WINDOW": "5",
     "MEMPOOL_SCORE_THRESHOLD": "0",
     "TOKEN_BLACKLIST": "",
-
     # Networking
     "HTTP_CONNECTOR_LIMIT": "0",
     "HTTP_CONNECTOR_LIMIT_PER_HOST": "0",
     "WS_PING_INTERVAL": "20",
     "WS_PING_TIMEOUT": "20",
-
     # Event bus
     "EVENT_COMPRESSION_THRESHOLD": "512",
     "EVENT_MMAP_BATCH_MS": "5",
     "EVENT_MMAP_BATCH_SIZE": "16",
     "EVENT_BATCH_MS": "10",
     "BROKER_CHANNEL": "solhunter-events",
-
     # Order book service
     "ORDERBOOK_CACHE_TTL": "5",
-
     # Concurrency control
     "CONCURRENCY_SMOOTHING": "0.5",
     "CONCURRENCY_KP": "0.5",
@@ -79,7 +71,6 @@ DEFAULTS: dict[str, str] = {
     "CONCURRENCY_EWM_SMOOTHING": "0.15",
     "CPU_HIGH_THRESHOLD": "80",
     "CPU_LOW_THRESHOLD": "40",
-
     # Risk parameters
     "RISK_TOLERANCE": "0.1",
     "MAX_ALLOCATION": "0.2",
@@ -92,7 +83,6 @@ DEFAULTS: dict[str, str] = {
     "ARBITRAGE_THRESHOLD": "0",
     "ARBITRAGE_AMOUNT": "0",
     "USE_MEV_BUNDLES": "false",
-
     # Miscellaneous
     "RL_POLICY_PATH": "rl_policy.json",
     "OFFLINE_DATA_INTERVAL": "3600",

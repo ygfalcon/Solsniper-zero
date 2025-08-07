@@ -1,9 +1,11 @@
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
-from solhunter_zero.swarm_coordinator import SwarmCoordinator
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.regime import detect_regime
+from solhunter_zero.swarm_coordinator import SwarmCoordinator
+
 
 class DummyAgent:
     def __init__(self, name):

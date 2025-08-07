@@ -1,20 +1,19 @@
 import asyncio
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Sequence
 
+import aiohttp
 from sqlalchemy import select
 
-import aiohttp
-from .http import get_session
-
-from .offline_data import OfflineData, MarketSnapshot
 from .data_pipeline import map_snapshot
-from .token_scanner import scan_tokens_async
-from .simulation import DEFAULT_METRICS_BASE_URL
+from .http import get_session
 from .news import fetch_sentiment_async
-import threading
+from .offline_data import MarketSnapshot, OfflineData
+from .simulation import DEFAULT_METRICS_BASE_URL
+from .token_scanner import scan_tokens_async
 
 _sched_task: asyncio.Future | None = None
 _sched_loop: asyncio.AbstractEventLoop | None = None
@@ -29,7 +28,7 @@ async def _prune_db(data: OfflineData, db_path: str, limit_gb: float) -> None:
     ``limit_gb`` in size."""
 
     path = Path(db_path)
-    limit_bytes = limit_gb * 1024 ** 3
+    limit_bytes = limit_gb * 1024**3
     while path.exists() and path.stat().st_size > limit_bytes:
         async with data.Session() as session:
             result = await session.execute(
@@ -96,7 +95,6 @@ async def sync_snapshots(
             except Exception as exc:  # pragma: no cover - bad data
                 logger.warning("invalid snapshot for %s: %s", token, exc)
 
-
     await asyncio.gather(*(fetch_and_log(t) for t in tokens))
 
     await _prune_db(data, db_path, limit_gb)
@@ -106,13 +104,17 @@ async def sync_recent(days: int = 3, db_path: str = "offline_data.db") -> None:
     """Discover tokens and sync recent snapshots."""
 
     tokens = await scan_tokens_async(
-        offline=False, token_file=None, method=os.getenv("DISCOVERY_METHOD", "websocket")
+        offline=False,
+        token_file=None,
+        method=os.getenv("DISCOVERY_METHOD", "websocket"),
     )
     if tokens:
         await sync_snapshots(tokens, days=days, db_path=db_path)
 
 
-async def _schedule_loop(interval: float, days: int, db_path: str, limit_gb: float) -> None:
+async def _schedule_loop(
+    interval: float, days: int, db_path: str, limit_gb: float
+) -> None:
     while True:
         try:
             await sync_recent(days=days, db_path=db_path)
@@ -161,4 +163,3 @@ def stop_scheduler() -> None:
     if _sched_task is not None:
         _sched_task.cancel()
         _sched_task = None
-

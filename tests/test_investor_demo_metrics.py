@@ -4,8 +4,9 @@ import sys
 import types
 
 import pytest
-from solhunter_zero import investor_demo
+
 import solhunter_zero.resource_monitor as rm
+from solhunter_zero import investor_demo
 
 
 def _patch_metrics(monkeypatch):
@@ -74,7 +75,10 @@ def test_aggregate_summary(tmp_path, monkeypatch):
     per_token = {}
     for row in summary:
         tok = row["token"]
-        if tok not in per_token or row["final_capital"] > per_token[tok]["final_capital"]:
+        if (
+            tok not in per_token
+            or row["final_capital"] > per_token[tok]["final_capital"]
+        ):
             per_token[tok] = row
 
     expected = [

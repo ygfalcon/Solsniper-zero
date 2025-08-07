@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from solhunter_zero import investor_demo
 
@@ -21,12 +22,14 @@ def test_investor_demo_missing_types(tmp_path, monkeypatch, dummy_mem):
     data = Path(__file__).resolve().parent / "data" / "prices_short.json"
 
     with pytest.raises(RuntimeError) as exc_info:
-        investor_demo.main([
-            "--data",
-            str(data),
-            "--reports",
-            str(tmp_path),
-        ])
+        investor_demo.main(
+            [
+                "--data",
+                str(data),
+                "--reports",
+                str(tmp_path),
+            ]
+        )
 
     msg = str(exc_info.value)
     assert "Demo did not exercise trade types" in msg

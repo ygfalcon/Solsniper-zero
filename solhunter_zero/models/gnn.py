@@ -1,11 +1,12 @@
 import os
-from typing import Sequence, Dict, Tuple
+from typing import Dict, Sequence, Tuple
 
 try:
     import torch
     from torch import nn
-    from torch.utils.data import Dataset, DataLoader
+    from torch.utils.data import DataLoader, Dataset
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -29,13 +30,16 @@ except ImportError as exc:  # pragma: no cover - optional dependency
     Dataset = DataLoader = _DatasetStub  # type: ignore
 
 try:
-    from torch_geometric.nn import GCNConv, GATConv, global_mean_pool
+    from torch_geometric.nn import GATConv, GCNConv, global_mean_pool
+
     HAS_PYG = True
 except Exception:  # pragma: no cover - optional dependency
     HAS_PYG = False
 
 
-def _collate(batch: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]):
+def _collate(
+    batch: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
+):
     nodes_list = []
     edge_list = []
     batch_vec = []
@@ -61,7 +65,12 @@ def _collate(batch: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, tor
 class RouteDataset(Dataset):
     """Dataset of arbitrage routes and profits."""
 
-    def __init__(self, routes: Sequence[Sequence[str]], profits: Sequence[float], venue_map: Dict[str, int] | None = None) -> None:
+    def __init__(
+        self,
+        routes: Sequence[Sequence[str]],
+        profits: Sequence[float],
+        venue_map: Dict[str, int] | None = None,
+    ) -> None:
         if venue_map is None:
             uniq = sorted({v for r in routes for v in r})
             self.venue_map = {v: i for i, v in enumerate(uniq)}
@@ -76,10 +85,12 @@ class RouteDataset(Dataset):
     def __getitem__(self, idx: int):
         nodes = torch.tensor(self.routes[idx], dtype=torch.long)
         if len(nodes) > 1:
-            edges = torch.stack([
-                torch.arange(len(nodes) - 1, dtype=torch.long),
-                torch.arange(1, len(nodes), dtype=torch.long),
-            ])
+            edges = torch.stack(
+                [
+                    torch.arange(len(nodes) - 1, dtype=torch.long),
+                    torch.arange(1, len(nodes), dtype=torch.long),
+                ]
+            )
         else:
             edges = torch.empty(2, 0, dtype=torch.long)
         batch = torch.zeros(len(nodes), dtype=torch.long)
@@ -101,7 +112,9 @@ class RouteGNN(nn.Module):
         self.out = nn.Linear(embed_dim, 1)
         self.venue_map: Dict[str, int] = {}
 
-    def forward(self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor
+    ) -> torch.Tensor:
         x = self.embed(nodes)
         if HAS_PYG:
             x = torch.relu(self.conv1(x, edge_index))
@@ -137,7 +150,9 @@ class GATRouteGNN(nn.Module):
         self.out = nn.Linear(embed_dim, 1)
         self.venue_map: Dict[str, int] = {}
 
-    def forward(self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, nodes: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor
+    ) -> torch.Tensor:
         x = self.embed(nodes)
         if HAS_PYG:
             x = torch.relu(self.conv1(x, edge_index))
@@ -171,9 +186,13 @@ def train_route_gnn(
     """Train :class:`RouteGNN` on historical routes."""
 
     dataset = RouteDataset(routes, profits)
-    loader = DataLoader(dataset, batch_size=min(32, len(dataset)), shuffle=True, collate_fn=_collate)
+    loader = DataLoader(
+        dataset, batch_size=min(32, len(dataset)), shuffle=True, collate_fn=_collate
+    )
     model_cls = GATRouteGNN if gat else RouteGNN
-    model = model_cls(len(dataset.venue_map), embed_dim=embed_dim, **({"heads": heads} if gat else {}))
+    model = model_cls(
+        len(dataset.venue_map), embed_dim=embed_dim, **({"heads": heads} if gat else {})
+    )
     model.venue_map = dataset.venue_map
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()

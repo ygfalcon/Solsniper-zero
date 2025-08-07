@@ -1,10 +1,10 @@
 import asyncio
-import types
-import sys
+import importlib.machinery
 import importlib.util
+import sys
+import types
 
 import pytest
-import importlib.machinery
 
 # Stub heavy optional dependencies
 if importlib.util.find_spec("transformers") is None:
@@ -26,7 +26,10 @@ if importlib.util.find_spec("torch") is None:
     tmod.__path__ = []
     tmod.Tensor = object
     tmod.cuda = types.SimpleNamespace(is_available=lambda: False)
-    tmod.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: False))
+    tmod.backends = types.SimpleNamespace(
+        mps=types.SimpleNamespace(is_available=lambda: False)
+    )
+
     class _Device:
         def __init__(self, typ="cpu"):
             self.type = str(typ)
@@ -83,8 +86,8 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     sys.modules.setdefault("pytorch_lightning", pl)
 
 from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.llm_reasoner import LLMReasoner
 from solhunter_zero.agents.execution import ExecutionAgent
+from solhunter_zero.agents.llm_reasoner import LLMReasoner
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -116,6 +119,7 @@ def test_bias_output(monkeypatch):
         "solhunter_zero.agents.llm_reasoner.AutoModelForCausalLM.from_pretrained",
         lambda m: DummyModel(),
     )
+
     async def fake_headlines(*a, **k):
         return ["headline"]
 
@@ -127,7 +131,9 @@ def test_bias_output(monkeypatch):
     )
 
     agent = LLMReasoner(feeds=["f"])
-    mgr = AgentManager([agent], executor=ExecutionAgent(rate_limit=0), memory_agent=None)
+    mgr = AgentManager(
+        [agent], executor=ExecutionAgent(rate_limit=0), memory_agent=None
+    )
     pf = DummyPortfolio()
     actions = asyncio.run(mgr.evaluate("TOK", pf))
     assert actions and actions[0]["bias"] == pytest.approx(0.8)

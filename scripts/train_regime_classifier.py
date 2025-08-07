@@ -1,11 +1,11 @@
 import argparse
 import asyncio
 
-from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.models.regime_classifier import (
-    train_regime_classifier,
     save_regime_model,
+    train_regime_classifier,
 )
+from solhunter_zero.offline_data import OfflineData
 
 
 async def _load_prices(data: OfflineData, token: str | None):
@@ -14,9 +14,7 @@ async def _load_prices(data: OfflineData, token: str | None):
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Train regime classification model"
-    )
+    p = argparse.ArgumentParser(description="Train regime classification model")
     p.add_argument(
         "--db",
         default="offline_data.db",

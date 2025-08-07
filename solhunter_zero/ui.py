@@ -1,23 +1,25 @@
-import threading
-import os
 import asyncio
 import json
-from dataclasses import asdict, is_dataclass
 import logging
+import os
 import socket
-from collections import deque
-from typing import Any
-import time
 import subprocess
 import sys
+import threading
+import time
+from collections import deque
+from dataclasses import asdict, is_dataclass
+from typing import Any
 
 from .http import close_session
 from .util import install_uvloop
 
 install_uvloop()
 
-from flask import Flask, jsonify, request, render_template_string
-from .event_bus import subscription, publish
+from flask import Flask, jsonify, render_template_string, request
+
+from .event_bus import publish, subscription
+
 try:
     import websockets
 except Exception:  # pragma: no cover - optional
@@ -26,36 +28,31 @@ except Exception:  # pragma: no cover - optional
 # websocket ping configuration
 _WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
 _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
-import sqlalchemy as sa
-from .config import (
-    load_config,
-    apply_env_overrides,
-    set_env_from_config,
-    get_event_bus_url,
-    get_depth_ws_addr,
-)
 from pathlib import Path
+
 import numpy as np
+import sqlalchemy as sa
 
 from . import config as config_module
-
-from .prices import fetch_token_prices
-
-from .strategy_manager import StrategyManager
-
-from . import wallet
 from . import main as main_module
-from .memory import Memory
+from . import wallet
 from .base_memory import BaseMemory
-from .portfolio import Portfolio
 from .config import (
+    apply_env_overrides,
+    get_active_config_name,
+    get_depth_ws_addr,
+    get_event_bus_url,
     list_configs,
+    load_config,
+    load_selected_config,
     save_config,
     select_config,
-    get_active_config_name,
     set_env_from_config,
-    load_selected_config,
 )
+from .memory import Memory
+from .portfolio import Portfolio
+from .prices import fetch_token_prices
+from .strategy_manager import StrategyManager
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
@@ -95,9 +92,7 @@ if get_active_config_name() is None:
         select_config(configs[0])
         set_env_from_config(load_selected_config())
 
-app = Flask(
-    __name__, static_folder=str(Path(__file__).resolve().parent / "static")
-)
+app = Flask(__name__, static_folder=str(Path(__file__).resolve().parent / "static"))
 
 # in-memory log storage for UI access
 log_buffer: deque[str] = deque(maxlen=200)
@@ -116,6 +111,7 @@ buffer_handler.setFormatter(
 )
 logging.getLogger().addHandler(buffer_handler)
 
+
 def _update_weights(weights):
     if is_dataclass(weights):
         weights = asdict(weights)["weights"]
@@ -124,8 +120,10 @@ def _update_weights(weights):
     except Exception:
         pass
 
+
 _weights_subscription = subscription("weights_updated", _update_weights)
 _weights_subscription.__enter__()
+
 
 def _update_rl_weights(msg: Any) -> None:
     weights = msg.weights if hasattr(msg, "weights") else msg.get("weights", {})
@@ -138,6 +136,7 @@ def _update_rl_weights(msg: Any) -> None:
     rm = risk.get("risk_multiplier") if isinstance(risk, dict) else None
     if rm is not None:
         os.environ["RISK_MULTIPLIER"] = str(rm)
+
 
 _rl_weights_sub = subscription("rl_weights", _update_rl_weights)
 _rl_weights_sub.__enter__()
@@ -154,6 +153,7 @@ def _store_rl_metrics(msg: Any) -> None:
         return
     rl_metrics.append({"loss": float(loss), "reward": float(reward)})
 
+
 _rl_metrics_sub = subscription("rl_metrics", _store_rl_metrics)
 _rl_metrics_sub.__enter__()
 
@@ -169,6 +169,7 @@ def _store_system_metrics(msg: Any) -> None:
         return
     system_metrics["cpu"] = float(cpu)
     system_metrics["memory"] = float(mem)
+
 
 _sys_metrics_sub = subscription("system_metrics_combined", _store_system_metrics)
 _sys_metrics_sub.__enter__()
@@ -236,7 +237,9 @@ _rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
 _rl_metrics_ws_sub = subscription("rl_metrics", _sub_handler("rl_metrics"))
 _risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
 _config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
-_sys_metrics_ws_sub = subscription("system_metrics_combined", _sub_handler("system_metrics"))
+_sys_metrics_ws_sub = subscription(
+    "system_metrics_combined", _sub_handler("system_metrics")
+)
 
 _action_sub.__enter__()
 _weights_ws_sub.__enter__()
@@ -251,6 +254,7 @@ last_heartbeat = 0.0
 rl_daemon_heartbeat = 0.0
 depth_service_heartbeat = 0.0
 
+
 def _heartbeat(_payload: Any) -> None:
     global last_heartbeat, rl_daemon_heartbeat, depth_service_heartbeat
     service = getattr(_payload, "service", None)
@@ -260,13 +264,16 @@ def _heartbeat(_payload: Any) -> None:
     elif service == "depth_service":
         depth_service_heartbeat = last_heartbeat
 
+
 _heartbeat_sub = subscription("heartbeat", _heartbeat)
 _heartbeat_sub.__enter__()
+
 
 def _depth_status(payload: Any) -> None:
     global depth_service_connected
     status = str(getattr(payload, "status", payload.get("status")))
     depth_service_connected = status in {"connected", "reconnected"}
+
 
 _depth_status_sub = subscription("depth_service_status", _depth_status)
 _depth_status_sub.__enter__()
@@ -395,12 +402,15 @@ def start() -> dict:
             "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
             file=sys.stderr,
         )
-        return jsonify(
-            {
-                "status": "error",
-                "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
-            }
-        ), 500
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
+                }
+            ),
+            500,
+        )
 
     missing = _missing_required()
     if missing:
@@ -429,9 +439,7 @@ def autostart() -> dict:
     global trading_thread
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
-    trading_thread = threading.Thread(
-        target=main_module.run_auto, daemon=True
-    )
+    trading_thread = threading.Thread(target=main_module.run_auto, daemon=True)
     trading_thread.start()
     return jsonify({"status": "started"})
 
@@ -532,7 +540,9 @@ def strategies_route() -> dict:
     active = [s.strip() for s in env.split(",") if s.strip()] if env else []
     if not active:
         active = list(StrategyManager.DEFAULT_STRATEGIES)
-    return jsonify({"available": list(StrategyManager.DEFAULT_STRATEGIES), "active": active})
+    return jsonify(
+        {"available": list(StrategyManager.DEFAULT_STRATEGIES), "active": active}
+    )
 
 
 @app.route("/discovery", methods=["GET", "POST"])
@@ -765,7 +775,9 @@ def logs() -> dict:
 def rl_status() -> dict:
     """Return RL training metrics if available."""
     if rl_daemon is None:
-        return jsonify({"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics})
+        return jsonify(
+            {"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics}
+        )
     return jsonify(
         {
             "last_train_time": getattr(rl_daemon, "last_train_time", None),
@@ -785,6 +797,7 @@ def status() -> dict:
     event_alive = False
     url = get_event_bus_url()
     if url and websockets is not None:
+
         async def _check():
             try:
                 async with websockets.connect(
@@ -1221,6 +1234,7 @@ async def _event_ws_handler(ws):
 
 if __name__ == "__main__":
     if websockets is not None:
+
         def _start_rl_ws():
             global rl_ws_loop
             rl_ws_loop = asyncio.new_event_loop()

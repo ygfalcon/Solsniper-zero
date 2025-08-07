@@ -1,6 +1,7 @@
 from pathlib import Path
-from solhunter_zero.backtester import backtest_configs, DEFAULT_STRATEGIES
+
 from solhunter_zero import backtest_cli
+from solhunter_zero.backtester import DEFAULT_STRATEGIES, backtest_configs
 
 
 def test_backtest_cli_with_dates_and_config(tmp_path):
@@ -12,10 +13,12 @@ def test_backtest_cli_with_dates_and_config(tmp_path):
     assert liquidity is None
 
     cfg_path = tmp_path / "cfg.toml"
-    cfg_path.write_text("""[agent_weights]
+    cfg_path.write_text(
+        """[agent_weights]
 buy_hold = 1.0
 momentum = 1.0
-""")
+"""
+    )
 
     res = backtest_configs(
         prices,

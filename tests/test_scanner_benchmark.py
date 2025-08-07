@@ -9,6 +9,7 @@ def _fake_task():
     async def _inner(*_a, **_k):
         await asyncio.sleep(0.05)
         return ["x"]
+
     return _inner
 
 

@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import ast
 import os
 import sys
-from .jsonutil import loads, dumps
-import ast
-from typing import Mapping, Any, Sequence
-from pathlib import Path
-from .dex_config import DEXConfig
-from importlib import import_module
-
 import tomllib
+from importlib import import_module
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
 from pydantic import ValidationError
 
 from .config_schema import ConfigModel
+from .dex_config import DEXConfig
+from .jsonutil import dumps, loads
 
 try:
     import yaml  # type: ignore
@@ -189,6 +189,8 @@ def set_env_from_config(config: dict) -> None:
         val = config.get(key)
         if val is not None and os.getenv(env) is None:
             os.environ[env] = str(val)
+
+
 def validate_config(cfg: Mapping[str, Any]) -> dict:
     """Validate configuration against :class:`ConfigModel` schema.
 
@@ -467,7 +469,7 @@ def get_broker_urls(cfg: Mapping[str, Any] | None = None) -> list[str]:
         if url:
             urls = [url]
     return urls
-    
+
 
 def get_event_serialization(cfg: Mapping[str, Any] | None = None) -> str | None:
     """Return configured event serialization format."""

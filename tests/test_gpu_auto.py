@@ -1,7 +1,7 @@
+import asyncio
 import importlib
 import sys
 import types
-import asyncio
 
 import pytest
 
@@ -13,7 +13,9 @@ def _make_torch(available=True, mps_available=False):
     torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
     torch_mod.cuda = types.SimpleNamespace(is_available=lambda: available)
     torch_mod.backends = types.SimpleNamespace(
-        mps=types.SimpleNamespace(is_available=lambda: mps_available, is_built=lambda: True)
+        mps=types.SimpleNamespace(
+            is_available=lambda: mps_available, is_built=lambda: True
+        )
     )
     torch_mod.ones = lambda *a, **k: types.SimpleNamespace(cpu=lambda: None)
     torch_mod.Tensor = type("Tensor", (), {})
@@ -35,6 +37,7 @@ def test_simulation_auto_enables_gpu(monkeypatch):
     monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)
     monkeypatch.setitem(sys.modules, "cupy", _make_cupy(False))
     import solhunter_zero.simulation as sim
+
     importlib.reload(sim)
     assert sim.USE_GPU_SIM is True
     assert sim._GPU_BACKEND == "torch"
@@ -47,6 +50,7 @@ def test_simulation_env_disables_gpu(monkeypatch):
     monkeypatch.setattr("solhunter_zero.device.torch", torch_mod, raising=False)
     monkeypatch.setitem(sys.modules, "cupy", _make_cupy(True))
     import solhunter_zero.simulation as sim
+
     importlib.reload(sim)
     assert sim.USE_GPU_SIM is False
 
@@ -66,6 +70,7 @@ def test_mps_detected_disables_gpu_index(monkeypatch):
     st_stub.SentenceTransformer = object
     monkeypatch.setitem(sys.modules, "sentence_transformers", st_stub)
     import solhunter_zero.advanced_memory as am
+
     importlib.reload(am)
     assert am._detect_gpu() is True
     assert am._gpu_index_enabled() is False

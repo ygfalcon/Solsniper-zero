@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-import os
-import random
-from typing import List, Dict, Any
-
 import asyncio
 import logging
-
+import os
+import random
 from pathlib import Path
+from typing import Any, Dict, List
 
 import numpy as np
+
 import solhunter_zero.device as device_module
+
 try:
     import torch
     from torch import nn, optim
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -35,13 +36,13 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
     torch = nn = optim = _TorchStub()  # type: ignore
 
+from .. import models
+from ..portfolio import Portfolio
+from ..regime import detect_regime
+from ..replay import ReplayBuffer
+from ..simulation import predict_price_movement as _predict_price_movement
 from . import BaseAgent
 from .memory import MemoryAgent
-from ..portfolio import Portfolio
-from ..replay import ReplayBuffer
-from ..regime import detect_regime
-from .. import models
-from ..simulation import predict_price_movement as _predict_price_movement
 
 
 def predict_price_movement(token: str, *, model_path: str | None = None) -> float:
@@ -95,6 +96,7 @@ class DQNAgent(BaseAgent):
             self._load_weights()
 
         from ..event_bus import subscription
+
         self._rl_sub = subscription("rl_weights", lambda _p: self.reload_weights())
         self._rl_sub.__enter__()
 
@@ -228,7 +230,9 @@ class DQNAgent(BaseAgent):
         self._maybe_reload()
         regime = detect_regime(portfolio.price_history.get(token, []))
         self.train(portfolio, regime)
-        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
+        state = torch.tensor(
+            [self._state(token, portfolio)], dtype=torch.float32, device=self.device
+        )
         if self._fitted:
             with torch.no_grad():
                 if self._jit is not None:
@@ -245,10 +249,26 @@ class DQNAgent(BaseAgent):
         else:
             action = "buy" if q[0] >= q[1] else "sell"
         if action == "buy":
-            return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0, "agent": self.name}]
+            return [
+                {
+                    "token": token,
+                    "side": "buy",
+                    "amount": 1.0,
+                    "price": 0.0,
+                    "agent": self.name,
+                }
+            ]
         position = portfolio.balances.get(token)
         if position:
-            return [{"token": token, "side": "sell", "amount": position.amount, "price": 0.0, "agent": self.name}]
+            return [
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": position.amount,
+                    "price": 0.0,
+                    "agent": self.name,
+                }
+            ]
         return []
 
     def close(self) -> None:

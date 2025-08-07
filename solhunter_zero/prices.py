@@ -1,11 +1,12 @@
-import os
-import logging
-import aiohttp
 import asyncio
+import logging
+import os
+from typing import Dict, Iterable
 
-from typing import Iterable, Dict
+import aiohttp
 
 from solhunter_zero.lru import TTLCache
+
 from .http import get_session
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,6 @@ def update_price_cache(token: str, price: float) -> None:
     """Store ``price`` in the module cache."""
     if isinstance(price, (int, float)):
         PRICE_CACHE.set(token, float(price))
-
-
 
 
 async def _fetch_prices(token_list: Iterable[str]) -> Dict[str, float]:

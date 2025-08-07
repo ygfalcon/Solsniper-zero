@@ -1,5 +1,4 @@
-from solhunter_zero import investor_demo
-from solhunter_zero import simple_memory
+from solhunter_zero import investor_demo, simple_memory
 
 
 def test_memory_fallback(tmp_path, monkeypatch):
@@ -17,7 +16,9 @@ def test_memory_fallback(tmp_path, monkeypatch):
         called["trade"] = kwargs
         return 1
 
-    async def fake_list_trades(self, token: str, **kwargs):  # pragma: no cover - simple stub
+    async def fake_list_trades(
+        self, token: str, **kwargs
+    ):  # pragma: no cover - simple stub
         return [called.get("trade", {})]
 
     monkeypatch.setattr(simple_memory.SimpleMemory, "log_trade", fake_log_trade)

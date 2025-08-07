@@ -1,16 +1,22 @@
 import argparse
+
+import numpy as np
+import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-import pytorch_lightning as pl
-import numpy as np
-from solhunter_zero.offline_data import OfflineData
+
 from solhunter_zero import models
+from solhunter_zero.offline_data import OfflineData
 
 
 class LightningTransformer(pl.LightningModule):
-    def __init__(self, input_dim: int, hidden_dim: int, num_layers: int, lr: float) -> None:
+    def __init__(
+        self, input_dim: int, hidden_dim: int, num_layers: int, lr: float
+    ) -> None:
         super().__init__()
-        layer = torch.nn.TransformerEncoderLayer(input_dim, nhead=8, dim_feedforward=hidden_dim)
+        layer = torch.nn.TransformerEncoderLayer(
+            input_dim, nhead=8, dim_feedforward=hidden_dim
+        )
         self.encoder = torch.nn.TransformerEncoder(layer, num_layers)
         self.fc = torch.nn.Linear(input_dim, 1)
         self.lr = lr
@@ -34,7 +40,9 @@ class LightningTransformer(pl.LightningModule):
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Train transformer model from offline data")
-    p.add_argument("--db", default="sqlite:///offline_data.db", help="Offline data database URL")
+    p.add_argument(
+        "--db", default="sqlite:///offline_data.db", help="Offline data database URL"
+    )
     p.add_argument("--out", required=True, help="Path to save trained model")
     p.add_argument("--epochs", type=int, default=10)
     p.add_argument("--seq-len", type=int, default=30)
@@ -54,10 +62,14 @@ def main() -> None:
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     lt_model = LightningTransformer(X.size(-1), args.hidden_dim, args.layers, args.lr)
-    trainer = pl.Trainer(max_epochs=args.epochs, accelerator="auto", enable_progress_bar=False)
+    trainer = pl.Trainer(
+        max_epochs=args.epochs, accelerator="auto", enable_progress_bar=False
+    )
     trainer.fit(lt_model, loader)
 
-    model = models.DeepTransformerModel(X.size(-1), hidden_dim=args.hidden_dim, num_layers=args.layers)
+    model = models.DeepTransformerModel(
+        X.size(-1), hidden_dim=args.hidden_dim, num_layers=args.layers
+    )
     model.load_state_dict(lt_model.state_dict())
     models.save_model(model, args.out)
     print(f"Model saved to {args.out}")

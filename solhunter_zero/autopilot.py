@@ -1,26 +1,20 @@
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import subprocess
 import sys
 import time
-import logging
 from pathlib import Path
 
-from . import wallet, data_sync, main as main_module
-from .config import (
-    CONFIG_DIR,
-    get_active_config_name,
-    load_config,
-    apply_env_overrides,
-)
-from .service_launcher import (
-    start_depth_service,
-    start_rl_daemon,
-    wait_for_depth_ws,
-)
+from . import data_sync
+from . import main as main_module
+from . import wallet
+from .config import CONFIG_DIR, apply_env_overrides, get_active_config_name, load_config
 from .paths import ROOT
+from .service_launcher import start_depth_service, start_rl_daemon, wait_for_depth_ws
+
 PROCS: list[subprocess.Popen] = []
 
 

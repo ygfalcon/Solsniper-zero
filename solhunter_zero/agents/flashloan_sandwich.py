@@ -2,25 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import AsyncGenerator, Iterable, List, Dict
+from typing import TYPE_CHECKING, AsyncGenerator, Dict, Iterable, List
 
 from solders.keypair import Keypair
 
 from . import BaseAgent
 from .mev_sandwich import _fetch_swap_tx_message
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - for type hints only
     from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
 
 stream_ranked_mempool_tokens_with_depth = None
 
-from ..flash_loans import borrow_flash, repay_flash
-from ..onchain_metrics import fetch_slippage_onchain
 from ..depth_client import prepare_signed_tx
-from ..mev_executor import MEVExecutor
-from ..portfolio import Portfolio
 from ..exchange import DEX_BASE_URL
+from ..flash_loans import borrow_flash, repay_flash
+from ..mev_executor import MEVExecutor
+from ..onchain_metrics import fetch_slippage_onchain
+from ..portfolio import Portfolio
 
 FLASH_LOAN_RATIO = float(os.getenv("FLASH_LOAN_RATIO", "0") or 0)
 
@@ -78,12 +77,14 @@ class FlashloanSandwichAgent(BaseAgent):
 
         if self.jito_ws_url and self.jito_ws_auth:
             from ..jito_stream import stream_pending_swaps
+
             event_stream = stream_pending_swaps(
                 self.jito_ws_url, auth=self.jito_ws_auth
             )
             use_onchain = False
         elif self.jito_rpc_url and self.jito_auth:
             from ..jito_stream import stream_pending_transactions as jito_stream
+
             event_stream = jito_stream(self.jito_rpc_url, auth=self.jito_auth)
             use_onchain = False
         else:
@@ -99,9 +100,7 @@ class FlashloanSandwichAgent(BaseAgent):
             if use_onchain:
                 token = event["address"]
                 size = float(event.get("avg_swap_size", 0.0))
-                slip = await asyncio.to_thread(
-                    fetch_slippage_onchain, token, rpc_url
-                )
+                slip = await asyncio.to_thread(fetch_slippage_onchain, token, rpc_url)
             else:
                 token = event.get("token") or event.get("address")
                 if not token:

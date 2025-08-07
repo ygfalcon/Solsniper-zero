@@ -155,8 +155,13 @@ def ensure_torch_with_metal() -> None:
         importlib.invalidate_caches()
         torch = importlib.import_module("torch")
 
-        if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
-            logger.warning("MPS backend not available; attempting to reinstall Metal wheel")
+        if (
+            not getattr(torch.backends, "mps", None)
+            or not torch.backends.mps.is_available()
+        ):
+            logger.warning(
+                "MPS backend not available; attempting to reinstall Metal wheel"
+            )
             reinstall_cmd = [
                 sys.executable,
                 "-m",
@@ -175,7 +180,10 @@ def ensure_torch_with_metal() -> None:
                 raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
             importlib.invalidate_caches()
             torch = importlib.reload(torch)
-            if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+            if (
+                not getattr(torch.backends, "mps", None)
+                or not torch.backends.mps.is_available()
+            ):
                 logger.error(
                     "MPS backend still not available after installation. Install manually with: %s",
                     reinstall_cmd_str,
@@ -186,11 +194,15 @@ def ensure_torch_with_metal() -> None:
                     + " ".join(METAL_EXTRA_INDEX),
                 )
 
-    if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
-        raise RuntimeError("MPS backend still not available after installation attempts")
+    if (
+        not getattr(torch.backends, "mps", None)
+        or not torch.backends.mps.is_available()
+    ):
+        raise RuntimeError(
+            "MPS backend still not available after installation attempts"
+        )
 
     _write_sentinel()
-
 
 
 def detect_gpu(_attempt_install: bool = True) -> bool:
@@ -260,6 +272,7 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
         logging.getLogger(__name__).exception("Exception during GPU detection")
         return False
 
+
 def get_gpu_backend() -> str | None:
     """Return the default GPU backend name if available."""
 
@@ -310,7 +323,11 @@ def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.d
         if torch.backends.mps.is_available():
             return torch.device("mps")
         return torch.device("cpu")
-    if isinstance(device, str) and device not in ("cpu", "mps") and not torch.cuda.is_available():
+    if (
+        isinstance(device, str)
+        and device not in ("cpu", "mps")
+        and not torch.cuda.is_available()
+    ):
         return torch.device("cpu")
     return torch.device(device) if isinstance(device, str) else device
 
@@ -429,7 +446,8 @@ def initialize_gpu() -> dict[str, str]:
                 if needs_install:
                     if torch is None:
                         logging.getLogger(__name__).info(
-                            "PyTorch missing despite sentinel %s; reinstalling", MPS_SENTINEL
+                            "PyTorch missing despite sentinel %s; reinstalling",
+                            MPS_SENTINEL,
                         )
                         ensure_torch_with_metal()
                         _write_sentinel()
@@ -442,9 +460,7 @@ def initialize_gpu() -> dict[str, str]:
                 logging.getLogger(__name__).exception(
                     "Automatic PyTorch Metal setup failed"
                 )
-                raise RuntimeError(
-                    "Failed to configure MPS-enabled PyTorch"
-                ) from exc
+                raise RuntimeError("Failed to configure MPS-enabled PyTorch") from exc
     verify_gpu()
     env = ensure_gpu_env()
     if env.get("SOLHUNTER_GPU_AVAILABLE") == "0":
@@ -461,7 +477,9 @@ def initialize_gpu() -> dict[str, str]:
 
 def _main() -> int:  # pragma: no cover - CLI helper
     parser = argparse.ArgumentParser()
-    parser.add_argument("--check-gpu", action="store_true", help="exit 0 if a GPU is available")
+    parser.add_argument(
+        "--check-gpu", action="store_true", help="exit 0 if a GPU is available"
+    )
     parser.add_argument(
         "--setup-env",
         action="store_true",

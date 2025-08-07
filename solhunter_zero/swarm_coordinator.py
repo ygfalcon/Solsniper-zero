@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterable, Dict
+from typing import Dict, Iterable
 
 from .agents import BaseAgent
+from .agents.hierarchical_rl_agent import HierarchicalRLAgent
 from .agents.memory import MemoryAgent
 from .agents.rl_weight_agent import RLWeightAgent
-from .agents.hierarchical_rl_agent import HierarchicalRLAgent
 
 
 class SwarmCoordinator:
@@ -46,8 +46,12 @@ class SwarmCoordinator:
         self, agents: Iterable[BaseAgent], *, regime: str | None = None
     ) -> Dict[str, float]:
         rl_agent = next((a for a in agents if isinstance(a, RLWeightAgent)), None)
-        hier_agent = next((a for a in agents if isinstance(a, HierarchicalRLAgent)), None)
-        agents = [a for a in agents if not isinstance(a, (RLWeightAgent, HierarchicalRLAgent))]
+        hier_agent = next(
+            (a for a in agents if isinstance(a, HierarchicalRLAgent)), None
+        )
+        agents = [
+            a for a in agents if not isinstance(a, (RLWeightAgent, HierarchicalRLAgent))
+        ]
         names = [a.name for a in agents]
         rois = self._roi_by_agent(names)
         base = dict(self.base_weights)

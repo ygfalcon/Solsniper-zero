@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Coroutine, TypeVar
-
 import asyncio
 import importlib
 import logging
+from typing import Any, Coroutine, TypeVar
 
 logger = logging.getLogger(__name__)
 

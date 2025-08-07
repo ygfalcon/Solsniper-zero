@@ -1,11 +1,15 @@
-import importlib
 import asyncio
+import importlib
+
 import pytest
 
-from solhunter_zero.agents.crossdex_rebalancer import CrossDEXRebalancer, PortfolioOptimizer
+import solhunter_zero.agents.crossdex_rebalancer as reb
+from solhunter_zero.agents.crossdex_rebalancer import (
+    CrossDEXRebalancer,
+    PortfolioOptimizer,
+)
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.portfolio import Portfolio
-import solhunter_zero.agents.crossdex_rebalancer as reb
 
 
 class DummyExec(ExecutionAgent):
@@ -20,10 +24,12 @@ class DummyExec(ExecutionAgent):
 
 @pytest.fixture
 def ensure_ffi(monkeypatch):
-    from pathlib import Path
     import subprocess
+    from pathlib import Path
 
-    lib_path = Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+    lib_path = (
+        Path(__file__).resolve().parents[1] / "route_ffi/target/release/libroute_ffi.so"
+    )
     if not lib_path.exists():
         subprocess.run(
             [
@@ -51,7 +57,10 @@ def test_rebalancer_uses_ffi(monkeypatch, ensure_ffi):
 
     monkeypatch.setattr(
         "solhunter_zero.agents.crossdex_rebalancer.snapshot",
-        lambda t: ({"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}}, 0.0),
+        lambda t: (
+            {"dexA": {"bids": 50, "asks": 100}, "dexB": {"bids": 50, "asks": 20}},
+            0.0,
+        ),
     )
 
     async def fake_latency(urls):

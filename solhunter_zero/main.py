@@ -1,14 +1,14 @@
+import asyncio
+import contextlib
+import cProfile
+import datetime
 import logging
 import os
-import asyncio
-import sys
-import contextlib
 import subprocess
+import sys
 import time
 from argparse import ArgumentParser
-import cProfile
 from typing import Sequence
-import datetime
 
 try:  # pragma: no cover - optional dependency
     import psutil
@@ -18,24 +18,22 @@ except Exception:  # pragma: no cover - psutil optional
         "psutil not installed; CPU-based loop adjustments disabled"
     )
 
-from .util import install_uvloop
-from .system import detect_cpu_count
-
 from pathlib import Path
 
+from . import metrics_aggregator, wallet
+from .bootstrap import bootstrap
 from .config import (
-    load_config,
+    CONFIG_DIR,
     apply_env_overrides,
-    set_env_from_config,
-    load_selected_config,
     get_active_config_name,
     get_event_bus_url,
-    CONFIG_DIR,
+    load_config,
+    load_selected_config,
+    set_env_from_config,
 )
 from .http import close_session
-from . import wallet
-from . import metrics_aggregator
-from .bootstrap import bootstrap
+from .system import detect_cpu_count
+from .util import install_uvloop
 
 _PROCESS_START_TIME = time.perf_counter()
 
@@ -114,9 +112,7 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
             proc.terminate()
         with contextlib.suppress(Exception):
             proc.wait(timeout=1)
-        raise RuntimeError(
-            f"Failed to start depth_service within {timeout}s"
-        )
+        raise RuntimeError(f"Failed to start depth_service within {timeout}s")
     return proc
 
 
@@ -173,6 +169,7 @@ def ensure_connectivity(*, offline: bool = False) -> None:
         return
 
     from scripts.startup import ensure_rpc as _ensure_rpc
+
     from .dex_ws import stream_listed_tokens
 
     _ensure_rpc()
@@ -209,29 +206,22 @@ _cfg = apply_env_overrides(load_config())
 set_env_from_config(_cfg)
 
 
-from .token_scanner import scan_tokens_async
-from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics_async
-from .market_ws import listen_and_trade
-from .simulation import run_simulations
-from .decision import should_buy, should_sell
-from .prices import fetch_token_prices_async, warm_cache
-
-from . import order_book_ws
-
-from .memory import Memory, load_snapshot
-from .portfolio import Portfolio
-from .exchange import place_order_async as _exchange_place_order_async
-from .strategy_manager import StrategyManager
+from . import arbitrage, depth_client, event_bus, order_book_ws
 from .agent_manager import AgentManager
-from .agents.discovery import DiscoveryAgent
-
-from .portfolio import dynamic_order_size
 from .agents.conviction import predict_price_movement
-from .risk import RiskManager, recent_value_at_risk
-from . import arbitrage
-from . import depth_client
-from . import event_bus
+from .agents.discovery import DiscoveryAgent
 from .data_pipeline import start_depth_snapshot_listener
+from .decision import should_buy, should_sell
+from .exchange import place_order_async as _exchange_place_order_async
+from .market_ws import listen_and_trade
+from .memory import Memory, load_snapshot
+from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics_async
+from .portfolio import Portfolio, dynamic_order_size
+from .prices import fetch_token_prices_async, warm_cache
+from .risk import RiskManager, recent_value_at_risk
+from .simulation import run_simulations
+from .strategy_manager import StrategyManager
+from .token_scanner import scan_tokens_async
 
 # track first trade latency
 _first_trade_recorded = False
@@ -240,7 +230,9 @@ _first_trade_event = asyncio.Event()
 
 class FirstTradeTimeoutError(RuntimeError):
     """Raised when no trade occurs before the configured timeout."""
+
     pass
+
 
 async def place_order_async(*args, **kwargs):
     """Wrapper to emit time-to-first-trade metric on first successful order."""
@@ -266,6 +258,7 @@ async def _check_first_trade(timeout: float, retry: bool) -> None:
         logging.error("First trade not recorded within %s seconds", timeout)
         if retry:
             raise FirstTradeTimeoutError
+
 
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
@@ -581,9 +574,10 @@ async def _init_rl_training(
     if not rl_daemon and not auto_train_cfg:
         return None
 
-    from .rl_daemon import RLDaemon
-    from .event_bus import subscription
     import torch
+
+    from .event_bus import subscription
+    from .rl_daemon import RLDaemon
 
     mem_db = cfg.get("memory_path", "sqlite:///memory.db")
     data_path = cfg.get("rl_db_path", "offline_data.db")
@@ -846,12 +840,14 @@ def main(
     snapshot_trades = load_snapshot(snapshot_path) if snapshot_path else []
     memory = Memory(memory_path)
     if snapshot_trades:
+
         async def _seed(mem: Memory, trades: Sequence[dict]) -> None:
             for tr in trades:
                 try:
                     await mem.log_trade(_broadcast=False, **tr)
                 except Exception:
                     continue
+
         asyncio.run(_seed(memory, snapshot_trades))
     memory.start_writer()
     portfolio = Portfolio(path=portfolio_path)
@@ -859,6 +855,7 @@ def main(
 
     recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
     if recent_window > 0:
+
         async def _load_recent_trades() -> None:
             trades = await memory.list_trades()
             for tr in trades:
@@ -867,6 +864,7 @@ def main(
                     prev = _LAST_TRADE_TIMES.get(tr.token)
                     if prev is None or ts > prev:
                         _LAST_TRADE_TIMES[tr.token] = ts
+
         try:
             asyncio.run(_load_recent_trades())
         except Exception as exc:
@@ -934,12 +932,16 @@ def main(
         prev_count = 0
         prev_ts = time.monotonic()
         nonlocal depth_rate_limit
+
         def _count(_p):
             nonlocal depth_updates
             depth_updates += 1
+
         unsub_counter = event_bus.subscribe("depth_update", _count)
+
         def _record_trade(payload):
             _LAST_TRADE_TIMES[payload.token] = datetime.datetime.utcnow()
+
         unsub_trade = event_bus.subscribe("trade_logged", _record_trade)
         bus_started = False
         if get_event_bus_url() is None:
@@ -984,7 +986,9 @@ def main(
             activity = metrics.get("liquidity", 0.0) + metrics.get("volume", 0.0)
             cpu = psutil.cpu_percent() if psutil is not None else 0.0
             now = time.monotonic()
-            freq = (depth_updates - prev_count) / (now - prev_ts) if now > prev_ts else 0.0
+            freq = (
+                (depth_updates - prev_count) / (now - prev_ts) if now > prev_ts else 0.0
+            )
             if (
                 activity > prev_activity * 1.5
                 or freq > depth_freq_high
@@ -1046,8 +1050,7 @@ def main(
                 while True:
                     try:
                         async for _ in order_book_ws.stream_order_book(
-                            order_book_ws_url,
-                            rate_limit=depth_rate_limit
+                            order_book_ws_url, rate_limit=depth_rate_limit
                         ):
                             pass
                     except Exception as exc:  # pragma: no cover - network errors

@@ -1,11 +1,8 @@
 import argparse
 import asyncio
 
+from solhunter_zero.models.var_forecaster import save_var_model, train_var_forecaster
 from solhunter_zero.offline_data import OfflineData
-from solhunter_zero.models.var_forecaster import (
-    train_var_forecaster,
-    save_var_model,
-)
 
 
 async def _load_prices(data: OfflineData, token: str | None):
@@ -40,4 +37,3 @@ def main() -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-

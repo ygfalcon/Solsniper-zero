@@ -1,5 +1,6 @@
 def test_startup_metrics_emitted(monkeypatch):
     import importlib
+
     import solhunter_zero.config as config
 
     monkeypatch.setattr(config, "load_config", lambda path=None: {})
@@ -22,4 +23,3 @@ def test_startup_metrics_emitted(monkeypatch):
     assert "startup_config_load_duration" in calls
     assert "startup_connectivity_check_duration" in calls
     assert "startup_depth_service_start_duration" in calls
-

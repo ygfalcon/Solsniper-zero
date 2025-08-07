@@ -1,18 +1,20 @@
-import os
-import io
-import json
 import asyncio
-import types
 import contextlib
 import importlib.machinery
+import io
+import json
+import logging
+import os
 import sys
+import threading
+import types
+from collections import deque
+
 import pytest
 from solders.keypair import Keypair
-from solhunter_zero import ui, config
-from collections import deque
+
+from solhunter_zero import config, ui
 from solhunter_zero.portfolio import Position
-import logging
-import threading
 
 pytest.importorskip("google.protobuf")
 
@@ -254,9 +256,7 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
         ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "keys" / "active")
     )
     monkeypatch.setattr(config, "CONFIG_DIR", str(tmp_path / "cfgs"))
-    monkeypatch.setattr(
-        config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active")
-    )
+    monkeypatch.setattr(config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active"))
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
     os.makedirs(config.CONFIG_DIR, exist_ok=True)
 
@@ -286,9 +286,7 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
 
 def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path))
-    monkeypatch.setattr(
-        ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active")
-    )
+    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active"))
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
 
     kp = Keypair()
@@ -476,9 +474,7 @@ def test_vars_endpoint(monkeypatch):
 
 
 def test_rl_status_endpoint(monkeypatch):
-    daemon = type(
-        "D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"}
-    )()
+    daemon = type("D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"})()
     monkeypatch.setattr(ui, "rl_daemon", daemon, raising=False)
     client = ui.app.test_client()
     resp = client.get("/rl/status")

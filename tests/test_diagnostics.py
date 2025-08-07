@@ -7,7 +7,8 @@ import types
 import pytest
 
 from scripts import diagnostics, startup
-from solhunter_zero import bootstrap, diagnostics as core_diagnostics
+from solhunter_zero import bootstrap
+from solhunter_zero import diagnostics as core_diagnostics
 
 
 def test_collect_no_torch(monkeypatch, tmp_path):
@@ -50,18 +51,16 @@ def test_collect_with_torch_and_keypair(monkeypatch, tmp_path):
         return orig_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
-    monkeypatch.setattr(
-        "solhunter_zero.device.get_gpu_backend", lambda: "torch"
-    )
-    monkeypatch.setattr(
-        "solhunter_zero.device.get_default_device", lambda: "cuda"
-    )
+    monkeypatch.setattr("solhunter_zero.device.get_gpu_backend", lambda: "torch")
+    monkeypatch.setattr("solhunter_zero.device.get_default_device", lambda: "cuda")
     monkeypatch.delenv("SOLHUNTER_GPU_DEVICE", raising=False)
     dummy_wallet = types.SimpleNamespace(
         list_keypairs=lambda: ["a"], get_active_keypair_name=lambda: "a"
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
-    monkeypatch.setattr(sys.modules["solhunter_zero"], "wallet", dummy_wallet, raising=False)
+    monkeypatch.setattr(
+        sys.modules["solhunter_zero"], "wallet", dummy_wallet, raising=False
+    )
 
     monkeypatch.setattr(
         diagnostics,
@@ -98,7 +97,9 @@ def test_startup_diagnostics_flag(capsys):
 
 def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
     monkeypatch.setattr(
-        startup, "ensure_deps", lambda install_optional=False: (_ for _ in ()).throw(SystemExit(2))
+        startup,
+        "ensure_deps",
+        lambda install_optional=False: (_ for _ in ()).throw(SystemExit(2)),
     )
     code = startup.run([])
     out = capsys.readouterr().out.lower()
@@ -113,11 +114,14 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap.device, "initialize_gpu", lambda: None)
-    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
+    monkeypatch.setattr(
+        startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"}
+    )
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
     monkeypatch.setattr(bootstrap.wallet, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
     import scripts.healthcheck as healthcheck
+
     monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)

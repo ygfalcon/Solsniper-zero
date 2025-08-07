@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator, Dict, Any
+from typing import Any, AsyncGenerator, Dict
 
 import aiohttp
-from .http import get_session
 
 from .event_bus import publish
+from .http import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -36,31 +36,29 @@ async def stream_pending_transactions(
         try:
             session = await get_session()
             async with session.ws_connect(url, headers=headers) as ws:
-                    backoff = 1.0
-                    try:  # attempt protocol init for GraphQL-style feeds
-                        await ws.send_json(
-                            {
-                                "type": "start",
-                                "payload": {
-                                    "query": "subscription{pendingTransactions}"
-                                },
-                            }
-                        )
-                    except Exception:
-                        pass
-                    async for msg in ws:
-                        if msg.type == aiohttp.WSMsgType.TEXT:
-                            try:
-                                data = json.loads(msg.data)
-                            except Exception:  # pragma: no cover - invalid message
-                                continue
-                            yield data
-                        elif msg.type in (
-                            aiohttp.WSMsgType.CLOSE,
-                            aiohttp.WSMsgType.CLOSED,
-                            aiohttp.WSMsgType.ERROR,
-                        ):
-                            break
+                backoff = 1.0
+                try:  # attempt protocol init for GraphQL-style feeds
+                    await ws.send_json(
+                        {
+                            "type": "start",
+                            "payload": {"query": "subscription{pendingTransactions}"},
+                        }
+                    )
+                except Exception:
+                    pass
+                async for msg in ws:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        try:
+                            data = json.loads(msg.data)
+                        except Exception:  # pragma: no cover - invalid message
+                            continue
+                        yield data
+                    elif msg.type in (
+                        aiohttp.WSMsgType.CLOSE,
+                        aiohttp.WSMsgType.CLOSED,
+                        aiohttp.WSMsgType.ERROR,
+                    ):
+                        break
         except asyncio.CancelledError:
             break
         except Exception as exc:  # pragma: no cover - network errors

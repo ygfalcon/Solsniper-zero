@@ -1,15 +1,17 @@
 import argparse
 from pathlib import Path
+
 import torch
+
 from solhunter_zero.models import (
-    load_model,
-    export_torchscript,
-    export_onnx,
-    PriceModel,
-    TransformerModel,
     DeepLSTMModel,
     DeepTransformerModel,
+    PriceModel,
+    TransformerModel,
     XLTransformerModel,
+    export_onnx,
+    export_torchscript,
+    load_model,
 )
 
 
@@ -37,10 +39,18 @@ def main() -> None:
     else:
         if isinstance(
             model,
-            (PriceModel, TransformerModel, DeepLSTMModel, DeepTransformerModel, XLTransformerModel),
+            (
+                PriceModel,
+                TransformerModel,
+                DeepLSTMModel,
+                DeepTransformerModel,
+                XLTransformerModel,
+            ),
         ):
             input_dim = (
-                model.input_dim if hasattr(model, "input_dim") else model.lstm.input_size
+                model.input_dim
+                if hasattr(model, "input_dim")
+                else model.lstm.input_size
             )
             sample = torch.zeros(1, args.seq_len, input_dim)
         elif hasattr(model, "actor"):

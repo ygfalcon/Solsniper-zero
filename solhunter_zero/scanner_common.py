@@ -1,24 +1,20 @@
-import os
-import logging
 import asyncio
-from typing import Dict, List, Optional, Iterable
+import logging
+import os
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional
+
+import aiohttp
 
 from solhunter_zero.lru import TTLCache
 
-import aiohttp
 from .http import get_session
-
-from pathlib import Path
-
-
 from .scanner_onchain import scan_tokens_onchain, scan_tokens_onchain_sync
 
 logger = logging.getLogger(__name__)
 
 # Endpoint providing trending tokens across multiple DEXes
-JUPITER_TRENDS_API = os.getenv(
-    "JUPITER_TRENDS_API", "https://stats.jup.ag/trending"
-)
+JUPITER_TRENDS_API = os.getenv("JUPITER_TRENDS_API", "https://stats.jup.ag/trending")
 
 BIRDEYE_API = "https://public-api.birdeye.so/defi/tokenlist"
 BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
@@ -28,9 +24,7 @@ SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
 RAYDIUM_LISTINGS_API = os.getenv(
     "RAYDIUM_LISTINGS_API", "https://api.raydium.io/new-listings"
 )
-ORCA_LISTINGS_API = os.getenv(
-    "ORCA_LISTINGS_API", "https://api.orca.so/new-listings"
-)
+ORCA_LISTINGS_API = os.getenv("ORCA_LISTINGS_API", "https://api.orca.so/new-listings")
 PHOENIX_LISTINGS_API = os.getenv(
     "PHOENIX_LISTINGS_API", "https://api.phoenix.trade/new-listings"
 )
@@ -45,9 +39,7 @@ DEX_LISTING_WS_URL = os.getenv("DEX_LISTING_WS_URL", "")
 # Filtering configuration
 TOKEN_SUFFIX = os.getenv("TOKEN_SUFFIX", "bonk")
 TOKEN_KEYWORDS: List[str] = [
-    k.strip().lower()
-    for k in os.getenv("TOKEN_KEYWORDS", "").split(",")
-    if k.strip()
+    k.strip().lower() for k in os.getenv("TOKEN_KEYWORDS", "").split(",") if k.strip()
 ]
 VOLUME_THRESHOLD = float(os.getenv("VOLUME_THRESHOLD", "0") or 0)
 
@@ -298,9 +290,7 @@ def offline_or_onchain(
     return None
 
 
-
 async def offline_or_onchain_async(
-
     offline: bool,
     token_file: str | None = None,
     *,
@@ -363,7 +353,6 @@ async def offline_or_onchain_async(
 
 
 def scan_tokens_from_pools() -> List[str]:
-
     """Discover tokens from recently created liquidity pools."""
 
     logger.info("Scanning pools for tokens")

@@ -8,6 +8,7 @@ import time
 from typing import IO
 
 from .paths import ROOT
+
 logger = logging.getLogger(__name__)
 
 

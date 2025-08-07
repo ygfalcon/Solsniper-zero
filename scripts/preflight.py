@@ -3,17 +3,19 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
-import json
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
+from solhunter_zero.logging_utils import log_startup
 from solhunter_zero.paths import ROOT
 from solhunter_zero.preflight_utils import (
     Check,
+    check_config_file,
     check_dependencies,
     check_disk_space,
     check_gpu,
@@ -26,10 +28,7 @@ from solhunter_zero.preflight_utils import (
     check_rust_toolchain,
     check_rustup,
     check_xcode_clt,
-    check_config_file,
 )
-from solhunter_zero.logging_utils import log_startup
-
 
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Python", check_python_version),
@@ -44,9 +43,7 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     (
         "Network",
         lambda: check_network(
-            os.environ.get(
-                "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-            )
+            os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
         ),
     ),
     ("GPU", check_gpu),
@@ -79,9 +76,7 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
             {"name": name, "message": msg} for name, ok, msg in results if ok
         ],
         "failures": [
-            {"name": name, "message": msg}
-            for name, ok, msg in results
-            if not ok
+            {"name": name, "message": msg} for name, ok, msg in results if not ok
         ],
     }
     try:

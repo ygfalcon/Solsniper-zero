@@ -9,9 +9,10 @@ import solhunter_zero.device as device_module
 
 try:
     import torch
-    from torch import nn, optim
     import torch.nn.functional as F
+    from torch import nn, optim
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -32,15 +33,15 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 import asyncio
 import logging
 
-from . import BaseAgent
-from .memory import MemoryAgent
+from .. import models
 from ..offline_data import OfflineData
 from ..order_book_ws import snapshot
 from ..portfolio import Portfolio
-from ..replay import ReplayBuffer
 from ..regime import detect_regime
-from .. import models
+from ..replay import ReplayBuffer
 from ..simulation import predict_price_movement as _predict_price_movement
+from . import BaseAgent
+from .memory import MemoryAgent
 
 
 def predict_price_movement(token: str, *, model_path: str | None = None) -> float:
@@ -97,10 +98,17 @@ class PPOAgent(BaseAgent):
         )
         self.actor.to(self.device)
         self.critic.to(self.device)
-        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {
+            "0",
+            "false",
+            "no",
+        }
         if use_compile:
             try:
-                if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:
+                if (
+                    getattr(torch, "compile", None)
+                    and int(torch.__version__.split(".")[0]) >= 2
+                ):
                     self.actor = torch.compile(self.actor)
                     self.critic = torch.compile(self.critic)
             except Exception:
@@ -116,6 +124,7 @@ class PPOAgent(BaseAgent):
             self._load_weights()
 
         from ..event_bus import subscription
+
         self._rl_sub = subscription("rl_weights", lambda _p: self.reload_weights())
         self._rl_sub.__enter__()
 
@@ -197,15 +206,20 @@ class PPOAgent(BaseAgent):
         if not batch:
             return
 
-        states = torch.tensor([b[0] for b in batch], dtype=torch.float32, device=self.device)
-        actions = torch.tensor([0 if b[1] == "buy" else 1 for b in batch], device=self.device)
-        rewards = torch.tensor([b[2] for b in batch], dtype=torch.float32, device=self.device)
+        states = torch.tensor(
+            [b[0] for b in batch], dtype=torch.float32, device=self.device
+        )
+        actions = torch.tensor(
+            [0 if b[1] == "buy" else 1 for b in batch], device=self.device
+        )
+        rewards = torch.tensor(
+            [b[2] for b in batch], dtype=torch.float32, device=self.device
+        )
 
         with torch.no_grad():
-            old_log_probs = (
-                torch.distributions.Categorical(logits=self.actor(states))
-                .log_prob(actions)
-            )
+            old_log_probs = torch.distributions.Categorical(
+                logits=self.actor(states)
+            ).log_prob(actions)
             values = self.critic(states).squeeze()
             advantages = rewards - values
             returns = rewards
@@ -215,7 +229,10 @@ class PPOAgent(BaseAgent):
             log_probs = dist.log_prob(actions)
             ratio = torch.exp(log_probs - old_log_probs)
             s1 = ratio * advantages
-            s2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * advantages
+            s2 = (
+                torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+                * advantages
+            )
             actor_loss = -torch.min(s1, s2).mean()
 
             value_pred = self.critic(states).squeeze()
@@ -267,7 +284,9 @@ class PPOAgent(BaseAgent):
         self._maybe_reload()
         regime = detect_regime(portfolio.price_history.get(token, []))
         self.train(regime)
-        state = torch.tensor([self._state(token, portfolio)], dtype=torch.float32, device=self.device)
+        state = torch.tensor(
+            [self._state(token, portfolio)], dtype=torch.float32, device=self.device
+        )
         with torch.no_grad():
             if self._jit is not None and hasattr(self._jit, "actor"):
                 logits = self._jit.actor(state)[0]
@@ -277,10 +296,26 @@ class PPOAgent(BaseAgent):
         logits = logits + torch.tensor([pred, -pred], device=self.device)
         action = "buy" if logits[0] >= logits[1] else "sell"
         if action == "buy":
-            return [{"token": token, "side": "buy", "amount": 1.0, "price": 0.0, "agent": self.name}]
+            return [
+                {
+                    "token": token,
+                    "side": "buy",
+                    "amount": 1.0,
+                    "price": 0.0,
+                    "agent": self.name,
+                }
+            ]
         position = portfolio.balances.get(token)
         if position:
-            return [{"token": token, "side": "sell", "amount": position.amount, "price": 0.0, "agent": self.name}]
+            return [
+                {
+                    "token": token,
+                    "side": "sell",
+                    "amount": position.amount,
+                    "price": 0.0,
+                    "agent": self.name,
+                }
+            ]
         return []
 
     def close(self) -> None:

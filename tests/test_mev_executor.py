@@ -13,12 +13,8 @@ def test_mev_executor_submit(monkeypatch):
     async def fake_submit(tx, *, priority_rpc=None, priority_fee=None):
         calls.append((tx, priority_fee, priority_rpc))
 
-    monkeypatch.setattr(
-        "solhunter_zero.mev_executor.submit_raw_tx", fake_submit
-    )
-    monkeypatch.setattr(
-        "solhunter_zero.mev_executor.snapshot", lambda tok: ({}, 5.0)
-    )
+    monkeypatch.setattr("solhunter_zero.mev_executor.submit_raw_tx", fake_submit)
+    monkeypatch.setattr("solhunter_zero.mev_executor.snapshot", lambda tok: ({}, 5.0))
     monkeypatch.setattr(
         "solhunter_zero.mev_executor.adjust_priority_fee", lambda rate: 7
     )
@@ -62,9 +58,7 @@ def test_mev_executor_jito(monkeypatch):
             return FakeResp()
 
     monkeypatch.setattr("aiohttp.ClientSession", lambda: FakeSession())
-    monkeypatch.setattr(
-        "solhunter_zero.mev_executor.snapshot", lambda tok: ({}, 5.0)
-    )
+    monkeypatch.setattr("solhunter_zero.mev_executor.snapshot", lambda tok: ({}, 5.0))
     monkeypatch.setattr(
         "solhunter_zero.mev_executor.adjust_priority_fee", lambda rate: 7
     )

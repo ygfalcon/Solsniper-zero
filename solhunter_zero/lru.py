@@ -11,6 +11,7 @@ from typing import Any, Hashable
 try:  # cachetools is optional when running tests
     from cachetools import LRUCache as _LRUCache
 except Exception:  # pragma: no cover - fallback when cachetools missing
+
     class _LRUCache(dict):  # type: ignore
         def __init__(self, maxsize: int = 128, *args: Any, **kwargs: Any) -> None:
             self.maxsize = maxsize
@@ -20,6 +21,7 @@ except Exception:  # pragma: no cover - fallback when cachetools missing
             if len(self) >= self.maxsize:
                 self.pop(next(iter(self)), None)
             super().__setitem__(key, value)
+
 
 try:
     from cachetools import TTLCache as _BaseTTL

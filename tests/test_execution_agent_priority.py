@@ -1,6 +1,7 @@
 import asyncio
-import types
 import sys
+import types
+
 import pytest
 
 sys.modules.setdefault("torch", types.ModuleType("torch"))

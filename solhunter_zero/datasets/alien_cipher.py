@@ -1,11 +1,12 @@
 """Loader for alien cipher coefficients dataset."""
 from __future__ import annotations
 
-from ..jsonutil import loads
 from importlib import resources
 from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Dict
+
+from ..jsonutil import loads
 
 # Default dataset path relative to the package
 DEFAULT_PATH = resources.files("solhunter_zero") / "data" / "alien_cipher.json"

@@ -1,6 +1,7 @@
-import numpy as np
 import importlib.util
 from pathlib import Path
+
+import numpy as np
 
 # Load backtester module without importing the package __init__ which
 # requires optional dependencies like `solders`.
@@ -8,6 +9,7 @@ _path = Path(__file__).resolve().parents[1] / "solhunter_zero" / "backtester.py"
 spec = importlib.util.spec_from_file_location("backtester", _path)
 backtester = importlib.util.module_from_spec(spec)
 import sys
+
 sys.modules[spec.name] = backtester
 assert spec.loader is not None
 spec.loader.exec_module(backtester)

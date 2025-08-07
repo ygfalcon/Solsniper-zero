@@ -27,4 +27,3 @@ def test_investor_demo_rl_metric(tmp_path, monkeypatch, capsys, dummy_mem):
 
     highlights = json.loads((tmp_path / "highlights.json").read_text())
     assert highlights.get("rl_reward") == expected
-

@@ -1,11 +1,11 @@
+import csv
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-import csv
-import json
 
 import pytest
 
@@ -48,8 +48,7 @@ def _run_and_check(
     matches: dict[tuple[str | None, str], dict[str, float]] = {}
     for m in pattern.finditer(result.stdout):
         matches[(m.group("token"), m.group("strategy"))] = {
-            metric: float(m.group(group))
-            for metric, group in metric_groups.items()
+            metric: float(m.group(group)) for metric, group in metric_groups.items()
         }
 
     loaded_prices = investor_demo.load_prices(data_path)
@@ -89,9 +88,7 @@ def _run_and_check(
 
     summary_data = json.loads(summary_json.read_text())
     if isinstance(loaded_prices, dict):
-        summary_map = {
-            (row["token"], row["config"]): row for row in summary_data
-        }
+        summary_map = {(row["token"], row["config"]): row for row in summary_data}
         for key, printed in matches.items():
             if key in summary_map:
                 exp = summary_map[key]
@@ -100,12 +97,8 @@ def _run_and_check(
                 )
                 assert printed["roi"] == pytest.approx(exp["roi"], abs=1e-4)
                 assert printed["sharpe"] == pytest.approx(exp["sharpe"], abs=1e-4)
-                assert printed["drawdown"] == pytest.approx(
-                    exp["drawdown"], abs=1e-4
-                )
-                assert printed["win_rate"] == pytest.approx(
-                    exp["win_rate"], abs=1e-4
-                )
+                assert printed["drawdown"] == pytest.approx(exp["drawdown"], abs=1e-4)
+                assert printed["win_rate"] == pytest.approx(exp["win_rate"], abs=1e-4)
     else:
         summary_map = {row["config"]: row for row in summary_data}
         assert strategies <= summary_map.keys()
@@ -116,15 +109,9 @@ def _run_and_check(
                     exp["final_capital"], abs=0.01
                 )
                 assert printed["roi"] == pytest.approx(exp["roi"], abs=1e-4)
-                assert printed["sharpe"] == pytest.approx(
-                    exp["sharpe"], abs=1e-4
-                )
-                assert printed["drawdown"] == pytest.approx(
-                    exp["drawdown"], abs=1e-4
-                )
-                assert printed["win_rate"] == pytest.approx(
-                    exp["win_rate"], abs=1e-4
-                )
+                assert printed["sharpe"] == pytest.approx(exp["sharpe"], abs=1e-4)
+                assert printed["drawdown"] == pytest.approx(exp["drawdown"], abs=1e-4)
+                assert printed["win_rate"] == pytest.approx(exp["win_rate"], abs=1e-4)
 
     trade_history_csv = reports_dir / "trade_history.csv"
     highlights_json = reports_dir / "highlights.json"

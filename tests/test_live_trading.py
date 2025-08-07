@@ -1,8 +1,9 @@
-from pathlib import Path
-import sys
-import types
 import contextlib
 import importlib.machinery
+import sys
+import types
+from pathlib import Path
+
 from tests.stubs import stub_numpy
 
 
@@ -12,10 +13,8 @@ def setup_live_trading_env(mp):
     mp.setitem(sys.modules, "faiss", faiss_mod)
     st_mod = types.ModuleType("sentence_transformers")
     st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
-    st_mod.SentenceTransformer = (
-        lambda *a, **k: types.SimpleNamespace(
-            get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
-        )
+    st_mod.SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
+        get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
     )
     mp.setitem(sys.modules, "sentence_transformers", st_mod)
 
@@ -97,6 +96,7 @@ def setup_live_trading_env(mp):
     stub_models.regime_classifier = sys.modules[
         "solhunter_zero.models.regime_classifier"
     ]
+
     async def _dummy_async(*_a, **_k):
         return None
 
@@ -106,6 +106,7 @@ def setup_live_trading_env(mp):
         subscribe=lambda *a, **k: (lambda: None),
         publish=lambda *a, **k: None,
     )
+
     class _Sub:
         def __enter__(self):
             return self
@@ -123,20 +124,32 @@ def setup_live_trading_env(mp):
         load_selected_keypair=lambda: object(),
     )
     mp.setitem(sys.modules, "solhunter_zero.wallet", wallet_stub)
-    metrics_stub = types.SimpleNamespace(start=lambda: None, publish=lambda *a, **k: None, emit_startup_complete=lambda *a, **k: None)
+    metrics_stub = types.SimpleNamespace(
+        start=lambda: None,
+        publish=lambda *a, **k: None,
+        emit_startup_complete=lambda *a, **k: None,
+    )
     mp.setitem(sys.modules, "solhunter_zero.metrics_aggregator", metrics_stub)
     bootstrap_stub = types.SimpleNamespace(bootstrap=lambda: None)
     mp.setitem(sys.modules, "solhunter_zero.bootstrap", bootstrap_stub)
     token_scanner_stub = types.SimpleNamespace(scan_tokens_async=lambda *_a, **_k: [])
     mp.setitem(sys.modules, "solhunter_zero.token_scanner", token_scanner_stub)
-    onchain_stub = types.SimpleNamespace(async_top_volume_tokens=lambda *_a, **_k: [], fetch_dex_metrics_async=lambda *_a, **_k: {"liquidity": 0.0, "volume": 0.0})
+    onchain_stub = types.SimpleNamespace(
+        async_top_volume_tokens=lambda *_a, **_k: [],
+        fetch_dex_metrics_async=lambda *_a, **_k: {"liquidity": 0.0, "volume": 0.0},
+    )
     mp.setitem(sys.modules, "solhunter_zero.onchain_metrics", onchain_stub)
     exchange_stub = types.SimpleNamespace(place_order_async=lambda *a, **k: {})
     mp.setitem(sys.modules, "solhunter_zero.exchange", exchange_stub)
     order_book_ws_stub = types.SimpleNamespace()
     mp.setitem(sys.modules, "solhunter_zero.order_book_ws", order_book_ws_stub)
-    agent_manager_stub = types.SimpleNamespace(AgentManager=type("AgentManager", (), {"from_config": staticmethod(lambda cfg: None)}))
+    agent_manager_stub = types.SimpleNamespace(
+        AgentManager=type(
+            "AgentManager", (), {"from_config": staticmethod(lambda cfg: None)}
+        )
+    )
     mp.setitem(sys.modules, "solhunter_zero.agent_manager", agent_manager_stub)
+
     class _DiscoveryAgent:
         async def discover_tokens(self, **_):
             return ["TOK"]
@@ -178,6 +191,7 @@ def setup_live_trading_env(mp):
     mp.setitem(sys.modules, "pydantic", pydantic_mod)
     from solhunter_zero import main as main_module
     from solhunter_zero.simulation import SimulationResult
+
     repo_root = Path(__file__).resolve().parent.parent
     cfg_path = repo_root / "config" / "default.toml"
     key_path = repo_root / "keypairs" / "default.json"

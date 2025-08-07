@@ -1,10 +1,10 @@
 import argparse
 import asyncio
 
+import solhunter_zero.device as device
 from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-import solhunter_zero.device as device
 
 
 async def main() -> None:
@@ -20,7 +20,12 @@ async def main() -> None:
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)
-    agent = DQNAgent(memory_agent=mem_agent, model_path=args.model, replay_url=args.replay, device=dev)
+    agent = DQNAgent(
+        memory_agent=mem_agent,
+        model_path=args.model,
+        replay_url=args.replay,
+        device=dev,
+    )
     agent.start_online_learning(interval=args.interval)
     await asyncio.Event().wait()
 

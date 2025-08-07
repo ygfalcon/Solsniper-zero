@@ -12,8 +12,8 @@ from typing import Iterable
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
-from solhunter_zero.paths import ROOT
 from solhunter_zero import env  # noqa: E402
+from solhunter_zero.paths import ROOT
 
 env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
@@ -69,8 +69,12 @@ def load_cluster_config(path: str) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Launch multiple nodes from a cluster configuration")
-    parser.add_argument("config", nargs="?", default="cluster.toml", help="Cluster config file")
+    parser = argparse.ArgumentParser(
+        description="Launch multiple nodes from a cluster configuration"
+    )
+    parser.add_argument(
+        "config", nargs="?", default="cluster.toml", help="Cluster config file"
+    )
     args = parser.parse_args(argv)
 
     cfg = load_cluster_config(args.config)

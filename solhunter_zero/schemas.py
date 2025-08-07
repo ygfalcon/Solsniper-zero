@@ -1,13 +1,14 @@
 """Typed event payload schemas used with the event bus."""
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, Dict, Type
 
 
 @dataclass
 class ActionExecuted:
     """Payload for an executed trading action."""
+
     action: Dict[str, Any]
     result: Any
 
@@ -15,6 +16,7 @@ class ActionExecuted:
 @dataclass
 class WeightsUpdated:
     """Payload for updated agent weights."""
+
     weights: Dict[str, float]
 
 
@@ -29,6 +31,7 @@ class RLWeights:
 @dataclass
 class RLCheckpoint:
     """Payload emitted when RL daemon saves a checkpoint."""
+
     time: float
     path: str
 
@@ -125,4 +128,3 @@ def to_dict(payload: Any) -> Any:
     if is_dataclass(payload):
         return asdict(payload)
     return payload
-

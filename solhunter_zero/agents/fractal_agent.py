@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -9,11 +9,11 @@ try:  # optional dependency
 except Exception:  # pragma: no cover - optional dependency
     pywt = None
 
-from . import BaseAgent
-from ..portfolio import Portfolio
-from ..memory import Memory
 from ..advanced_memory import AdvancedMemory
+from ..memory import Memory
 from ..offline_data import OfflineData
+from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class FractalAgent(BaseAgent):

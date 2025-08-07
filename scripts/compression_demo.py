@@ -1,12 +1,13 @@
-import os
 import asyncio
 import importlib
+import os
 import time
 
 import websockets
 
 import solhunter_zero.event_bus as ev
 from solhunter_zero import event_pb2
+
 
 async def measure(compress: bool) -> tuple[int, float]:
     if compress:
@@ -32,11 +33,13 @@ async def measure(compress: bool) -> tuple[int, float]:
     size = len(raw) if isinstance(raw, (bytes, bytearray)) else len(str(raw))
     return size, latency
 
+
 async def main() -> None:
     size_plain, lat_plain = await measure(False)
     size_zstd, lat_zstd = await measure(True)
     print(f"plain: {size_plain} bytes, latency {lat_plain*1000:.3f} ms")
     print(f"zstd:  {size_zstd} bytes, latency {lat_zstd*1000:.3f} ms")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

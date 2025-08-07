@@ -1,4 +1,5 @@
 import asyncio
+
 from solhunter_zero.agents.mempool_sniper import MempoolSniperAgent
 
 
@@ -55,16 +56,16 @@ def test_mempool_sniper_jito(monkeypatch):
     created = {}
 
     class FakeMEV:
-        def __init__(self, token, *, priority_rpc=None, jito_rpc_url=None, jito_auth=None, **_):
+        def __init__(
+            self, token, *, priority_rpc=None, jito_rpc_url=None, jito_auth=None, **_
+        ):
             created["jito_url"] = jito_rpc_url
             created["jito_auth"] = jito_auth
 
         async def submit_bundle(self, txs):
             pass
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.mempool_sniper.MEVExecutor", FakeMEV
-    )
+    monkeypatch.setattr("solhunter_zero.agents.mempool_sniper.MEVExecutor", FakeMEV)
 
     agent = MempoolSniperAgent(
         mempool_threshold=1.0,

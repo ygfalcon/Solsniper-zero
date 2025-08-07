@@ -1,6 +1,7 @@
 import argparse
-from solhunter_zero.agents.ppo_agent import PPOAgent
+
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.memory import Memory
 
 

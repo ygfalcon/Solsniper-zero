@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict
 
+
 @dataclass
 class DEXConfig:
     """DEX endpoint and cost configuration."""

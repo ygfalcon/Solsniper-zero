@@ -2,15 +2,16 @@ import asyncio
 import types
 
 import pytest
+
 trans = pytest.importorskip("transformers")
 if not hasattr(trans, "pipeline"):
     trans.pipeline = lambda *a, **k: lambda x: []
 
+from solhunter_zero.advanced_memory import AdvancedMemory
 from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agents.emotion_agent import EmotionAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents.emotion_agent import EmotionAgent
-from solhunter_zero.advanced_memory import AdvancedMemory
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -31,9 +32,7 @@ def test_emotion_logged(tmp_path, monkeypatch):
     async def fake_place(token, side, amount, price, **_):
         return {"ok": True, "price": price}
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.execution.place_order_async", fake_place
-    )
+    monkeypatch.setattr("solhunter_zero.agents.execution.place_order_async", fake_place)
 
     async def proposer(token, pf, *, depth=None, imbalance=None):
         return [

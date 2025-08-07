@@ -1,11 +1,13 @@
 import argparse
+import asyncio
 import importlib
 import os
 import time
-import asyncio
+
 
 async def ws_latency(n: int, host: str, port: int) -> float:
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
     await ev.start_ws_server(host, port)
     async with ev.websockets.connect(f"ws://{host}:{port}") as ws:
@@ -25,15 +27,15 @@ def _read_mmap(mm, pos):
     size = mm.size()
     if pos < 4 or pos >= size:
         pos = 4
-    ln = int.from_bytes(mm[pos:pos+4], "little")
+    ln = int.from_bytes(mm[pos : pos + 4], "little")
     pos += 4
     if pos + ln > size:
         part1 = bytes(mm[pos:size])
         remain = ln - (size - pos)
-        part2 = bytes(mm[4:4+remain])
+        part2 = bytes(mm[4 : 4 + remain])
         pos = 4 + remain
         return part1 + part2, pos
-    data = bytes(mm[pos:pos+ln])
+    data = bytes(mm[pos : pos + ln])
     pos += ln
     if pos >= size:
         pos = 4
@@ -44,6 +46,7 @@ def mmap_latency(n: int, path: str, size: int) -> float:
     os.environ["EVENT_BUS_MMAP"] = path
     os.environ["EVENT_BUS_MMAP_SIZE"] = str(size)
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
     mm = ev.open_mmap()
     if mm is None:

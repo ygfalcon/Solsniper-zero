@@ -1,10 +1,11 @@
 import datetime
 import time
 from types import SimpleNamespace
+
 import numpy as np
 
-from solhunter_zero.rl_training import _TradeDataset
 from solhunter_zero.regime import detect_regime
+from solhunter_zero.rl_training import _TradeDataset
 
 
 def _generate_sample(n_trades: int = 100_000, n_snaps: int = 10_000):
@@ -46,7 +47,9 @@ def _generate_sample(n_trades: int = 100_000, n_snaps: int = 10_000):
     return trades, snaps
 
 
-def _regimes_python(tokens: np.ndarray, prices: np.ndarray, weight: float) -> np.ndarray:
+def _regimes_python(
+    tokens: np.ndarray, prices: np.ndarray, weight: float
+) -> np.ndarray:
     hist: dict[str, list[float]] = {}
     out = np.zeros(len(tokens), dtype=np.float32)
     for i, (tok, p) in enumerate(zip(tokens, prices)):

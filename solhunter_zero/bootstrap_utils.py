@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import importlib.util
+import json
 import logging
 import os
 import platform
@@ -9,12 +9,12 @@ import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
-
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Sequence
 
 from scripts import deps
+
 from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
@@ -142,9 +142,7 @@ def _pip_install(*args: str, retries: int = 3) -> None:
         if result.stderr:
             log_startup(result.stderr.rstrip())
         if result.returncode == 0:
-            log_startup(
-                f"pip install {' '.join(args)} succeeded on attempt {attempt}"
-            )
+            log_startup(f"pip install {' '.join(args)} succeeded on attempt {attempt}")
             return
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
@@ -157,11 +155,13 @@ def _pip_install(*args: str, retries: int = 3) -> None:
     retry_cmd = " ".join(cmd)
     print(f"{msg}. To retry manually, run: {retry_cmd}")
     log_startup(
-        json.dumps({
-            "event": "pip_install_failed",
-            "cmd": retry_cmd,
-            "errors": [e for e in errors if e],
-        })
+        json.dumps(
+            {
+                "event": "pip_install_failed",
+                "cmd": retry_cmd,
+                "errors": [e for e in errors if e],
+            }
+        )
     )
     raise SystemExit(result.returncode)
 
@@ -290,7 +290,9 @@ def ensure_deps(
                 subprocess.check_call(
                     [sys.executable, "-m", "ensurepip", "--default-pip"]
                 )
-            except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
+            except (
+                subprocess.CalledProcessError
+            ) as exc:  # pragma: no cover - hard failure
                 print(f"Failed to bootstrap pip: {exc}")
                 raise SystemExit(exc.returncode)
             else:
@@ -303,11 +305,14 @@ def ensure_deps(
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         extra_index = list(METAL_EXTRA_INDEX)
 
-    need_install = bool(req) or need_cli or (cfg.install_optional and (opt or extra_index))
+    need_install = (
+        bool(req) or need_cli or (cfg.install_optional and (opt or extra_index))
+    )
     if need_install:
-        from scripts import preflight
         import contextlib
         import io
+
+        from scripts import preflight
 
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
@@ -335,7 +340,9 @@ def ensure_deps(
             )
             raise SystemExit(1)
         if need_cli and shutil.which("solhunter-wallet") is None:
-            print("'solhunter-wallet' still not available after installation. Aborting.")
+            print(
+                "'solhunter-wallet' still not available after installation. Aborting."
+            )
             raise SystemExit(1)
 
     if cfg.install_optional and extra_index:
@@ -383,6 +390,7 @@ def ensure_deps(
             )
 
     from . import bootstrap as bootstrap_mod
+
     bootstrap_mod.ensure_route_ffi()
     bootstrap_mod.ensure_depth_service()
 
@@ -409,6 +417,7 @@ def ensure_endpoints(cfg: dict) -> None:
 
     import asyncio
     import urllib.error
+
     from solhunter_zero.http import check_endpoint
 
     urls: dict[str, str] = {}
@@ -452,9 +461,7 @@ def ensure_endpoints(cfg: dict) -> None:
         failures.append((name, url, exc))
 
     if failures:
-        details = "; ".join(
-            f"{name} at {url} ({exc})" for name, url, exc in failures
-        )
+        details = "; ".join(f"{name} at {url} ({exc})" for name, url, exc in failures)
         print(
             "Failed to reach the following endpoints: "
             f"{details}. Check your network connection or configuration."
@@ -564,5 +571,3 @@ def ensure_cargo() -> None:
                 f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script.",
             )
             raise SystemExit(1)
-
-

@@ -1,27 +1,26 @@
 from __future__ import annotations
 
-import json
-import os
-from argparse import ArgumentParser
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
-import tomllib
 import asyncio
 import csv
+import json
+import os
+import tomllib
+from argparse import ArgumentParser
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
 from .http import close_session
 from .util import install_uvloop
 
 install_uvloop()
 
-from .trade_analyzer import analyze_trades
-
 from .backtester import (
-    backtest_strategies,
-    backtest_configs,
-    backtest_weighted,
     DEFAULT_STRATEGIES,
+    backtest_configs,
+    backtest_strategies,
+    backtest_weighted,
 )
+from .trade_analyzer import analyze_trades
 
 
 def bayesian_optimize_weights(
@@ -31,9 +30,9 @@ def bayesian_optimize_weights(
     iterations: int = 20,
 ) -> Dict[str, float]:
     """Search for the best agent weights using Bayesian optimisation."""
+    import numpy as np
     from sklearn.gaussian_process import GaussianProcessRegressor
     from sklearn.gaussian_process.kernels import Matern
-    import numpy as np
 
     rng = np.random.default_rng(0)
     X: List[List[float]] = []
@@ -249,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
         strategies = DEFAULT_STRATEGIES
 
     if not args.configs:
-        results = backtest_strategies(prices, liquidity=liquidity, strategies=strategies)
+        results = backtest_strategies(
+            prices, liquidity=liquidity, strategies=strategies
+        )
     else:
         cfgs = []
         for path in args.configs:
@@ -264,7 +265,9 @@ def main(argv: list[str] | None = None) -> int:
             best = bayesian_optimize_weights(prices, keys, strategies, args.iterations)
             print(json.dumps(best))
             return 0
-        results = backtest_configs(prices, cfgs, strategies=strategies, liquidity=liquidity)
+        results = backtest_configs(
+            prices, cfgs, strategies=strategies, liquidity=liquidity
+        )
 
     for res in results:
         print(f"{res.name}\tROI={res.roi:.4f}\tSharpe={res.sharpe:.2f}")

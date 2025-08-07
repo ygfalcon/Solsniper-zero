@@ -1,10 +1,12 @@
-import sys
-import types
 import contextlib
-from pathlib import Path
 import importlib.machinery
 import importlib.util
+import sys
+import types
+from pathlib import Path
+
 import pytest
+
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 
@@ -129,9 +131,7 @@ if importlib.util.find_spec("solana") is None:
         async def get_program_accounts(self, *a, **k):
             return {}
 
-    rpc_mod.api = types.SimpleNamespace(
-        Client=object, AsyncClient=_AsyncClient
-    )
+    rpc_mod.api = types.SimpleNamespace(Client=object, AsyncClient=_AsyncClient)
     rpc_mod.websocket_api = types.SimpleNamespace(
         connect=lambda *a, **k: None, RpcTransactionLogsFilterMentions=object
     )
@@ -178,9 +178,7 @@ if importlib.util.find_spec("sqlalchemy") is None:
     orm.declarative_base = lambda *a, **k: type("Base", (), {})
     sa_mod.orm = orm
     ext = types.ModuleType("ext")
-    ext.asyncio = types.SimpleNamespace(
-        create_async_engine=lambda *a, **k: None
-    )
+    ext.asyncio = types.SimpleNamespace(create_async_engine=lambda *a, **k: None)
     ext.asyncio.async_sessionmaker = lambda *a, **k: None
     ext.asyncio.AsyncSession = type("AsyncSession", (), {})
     sa_mod.ext = ext
@@ -200,28 +198,22 @@ _faiss_mod = types.ModuleType("faiss")
 _faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
 sys.modules.setdefault("faiss", _faiss_mod)
 _st_mod = types.ModuleType("sentence_transformers")
-_st_mod.__spec__ = importlib.machinery.ModuleSpec(
-    "sentence_transformers", None
-)
+_st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
 sys.modules.setdefault("sentence_transformers", _st_mod)
-sys.modules["sentence_transformers"].SentenceTransformer = (
-    lambda *a, **k: types.SimpleNamespace(
-        get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
-    )
+sys.modules[
+    "sentence_transformers"
+].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
+    get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
 )
 
 sklearn = types.ModuleType("sklearn")
 sklearn.__spec__ = importlib.machinery.ModuleSpec("sklearn", None)
 sys.modules.setdefault("sklearn", sklearn)
-sys.modules["sklearn.linear_model"] = types.SimpleNamespace(
-    LinearRegression=object
-)
+sys.modules["sklearn.linear_model"] = types.SimpleNamespace(LinearRegression=object)
 sys.modules["sklearn.ensemble"] = types.SimpleNamespace(
     GradientBoostingRegressor=object, RandomForestRegressor=object
 )
-sys.modules["sklearn.cluster"] = types.SimpleNamespace(
-    KMeans=object, DBSCAN=object
-)
+sys.modules["sklearn.cluster"] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
 _xgb_mod = types.ModuleType("xgboost")
 _xgb_mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
 _xgb_mod.XGBRegressor = object
@@ -266,9 +258,7 @@ def test_full_system_integration(monkeypatch, tmp_path):
     async def fake_discover(self, **_):
         return ["TOK"]
 
-    monkeypatch.setattr(
-        main_module.DiscoveryAgent, "discover_tokens", fake_discover
-    )
+    monkeypatch.setattr(main_module.DiscoveryAgent, "discover_tokens", fake_discover)
 
     class DummySM:
         def __init__(self, *a, **k):

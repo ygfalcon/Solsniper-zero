@@ -8,16 +8,19 @@ install_uvloop()
 
 try:
     import orjson as json  # type: ignore
+
     _USE_ORJSON = True
 except Exception:  # pragma: no cover - optional dependency
     import json  # type: ignore
+
     _USE_ORJSON = False
+import mmap
 import os
 import zlib
-import mmap
 
 try:  # optional compression libraries
     import lz4.frame
+
     _HAS_LZ4 = True
 except Exception:  # pragma: no cover - optional dependency
     lz4 = None
@@ -25,6 +28,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 try:
     import zstandard as zstd
+
     _HAS_ZSTD = True
     _ZSTD_COMPRESSOR = zstd.ZstdCompressor()
     _ZSTD_DECOMPRESSOR = zstd.ZstdDecompressor()
@@ -33,9 +37,9 @@ except Exception:  # pragma: no cover - optional dependency
     _HAS_ZSTD = False
     _ZSTD_COMPRESSOR = None
     _ZSTD_DECOMPRESSOR = None
-from contextlib import contextmanager
 from collections import defaultdict
-from typing import Any, Awaitable, Callable, Dict, Generator, List, Set, Sequence
+from contextlib import contextmanager
+from typing import Any, Awaitable, Callable, Dict, Generator, List, Sequence, Set
 
 try:
     import msgpack
@@ -84,9 +88,8 @@ _broker_preflight()
 
 from asyncio import Queue
 
-
-from .schemas import validate_message, to_dict
 from . import event_pb2 as pb
+from .schemas import to_dict, validate_message
 
 _PB_MAP = {
     "action_executed": getattr(pb, "ActionExecuted", None),
@@ -262,7 +265,7 @@ def _write_frame(mm: mmap.mmap, pos: int, data: bytes) -> int:
         pos = 4
     if len(data) > size - 8:
         data = data[: size - 8]
-    mm[pos:pos + 4] = len(data).to_bytes(4, "little")
+    mm[pos : pos + 4] = len(data).to_bytes(4, "little")
     mm[pos + 4 : pos + 4 + len(data)] = data
     pos += 4 + len(data)
     if pos >= size:
@@ -329,24 +332,33 @@ def _mmap_write(data: bytes) -> None:
 
 def _get_bus_url(cfg=None):
     from .config import get_event_bus_url
+
     return get_event_bus_url(cfg)
+
 
 def _get_event_serialization(cfg=None) -> str | None:
     from .config import get_event_serialization
+
     return get_event_serialization(cfg)
+
 
 def _get_event_batch_ms(cfg=None) -> int:
     from .config import get_event_batch_ms
+
     return get_event_batch_ms(cfg)
+
 
 def _get_event_mmap_batch_ms(cfg=None) -> int:
     from .config import get_event_mmap_batch_ms
+
     return get_event_mmap_batch_ms(cfg)
 
 
 def _get_event_mmap_batch_size(cfg=None) -> int:
     from .config import get_event_mmap_batch_size
+
     return get_event_mmap_batch_size(cfg)
+
 
 try:
     import websockets  # type: ignore
@@ -388,9 +400,13 @@ def _pack_batch(msgs: List[Any]) -> Any:
 def _unpack_batch(data: Any) -> List[Any] | None:
     """Return list of messages if ``data`` is a batched frame."""
     if isinstance(data, bytes):
-        if len(data) >= len(_MP_BATCH_MAGIC) and data.startswith(_MP_BATCH_MAGIC) and msgpack is not None:
+        if (
+            len(data) >= len(_MP_BATCH_MAGIC)
+            and data.startswith(_MP_BATCH_MAGIC)
+            and msgpack is not None
+        ):
             try:
-                obj = msgpack.unpackb(data[len(_MP_BATCH_MAGIC):])
+                obj = msgpack.unpackb(data[len(_MP_BATCH_MAGIC) :])
             except Exception:
                 return None
             if isinstance(obj, list):
@@ -398,15 +414,15 @@ def _unpack_batch(data: Any) -> List[Any] | None:
             return None
         if len(data) >= len(_BATCH_MAGIC) + 4 and data.startswith(_BATCH_MAGIC):
             off = len(_BATCH_MAGIC)
-            count = int.from_bytes(data[off:off + 4], "big")
+            count = int.from_bytes(data[off : off + 4], "big")
             off += 4
             msgs = []
             for _ in range(count):
                 if off + 4 > len(data):
                     break
-                ln = int.from_bytes(data[off:off + 4], "big")
+                ln = int.from_bytes(data[off : off + 4], "big")
                 off += 4
-                msgs.append(data[off:off + ln])
+                msgs.append(data[off : off + ln])
                 off += ln
             if len(msgs) == count:
                 return msgs
@@ -439,8 +455,11 @@ def _extract_topic(msg: Any) -> str | None:
         return obj.get("topic")
     return None
 
+
 # mapping of topic -> list of handlers
-_subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(list)
+_subscribers: Dict[str, List[Callable[[Any], Awaitable[None] | None]]] = defaultdict(
+    list
+)
 
 # websocket related globals
 _ws_clients: Set[Any] = set()  # clients connected to our server
@@ -481,16 +500,24 @@ def _encode_event(topic: str, payload: Any) -> Any:
             ),
         )
     elif topic == "weights_updated":
-        event = pb.Event(topic=topic, weights_updated=pb.WeightsUpdated(weights=payload.weights))
+        event = pb.Event(
+            topic=topic, weights_updated=pb.WeightsUpdated(weights=payload.weights)
+        )
     elif topic == "rl_weights":
         event = pb.Event(
             topic=topic,
             rl_weights=pb.RLWeights(weights=payload.weights, risk=payload.risk or {}),
         )
     elif topic == "rl_checkpoint":
-        event = pb.Event(topic=topic, rl_checkpoint=pb.RLCheckpoint(time=payload.time, path=payload.path))
+        event = pb.Event(
+            topic=topic,
+            rl_checkpoint=pb.RLCheckpoint(time=payload.time, path=payload.path),
+        )
     elif topic == "portfolio_updated":
-        event = pb.Event(topic=topic, portfolio_updated=pb.PortfolioUpdated(balances=payload.balances))
+        event = pb.Event(
+            topic=topic,
+            portfolio_updated=pb.PortfolioUpdated(balances=payload.balances),
+        )
     elif topic in {"depth_update", "depth_diff"}:
         entries = {}
         for token, entry in to_dict(payload).items():
@@ -527,7 +554,10 @@ def _encode_event(topic: str, payload: Any) -> Any:
         data = event.SerializeToString()
         return _compress_event(data)
     elif topic == "depth_service_status":
-        event = pb.Event(topic=topic, depth_service_status=pb.DepthServiceStatus(status=payload.get("status")))
+        event = pb.Event(
+            topic=topic,
+            depth_service_status=pb.DepthServiceStatus(status=payload.get("status")),
+        )
     elif topic == "heartbeat":
         service = getattr(payload, "service", None)
         if service is None and isinstance(payload, dict):
@@ -614,8 +644,14 @@ def _encode_event(topic: str, payload: Any) -> Any:
                 portfolio_cvar=float(data.get("portfolio_cvar", 0.0)),
                 portfolio_evar=float(data.get("portfolio_evar", 0.0)),
                 correlation=float(data.get("correlation", 0.0)),
-                cov_matrix=[pb.DoubleList(values=[float(x) for x in row]) for row in data.get("cov_matrix", [])],
-                corr_matrix=[pb.DoubleList(values=[float(x) for x in row]) for row in data.get("corr_matrix", [])],
+                cov_matrix=[
+                    pb.DoubleList(values=[float(x) for x in row])
+                    for row in data.get("cov_matrix", [])
+                ],
+                corr_matrix=[
+                    pb.DoubleList(values=[float(x) for x in row])
+                    for row in data.get("corr_matrix", [])
+                ],
             ),
         )
     elif topic == "risk_updated":
@@ -647,7 +683,9 @@ def _encode_event(topic: str, payload: Any) -> Any:
         data = to_dict(payload)
         event = pb.Event(
             topic=topic,
-            memory_sync_request=pb.MemorySyncRequest(last_id=int(data.get("last_id", 0))),
+            memory_sync_request=pb.MemorySyncRequest(
+                last_id=int(data.get("last_id", 0))
+            ),
         )
     elif topic == "memory_sync_response":
         data = to_dict(payload)
@@ -668,10 +706,13 @@ def _encode_event(topic: str, payload: Any) -> Any:
         ]
         event = pb.Event(
             topic=topic,
-            memory_sync_response=pb.MemorySyncResponse(trades=trades, index=data.get("index") or b""),
+            memory_sync_response=pb.MemorySyncResponse(
+                trades=trades, index=data.get("index") or b""
+            ),
         )
     data = event.SerializeToString()
     return _compress_event(data)
+
 
 def _decode_payload(ev: pb.Event) -> Any:
     field = ev.WhichOneof("kind")
@@ -783,6 +824,7 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"trades": trades, "index": bytes(msg.index)}
     return None
 
+
 def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     """Register ``handler`` for ``topic`` events.
 
@@ -797,13 +839,16 @@ def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
 
 
 @contextmanager
-def subscription(topic: str, handler: Callable[[Any], Awaitable[None] | None]) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
+def subscription(
+    topic: str, handler: Callable[[Any], Awaitable[None] | None]
+) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
     """Context manager that registers ``handler`` for ``topic`` and automatically unsubscribes."""
     unsub = subscribe(topic, handler)
     try:
         yield handler
     finally:
         unsub()
+
 
 def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     """Remove ``handler`` from ``topic`` subscriptions."""
@@ -816,6 +861,7 @@ def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
         return
     if not handlers:
         _subscribers.pop(topic, None)
+
 
 def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
     """Publish ``payload`` to all subscribers of ``topic`` and over websockets."""
@@ -1047,24 +1093,33 @@ async def _reconnect_broker(index: int) -> None:
                 exc,
             )
             await asyncio.sleep(_BROKER_HEARTBEAT_INTERVAL)
-    logging.warning("Failed to reconnect to broker %s after %d attempts", url, _BROKER_RETRY_LIMIT)
+    logging.warning(
+        "Failed to reconnect to broker %s after %d attempts", url, _BROKER_RETRY_LIMIT
+    )
 
 
 async def _broker_heartbeat() -> None:
     """Periodically ping brokers and reconnect if unresponsive."""
     while True:
         await asyncio.sleep(_BROKER_HEARTBEAT_INTERVAL)
-        for idx, (typ, conn, url) in enumerate(zip(_BROKER_TYPES, _BROKER_CONNS, _BROKER_URLS)):
+        for idx, (typ, conn, url) in enumerate(
+            zip(_BROKER_TYPES, _BROKER_CONNS, _BROKER_URLS)
+        ):
             if conn is None:
                 continue
             try:
                 if typ == "redis":
-                    await asyncio.wait_for(conn.ping(), timeout=_BROKER_HEARTBEAT_INTERVAL)
+                    await asyncio.wait_for(
+                        conn.ping(), timeout=_BROKER_HEARTBEAT_INTERVAL
+                    )
                 elif typ == "nats":
-                    await asyncio.wait_for(conn.flush(), timeout=_BROKER_HEARTBEAT_INTERVAL)
+                    await asyncio.wait_for(
+                        conn.flush(), timeout=_BROKER_HEARTBEAT_INTERVAL
+                    )
             except Exception:
                 logging.warning("Broker %s unresponsive, attempting reconnect", url)
                 await _reconnect_broker(idx)
+
 
 async def connect_broker(urls: Sequence[str] | str) -> None:
     """Connect to one or more Redis or NATS message brokers."""
@@ -1152,9 +1207,7 @@ async def verify_broker_connection(
         try:
             if url.startswith("redis://") or url.startswith("rediss://"):
                 if aioredis is None:
-                    raise RuntimeError(
-                        "redis package required for redis broker"
-                    )
+                    raise RuntimeError("redis package required for redis broker")
                 conn = aioredis.from_url(url)
                 pubsub = conn.pubsub()
                 ch = f"_verify_{os.urandom(4).hex()}"
@@ -1169,9 +1222,7 @@ async def verify_broker_connection(
                     raise RuntimeError("no message received")
             elif url.startswith("nats://"):
                 if nats is None:
-                    raise RuntimeError(
-                        "nats-py package required for nats broker"
-                    )
+                    raise RuntimeError("nats-py package required for nats broker")
                 nc = nats.NATS()
                 await nc.connect(servers=[url])
                 subj = f"_verify_{os.urandom(4).hex()}"
@@ -1205,6 +1256,7 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
         allowed: Set[str] | None = None
         try:
             import urllib.parse as _urlparse
+
             path = getattr(ws, "request", None)
             if path is not None:
                 p = getattr(path, "path", "")
@@ -1229,7 +1281,9 @@ async def start_ws_server(host: str = "localhost", port: int = 8765):
                             publish(ev.topic, _decode_payload(ev), _broadcast=False)
                         else:
                             data = _loads(single)
-                            publish(data.get("topic"), data.get("payload"), _broadcast=False)
+                            publish(
+                                data.get("topic"), data.get("payload"), _broadcast=False
+                            )
                 except Exception:  # pragma: no cover - malformed message
                     continue
         finally:
@@ -1514,6 +1568,7 @@ _ENV_BROKER: Set[str] = set()
 
 def _get_broker_urls(cfg=None):
     from .config import get_broker_urls
+
     return get_broker_urls(cfg)
 
 
@@ -1558,4 +1613,3 @@ async def send_heartbeat(
     while True:
         publish("heartbeat", {"service": service})
         await asyncio.sleep(interval)
-

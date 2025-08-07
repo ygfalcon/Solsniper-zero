@@ -9,7 +9,7 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc.api"] = types.SimpleNamespace(Client=object)
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
 
-from solhunter_zero import scanner_common, http
+from solhunter_zero import http, scanner_common
 
 
 def setup_function(_):

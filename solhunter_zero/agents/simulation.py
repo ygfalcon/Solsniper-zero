@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from . import BaseAgent
-from ..simulation import run_simulations
 from ..decision import should_buy, should_sell
 from ..portfolio import Portfolio
 from ..prices import fetch_token_prices_async
+from ..simulation import run_simulations
+from . import BaseAgent
 
 
 class SimulationAgent(BaseAgent):
@@ -36,7 +36,16 @@ class SimulationAgent(BaseAgent):
         if should_sell(sims):
             pos = portfolio.balances.get(token)
             if pos:
-                actions.append({"token": token, "side": "sell", "amount": pos.amount, "price": price})
+                actions.append(
+                    {
+                        "token": token,
+                        "side": "sell",
+                        "amount": pos.amount,
+                        "price": price,
+                    }
+                )
         elif should_buy(sims):
-            actions.append({"token": token, "side": "buy", "amount": 1.0, "price": price})
+            actions.append(
+                {"token": token, "side": "buy", "amount": 1.0, "price": price}
+            )
         return actions

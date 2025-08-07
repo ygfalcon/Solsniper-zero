@@ -1,12 +1,13 @@
 import asyncio
+import base64
 import json
-import struct
 import os
+import struct
 import subprocess
 import time
-import base64
-import pytest
+
 import aiohttp
+import pytest
 from aiohttp import web
 
 from solhunter_zero import depth_client
@@ -510,7 +511,9 @@ async def test_priority_rpc_concurrent(tmp_path):
                 return web.json_response(
                     {"jsonrpc": "2.0", "result": name, "id": data.get("id")}
                 )
-            return web.json_response({"jsonrpc": "2.0", "result": None, "id": data.get("id")})
+            return web.json_response(
+                {"jsonrpc": "2.0", "result": None, "id": data.get("id")}
+            )
 
         return handler
 
@@ -526,7 +529,9 @@ async def test_priority_rpc_concurrent(tmp_path):
         port = site._server.sockets[0].getsockname()[1]
         return runner, port
 
-    default_runner, default_port = await start_server(make_handler("default", 0.0, times))
+    default_runner, default_port = await start_server(
+        make_handler("default", 0.0, times)
+    )
     slow_runner, slow_port = await start_server(make_handler("slow", 0.4, times))
     fast_runner, fast_port = await start_server(make_handler("fast", 0.0, times))
 
@@ -591,4 +596,3 @@ async def test_priority_rpc_concurrent(tmp_path):
     assert duration < 0.4
     assert "slow" in times and "fast" in times
     assert abs(times["slow"] - times["fast"]) < 0.2
-

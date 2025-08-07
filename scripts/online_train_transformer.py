@@ -2,15 +2,15 @@ import argparse
 import asyncio
 import logging
 import os
-from pathlib import Path
 from itertools import product
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-import solhunter_zero.device as device
 
-from solhunter_zero.offline_data import OfflineData
+import solhunter_zero.device as device
 from solhunter_zero import models
+from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.regime import detect_regime
 
 
@@ -40,7 +40,9 @@ def build_loader(
     return loader, X_full.size(-1)
 
 
-def load_or_create_model(path: Path, device: torch.device, input_dim: int) -> torch.nn.Module:
+def load_or_create_model(
+    path: Path, device: torch.device, input_dim: int
+) -> torch.nn.Module:
     model = models.get_model(str(path))
     if model is None or getattr(model, "input_dim", input_dim) != input_dim:
         model = models.DeepTransformerModel(input_dim)
@@ -63,7 +65,9 @@ def evaluate(model: torch.nn.Module, loader: DataLoader, device: torch.device) -
     return total / max(n, 1)
 
 
-def hyper_search(loader: DataLoader, val_loader: DataLoader, input_dim: int, device: torch.device) -> tuple[float, int]:
+def hyper_search(
+    loader: DataLoader, val_loader: DataLoader, input_dim: int, device: torch.device
+) -> tuple[float, int]:
     params = [(lr, h) for lr, h in product([1e-3, 5e-4], [32, 64])]
     best = (1e-3, 32)
     best_loss = float("inf")
@@ -159,8 +163,12 @@ async def main() -> None:
     p.add_argument("--regime", default=None)
     p.add_argument("--daemon", action="store_true", help="keep training in a loop")
     p.add_argument("--log-progress", action="store_true", help="log checkpoint saves")
-    p.add_argument("--eval-interval", type=float, default=None, help="evaluate every N seconds")
-    p.add_argument("--search", action="store_true", help="perform simple hyperparameter search")
+    p.add_argument(
+        "--eval-interval", type=float, default=None, help="evaluate every N seconds"
+    )
+    p.add_argument(
+        "--search", action="store_true", help="perform simple hyperparameter search"
+    )
     args = p.parse_args()
 
     dev = device.get_default_device(args.device)

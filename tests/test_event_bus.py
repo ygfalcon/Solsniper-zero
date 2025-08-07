@@ -1,14 +1,16 @@
 import asyncio
+import importlib.util
 import json
 import sys
 import types
-import importlib.util
+
 import websockets
 
 # Stub heavy optional dependencies to keep import lightweight
 dummy_trans = types.ModuleType("transformers")
 dummy_trans.pipeline = lambda *a, **k: lambda x: []
 import importlib.machinery
+
 dummy_trans.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
 if importlib.util.find_spec("transformers") is None:
     sys.modules.setdefault("transformers", dummy_trans)
@@ -126,11 +128,15 @@ if importlib.util.find_spec("solders") is None:
     s_mod = types.ModuleType("solders")
     s_mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
     sys.modules.setdefault("solders", s_mod)
-    sys.modules["solders.keypair"] = types.SimpleNamespace(Keypair=type("Keypair", (), {}))
+    sys.modules["solders.keypair"] = types.SimpleNamespace(
+        Keypair=type("Keypair", (), {})
+    )
     sys.modules["solders.pubkey"] = types.SimpleNamespace(Pubkey=object)
     sys.modules["solders.hash"] = types.SimpleNamespace(Hash=object)
     sys.modules["solders.message"] = types.SimpleNamespace(MessageV0=object)
-    sys.modules["solders.transaction"] = types.SimpleNamespace(VersionedTransaction=object)
+    sys.modules["solders.transaction"] = types.SimpleNamespace(
+        VersionedTransaction=object
+    )
 if importlib.util.find_spec("solana") is None:
     sol_mod = types.ModuleType("solana")
     sol_mod.__spec__ = importlib.machinery.ModuleSpec("solana", None)
@@ -138,28 +144,31 @@ if importlib.util.find_spec("solana") is None:
     sys.modules["solana.rpc"] = types.ModuleType("rpc")
     sys.modules["solana.rpc.api"] = types.SimpleNamespace(Client=object)
     sys.modules["solana.rpc.async_api"] = types.SimpleNamespace(AsyncClient=object)
-    sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(connect=lambda *a, **k: None)
+    sys.modules["solana.rpc.websocket_api"] = types.SimpleNamespace(
+        connect=lambda *a, **k: None
+    )
     sys.modules["solana.rpc.websocket_api"].RpcTransactionLogsFilterMentions = object
 
 import pytest
+
 pytest.importorskip("google.protobuf")
 
+from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agents.execution import ExecutionAgent
+from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.event_bus import (
-    subscribe,
-    publish,
-    subscription,
-    start_ws_server,
-    stop_ws_server,
+    _maybe_decompress,
+    _unpack_batch,
+    broadcast_ws,
     connect_ws,
     disconnect_ws,
-    broadcast_ws,
+    publish,
+    start_ws_server,
+    stop_ws_server,
+    subscribe,
     subscribe_ws_topics,
-    _unpack_batch,
-    _maybe_decompress,
+    subscription,
 )
-from solhunter_zero.agent_manager import AgentManager
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -242,6 +251,7 @@ async def test_websocket_publish_and_receive():
     await start_ws_server("localhost", port)
 
     from solhunter_zero import event_pb2
+
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         publish("weights_updated", {"weights": {"x": 1.0}})
         raw = await asyncio.wait_for(ws.recv(), timeout=1)
@@ -263,11 +273,13 @@ async def test_websocket_client_publish(monkeypatch):
     subscribe("weights_updated", lambda p: received.append(p))
     await connect_ws(f"ws://localhost:{port}")
     from solhunter_zero import event_pb2
+
     upd = event_pb2.WeightsUpdated(weights={"x": 5.0})
     ev = event_pb2.Event(topic="weights_updated", weights_updated=upd)
     await broadcast_ws(ev.SerializeToString(), to_clients=False)
     await asyncio.sleep(0.1)
     from solhunter_zero.schemas import WeightsUpdated
+
     assert received and isinstance(received[0], WeightsUpdated)
     assert received[0].weights["x"] == 5.0
     await disconnect_ws()
@@ -285,7 +297,11 @@ async def test_websocket_reconnect_on_drop():
             await asyncio.sleep(0.05)
             await ws.close()
         else:
-            await ws.send(json.dumps({"topic": "weights_updated", "payload": {"weights": {"x": 7}}}))
+            await ws.send(
+                json.dumps(
+                    {"topic": "weights_updated", "payload": {"weights": {"x": 7}}}
+                )
+            )
             await asyncio.sleep(0.1)
 
     server = await websockets.serve(handler, "localhost", port)
@@ -315,6 +331,7 @@ async def test_websocket_reconnect_on_drop():
 @pytest.mark.asyncio
 async def test_event_bus_url_connect(monkeypatch):
     import importlib
+
     import solhunter_zero.event_bus as ev
 
     called = {}
@@ -355,6 +372,7 @@ async def test_event_bus_url_connect(monkeypatch):
 @pytest.mark.asyncio
 async def test_event_bus_peers(monkeypatch):
     import importlib
+
     import solhunter_zero.event_bus as ev
 
     called = []
@@ -396,6 +414,7 @@ async def test_event_bus_peers(monkeypatch):
 @pytest.mark.asyncio
 async def test_multiple_broker_publish(monkeypatch):
     import importlib
+
     sent = []
 
     class FakePubSub:
@@ -435,12 +454,18 @@ async def test_multiple_broker_publish(monkeypatch):
     redis_pkg.asyncio = fake_redis_mod
     monkeypatch.setitem(sys.modules, "redis", redis_pkg)
     monkeypatch.setitem(sys.modules, "redis.asyncio", fake_redis_mod)
-    monkeypatch.setitem(sys.modules, "nats", types.SimpleNamespace(NATS=lambda: FakeNATS()))
+    monkeypatch.setitem(
+        sys.modules, "nats", types.SimpleNamespace(NATS=lambda: FakeNATS())
+    )
     import importlib
+
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
+
     async def _fake_listener(_):
         pass
+
     monkeypatch.setattr(ev, "_redis_listener", _fake_listener)
     monkeypatch.setattr(ev, "_encode_event", lambda *_a, **_k: b"x")
     await ev.connect_broker(["redis://r1", "nats://n1"])
@@ -472,6 +497,7 @@ async def test_multiple_peer_connections():
     await connect_ws(f"ws://localhost:{port1}")
     await connect_ws(f"ws://localhost:{port2}")
     from solhunter_zero import event_pb2
+
     upd = event_pb2.WeightsUpdated(weights={"x": 9.0})
     ev = event_pb2.Event(topic="weights_updated", weights_updated=upd)
     await broadcast_ws(ev.SerializeToString(), to_clients=False)
@@ -489,6 +515,7 @@ async def test_multiple_peer_connections():
 def test_event_bus_fallback_json(monkeypatch):
     import builtins
     import importlib
+
     orig_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
@@ -499,6 +526,7 @@ def test_event_bus_fallback_json(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
 
     seen = []
@@ -512,8 +540,10 @@ def test_event_bus_fallback_json(monkeypatch):
 def test_event_bus_msgpack(monkeypatch):
     pytest.importorskip("msgpack")
     import importlib
+
     monkeypatch.setenv("EVENT_SERIALIZATION", "msgpack")
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
     seen = []
     ev.subscribe("x", lambda p: seen.append(p))
@@ -526,37 +556,47 @@ def test_event_bus_msgpack(monkeypatch):
 
 def test_publish_invalid_payload():
     from solhunter_zero.event_bus import publish
+
     with pytest.raises(ValueError):
         publish("action_executed", {"bad": 1})
 
 
 def test_event_compression_algorithms(monkeypatch):
     import importlib
-    from solhunter_zero import event_pb2
+
     import solhunter_zero.event_bus as ev
+    from solhunter_zero import event_pb2
 
     monkeypatch.setenv("EVENT_COMPRESSION", "lz4")
     ev = importlib.reload(ev)
-    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    data = ev._encode_event(
+        "weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0})
+    )
     ev_msg = event_pb2.Event()
     ev_msg.ParseFromString(ev._maybe_decompress(data))
     assert ev_msg.topic == "weights_updated"
 
     monkeypatch.setenv("EVENT_COMPRESSION", "zstd")
     ev = importlib.reload(ev)
-    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    data = ev._encode_event(
+        "weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0})
+    )
     ev_msg.ParseFromString(ev._maybe_decompress(data))
     assert ev_msg.topic == "weights_updated"
 
     monkeypatch.setenv("EVENT_COMPRESSION", "zlib")
     ev = importlib.reload(ev)
-    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    data = ev._encode_event(
+        "weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0})
+    )
     ev_msg.ParseFromString(ev._maybe_decompress(data))
     assert ev_msg.topic == "weights_updated"
 
     monkeypatch.setenv("EVENT_COMPRESSION", "none")
     ev = importlib.reload(ev)
-    data = ev._encode_event("weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0}))
+    data = ev._encode_event(
+        "weights_updated", event_pb2.WeightsUpdated(weights={"x": 1.0})
+    )
     ev_msg.ParseFromString(data)
     assert ev_msg.topic == "weights_updated"
 
@@ -564,10 +604,12 @@ def test_event_compression_algorithms(monkeypatch):
 @pytest.mark.asyncio
 async def test_zstd_round_trip(monkeypatch):
     import importlib
+
     monkeypatch.setenv("COMPRESS_EVENTS", "1")
     monkeypatch.setenv("EVENT_COMPRESSION_THRESHOLD", "0")
     monkeypatch.delenv("EVENT_COMPRESSION", raising=False)
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
     if not ev._HAS_ZSTD:
         pytest.skip("zstandard not installed")
@@ -575,6 +617,7 @@ async def test_zstd_round_trip(monkeypatch):
     port = 8780
     await ev.start_ws_server("localhost", port)
     from solhunter_zero import event_pb2
+
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         ev.publish("depth_service_status", {"status": "ok"})
         raw = await asyncio.wait_for(ws.recv(), timeout=1)
@@ -589,9 +632,11 @@ async def test_zstd_round_trip(monkeypatch):
 @pytest.mark.asyncio
 async def test_websocket_batching():
     import solhunter_zero.event_bus as ev
+
     port = 8793
     await start_ws_server("localhost", port)
     from solhunter_zero import event_pb2
+
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         ev.publish("weights_updated", {"weights": {"x": 1}})
         ev.publish("weights_updated", {"weights": {"x": 2}})
@@ -610,13 +655,16 @@ async def test_websocket_batching():
 @pytest.mark.asyncio
 async def test_websocket_compressed_batch(monkeypatch):
     import importlib
+
     monkeypatch.setenv("EVENT_BUS_COMPRESSION", "deflate")
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
 
     port = 8794
     await ev.start_ws_server("localhost", port)
     from solhunter_zero import event_pb2
+
     async with websockets.connect(f"ws://localhost:{port}") as ws:
         ev.publish("weights_updated", {"weights": {"x": 3}})
         ev.publish("weights_updated", {"weights": {"x": 4}})
@@ -642,6 +690,7 @@ async def test_websocket_ping_settings(monkeypatch):
     monkeypatch.setenv("WS_PING_TIMEOUT", "22")
 
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
 
     seen = {}
@@ -697,13 +746,16 @@ async def test_websocket_ping_settings(monkeypatch):
 @pytest.mark.asyncio
 async def test_websocket_topic_filtering():
     port = 8795
-    import importlib, sys
-    if 'websockets' in sys.modules:
-        del sys.modules['websockets']
-    real_ws = importlib.import_module('websockets')
+    import importlib
+    import sys
+
+    if "websockets" in sys.modules:
+        del sys.modules["websockets"]
+    real_ws = importlib.import_module("websockets")
     import solhunter_zero.event_bus as ev
+
     ev.websockets = real_ws
-    globals()['websockets'] = real_ws
+    globals()["websockets"] = real_ws
     await start_ws_server("localhost", port)
 
     from solhunter_zero import event_pb2
@@ -731,8 +783,10 @@ async def test_websocket_topic_filtering():
 
     msgs = _unpack_batch(raw2)
     assert msgs and len(msgs) == 2
-    ev2a = event_pb2.Event(); ev2a.ParseFromString(msgs[0])
-    ev2b = event_pb2.Event(); ev2b.ParseFromString(msgs[1])
+    ev2a = event_pb2.Event()
+    ev2a.ParseFromString(msgs[0])
+    ev2b = event_pb2.Event()
+    ev2b.ParseFromString(msgs[1])
     assert {ev2a.topic, ev2b.topic} == {"weights_updated", "action_executed"}
 
     assert ev_ws_filtered is not None
@@ -740,7 +794,8 @@ async def test_websocket_topic_filtering():
     publish("action_executed", {"action": {}, "result": {}})
     await asyncio.sleep(0.1)
     raw3 = await asyncio.wait_for(ws_filtered.recv(), timeout=1)
-    ev3 = event_pb2.Event(); ev3.ParseFromString(raw3)
+    ev3 = event_pb2.Event()
+    ev3.ParseFromString(raw3)
     assert ev3.topic == "action_executed"
 
     await ws_all.close()
@@ -751,12 +806,14 @@ async def test_websocket_topic_filtering():
 @pytest.mark.asyncio
 async def test_mmap_batching(monkeypatch, tmp_path):
     import importlib
+
     path = tmp_path / "events.mmap"
     monkeypatch.setenv("EVENT_BUS_MMAP", str(path))
     monkeypatch.setenv("EVENT_BUS_MMAP_SIZE", "4096")
     monkeypatch.setenv("EVENT_MMAP_BATCH_MS", "50")
     monkeypatch.setenv("EVENT_MMAP_BATCH_SIZE", "10")
     import solhunter_zero.event_bus as ev
+
     ev = importlib.reload(ev)
     ev.publish("weights_updated", {"weights": {"x": 1}})
     ev.publish("weights_updated", {"weights": {"x": 2}})
@@ -766,9 +823,8 @@ async def test_mmap_batching(monkeypatch, tmp_path):
     off = 4
     lengths = []
     for _ in range(2):
-        ln = int.from_bytes(mm[off:off+4], "little")
+        ln = int.from_bytes(mm[off : off + 4], "little")
         lengths.append(ln)
         off += 4 + ln
     assert len(lengths) == 2 and all(l > 0 for l in lengths)
     ev.close_mmap()
-

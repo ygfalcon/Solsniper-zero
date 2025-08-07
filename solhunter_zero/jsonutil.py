@@ -26,6 +26,7 @@ def loads(data):
             data = data.encode()
         return orjson.loads(data)
     import json
+
     return json.loads(data)
 
 
@@ -45,4 +46,5 @@ def dumps(obj) -> str:
     if orjson is not None:
         return orjson.dumps(obj).decode()
     import json
+
     return json.dumps(obj)

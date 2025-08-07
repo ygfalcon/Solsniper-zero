@@ -30,7 +30,9 @@ def build_tick_dataset(db: str, out: str, token: str | None = None) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = ArgumentParser(description="Export tick history dataset")
     p.add_argument("--db", default="offline_data.db", help="Offline data DB path")
-    p.add_argument("--out", default="datasets/tick_history.json", help="Output JSON file")
+    p.add_argument(
+        "--out", default="datasets/tick_history.json", help="Output JSON file"
+    )
     p.add_argument("--token", help="Filter by token")
     args = p.parse_args(argv)
     build_tick_dataset(args.db, args.out, token=args.token)

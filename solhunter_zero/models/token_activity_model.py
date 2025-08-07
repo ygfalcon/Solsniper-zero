@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Sequence, Iterable, Tuple, Any
+from typing import Any, Iterable, Sequence, Tuple
 
 try:
     import torch
     import torch.nn as nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -16,14 +17,10 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for token_activity_model"
-                )
+                raise ImportError("torch is required for token_activity_model")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for token_activity_model"
-            )
+            raise ImportError("torch is required for token_activity_model")
 
     torch = nn = _TorchStub()  # type: ignore
 
@@ -79,7 +76,9 @@ def make_training_data(
             avg_size = sum(trade_sizes) / len(trade_sizes) if trade_sizes else 0.0
             depth_change = float(curr.depth - prev.depth)
             tx_rate = float(curr.tx_rate)
-            whale = float(getattr(curr, "whale_share", getattr(curr, "whale_activity", 0.0)))
+            whale = float(
+                getattr(curr, "whale_share", getattr(curr, "whale_activity", 0.0))
+            )
             feats.append([depth_change, tx_rate, whale, avg_size])
             targets.append((float(curr.price) - float(prev.price)) / float(prev.price))
 
@@ -112,4 +111,3 @@ def train_activity_model(
         opt.step()
     model.eval()
     return model
-

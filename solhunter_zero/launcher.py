@@ -104,9 +104,9 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
 
 
 sys.path.insert(0, str(ROOT))
-from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
+from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 
 setup_logging("startup")
 ensure_tools(non_interactive=True)
@@ -117,6 +117,7 @@ import solhunter_zero.env_config as env_config  # noqa: E402
 
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
+
 os.chdir(ROOT)
 
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
@@ -156,4 +157,3 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
 if __name__ == "__main__":
     main()
-

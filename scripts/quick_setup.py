@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 import tomli_w  # type: ignore
 

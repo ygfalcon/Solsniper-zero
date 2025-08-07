@@ -1,6 +1,7 @@
+import importlib
+
 import numpy as np
 import pytest
-import importlib
 
 simulation = importlib.import_module("solhunter_zero.simulation")
 
@@ -35,8 +36,9 @@ def test_bias_correction_applied(monkeypatch):
     monkeypatch.setattr(
         simulation.onchain_metrics, "fetch_dex_metrics_async", lambda _t: {}
     )
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
+    monkeypatch.setattr(
+        simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
+    )
 
     res = simulation.run_simulations("tok", count=1, days=1)[0]
     assert res.expected_roi == pytest.approx(0.2)
-

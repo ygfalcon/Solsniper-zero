@@ -1,7 +1,9 @@
 import asyncio
+
 import pytest
-from solhunter_zero import scanner_onchain
 from solana.publickey import PublicKey
+
+from solhunter_zero import scanner_onchain
 
 
 def setup_function(_):
@@ -14,6 +16,7 @@ def setup_function(_):
     scanner_onchain.AVG_SWAP_SIZE_CACHE = scanner_onchain.TTLCache(
         maxsize=256, ttl=scanner_onchain.METRIC_CACHE_TTL
     )
+
 
 class FakeClient:
     def __init__(self, url):
@@ -30,19 +33,30 @@ class FakeClient:
         assert isinstance(program_id, PublicKey)
         return {
             "result": [
-                {"account": {"data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}}},
-                {"account": {"data": {"parsed": {"info": {"name": "other", "mint": "m2"}}}}},
+                {
+                    "account": {
+                        "data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}
+                    }
+                },
+                {
+                    "account": {
+                        "data": {"parsed": {"info": {"name": "other", "mint": "m2"}}}
+                    }
+                },
             ]
         }
 
+
 def test_scan_tokens_onchain(monkeypatch):
     captured = {}
+
     def fake_client(url):
-        captured['url'] = url
+        captured["url"] = url
         return FakeClient(url)
+
     monkeypatch.setattr(scanner_onchain, "AsyncClient", fake_client)
     tokens = scanner_onchain.scan_tokens_onchain_sync("http://node")
-    assert captured['url'] == "http://node"
+    assert captured["url"] == "http://node"
     assert tokens == ["m1"]
 
 
@@ -70,7 +84,11 @@ class FlakyClient:
             raise Exception("rpc fail")
         return {
             "result": [
-                {"account": {"data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}}}
+                {
+                    "account": {
+                        "data": {"parsed": {"info": {"name": "mybonk", "mint": "m1"}}}
+                    }
+                }
             ]
         }
 
@@ -93,7 +111,6 @@ def test_scan_tokens_onchain_retries(monkeypatch):
     assert tokens == ["m1"]
     assert captured["client"].calls == 3
     assert sleeps == [1, 2]
-
 
 
 def test_mempool_tx_rate(monkeypatch):
@@ -201,8 +218,10 @@ def test_average_swap_size_cache(monkeypatch):
 
 
 def test_mempool_tx_rate_model(monkeypatch, tmp_path):
-    from solhunter_zero.models.onchain_forecaster import LSTMForecaster, save_model
     import pytest
+
+    from solhunter_zero.models.onchain_forecaster import LSTMForecaster, save_model
+
     torch = pytest.importorskip("torch")
 
     model = LSTMForecaster(input_dim=4, hidden_dim=2, num_layers=1, seq_len=2)
@@ -223,14 +242,17 @@ def test_mempool_tx_rate_model(monkeypatch, tmp_path):
 
     monkeypatch.setattr(scanner_onchain, "Client", Client)
     monkeypatch.setattr(scanner_onchain, "PublicKey", lambda x: x)
-    import types, sys
+    import sys
+    import types
+
     oc = types.SimpleNamespace(order_book_depth_change=lambda *a, **k: 0.0)
     sys.modules["solhunter_zero.onchain_metrics"] = oc
-    monkeypatch.setattr(scanner_onchain, "fetch_whale_wallet_activity", lambda t, u: 0.0)
+    monkeypatch.setattr(
+        scanner_onchain, "fetch_whale_wallet_activity", lambda t, u: 0.0
+    )
     monkeypatch.setattr(scanner_onchain, "fetch_average_swap_size", lambda t, u: 0.0)
 
     scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
     scanner_onchain.MEMPOOL_RATE_CACHE.clear()
     rate = scanner_onchain.fetch_mempool_tx_rate("tok", "http://node")
     assert rate == pytest.approx(0.5)
-

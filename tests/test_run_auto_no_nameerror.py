@@ -1,7 +1,7 @@
-import sys
-import types
 import contextlib
 import importlib.machinery
+import sys
+import types
 
 import solhunter_zero.config as cfg_mod
 
@@ -13,7 +13,9 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
         mp.setitem(sys.modules, "faiss", faiss_mod)
 
         st_mod = types.ModuleType("sentence_transformers")
-        st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", loader=None)
+        st_mod.__spec__ = importlib.machinery.ModuleSpec(
+            "sentence_transformers", loader=None
+        )
         st_mod.SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
             get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
         )
@@ -30,7 +32,9 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
         mp.setitem(
             sys.modules,
             "sklearn.ensemble",
-            types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object),
+            types.SimpleNamespace(
+                GradientBoostingRegressor=object, RandomForestRegressor=object
+            ),
         )
         mp.setitem(
             sys.modules,
@@ -54,7 +58,9 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
             Module=object,
         )
         torch_mod.optim = types.ModuleType("optim")
-        torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec("torch.optim", loader=None)
+        torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec(
+            "torch.optim", loader=None
+        )
         torch_mod.utils = types.ModuleType("utils")
         torch_mod.utils.data = types.SimpleNamespace(Dataset=object, DataLoader=object)
         mp.setitem(sys.modules, "torch", torch_mod)
@@ -84,6 +90,7 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
         ]
 
         from solhunter_zero import main as main_module
+
         cfg_dir = tmp_path / "cfg"
         cfg_dir.mkdir()
         cfg_file = cfg_dir / "cfg.toml"
@@ -96,8 +103,12 @@ def test_run_auto_no_nameerror(monkeypatch, tmp_path):
         monkeypatch.setattr(main_module.wallet, "get_active_keypair_name", lambda: "kp")
         monkeypatch.setattr(main_module, "_start_depth_service", lambda cfg: None)
         called = {}
-        monkeypatch.setattr(main_module, "main", lambda **kw: called.setdefault("called", True))
-        sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(sync_recent=lambda: None)
+        monkeypatch.setattr(
+            main_module, "main", lambda **kw: called.setdefault("called", True)
+        )
+        sys.modules["solhunter_zero.data_sync"] = types.SimpleNamespace(
+            sync_recent=lambda: None
+        )
         main_module.data_sync = sys.modules["solhunter_zero.data_sync"]
 
         main_module.run_auto(iterations=1, dry_run=True)

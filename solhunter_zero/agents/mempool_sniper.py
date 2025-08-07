@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import os
-from typing import AsyncGenerator, Iterable, List
+from typing import TYPE_CHECKING, AsyncGenerator, Iterable, List
 
 from . import BaseAgent
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - for type hints only
     from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
 
 stream_ranked_mempool_tokens_with_depth = None
-from ..portfolio import Portfolio
 from ..arbitrage import _prepare_service_tx
 from ..exchange import DEX_BASE_URL
 from ..mev_executor import MEVExecutor
+from ..portfolio import Portfolio
 
 
 class MempoolSniperAgent(BaseAgent):
@@ -33,9 +32,7 @@ class MempoolSniperAgent(BaseAgent):
         base_url: str = DEX_BASE_URL,
     ) -> None:
         if mempool_threshold is None:
-            mempool_threshold = float(
-                os.getenv("MEMPOOL_THRESHOLD", "0") or 0.0
-            )
+            mempool_threshold = float(os.getenv("MEMPOOL_THRESHOLD", "0") or 0.0)
         if bundle_size is None:
             bundle_size = int(os.getenv("BUNDLE_SIZE", "1") or 1)
         self.mempool_threshold = float(mempool_threshold)

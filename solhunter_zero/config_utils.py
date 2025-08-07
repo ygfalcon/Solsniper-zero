@@ -22,8 +22,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .config_bootstrap import ensure_config as _ensure_config
 from . import wallet
+from .config_bootstrap import ensure_config as _ensure_config
 
 
 def ensure_default_config() -> Path:

@@ -11,6 +11,7 @@ from typing import Any, Dict
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
+
 sys.path[0] = str(ROOT)
 
 from scripts import preflight  # noqa: E402
@@ -26,8 +27,7 @@ def run_self_test() -> Dict[str, Any]:
     net_ok, net_msg = preflight.check_network()
     return {
         "preflight": [
-            {"name": name, "ok": ok, "message": msg}
-            for name, ok, msg in filtered
+            {"name": name, "ok": ok, "message": msg} for name, ok, msg in filtered
         ],
         "gpu": {"ok": gpu_ok, "message": gpu_msg},
         "network": {"ok": net_ok, "message": net_msg},

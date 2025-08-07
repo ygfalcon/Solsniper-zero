@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Sequence
 
 import numpy as np
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import DBSCAN, KMeans
 
 
 def cluster_regime(
@@ -43,9 +43,9 @@ def cluster_regime(
 
     # rolling sum of returns and rolling volatility
     ret_sum = np.convolve(returns, np.ones(window), "valid")
-    vol = np.array([
-        returns[i - window + 1 : i + 1].std() for i in range(window - 1, returns.size)
-    ])
+    vol = np.array(
+        [returns[i - window + 1 : i + 1].std() for i in range(window - 1, returns.size)]
+    )
     X = np.column_stack([ret_sum, vol])
     if X.shape[0] < 3:
         return None
@@ -83,4 +83,3 @@ def cluster_regime(
     if side_lbl is not None and lbl == side_lbl:
         return "sideways"
     return None
-

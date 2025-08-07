@@ -1,11 +1,12 @@
 import asyncio
+import importlib
+import importlib.machinery
+import importlib.util
 import json
-import pytest
 import sys
 import types
-import importlib.util
-import importlib.machinery
-import importlib
+
+import pytest
 
 # Ensure the real websockets library is used instead of any test stub
 if "websockets" in sys.modules:
@@ -17,9 +18,13 @@ if importlib.util.find_spec("solders") is None:
     mod = types.ModuleType("solders")
     mod.__spec__ = importlib.machinery.ModuleSpec("solders", None)
     sys.modules.setdefault("solders", mod)
-    sys.modules.setdefault("solders.keypair", types.SimpleNamespace(Keypair=type("Keypair", (), {})))
+    sys.modules.setdefault(
+        "solders.keypair", types.SimpleNamespace(Keypair=type("Keypair", (), {}))
+    )
     sys.modules.setdefault("solders.pubkey", types.SimpleNamespace(Pubkey=object))
-    sys.modules.setdefault("solders.instruction", types.SimpleNamespace(Instruction=object))
+    sys.modules.setdefault(
+        "solders.instruction", types.SimpleNamespace(Instruction=object)
+    )
 if importlib.util.find_spec("aiofiles") is None:
     aiof = types.ModuleType("aiofiles")
     aiof.__spec__ = importlib.machinery.ModuleSpec("aiofiles", None)

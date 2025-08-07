@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 from typing import List
 
 try:
     from solana.publickey import PublicKey  # type: ignore
 except Exception:  # pragma: no cover - fallback when solana not installed
+
     class PublicKey(str):
         def __new__(cls, value: str):
             return str.__new__(cls, value)
 
-    import types, sys
+    import sys
+    import types
+
     mod = types.ModuleType("solana.publickey")
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
@@ -19,6 +22,7 @@ except Exception:  # pragma: no cover - fallback when solana not installed
 try:
     from solana.rpc.async_api import AsyncClient  # type: ignore
 except Exception:  # pragma: no cover - fallback when solana not installed
+
     class AsyncClient:
         """Minimal stub used when :mod:`solana` is missing.
 
@@ -38,8 +42,11 @@ except Exception:  # pragma: no cover - fallback when solana not installed
         async def __aexit__(self, exc_type, exc, tb):  # pragma: no cover - simple stub
             return False
 
-        async def get_program_accounts(self, *_a, **_k):  # pragma: no cover - simple stub
+        async def get_program_accounts(
+            self, *_a, **_k
+        ):  # pragma: no cover - simple stub
             raise RuntimeError("AsyncClient is unavailable")
+
 
 from .scanner_common import token_matches
 
@@ -64,12 +71,7 @@ async def scan_new_pools(rpc_url: str) -> List[str]:
 
     tokens: List[str] = []
     for acc in resp.get("result", []):
-        info = (
-            acc.get("account", {})
-            .get("data", {})
-            .get("parsed", {})
-            .get("info", {})
-        )
+        info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
         for key in ("tokenA", "tokenB"):
             mint = info.get(key, {}).get("mint")
             name = info.get(key, {}).get("name")

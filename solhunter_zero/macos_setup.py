@@ -20,10 +20,7 @@ from .logging_utils import log_startup
 from .paths import ROOT
 
 try:
-    from solhunter_zero.device import (
-        METAL_EXTRA_INDEX,
-        load_torch_metal_versions,
-    )
+    from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
 
     TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 except Exception:  # pragma: no cover - optional import for CI
@@ -42,23 +39,20 @@ def _write_report(report: dict[str, object]) -> None:
         pass
 
 
-
 def mac_setup_completed() -> bool:
     """Return ``True`` if the macOS setup marker exists."""
     return MAC_SETUP_MARKER.exists()
 
 
-
-
-def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
+def _run(
+    cmd: list[str], check: bool = True, **kwargs
+) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
     print("Running:", " ".join(cmd))
     return subprocess.run(cmd, check=check, text=True, **kwargs)
 
 
-def _run_with_retry(
-    cmd: list[str], *, retries: int = 3, backoff: float = 1.0
-) -> None:
+def _run_with_retry(cmd: list[str], *, retries: int = 3, backoff: float = 1.0) -> None:
     """Run ``cmd`` with retries and exponential backoff.
 
     Retries the command ``retries`` times sleeping ``backoff`` seconds doubled
@@ -106,17 +100,30 @@ def ensure_network() -> None:
 
 
 def ensure_xcode(non_interactive: bool) -> None:
-    if subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+    if (
+        subprocess.run(
+            ["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode
+        == 0
+    ):
         return
     print("Installing Xcode command line tools...")
     subprocess.run(["xcode-select", "--install"], check=False)
     elapsed = 0
     timeout = 300
     interval = 10
-    while subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+    while (
+        subprocess.run(
+            ["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode
+        != 0
+    ):
         if non_interactive:
             if elapsed >= timeout:
-                print(f"Command line tools installation timed out after {timeout}s.", file=sys.stderr)
+                print(
+                    f"Command line tools installation timed out after {timeout}s.",
+                    file=sys.stderr,
+                )
                 raise SystemExit(1)
             time.sleep(interval)
             elapsed += interval
@@ -127,6 +134,7 @@ def ensure_xcode(non_interactive: bool) -> None:
             if ans.lower() == "c":
                 print("Please re-run this script after the tools are installed.")
                 raise SystemExit(1)
+
 
 def apply_brew_env() -> None:
     """Load Homebrew environment variables into ``os.environ``."""
@@ -152,11 +160,13 @@ _apply_brew_env = apply_brew_env
 def ensure_homebrew() -> None:
     if shutil.which("brew") is None:
         print("Homebrew not found. Installing...")
-        _run([
-            "/bin/bash",
-            "-c",
-            "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
-        ])
+        _run(
+            [
+                "/bin/bash",
+                "-c",
+                "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
+            ]
+        )
     apply_brew_env()
 
 
@@ -392,9 +402,7 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
         _write_report(report)
         return report
 
-    print(
-        "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
-    )
+    print("Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup...")
     report = prepare_macos_env(non_interactive=non_interactive)
     for step, info in report["steps"].items():
         msg = info.get("message", "")

@@ -4,21 +4,19 @@ import argparse
 import asyncio
 import importlib
 import json
+import logging
 import os
 import time
 from pathlib import Path
-import logging
 
 try:  # pragma: no cover - optional dependency
     import psutil
 except Exception:  # pragma: no cover - psutil optional
     psutil = None  # type: ignore
-    logging.getLogger(__name__).warning(
-        "psutil not installed; CPU profiling disabled"
-    )
+    logging.getLogger(__name__).warning("psutil not installed; CPU profiling disabled")
 from aiohttp import web
 
-from solhunter_zero import http, depth_client
+from solhunter_zero import depth_client, http
 
 
 def _prepare_mmap(path: Path) -> None:
@@ -51,7 +49,9 @@ async def _fetch(url: str, iterations: int) -> None:
         depth_client.snapshot("tok")
 
 
-async def _run_case(ttl: float, limit: int, per_host: int, iterations: int, url: str) -> tuple[float, float]:
+async def _run_case(
+    ttl: float, limit: int, per_host: int, iterations: int, url: str
+) -> tuple[float, float]:
     os.environ["DEPTH_CACHE_TTL"] = str(ttl)
     os.environ["HTTP_CONNECTOR_LIMIT"] = str(limit)
     os.environ["HTTP_CONNECTOR_LIMIT_PER_HOST"] = str(per_host)

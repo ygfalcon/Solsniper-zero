@@ -1,6 +1,7 @@
 import numpy as np
-from solhunter_zero import models
 import pytest
+
+from solhunter_zero import models
 
 
 @pytest.mark.slow
@@ -32,17 +33,19 @@ def test_train_transformer_model():
         seq_len=5,
         epochs=45,
     )
-    seq = np.column_stack([
-        prices[-5:],
-        liquidity[-5:],
-        depth[-5:],
-        depth_total[-5:],
-        slippage[-5:],
-        volume[-5:],
-        tx[-5:],
-        mem[-5:],
-        whales[-5:],
-        spread[-5:],
-    ])
+    seq = np.column_stack(
+        [
+            prices[-5:],
+            liquidity[-5:],
+            depth[-5:],
+            depth_total[-5:],
+            slippage[-5:],
+            volume[-5:],
+            tx[-5:],
+            mem[-5:],
+            whales[-5:],
+            spread[-5:],
+        ]
+    )
     pred = model.predict(seq)
     assert pred == pytest.approx(0.05, abs=0.03)

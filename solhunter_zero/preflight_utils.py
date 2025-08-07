@@ -17,8 +17,8 @@ from typing import List, Tuple
 from urllib import error
 
 from scripts.deps import check_deps
-from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
 from solhunter_zero import wallet
+from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
 from solhunter_zero.paths import ROOT
 
 Check = Tuple[bool, str]
@@ -29,9 +29,7 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
 
     if sys.version_info < min_version:
         return False, f"Python {min_version[0]}.{min_version[1]}+ required"
-    return True, (
-        f"Python {sys.version_info.major}.{sys.version_info.minor} detected"
-    )
+    return True, (f"Python {sys.version_info.major}.{sys.version_info.minor} detected")
 
 
 def check_dependencies() -> Check:
@@ -41,13 +39,9 @@ def check_dependencies() -> Check:
     if missing_required or missing_optional:
         parts: List[str] = []
         if missing_required:
-            parts.append(
-                "missing required: " + ", ".join(sorted(missing_required))
-            )
+            parts.append("missing required: " + ", ".join(sorted(missing_required)))
         if missing_optional:
-            parts.append(
-                "missing optional: " + ", ".join(sorted(missing_optional))
-            )
+            parts.append("missing optional: " + ", ".join(sorted(missing_optional)))
         return False, "; ".join(parts)
     return True, "All dependencies available"
 
@@ -134,8 +128,8 @@ def check_disk_space(min_bytes: int) -> None:
         raise SystemExit(1)
 
     if free < min_bytes:
-        required_gb = min_bytes / (1024 ** 3)
-        free_gb = free / (1024 ** 3)
+        required_gb = min_bytes / (1024**3)
+        free_gb = free / (1024**3)
         print(
             f"Insufficient disk space: {free_gb:.2f} GB available,"
             f" {required_gb:.2f} GB required."
@@ -147,8 +141,8 @@ def check_disk_space(min_bytes: int) -> None:
 def check_internet(url: str = "https://example.com") -> None:
     """Ensure basic internet connectivity by reaching a known host."""
 
-    import urllib.request
     import time
+    import urllib.request
 
     for attempt in range(3):
         try:
@@ -182,8 +176,7 @@ def check_required_env(keys: List[str] | None = None) -> Check:
     if missing:
         joined = ", ".join(missing)
         return False, (
-            f"Missing environment variables: {joined}. "
-            "Set them and retry"
+            f"Missing environment variables: {joined}. " "Set them and retry"
         )
     return True, "Required environment variables set"
 
@@ -218,4 +211,3 @@ def check_gpu() -> Check:
         return device.verify_gpu()
     except Exception as exc:  # pragma: no cover - defensive
         return False, str(exc)
-

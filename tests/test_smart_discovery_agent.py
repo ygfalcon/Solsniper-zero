@@ -1,7 +1,9 @@
 import asyncio
-import types
 import sys
+import types
+
 import pytest
+
 trans = pytest.importorskip("transformers")
 pytest.importorskip("sklearn")
 if not hasattr(trans, "pipeline"):
@@ -9,9 +11,13 @@ if not hasattr(trans, "pipeline"):
 
 # provide minimal solana.publickey stub
 mod = types.ModuleType("solana.publickey")
+
+
 class _Pub:
     def __init__(self, *a, **k):
         pass
+
+
 mod.PublicKey = _Pub
 sys.modules.setdefault("solana.publickey", mod)
 
@@ -30,6 +36,7 @@ def fake_mempool_gen(url, **_):
     async def gen():
         yield {"address": "a", "score": 1.0}
         yield {"address": "b", "score": 2.0}
+
     return gen()
 
 
@@ -47,7 +54,8 @@ def test_ranking(monkeypatch):
         lambda t, u: 5.0 if t == "a" else 1.0,
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.smart_discovery.news.fetch_sentiment", lambda *a, **k: 0.5
+        "solhunter_zero.agents.smart_discovery.news.fetch_sentiment",
+        lambda *a, **k: 0.5,
     )
     sklearn = types.SimpleNamespace(GradientBoostingRegressor=lambda: DummyGBR())
     monkeypatch.setitem(sys.modules, "sklearn.ensemble", sklearn)
@@ -73,7 +81,8 @@ def test_volume_filter(monkeypatch):
         lambda t, u: 1.0,
     )
     monkeypatch.setattr(
-        "solhunter_zero.agents.smart_discovery.news.fetch_sentiment", lambda *a, **k: 0.0
+        "solhunter_zero.agents.smart_discovery.news.fetch_sentiment",
+        lambda *a, **k: 0.0,
     )
     sklearn = types.SimpleNamespace(GradientBoostingRegressor=lambda: DummyGBR())
     monkeypatch.setitem(sys.modules, "sklearn.ensemble", sklearn)

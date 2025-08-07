@@ -1,8 +1,8 @@
 import asyncio
-import sys
-import types
 import importlib
 import importlib.machinery
+import sys
+import types
 
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 
@@ -29,7 +29,9 @@ def _load_main(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "sklearn.ensemble",
-        types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object),
+        types.SimpleNamespace(
+            GradientBoostingRegressor=object, RandomForestRegressor=object
+        ),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -172,6 +174,7 @@ def _load_main(monkeypatch):
 def test_paper(monkeypatch):
     main_module = _load_main(monkeypatch)
     from solhunter_zero.simulation import SimulationResult
+
     mem = main_module.Memory("sqlite:///:memory:")
     pf = main_module.Portfolio(path=None)
 
@@ -182,7 +185,9 @@ def test_paper(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)],
+        lambda token, count=100: [
+            SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)
+        ],
     )
     monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
     monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
@@ -211,6 +216,7 @@ def test_paper(monkeypatch):
 def test_paper_metrics(monkeypatch):
     main_module = _load_main(monkeypatch)
     from solhunter_zero.simulation import SimulationResult
+
     mem = main_module.Memory("sqlite:///:memory:")
     pf = main_module.Portfolio(path=None)
 
@@ -221,7 +227,9 @@ def test_paper_metrics(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "run_simulations",
-        lambda token, count=100: [SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)],
+        lambda token, count=100: [
+            SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)
+        ],
     )
 
     def patched_log_trade(self, **kw):

@@ -1,17 +1,19 @@
 import asyncio
 import json
+
 import aiohttp
 import pytest
+
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 import time
 
 from solhunter_zero import order_book_ws
-from solhunter_zero.agents.conviction import ConvictionAgent
 from solhunter_zero.agents.arbitrage import ArbitrageAgent
+from solhunter_zero.agents.conviction import ConvictionAgent
 from solhunter_zero.agents.swarm import AgentSwarm
-from solhunter_zero.simulation import SimulationResult
 from solhunter_zero.portfolio import Portfolio
+from solhunter_zero.simulation import SimulationResult
 
 
 class DummyPortfolio(Portfolio):
@@ -85,18 +87,14 @@ def test_agents_use_depth(monkeypatch):
         captured["obs"] = order_book_strength
         return [SimulationResult(1.0, 0.06)]
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.conviction.run_simulations", fake_run
-    )
+    monkeypatch.setattr("solhunter_zero.agents.conviction.run_simulations", fake_run)
     monkeypatch.setattr(
         "solhunter_zero.agents.conviction.predict_price_movement",
         lambda t, *, sentiment=None, model_path=None: 0.0,
     )
 
     pf = DummyPortfolio()
-    actions = asyncio.run(
-        agent.propose_trade("tok", pf, depth=100.0, imbalance=0.5)
-    )
+    actions = asyncio.run(agent.propose_trade("tok", pf, depth=100.0, imbalance=0.5))
     assert actions and actions[0]["side"] == "buy"
     assert captured["obs"] == 100.0
 
@@ -107,9 +105,7 @@ def test_agents_use_depth(monkeypatch):
         return 1.2
 
     arb = ArbitrageAgent(threshold=0.1, amount=5, feeds=[feed_low, feed_high])
-    no_trade = asyncio.run(
-        arb.propose_trade("tok", pf, depth=-1.0, imbalance=0.0)
-    )
+    no_trade = asyncio.run(arb.propose_trade("tok", pf, depth=-1.0, imbalance=0.0))
     assert no_trade == []
 
 
@@ -123,9 +119,7 @@ def test_swarm_integration(monkeypatch):
         captured["depth"] = order_book_strength
         return [SimulationResult(1.0, 0.06)]
 
-    monkeypatch.setattr(
-        "solhunter_zero.agents.conviction.run_simulations", fake_run
-    )
+    monkeypatch.setattr("solhunter_zero.agents.conviction.run_simulations", fake_run)
     monkeypatch.setattr(
         "solhunter_zero.agents.conviction.predict_price_movement",
         lambda t, *, sentiment=None, model_path=None: 0.0,
@@ -157,7 +151,10 @@ def test_mmap_watch_invalidate(tmp_path, monkeypatch):
     order_book_ws.start_mmap_watch()
     time.sleep(0.1)
 
-    order_book_ws._DEPTH_CACHE["tok"] = (time.time(), {"bids": 1, "asks": 1, "tx_rate": 0})
+    order_book_ws._DEPTH_CACHE["tok"] = (
+        time.time(),
+        {"bids": 1, "asks": 1, "tx_rate": 0},
+    )
     d1, _, _ = order_book_ws.snapshot("tok")
     assert d1 == 2.0
 
@@ -169,4 +166,3 @@ def test_mmap_watch_invalidate(tmp_path, monkeypatch):
     d2, _, _ = order_book_ws.snapshot("tok")
     assert d2 == 4.0
     order_book_ws.stop_mmap_watch()
-

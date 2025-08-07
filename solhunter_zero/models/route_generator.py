@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import os
-from typing import Sequence, Dict, List
+from typing import Dict, List, Sequence
 
 try:
     import torch
     from torch import nn
-    from torch.utils.data import Dataset, DataLoader
     from torch.nn.utils.rnn import pad_sequence
+    from torch.utils.data import DataLoader, Dataset
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:  # pragma: no cover - typing placeholder
             pass
@@ -19,34 +20,28 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for route_generator"
-                )
+                raise ImportError("torch is required for route_generator")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for route_generator"
-            )
+            raise ImportError("torch is required for route_generator")
 
     class _DatasetStub:
         def __init__(self, *a, **k) -> None:
-            raise ImportError(
-                "torch is required for route_generator"
-            )
+            raise ImportError("torch is required for route_generator")
 
     torch = nn = _TorchStub()  # type: ignore
     Dataset = DataLoader = _DatasetStub  # type: ignore
 
     def pad_sequence(*a, **k):  # type: ignore
-        raise ImportError(
-            "torch is required for route_generator"
-        )
+        raise ImportError("torch is required for route_generator")
 
 
 class RouteDataset(Dataset):
     """Dataset of profitable arbitrage routes."""
 
-    def __init__(self, routes: Sequence[Sequence[str]], venue_map: Dict[str, int] | None = None) -> None:
+    def __init__(
+        self, routes: Sequence[Sequence[str]], venue_map: Dict[str, int] | None = None
+    ) -> None:
         uniq = sorted({v for r in routes for v in r})
         if venue_map is None:
             self.venue_map = {v: i + 2 for i, v in enumerate(uniq)}
@@ -75,7 +70,13 @@ class RouteDataset(Dataset):
 class RouteGenerator(nn.Module):
     """Simple LSTM route generator."""
 
-    def __init__(self, vocab_size: int, embed_dim: int = 16, hidden_dim: int = 32, num_layers: int = 1) -> None:
+    def __init__(
+        self,
+        vocab_size: int,
+        embed_dim: int = 16,
+        hidden_dim: int = 32,
+        num_layers: int = 1,
+    ) -> None:
         super().__init__()
         self.embed = nn.Embedding(vocab_size, embed_dim)
         self.lstm = nn.LSTM(embed_dim, hidden_dim, num_layers, batch_first=True)
@@ -121,8 +122,15 @@ def train_route_generator(
     num_layers: int = 1,
 ) -> RouteGenerator:
     dataset = RouteDataset(routes)
-    loader = DataLoader(dataset, batch_size=min(32, len(dataset)), shuffle=True, collate_fn=dataset.collate)
-    model = RouteGenerator(len(dataset.venue_map) + 2, embed_dim, hidden_dim, num_layers)
+    loader = DataLoader(
+        dataset,
+        batch_size=min(32, len(dataset)),
+        shuffle=True,
+        collate_fn=dataset.collate,
+    )
+    model = RouteGenerator(
+        len(dataset.venue_map) + 2, embed_dim, hidden_dim, num_layers
+    )
     model.venue_map = dataset.venue_map
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss(ignore_index=dataset.end_idx)

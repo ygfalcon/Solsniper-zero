@@ -13,20 +13,24 @@ def test_capital_scaling(tmp_path: Path) -> None:
     reports1 = tmp_path / "run1"
     reports2 = tmp_path / "run2"
 
-    investor_demo.main([
-        "--reports",
-        str(reports1),
-        "--data",
-        str(data_path),
-    ])
-    investor_demo.main([
-        "--reports",
-        str(reports2),
-        "--data",
-        str(data_path),
-        "--capital",
-        "200",
-    ])
+    investor_demo.main(
+        [
+            "--reports",
+            str(reports1),
+            "--data",
+            str(data_path),
+        ]
+    )
+    investor_demo.main(
+        [
+            "--reports",
+            str(reports2),
+            "--data",
+            str(data_path),
+            "--capital",
+            "200",
+        ]
+    )
 
     summary1 = json.loads((reports1 / "summary.json").read_text())
     summary2 = json.loads((reports2 / "summary.json").read_text())

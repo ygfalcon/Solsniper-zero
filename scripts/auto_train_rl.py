@@ -1,20 +1,22 @@
 import argparse
 import time
-from pathlib import Path
 from itertools import product
+from pathlib import Path
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from solhunter_zero.offline_data import OfflineData
-from solhunter_zero.rl_daemon import _PPO, _TradeDataset, _metrics
 import solhunter_zero.device as device
+from solhunter_zero.offline_data import OfflineData
+from solhunter_zero.rl_daemon import _PPO, _metrics, _TradeDataset
 
 
 def _train(model: _PPO, data: _TradeDataset, device: torch.device, lr: float) -> None:
     loader = DataLoader(data, batch_size=32, shuffle=True)
-    opt = torch.optim.Adam(list(model.actor.parameters()) + list(model.critic.parameters()), lr=lr)
+    opt = torch.optim.Adam(
+        list(model.actor.parameters()) + list(model.critic.parameters()), lr=lr
+    )
     model.train()
     loss_fn = nn.MSELoss()
     for _ in range(3):
@@ -30,7 +32,10 @@ def _train(model: _PPO, data: _TradeDataset, device: torch.device, lr: float) ->
                 returns = rewards
             ratio = torch.exp(log_probs - log_probs.detach())
             s1 = ratio * advantages
-            s2 = torch.clamp(ratio, 1 - model.clip_epsilon, 1 + model.clip_epsilon) * advantages
+            s2 = (
+                torch.clamp(ratio, 1 - model.clip_epsilon, 1 + model.clip_epsilon)
+                * advantages
+            )
             actor_loss = -torch.min(s1, s2).mean()
             critic_loss = loss_fn(values, returns)
             loss = actor_loss + 0.5 * critic_loss
@@ -55,7 +60,10 @@ def _evaluate(model: _PPO, data: _TradeDataset, device: torch.device) -> float:
             advantages = rewards - values
             ratio = torch.exp(log_probs - log_probs)
             s1 = ratio * advantages
-            s2 = torch.clamp(ratio, 1 - model.clip_epsilon, 1 + model.clip_epsilon) * advantages
+            s2 = (
+                torch.clamp(ratio, 1 - model.clip_epsilon, 1 + model.clip_epsilon)
+                * advantages
+            )
             actor_loss = -torch.min(s1, s2).mean()
             critic_loss = loss_fn(values, rewards)
             total += float(actor_loss + 0.5 * critic_loss)

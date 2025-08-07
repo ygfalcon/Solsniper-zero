@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Iterable, Dict, Any
+from typing import Any, Dict, Iterable
 
-from . import BaseAgent
 from ..rl_training import MultiAgentRL
+from . import BaseAgent
 
 
 class HierarchicalRLAgent(BaseAgent):

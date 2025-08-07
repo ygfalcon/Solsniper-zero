@@ -1,25 +1,25 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict, deque
-from typing import List, Dict, Any
-
-from . import BaseAgent
-from .portfolio_optimizer import PortfolioOptimizer
-from .execution import ExecutionAgent
 import os
-from ..depth_client import snapshot
-from ..event_bus import subscribe
+from collections import defaultdict, deque
+from typing import Any, Dict, List
+
+from .. import routeffi as _routeffi
 from ..arbitrage import (
-    _prepare_service_tx,
-    VENUE_URLS,
     DEX_BASE_URL,
     DEX_FEES,
     DEX_LATENCY,
+    VENUE_URLS,
+    _prepare_service_tx,
 )
-from .. import routeffi as _routeffi
+from ..depth_client import snapshot
+from ..event_bus import subscribe
 from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
+from . import BaseAgent
+from .execution import ExecutionAgent
+from .portfolio_optimizer import PortfolioOptimizer
 
 
 class CrossDEXRebalancer(BaseAgent):
@@ -47,7 +47,11 @@ class CrossDEXRebalancer(BaseAgent):
         self.latency_weight = float(latency_weight)
         self.fee_weight = float(fee_weight)
         self._last = 0.0
-        stream_enabled = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
+        stream_enabled = os.getenv("USE_DEPTH_STREAM", "1").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         if use_depth_feed is None:
             use_depth_feed = stream_enabled or (
                 os.getenv("USE_DEPTH_FEED", "0").lower() in {"1", "true", "yes"}
@@ -226,7 +230,9 @@ class CrossDEXRebalancer(BaseAgent):
             depth_data, _ = snapshot(token)
         all_actions: List[Dict[str, Any]] = []
         for act in base_actions:
-            order = self._best_order(act.get("side", "buy"), act.get("amount", 0.0), depth_data)
+            order = self._best_order(
+                act.get("side", "buy"), act.get("amount", 0.0), depth_data
+            )
             all_actions.extend(await self._split_action(act, depth_data, order=order))
 
         if self.use_mev_bundles:

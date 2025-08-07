@@ -85,12 +85,8 @@ def test_correlations_synthetic(monkeypatch, tmp_path, dummy_mem):
     investor_demo.main(["--reports", str(tmp_path)])
 
     assert captured[("buy_hold", "momentum")] == pytest.approx(1.0, rel=1e-6)
-    assert captured[("buy_hold", "mean_reversion")] == pytest.approx(
-        -1.0, rel=1e-6
-    )
-    assert captured[("momentum", "mean_reversion")] == pytest.approx(
-        -1.0, rel=1e-6
-    )
+    assert captured[("buy_hold", "mean_reversion")] == pytest.approx(-1.0, rel=1e-6)
+    assert captured[("momentum", "mean_reversion")] == pytest.approx(-1.0, rel=1e-6)
 
 
 def test_demo_trade_recorded(monkeypatch, tmp_path, dummy_mem):

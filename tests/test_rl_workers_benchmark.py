@@ -1,6 +1,6 @@
+import datetime as dt
 import os
 import time
-import datetime as dt
 from types import SimpleNamespace
 
 import solhunter_zero.rl_training as rl_training

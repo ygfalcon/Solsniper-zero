@@ -7,6 +7,7 @@ try:
     import torch
     import torch.nn as nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -17,14 +18,10 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for regime_classifier"
-                )
+                raise ImportError("torch is required for regime_classifier")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for regime_classifier"
-            )
+            raise ImportError("torch is required for regime_classifier")
 
     torch = nn = _TorchStub()  # type: ignore
 
@@ -54,7 +51,7 @@ class RegimeLSTM(nn.Module):
         self.eval()
         with torch.no_grad():
             seq = (
-                torch.tensor(prices[-self.seq_len:], dtype=torch.float32)
+                torch.tensor(prices[-self.seq_len :], dtype=torch.float32)
                 .unsqueeze(0)
                 .unsqueeze(-1)
             )
@@ -88,7 +85,7 @@ class RegimeTransformer(nn.Module):
         self.eval()
         with torch.no_grad():
             seq = (
-                torch.tensor(prices[-self.seq_len:], dtype=torch.float32)
+                torch.tensor(prices[-self.seq_len :], dtype=torch.float32)
                 .unsqueeze(0)
                 .unsqueeze(-1)
             )
@@ -107,7 +104,7 @@ def make_training_data(
     seqs = []
     labels = []
     for i in range(n):
-        seq = arr[i:i + seq_len].unsqueeze(-1)
+        seq = arr[i : i + seq_len].unsqueeze(-1)
         p0 = arr[i + seq_len - 1]
         p1 = arr[i + seq_len]
         change = (p1 - p0) / p0
@@ -137,13 +134,9 @@ def train_regime_classifier(
 ) -> nn.Module:
     X, y = make_training_data(prices, seq_len, threshold)
     if model_type == "transformer":
-        model = RegimeTransformer(
-            seq_len, hidden_dim=hidden_dim, num_layers=num_layers
-        )
+        model = RegimeTransformer(seq_len, hidden_dim=hidden_dim, num_layers=num_layers)
     else:
-        model = RegimeLSTM(
-            seq_len, hidden_dim=hidden_dim, num_layers=num_layers
-        )
+        model = RegimeLSTM(seq_len, hidden_dim=hidden_dim, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()
     for _ in range(max(1, epochs)):

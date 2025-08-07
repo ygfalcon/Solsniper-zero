@@ -1,11 +1,12 @@
-import os
 import asyncio
 import logging
+import os
+
 import pytest
 
 os.environ.setdefault("SOLANA_RPC_URL", "http://localhost")
 os.environ.setdefault("DEX_BASE_URL", "http://localhost")
-os.environ.setdefault("AGENTS", "[\"dummy\"]")
+os.environ.setdefault("AGENTS", '["dummy"]')
 _cfg_path = os.path.join(os.path.dirname(__file__), "tmp_config.toml")
 with open(_cfg_path, "w", encoding="utf-8") as _f:
     _f.write("solana_rpc_url='http://localhost'\n")

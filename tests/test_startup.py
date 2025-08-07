@@ -12,15 +12,19 @@ TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
 
 def test_startup_help():
-    result = subprocess.run([sys.executable, 'scripts/startup.py', '--help'], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "scripts/startup.py", "--help"], capture_output=True, text=True
+    )
     assert result.returncode == 0
     out = result.stdout.lower() + result.stderr.lower()
-    assert 'usage' in out
+    assert "usage" in out
 
 
 def test_startup_repair_clears_markers(monkeypatch, capsys):
     import platform
-    import types, sys
+    import sys
+    import types
+
     dummy_pydantic = types.SimpleNamespace(
         BaseModel=object,
         AnyUrl=str,
@@ -53,13 +57,13 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
         called["called"] = True
         return {
             "success": False,
-            "steps": {"xcode": {"status": "error", "message": "boom"}}
+            "steps": {"xcode": {"status": "error", "message": "boom"}},
         }
-    monkeypatch.setattr(
-        "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare
-    )
+
+    monkeypatch.setattr("solhunter_zero.macos_setup.prepare_macos_env", fake_prepare)
     monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+
     def fake_gpu_env():
         os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"
         os.environ["SOLHUNTER_GPU_DEVICE"] = "cpu"
@@ -73,19 +77,24 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
     from scripts import preflight as preflight_mod
+
     monkeypatch.setattr(preflight_mod, "check_internet", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
-    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0)
+    )
 
-    code = startup.main([
-        "--repair",
-        "--skip-preflight",
-        "--skip-rpc-check",
-        "--skip-endpoint-check",
-        "--skip-setup",
-        "--skip-deps",
-        "--no-diagnostics",
-    ])
+    code = startup.main(
+        [
+            "--repair",
+            "--skip-preflight",
+            "--skip-rpc-check",
+            "--skip-endpoint-check",
+            "--skip-setup",
+            "--skip-deps",
+            "--no-diagnostics",
+        ]
+    )
     assert code == 0
     out = capsys.readouterr().out
     assert "Manual fix for xcode" in out
@@ -98,7 +107,9 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 def test_mac_startup_prereqs(monkeypatch):
     """Mac-specific startup helpers run without errors."""
     import platform
-    import types, sys
+    import sys
+    import types
+
     from scripts import startup
     from solhunter_zero import bootstrap
 
@@ -116,7 +127,8 @@ def test_mac_startup_prereqs(monkeypatch):
         "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
     )
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+        "solhunter_zero.macos_setup.prepare_macos_env",
+        lambda non_interactive=True: {"success": True},
     )
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
@@ -144,7 +156,7 @@ def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
     (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
     os.chmod(bindir / "uname", 0o755)
 
-    (bindir / "arch").write_text("#!/bin/bash\nshift\n\"$@\"\n")
+    (bindir / "arch").write_text('#!/bin/bash\nshift\n"$@"\n')
     os.chmod(bindir / "arch", 0o755)
 
     venv = repo_root / ".venv"
@@ -172,7 +184,7 @@ def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
 
 
 def test_cluster_setup_assemble(tmp_path):
-    cfg = tmp_path / 'cluster.toml'
+    cfg = tmp_path / "cluster.toml"
     cfg.write_text(
         """
 event_bus_url = "ws://bus"
@@ -189,31 +201,33 @@ solana_keypair = "kp2"
     )
 
     import importlib
-    mod = importlib.import_module('scripts.cluster_setup')
+
+    mod = importlib.import_module("scripts.cluster_setup")
     config = mod.load_cluster_config(str(cfg))
     cmds = mod.assemble_commands(config)
 
     assert len(cmds) == 2
 
     cmd1, env1 = cmds[0]
-    assert cmd1[1].endswith('start_all.py')
-    assert env1['EVENT_BUS_URL'] == 'ws://bus'
-    assert env1['BROKER_URL'] == 'redis://host'
-    assert env1['SOLANA_RPC_URL'] == 'url1'
-    assert env1['SOLANA_KEYPAIR'] == 'kp1'
+    assert cmd1[1].endswith("start_all.py")
+    assert env1["EVENT_BUS_URL"] == "ws://bus"
+    assert env1["BROKER_URL"] == "redis://host"
+    assert env1["SOLANA_RPC_URL"] == "url1"
+    assert env1["SOLANA_KEYPAIR"] == "kp1"
 
 
 def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
     import sys
+
     import solhunter_zero
+
     sys.modules.pop("solhunter_zero.wallet", None)
     if hasattr(solhunter_zero, "wallet"):
         delattr(solhunter_zero, "wallet")
 
-    from solhunter_zero.bootstrap import ensure_keypair
-
     from solhunter_zero import wallet
+    from solhunter_zero.bootstrap import ensure_keypair
 
     calls = {"count": 0}
     real = wallet.generate_default_keypair
@@ -239,7 +253,9 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
 def test_ensure_keypair_from_json(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
     import sys
+
     import solhunter_zero
+
     sys.modules.pop("solhunter_zero.wallet", None)
     if hasattr(solhunter_zero, "wallet"):
         delattr(solhunter_zero, "wallet")
@@ -247,11 +263,11 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
     monkeypatch.delenv("MNEMONIC", raising=False)
 
     import json
+
     monkeypatch.setenv("KEYPAIR_JSON", json.dumps([0] * 64))
 
-    from solhunter_zero.bootstrap import ensure_keypair
-
     from solhunter_zero import wallet
+    from solhunter_zero.bootstrap import ensure_keypair
 
     def boom() -> tuple[str, Path]:
         raise AssertionError("should not be called")
@@ -292,9 +308,7 @@ def test_ensure_deps_installs_optional(monkeypatch):
     ]
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(
-        startup.bootstrap_utils, "_package_missing", lambda pkg: True
-    )
+    monkeypatch.setattr(startup.bootstrap_utils, "_package_missing", lambda pkg: True)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
@@ -366,11 +380,13 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
         "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
     )
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+        "solhunter_zero.macos_setup.prepare_macos_env",
+        lambda non_interactive=True: {"success": True},
     )
     monkeypatch.setattr(startup.bootstrap_utils, "_package_missing", lambda pkg: True)
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+        "solhunter_zero.macos_setup.prepare_macos_env",
+        lambda non_interactive=True: {"success": True},
     )
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
@@ -426,12 +442,15 @@ def test_ensure_deps_requires_mps(monkeypatch):
     )
     monkeypatch.setattr(startup.bootstrap_utils, "_package_missing", lambda pkg: True)
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+        "solhunter_zero.macos_setup.prepare_macos_env",
+        lambda non_interactive=True: {"success": True},
     )
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     import importlib
+
     orig_find_spec = importlib.util.find_spec
 
     def fake_find_spec(name):
@@ -457,8 +476,9 @@ def test_ensure_deps_requires_mps(monkeypatch):
 
 
 def test_ensure_endpoints_success(monkeypatch):
-    from solhunter_zero.bootstrap_utils import ensure_endpoints
     import urllib.request
+
+    from solhunter_zero.bootstrap_utils import ensure_endpoints
 
     calls: list[tuple[str, str]] = []
 
@@ -487,8 +507,10 @@ def test_ensure_endpoints_success(monkeypatch):
 
 
 def test_ensure_endpoints_failure(monkeypatch, capsys):
+    import urllib.error
+    import urllib.request
+
     from solhunter_zero.bootstrap_utils import ensure_endpoints
-    import urllib.request, urllib.error
 
     def fake_urlopen(req, timeout=5):
         raise urllib.error.URLError("boom")
@@ -631,9 +653,11 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
 
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
@@ -644,6 +668,7 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
 
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(
@@ -651,8 +676,12 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     )
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
-    import types, sys
+    monkeypatch.setattr(
+        startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg)
+    )
+    import sys
+    import types
+
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(
@@ -665,7 +694,9 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
             ensure_gpu_env=lambda: {},
         ),
     )
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+    )
     monkeypatch.setattr(
         startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
     )
@@ -694,9 +725,14 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
-    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
-    import types, sys
+    monkeypatch.setattr(
+        startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg)
+    )
+    import sys
+    import types
+
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(
@@ -709,7 +745,9 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
             ensure_gpu_env=lambda: {},
         ),
     )
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+    )
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
@@ -718,12 +756,14 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
-    ret = startup.main([
-        "--skip-deps",
-        "--skip-rpc-check",
-        "--skip-endpoint-check",
-        "--skip-preflight",
-    ])
+    ret = startup.main(
+        [
+            "--skip-deps",
+            "--skip-rpc-check",
+            "--skip-endpoint-check",
+            "--skip-preflight",
+        ]
+    )
 
     out = capsys.readouterr().out
     assert "endpoints" not in called
@@ -732,8 +772,10 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
 
 
 def test_main_preflight_success(monkeypatch):
+    import sys
+    import types
+
     from scripts import startup
-    import types, sys
 
     called = {}
 
@@ -747,8 +789,11 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
-    import types as _types, sys
+    import sys
+    import types as _types
+
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(
@@ -760,22 +805,27 @@ def test_main_preflight_success(monkeypatch):
             detect_gpu=lambda: False,
         ),
     )
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0))
+    )
 
     with pytest.raises(SystemExit) as exc:
-        startup.main([
-            "--one-click",
-            "--skip-setup",
-            "--skip-deps",
-        ])
+        startup.main(
+            [
+                "--one-click",
+                "--skip-setup",
+                "--skip-deps",
+            ]
+        )
 
     assert called.get("preflight") is True
     assert exc.value.code == 0
 
 
 def test_main_preflight_failure(monkeypatch, capsys):
-    from scripts import startup
     from pathlib import Path
+
+    from scripts import startup
 
     def fake_preflight():
         print("out")
@@ -785,6 +835,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr("scripts.preflight.main", fake_preflight)
 
     import types
+
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(
@@ -800,17 +851,20 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
 
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
     if log_file.exists():
         log_file.unlink()
 
-    ret = startup.main([
-        "--one-click",
-        "--skip-deps",
-        "--skip-setup",
-    ])
+    ret = startup.main(
+        [
+            "--one-click",
+            "--skip-deps",
+            "--skip-setup",
+        ]
+    )
 
     assert ret == 2
     captured = capsys.readouterr()
@@ -824,6 +878,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
 
 def test_preflight_log_rotation(tmp_path):
     from scripts import startup
+
     log_path = tmp_path / "preflight.log"
     log_path.write_text("x" * 20)
     rotated = tmp_path / "preflight.log.1"
@@ -852,7 +907,9 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
 
     import platform
-    import types, sys
+    import sys
+    import types
+
     from solhunter_zero import bootstrap
 
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
@@ -888,8 +945,11 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
+
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
-    import types, sys
+    import sys
+    import types
+
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(
@@ -920,8 +980,12 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
 
 def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
+    import shutil
+    import subprocess
+    import sys
+    import types
+
     from scripts import startup
-    import types, subprocess, shutil, sys
 
     monkeypatch.setattr(shutil, "which", lambda cmd: None)
 
@@ -941,9 +1005,10 @@ def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
 
 
 def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys):
+    import subprocess
+
     from scripts import startup
     from solhunter_zero.wallet import KeypairInfo
-    import subprocess
 
     cfg_path = tmp_path / "config.toml"
     cfg_path.write_text("")
@@ -953,6 +1018,7 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
         raise FileNotFoundError("missing")
 
     import solhunter_zero.config_utils as cu
+
     monkeypatch.setattr(cu, "ensure_default_config", missing_config)
 
     def fake_quick_setup():
@@ -961,7 +1027,9 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
 
     monkeypatch.setattr(startup, "run_quick_setup", fake_quick_setup)
 
-    import types, sys
+    import sys
+    import types
+
     config_mod = types.SimpleNamespace(
         load_config=lambda path: {}, validate_config=lambda cfg: cfg
     )
@@ -974,6 +1042,7 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
 
     monkeypatch.setattr(cu, "select_active_keypair", fake_select)
     import solhunter_zero.wallet as wallet_mod
+
     monkeypatch.setattr(wallet_mod, "KEYPAIR_DIR", tmp_path)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -983,19 +1052,26 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
-    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
-    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+    monkeypatch.setattr(
+        startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"}
+    )
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0)
+    )
     import scripts.healthcheck as healthcheck
+
     monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
 
-    ret = startup.main([
-        "--one-click",
-        "--skip-deps",
-        "--skip-rpc-check",
-        "--skip-endpoint-check",
-        "--skip-preflight",
-        "--no-diagnostics",
-    ])
+    ret = startup.main(
+        [
+            "--one-click",
+            "--skip-deps",
+            "--skip-rpc-check",
+            "--skip-endpoint-check",
+            "--skip-preflight",
+            "--no-diagnostics",
+        ]
+    )
 
     assert ret == 0
     assert calls.get("quick_setup") is True
@@ -1006,15 +1082,17 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
 
 
 def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
+    import subprocess
+
     from scripts import startup
     from solhunter_zero.wallet import KeypairInfo
-    import subprocess
 
     cfg_path = tmp_path / "config.toml"
     cfg_path.write_text("invalid")
     calls: dict[str, int | bool] = {}
 
     import solhunter_zero.config_utils as cu
+
     monkeypatch.setattr(cu, "ensure_default_config", lambda: str(cfg_path))
 
     def fake_quick_setup():
@@ -1029,6 +1107,7 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(cu, "select_active_keypair", fake_select)
     import solhunter_zero.wallet as wallet_mod
+
     monkeypatch.setattr(wallet_mod, "KEYPAIR_DIR", tmp_path)
 
     def fake_validate(cfg):
@@ -1037,8 +1116,12 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
         calls["validated"] = True
         raise ValueError("bad config")
 
-    import types, sys
-    config_mod = types.SimpleNamespace(load_config=lambda path: {}, validate_config=fake_validate)
+    import sys
+    import types
+
+    config_mod = types.SimpleNamespace(
+        load_config=lambda path: {}, validate_config=fake_validate
+    )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", config_mod)
 
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
@@ -1050,30 +1133,40 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
     )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
-    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
-    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+    monkeypatch.setattr(
+        startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"}
+    )
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0)
+    )
     import scripts.healthcheck as healthcheck
+
     monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
 
-    ret = startup.main([
-        "--one-click",
-        "--skip-deps",
-        "--skip-rpc-check",
-        "--skip-endpoint-check",
-        "--skip-preflight",
-        "--no-diagnostics",
-    ])
+    ret = startup.main(
+        [
+            "--one-click",
+            "--skip-deps",
+            "--skip-rpc-check",
+            "--skip-endpoint-check",
+            "--skip-preflight",
+            "--no-diagnostics",
+        ]
+    )
 
     assert ret == 0
     assert calls.get("quick_setup") == 1
     assert calls.get("auto") is True
 
+
 def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
+    import types
+
+    import pytest
+    import solana.rpc.api as rpc_api
+
     from solhunter_zero import bootstrap
     from solhunter_zero.wallet import KeypairInfo
-    import types
-    import solana.rpc.api as rpc_api
-    import pytest
 
     monkeypatch.setenv("SOLHUNTER_SKIP_VENV", "1")
     monkeypatch.setenv("SOLHUNTER_SKIP_DEPS", "1")
@@ -1096,7 +1189,9 @@ def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(bootstrap.wallet, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(
-        bootstrap.wallet, "load_keypair", lambda _p: types.SimpleNamespace(pubkey=lambda: "pk")
+        bootstrap.wallet,
+        "load_keypair",
+        lambda _p: types.SimpleNamespace(pubkey=lambda: "pk"),
     )
 
     class FakeClient:

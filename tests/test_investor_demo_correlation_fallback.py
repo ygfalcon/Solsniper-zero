@@ -1,10 +1,13 @@
 import pytest
+
 from solhunter_zero import investor_demo
 
 
 def _manual_corr() -> dict[tuple[str, str], float]:
     prices, _ = investor_demo.load_prices()
-    strategy_returns = {name: strat(prices) for name, strat in investor_demo.DEFAULT_STRATEGIES}
+    strategy_returns = {
+        name: strat(prices) for name, strat in investor_demo.DEFAULT_STRATEGIES
+    }
     keys = list(strategy_returns.keys())
     out: dict[tuple[str, str], float] = {}
     for i in range(len(keys)):
@@ -24,7 +27,7 @@ def _manual_corr() -> dict[tuple[str, str], float]:
                 c = 0.0
             else:
                 cov = sum((a[k] - ma) * (b[k] - mb) for k in range(n)) / n
-                c = cov / (va ** 0.5 * vb ** 0.5)
+                c = cov / (va**0.5 * vb**0.5)
             out[(keys[i], keys[j])] = c
     return out
 

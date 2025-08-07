@@ -13,7 +13,9 @@ def test_run_rl_daemon_sets_event_bus(monkeypatch):
     class DummyDaemon:
         def __init__(self, *a, **k):
             from solhunter_zero.config import get_event_bus_url
+
             DummyDaemon.url = get_event_bus_url()
+
         def start(self, *a, **k):
             pass
 
@@ -63,6 +65,7 @@ def test_run_rl_daemon_distributed_flag(monkeypatch):
     class DummyDaemon:
         def __init__(self, *a, **k):
             DummyDaemon.dist = k.get("distributed_rl")
+
         def start(self, *a, **k):
             pass
 
@@ -101,4 +104,3 @@ def test_run_rl_daemon_distributed_flag(monkeypatch):
     asyncio.run(run_mod.main())
 
     assert DummyDaemon.dist is True
-

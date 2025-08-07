@@ -1,9 +1,10 @@
-import numpy as np
-import pytest
 import asyncio
 import time
 
-from solhunter_zero import simulation, http
+import numpy as np
+import pytest
+
+from solhunter_zero import http, simulation
 from solhunter_zero.simulation import SimulationResult
 
 
@@ -93,8 +94,10 @@ def test_fetch_token_metrics_base_url(monkeypatch):
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=5):
             captured["url"] = url
             return FakeResp()
@@ -135,8 +138,10 @@ def test_fetch_token_metrics_multiple_dex(monkeypatch):
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=5):
             urls.append(url)
             return FakeResp(url)
@@ -246,6 +251,7 @@ def test_run_simulations_volume_filter(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+
     async def fake_fetch(_t):
         return {}
 
@@ -268,6 +274,7 @@ def test_run_simulations_recent_volume(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+
     async def fake_fetch(_t):
         return {}
 
@@ -309,6 +316,7 @@ def test_run_simulations_with_history(monkeypatch):
             return np.array([0.07])
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
+
     async def fake_fetch(_t):
         return {}
 
@@ -359,6 +367,7 @@ def test_run_simulations_with_tx_trend(monkeypatch):
             return np.array([0.09])
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
+
     async def fake_fetch(_t):
         return {}
 
@@ -367,7 +376,9 @@ def test_run_simulations_with_tx_trend(monkeypatch):
     )
     monkeypatch.setattr(simulation, "RandomForestRegressor", lambda **kw: FakeRF())
     monkeypatch.setattr(simulation, "XGBRegressor", None)
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
+    monkeypatch.setattr(
+        simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
+    )
 
     results = simulation.run_simulations("tok", count=1, days=2)
 
@@ -387,13 +398,16 @@ def test_run_simulations_optional_inputs(monkeypatch):
         }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+
     async def fake_fetch(_t):
         return {}
 
     monkeypatch.setattr(
         simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
     )
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
+    monkeypatch.setattr(
+        simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
+    )
 
     res = simulation.run_simulations(
         "tok",
@@ -406,21 +420,19 @@ def test_run_simulations_optional_inputs(monkeypatch):
     assert res.order_book_strength == pytest.approx(0.9)
 
 
-
 def test_run_simulations_additional_metrics(monkeypatch):
     def fake_metrics(token):
         return {
             "mean": 0.0,
             "volatility": 0.02,
-
             "volume": 10.0,
             "liquidity": 20.0,
             "slippage": 0.01,
         }
 
-
     monkeypatch.setenv("SOLANA_RPC_URL", "http://node")
     monkeypatch.setattr(simulation, "fetch_token_metrics", fake_metrics)
+
     async def fake_fetch(_t):
         return {}
 
@@ -432,10 +444,11 @@ def test_run_simulations_additional_metrics(monkeypatch):
         "collect_onchain_insights",
         lambda t, u: {"depth_change": 1.0, "tx_rate": 2.0, "whale_activity": 0.5},
     )
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
+    monkeypatch.setattr(
+        simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
+    )
 
     res = simulation.run_simulations("tok", count=1)[0]
     assert res.depth_change == pytest.approx(1.0)
     assert res.tx_rate == pytest.approx(2.0)
     assert res.whale_activity == pytest.approx(0.5)
-

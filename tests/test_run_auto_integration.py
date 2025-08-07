@@ -1,33 +1,40 @@
-import sys
-import types
 import asyncio
 import contextlib
+import importlib.machinery
 import json
 import os
+import sys
+import types
+
 import pytest
-import importlib.machinery
 
-_faiss_mod = types.ModuleType('faiss')
-_faiss_mod.__spec__ = importlib.machinery.ModuleSpec('faiss', None)
-sys.modules.setdefault('faiss', _faiss_mod)
-_st_mod = types.ModuleType('sentence_transformers')
-_st_mod.__spec__ = importlib.machinery.ModuleSpec('sentence_transformers', None)
-sys.modules.setdefault('sentence_transformers', _st_mod)
-sys.modules['sentence_transformers'].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(get_sentence_embedding_dimension=lambda:1, encode=lambda x: [])
+_faiss_mod = types.ModuleType("faiss")
+_faiss_mod.__spec__ = importlib.machinery.ModuleSpec("faiss", None)
+sys.modules.setdefault("faiss", _faiss_mod)
+_st_mod = types.ModuleType("sentence_transformers")
+_st_mod.__spec__ = importlib.machinery.ModuleSpec("sentence_transformers", None)
+sys.modules.setdefault("sentence_transformers", _st_mod)
+sys.modules[
+    "sentence_transformers"
+].SentenceTransformer = lambda *a, **k: types.SimpleNamespace(
+    get_sentence_embedding_dimension=lambda: 1, encode=lambda x: []
+)
 
-sklearn = types.ModuleType('sklearn')
-sklearn.__spec__ = importlib.machinery.ModuleSpec('sklearn', None)
-sys.modules.setdefault('sklearn', sklearn)
-sys.modules['sklearn.linear_model'] = types.SimpleNamespace(LinearRegression=object)
-sys.modules['sklearn.ensemble'] = types.SimpleNamespace(GradientBoostingRegressor=object, RandomForestRegressor=object)
-sys.modules['sklearn.cluster'] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
-_xgb_mod = types.ModuleType('xgboost')
-_xgb_mod.__spec__ = importlib.machinery.ModuleSpec('xgboost', None)
+sklearn = types.ModuleType("sklearn")
+sklearn.__spec__ = importlib.machinery.ModuleSpec("sklearn", None)
+sys.modules.setdefault("sklearn", sklearn)
+sys.modules["sklearn.linear_model"] = types.SimpleNamespace(LinearRegression=object)
+sys.modules["sklearn.ensemble"] = types.SimpleNamespace(
+    GradientBoostingRegressor=object, RandomForestRegressor=object
+)
+sys.modules["sklearn.cluster"] = types.SimpleNamespace(KMeans=object, DBSCAN=object)
+_xgb_mod = types.ModuleType("xgboost")
+_xgb_mod.__spec__ = importlib.machinery.ModuleSpec("xgboost", None)
 _xgb_mod.XGBRegressor = object
-sys.modules['xgboost'] = _xgb_mod
+sys.modules["xgboost"] = _xgb_mod
 
-torch_mod = types.ModuleType('torch')
-torch_mod.__spec__ = importlib.machinery.ModuleSpec('torch', None)
+torch_mod = types.ModuleType("torch")
+torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", None)
 torch_mod.no_grad = contextlib.nullcontext
 torch_mod.tensor = lambda *a, **k: None
 torch_mod.nn = types.SimpleNamespace(
@@ -37,24 +44,25 @@ torch_mod.nn = types.SimpleNamespace(
     TransformerEncoderLayer=object,
     Module=object,
 )
-torch_mod.optim = types.ModuleType('optim')
-torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec('torch.optim', None)
-torch_mod.utils = types.ModuleType('utils')
+torch_mod.optim = types.ModuleType("optim")
+torch_mod.optim.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
+torch_mod.utils = types.ModuleType("utils")
 torch_mod.utils.data = types.SimpleNamespace(Dataset=object, DataLoader=object)
-sys.modules['torch.utils'] = torch_mod.utils
-sys.modules['torch.utils.data'] = torch_mod.utils.data
-sys.modules['torch.nn'] = torch_mod.nn
-sys.modules['torch'] = torch_mod
+sys.modules["torch.utils"] = torch_mod.utils
+sys.modules["torch.utils.data"] = torch_mod.utils.data
+sys.modules["torch.nn"] = torch_mod.nn
+sys.modules["torch"] = torch_mod
 
-_pl_mod = types.ModuleType('pytorch_lightning')
+_pl_mod = types.ModuleType("pytorch_lightning")
 _pl_mod.callbacks = types.SimpleNamespace(Callback=object)
 _pl_mod.LightningModule = object
 _pl_mod.LightningDataModule = object
 _pl_mod.Trainer = object
-sys.modules.setdefault('pytorch_lightning', _pl_mod)
+sys.modules.setdefault("pytorch_lightning", _pl_mod)
 
 
 from solders.keypair import Keypair
+
 import solhunter_zero.config as cfg_mod
 
 
@@ -99,7 +107,9 @@ def test_run_auto_integration(monkeypatch, tmp_path):
         async def fake_discover(self, **kwargs):
             return ["TOK"]
 
-        monkeypatch.setattr(main_module.DiscoveryAgent, "discover_tokens", fake_discover)
+        monkeypatch.setattr(
+            main_module.DiscoveryAgent, "discover_tokens", fake_discover
+        )
 
         class DummySM:
             def __init__(self, *a, **k):
@@ -133,8 +143,10 @@ def test_run_auto_integration(monkeypatch, tmp_path):
             fake_fetch,
         )
         monkeypatch.setattr(main_module, "ensure_connectivity", lambda **_: None)
+
         async def _noop(*_a, **_k):
             return None
+
         monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop)
         monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
 

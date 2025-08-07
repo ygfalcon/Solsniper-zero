@@ -6,13 +6,13 @@ This module provides a single helper :func:`write_diagnostics` which writes a
 small JSON file summarising key runtime information for accessibility tools.
 """
 
-from pathlib import Path
 import json
 import os
+from pathlib import Path
 from typing import Any
 
-from .paths import ROOT
 from .logging_utils import log_startup
+from .paths import ROOT
 
 
 def _coerce_path(value: Any) -> str | None:

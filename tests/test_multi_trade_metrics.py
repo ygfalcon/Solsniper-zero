@@ -1,6 +1,7 @@
-import pytest
-import types
 import sys
+import types
+
+import pytest
 
 pb_stub = types.ModuleType("event_pb2")
 for _name in [
@@ -30,10 +31,9 @@ for _name in [
     setattr(pb_stub, _name, type(_name, (), {}))
 sys.modules.setdefault("solhunter_zero.event_pb2", pb_stub)
 
-from solhunter_zero.memory import Memory
-
-
 import asyncio
+
+from solhunter_zero.memory import Memory
 
 
 @pytest.mark.asyncio

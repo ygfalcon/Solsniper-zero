@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Sequence, Iterable, Tuple, Any
-
 import os
+from typing import Any, Iterable, Sequence, Tuple
+
 try:
     import torch
     import torch.nn as nn
 except ImportError as exc:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         class Tensor:
             pass
@@ -17,14 +18,10 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
         class Module:
             def __init__(self, *a, **k) -> None:
-                raise ImportError(
-                    "torch is required for onchain_forecaster"
-                )
+                raise ImportError("torch is required for onchain_forecaster")
 
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for onchain_forecaster"
-            )
+            raise ImportError("torch is required for onchain_forecaster")
 
     torch = nn = _TorchStub()  # type: ignore
 
@@ -32,7 +29,13 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 class LSTMForecaster(nn.Module):
     """LSTM network forecasting mempool transaction rate."""
 
-    def __init__(self, input_dim: int = 4, hidden_dim: int = 32, num_layers: int = 2, seq_len: int = 30) -> None:
+    def __init__(
+        self,
+        input_dim: int = 4,
+        hidden_dim: int = 32,
+        num_layers: int = 2,
+        seq_len: int = 30,
+    ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -57,7 +60,13 @@ class LSTMForecaster(nn.Module):
 class TransformerForecaster(nn.Module):
     """Transformer encoder forecasting mempool transaction rate."""
 
-    def __init__(self, input_dim: int = 4, hidden_dim: int = 32, num_layers: int = 2, seq_len: int = 30) -> None:
+    def __init__(
+        self,
+        input_dim: int = 4,
+        hidden_dim: int = 32,
+        num_layers: int = 2,
+        seq_len: int = 30,
+    ) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -66,7 +75,9 @@ class TransformerForecaster(nn.Module):
         nhead = max(1, min(4, input_dim))
         if input_dim % nhead != 0:
             nhead = 1
-        layer = nn.TransformerEncoderLayer(input_dim, nhead=nhead, dim_feedforward=hidden_dim)
+        layer = nn.TransformerEncoderLayer(
+            input_dim, nhead=nhead, dim_feedforward=hidden_dim
+        )
         self.encoder = nn.TransformerEncoder(layer, num_layers)
         self.fc = nn.Linear(input_dim, 1)
 
@@ -83,7 +94,9 @@ class TransformerForecaster(nn.Module):
             return float(pred.item())
 
 
-def make_dataset(snaps: Iterable[Any], seq_len: int = 30) -> Tuple[torch.Tensor, torch.Tensor]:
+def make_dataset(
+    snaps: Iterable[Any], seq_len: int = 30
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Construct training tensors from offline snapshots."""
 
     rows = sorted(snaps, key=lambda s: s.timestamp)
@@ -91,7 +104,9 @@ def make_dataset(snaps: Iterable[Any], seq_len: int = 30) -> Tuple[torch.Tensor,
     for prev, curr in zip(rows[:-1], rows[1:]):
         depth_change = float(curr.depth - prev.depth)
         tx_rate = float(curr.tx_rate)
-        whale = float(getattr(curr, "whale_share", getattr(curr, "whale_activity", 0.0)))
+        whale = float(
+            getattr(curr, "whale_share", getattr(curr, "whale_activity", 0.0))
+        )
         avg_swap = float(curr.volume) / tx_rate if tx_rate else 0.0
         feats.append([depth_change, tx_rate, whale, avg_swap])
 
@@ -122,7 +137,9 @@ def train_lstm(
     """Train :class:`LSTMForecaster` on snapshots."""
 
     X, y = make_dataset(snaps, seq_len)
-    model = LSTMForecaster(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers, seq_len=seq_len)
+    model = LSTMForecaster(
+        X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers, seq_len=seq_len
+    )
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
@@ -147,7 +164,9 @@ def train_transformer(
     """Train :class:`TransformerForecaster` on snapshots."""
 
     X, y = make_dataset(snaps, seq_len)
-    model = TransformerForecaster(X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers, seq_len=seq_len)
+    model = TransformerForecaster(
+        X.size(-1), hidden_dim=hidden_dim, num_layers=num_layers, seq_len=seq_len
+    )
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     for _ in range(epochs):
@@ -205,4 +224,3 @@ def get_model(path: str | None, *, reload: bool = False) -> nn.Module | None:
     model = load_model(path)
     _MODEL_CACHE[path] = (mtime, model)
     return model
-

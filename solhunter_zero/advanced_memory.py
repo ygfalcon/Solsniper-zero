@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import os
 import datetime
+import os
 import uuid as uuid_module
-from typing import List, Any
 from collections.abc import Iterable
+from typing import Any, List
 
 import numpy as np
+
 try:  # optional heavy deps
     import faiss  # type: ignore
     from sentence_transformers import SentenceTransformer
@@ -49,29 +50,26 @@ def _gpu_index_enabled() -> bool:
         return False
     try:
         backend = get_gpu_backend()
-        return (
-            backend == "torch"
-            and torch is not None
-            and torch.cuda.is_available()
-        )
+        return backend == "torch" and torch is not None and torch.cuda.is_available()
     except Exception:
         return False
+
+
 from sqlalchemy import (
-    create_engine,
     Column,
-    Integer,
-    Float,
-    String,
     DateTime,
-    Text,
+    Float,
     ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .base_memory import BaseMemory
 from .event_bus import publish, subscription
-from .schemas import TradeLogged, MemorySyncRequest, MemorySyncResponse
-
+from .schemas import MemorySyncRequest, MemorySyncResponse, TradeLogged
 
 Base = declarative_base()
 
@@ -95,7 +93,9 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id = Column(Integer, primary_key=True)
-    uuid = Column(String, unique=True, nullable=False, default=lambda: str(uuid_module.uuid4()))
+    uuid = Column(
+        String, unique=True, nullable=False, default=lambda: str(uuid_module.uuid4())
+    )
     token = Column(String, nullable=False)
     direction = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
@@ -108,7 +108,10 @@ class Trade(Base):
 
 
 def summarize_context(
-    trades: List[Trade], *, model: SentenceTransformer | None = None, dim: int | None = None
+    trades: List[Trade],
+    *,
+    model: SentenceTransformer | None = None,
+    dim: int | None = None,
 ) -> np.ndarray:
     """Aggregate embeddings of ``trades`` into a single vector."""
     if model is not None:
@@ -177,9 +180,13 @@ class AdvancedMemory(BaseMemory):
         if replicate:
             self._replication_sub = subscription("trade_logged", self._apply_remote)
             self._replication_sub.__enter__()
-            self._sync_req_sub = subscription("memory_sync_request", self._handle_sync_request)
+            self._sync_req_sub = subscription(
+                "memory_sync_request", self._handle_sync_request
+            )
             self._sync_req_sub.__enter__()
-            self._sync_res_sub = subscription("memory_sync_response", self._handle_sync_response)
+            self._sync_res_sub = subscription(
+                "memory_sync_response", self._handle_sync_response
+            )
             self._sync_res_sub.__enter__()
             self._start_sync_task(sync_interval)
 
@@ -188,9 +195,7 @@ class AdvancedMemory(BaseMemory):
         if self.index is None or self.model is None:
             return
         vec = self.model.encode([text])[0].astype("float32")
-        self.index.add_with_ids(
-            np.array([vec]), np.array([trade_id], dtype="int64")
-        )
+        self.index.add_with_ids(np.array([vec]), np.array([trade_id], dtype="int64"))
         if self.cpu_index is not None:
             self.cpu_index.add_with_ids(
                 np.array([vec]), np.array([trade_id], dtype="int64")
@@ -339,7 +344,9 @@ class AdvancedMemory(BaseMemory):
             )
 
     # ------------------------------------------------------------------
-    def latest_summary(self, *, limit: int = 10, token: str | None = None) -> np.ndarray:
+    def latest_summary(
+        self, *, limit: int = 10, token: str | None = None
+    ) -> np.ndarray:
         """Return an aggregated embedding vector for recent trades."""
         with self.Session() as session:
             q = session.query(Trade)
@@ -477,7 +484,14 @@ class AdvancedMemory(BaseMemory):
         for cluster_id in range(len(self.cluster_centroids)):
             ids = [tid for tid, c in self._trade_clusters.items() if c == cluster_id]
             if not ids:
-                stats.append({"cluster": cluster_id, "count": 0, "average_roi": 0.0, "common_emotion": None})
+                stats.append(
+                    {
+                        "cluster": cluster_id,
+                        "count": 0,
+                        "average_roi": 0.0,
+                        "common_emotion": None,
+                    }
+                )
                 continue
             buy = sell = 0.0
             emotions: list[str] = []

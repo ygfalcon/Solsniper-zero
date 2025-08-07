@@ -6,8 +6,8 @@ from __future__ import annotations
 import argparse
 import pkgutil
 import re
-from pathlib import Path
 import sys
+from pathlib import Path
 
 try:
     import tomllib  # Python 3.11+

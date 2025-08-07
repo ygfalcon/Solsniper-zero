@@ -23,9 +23,7 @@ def test_investor_demo_correlations(tmp_path):
     highlights = json.loads(highlights_path.read_text())
 
     # Verify full correlation matrix and hedged weights
-    assert correlations["('buy_hold', 'momentum')"] == pytest.approx(
-        0.9153898166961075
-    )
+    assert correlations["('buy_hold', 'momentum')"] == pytest.approx(0.9153898166961075)
     assert correlations["('buy_hold', 'mean_reversion')"] == pytest.approx(
         -0.8498685240167787
     )
@@ -41,11 +39,7 @@ def test_investor_demo_correlations(tmp_path):
     hedged_hl = highlights.get("hedged_weights")
     assert key_corr is not None and hedged_hl is not None
     assert key_corr["buy_hold-momentum"] == pytest.approx(0.9153898166961075)
-    assert key_corr["buy_hold-mean_reversion"] == pytest.approx(
-        -0.8498685240167787
-    )
-    assert key_corr["momentum-mean_reversion"] == pytest.approx(
-        -0.5658094402299682
-    )
+    assert key_corr["buy_hold-mean_reversion"] == pytest.approx(-0.8498685240167787)
+    assert key_corr["momentum-mean_reversion"] == pytest.approx(-0.5658094402299682)
     assert hedged_hl["buy_hold"] == pytest.approx(0.08461018330389247)
     assert hedged_hl["momentum"] == pytest.approx(0.9153898166961075)

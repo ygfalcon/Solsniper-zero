@@ -1,13 +1,13 @@
 import asyncio
+
 import pytest
 
 from solhunter_zero import investor_demo
 
 
-
 @pytest.fixture(autouse=True)
 def clear_used_trade_types():
-    '''Ensure used_trade_types is reset for each test.'''
+    """Ensure used_trade_types is reset for each test."""
     investor_demo.used_trade_types.clear()
     yield
     investor_demo.used_trade_types.clear()
@@ -47,9 +47,7 @@ def test_demo_dex_scanner():
 def test_demo_route_ffi(monkeypatch):
     from solhunter_zero import routeffi as rffi
 
-    monkeypatch.setattr(
-        rffi, "_best_route_json", lambda *a, **k: (["x", "y"], 2.0)
-    )
+    monkeypatch.setattr(rffi, "_best_route_json", lambda *a, **k: (["x", "y"], 2.0))
     res = asyncio.run(investor_demo._demo_route_ffi())
     assert res["path"] == ["x", "y"]
     assert res["profit"] == pytest.approx(2.0)

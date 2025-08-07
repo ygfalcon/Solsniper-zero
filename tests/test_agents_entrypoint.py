@@ -1,10 +1,9 @@
-import sys
-import types
-import importlib.metadata
-import importlib.util
-
 # Stub heavy optional dependencies before importing the package
 import importlib.machinery
+import importlib.metadata
+import importlib.util
+import sys
+import types
 
 for mod in [
     "transformers",
@@ -29,11 +28,15 @@ class EPAgent(BaseAgent):
     async def propose_trade(self, token, portfolio, *, depth=None, imbalance=None):
         return []
 
+
 module = types.ModuleType("epmod")
 module.EPAgent = EPAgent
 sys.modules["epmod"] = module
 
-entry = importlib.metadata.EntryPoint(name="ep_dummy", value="epmod:EPAgent", group="solhunter_zero.agents")
+entry = importlib.metadata.EntryPoint(
+    name="ep_dummy", value="epmod:EPAgent", group="solhunter_zero.agents"
+)
+
 
 def fake_entry_points(group=None):
     if group == "solhunter_zero.agents":
@@ -53,5 +56,3 @@ def test_entrypoint_agent_loaded(monkeypatch):
 
     agent = load_agent("ep_dummy")
     assert isinstance(agent, EPAgent)
-
-

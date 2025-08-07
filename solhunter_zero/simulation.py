@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass
-import aiohttp
-import asyncio
 from typing import List
 
+import aiohttp
+
 try:  # pragma: no cover - optional dependency
-    from sklearn.linear_model import LinearRegression
     from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+    from sklearn.linear_model import LinearRegression
 except Exception:  # pragma: no cover - when scikit-learn is missing
 
     class _MissingSklearn:
@@ -26,10 +27,12 @@ except Exception:  # pragma: no cover - when xgboost is missing
     XGBRegressor = None
 
 import numpy as np
-from . import onchain_metrics, models
-from .http import get_session
+
+from solhunter_zero.device import get_default_device, get_gpu_backend
 from solhunter_zero.lru import TTLCache
-from solhunter_zero.device import get_gpu_backend, get_default_device
+
+from . import models, onchain_metrics
+from .http import get_session
 
 # Optional GPU acceleration for simulations
 _use_gpu_env = os.getenv("USE_GPU_SIM")

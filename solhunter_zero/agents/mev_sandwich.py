@@ -2,23 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import AsyncGenerator, Iterable, List, Dict
+from typing import TYPE_CHECKING, AsyncGenerator, Dict, Iterable, List
 
 import aiohttp
-from ..http import get_session
 
+from ..http import get_session
 from . import BaseAgent
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - for type hints only
     from ..mempool_scanner import stream_ranked_mempool_tokens_with_depth
 
 stream_ranked_mempool_tokens_with_depth = None
-from ..onchain_metrics import fetch_slippage_onchain
 from ..depth_client import prepare_signed_tx
-from ..mev_executor import MEVExecutor
-from ..portfolio import Portfolio
 from ..exchange import DEX_BASE_URL, SWAP_PATH
+from ..mev_executor import MEVExecutor
+from ..onchain_metrics import fetch_slippage_onchain
+from ..portfolio import Portfolio
 
 
 async def _fetch_swap_tx_message(
@@ -76,9 +75,7 @@ class MEVSandwichAgent(BaseAgent):
         self.base_url = base_url
 
     async def _prepare_tx(self, token: str, side: str, amount: float) -> str | None:
-        msg = await _fetch_swap_tx_message(
-            token, side, amount, 0.0, self.base_url
-        )
+        msg = await _fetch_swap_tx_message(token, side, amount, 0.0, self.base_url)
         if not msg:
             return None
         return await prepare_signed_tx(msg)
@@ -100,12 +97,14 @@ class MEVSandwichAgent(BaseAgent):
 
         if self.jito_ws_url and self.jito_ws_auth:
             from ..jito_stream import stream_pending_swaps
+
             event_stream = stream_pending_swaps(
                 self.jito_ws_url, auth=self.jito_ws_auth
             )
             use_onchain = False
         elif self.jito_rpc_url and self.jito_auth:
             from ..jito_stream import stream_pending_transactions as jito_stream
+
             event_stream = jito_stream(self.jito_rpc_url, auth=self.jito_auth)
             use_onchain = False
         else:
@@ -121,9 +120,7 @@ class MEVSandwichAgent(BaseAgent):
             if use_onchain:
                 token = event["address"]
                 size = float(event.get("avg_swap_size", 0.0))
-                slip = await asyncio.to_thread(
-                    fetch_slippage_onchain, token, rpc_url
-                )
+                slip = await asyncio.to_thread(fetch_slippage_onchain, token, rpc_url)
             else:
                 token = event.get("token") or event.get("address")
                 if not token:

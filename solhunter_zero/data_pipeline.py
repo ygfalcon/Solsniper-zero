@@ -5,14 +5,22 @@ from pathlib import Path
 from typing import Any, Callable, List, Mapping
 
 from .event_bus import subscribe
-
 from .offline_data import OfflineData
 
 
 class Snapshot:
     """Simple container for order book snapshot attributes."""
 
-    def __init__(self, price: float, depth: float, imbalance: float, *, slippage: float = 0.0, volume: float = 0.0, tx_rate: float = 0.0) -> None:
+    def __init__(
+        self,
+        price: float,
+        depth: float,
+        imbalance: float,
+        *,
+        slippage: float = 0.0,
+        volume: float = 0.0,
+        tx_rate: float = 0.0,
+    ) -> None:
         self.price = price
         self.depth = depth
         self.slippage = slippage
@@ -80,11 +88,12 @@ def start_depth_snapshot_listener(
         Function that unregisters the subscriber when called.
     """
 
-    offline = data if isinstance(data, OfflineData) else OfflineData(f"sqlite:///{data}")
+    offline = (
+        data if isinstance(data, OfflineData) else OfflineData(f"sqlite:///{data}")
+    )
 
     async def _handler(payload: Mapping[str, Mapping[str, float]]) -> None:
         for token, entry in payload.items():
             await offline.log_snapshot(token=token, **map_snapshot(entry))
 
     return subscribe("depth_update", _handler)
-

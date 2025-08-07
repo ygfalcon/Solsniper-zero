@@ -2,8 +2,9 @@ import json
 import types
 
 import psutil
-from solhunter_zero import investor_demo
+
 import solhunter_zero.resource_monitor as rm
+from solhunter_zero import investor_demo
 
 
 def test_highlights_include_patched_cpu_and_memory(tmp_path, monkeypatch):

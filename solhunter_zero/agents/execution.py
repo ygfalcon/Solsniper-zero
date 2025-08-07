@@ -3,24 +3,24 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 import aiohttp
-from ..http import get_session
-from ..event_bus import subscription
-from ..dynamic_limit import _target_concurrency, _step_limit
 
-from . import BaseAgent
+from ..depth_client import submit_raw_tx
+from ..dynamic_limit import _step_limit, _target_concurrency
+from ..event_bus import subscription
 from ..exchange import (
-    place_order_async,
     DEX_BASE_URL,
-    VENUE_URLS,
     SWAP_PATH,
+    VENUE_URLS,
     _sign_transaction,
+    place_order_async,
 )
 from ..execution import EventExecutor
-from ..depth_client import submit_raw_tx
+from ..http import get_session
 from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class ExecutionAgent(BaseAgent):
@@ -88,7 +88,9 @@ class ExecutionAgent(BaseAgent):
         except Exception:
             return
         frac = max(0.0, min(1.0, self._cpu_smoothed / 100.0))
-        target = _target_concurrency(self._cpu_smoothed, self._base_concurrency, 0.0, 100.0)
+        target = _target_concurrency(
+            self._cpu_smoothed, self._base_concurrency, 0.0, 100.0
+        )
         conc = _step_limit(self._sem._value, target, self._base_concurrency)
         if conc != self._sem._value:
             self._sem = asyncio.Semaphore(conc)

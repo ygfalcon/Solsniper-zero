@@ -12,11 +12,11 @@ import asyncio
 import csv
 import json
 import sys
+import threading
 import types
 from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
-import threading
 
 from .price_stream_manager import PriceStreamManager
 
@@ -28,11 +28,11 @@ except Exception:  # pragma: no cover - absence of SQLAlchemy
 try:  # optional hedging utilities
     from .portfolio import hedge_allocation  # type: ignore
 except Exception:  # pragma: no cover - portfolio module optional
+
     def hedge_allocation(
         weights: Dict[str, float], _corr: Dict[tuple[str, str], float]
     ) -> Dict[str, float]:
         return weights
-
 
 
 # Track which trade types have been exercised by the demo
@@ -198,7 +198,11 @@ def load_prices(
         prices: List[float] = []
         dates: List[str] = []
         for entry in entries:
-            if not isinstance(entry, dict) or "price" not in entry or "date" not in entry:
+            if (
+                not isinstance(entry, dict)
+                or "price" not in entry
+                or "date" not in entry
+            ):
                 raise ValueError("Each entry must contain 'date' and numeric 'price'")
             price = entry["price"]
             date = entry["date"]
@@ -258,15 +262,15 @@ async def _demo_arbitrage() -> Dict[str, object]:
 async def _demo_flash_loan() -> str | None:
     """Invoke :mod:`flash_loans.borrow_flash` with stubbed network calls."""
     try:
-        from . import flash_loans, depth_client
+        from . import depth_client, flash_loans
     except ImportError as exc:
         print(f"Flash loan demo skipped: {exc}")
         return None
     try:
-        from solders.keypair import Keypair
-        from solders.instruction import Instruction, AccountMeta
-        from solders.pubkey import Pubkey
         from solders.hash import Hash
+        from solders.instruction import AccountMeta, Instruction
+        from solders.keypair import Keypair
+        from solders.pubkey import Pubkey
     except ImportError as exc:
         print(f"Flash loan demo skipped: {exc}")
         return None
@@ -319,6 +323,7 @@ async def _demo_sniper() -> List[str]:
 
     import sys
     import types
+
     from .decision import should_buy, should_sell
     from .simulation import SimulationResult
 
@@ -529,7 +534,7 @@ def run_rl_demo(report_dir: Path) -> float:
                 td_error = td_target - q[state, action]
                 q[state, action] += 0.1 * td_error
                 rewards.append(float(reward))
-                losses.append(float(td_error ** 2))
+                losses.append(float(td_error**2))
             _write_metrics({"loss": losses, "rewards": rewards})
             return float(sum(rewards))
         except Exception:  # pragma: no cover - NumPy missing
@@ -545,7 +550,7 @@ def run_rl_demo(report_dir: Path) -> float:
                 td_error = td_target - q[state][action]
                 q[state][action] += 0.1 * td_error
                 rewards.append(float(reward))
-                losses.append(float(td_error ** 2))
+                losses.append(float(td_error**2))
             _write_metrics({"loss": losses, "rewards": rewards})
             return float(sum(rewards))
 
@@ -553,14 +558,15 @@ def run_rl_demo(report_dir: Path) -> float:
         return _numpy_q_learning()
 
     try:
+        import tempfile
         from datetime import datetime
         from types import SimpleNamespace
-        import tempfile
+
         import torch  # type: ignore[import-untyped]
         from torch.utils.data import DataLoader  # type: ignore[import-untyped]
 
         from . import rl_training, simulation
-        from .rl_training import _TradeDataset, LightningPPO
+        from .rl_training import LightningPPO, _TradeDataset
     except Exception:  # pragma: no cover - optional deps
         return _numpy_q_learning()
 
@@ -728,17 +734,17 @@ def main(argv: List[str] | None = None) -> None:
     _stream_thread = None
     if args.price_streams:
         streams: Dict[str, str] = {}
-        for spec in str(args.price_streams).split(','):
+        for spec in str(args.price_streams).split(","):
             if not spec:
                 continue
-            if '=' not in spec:
-                raise ValueError('--price-streams requires venue=url pairs')
-            venue, url = spec.split('=', 1)
+            if "=" not in spec:
+                raise ValueError("--price-streams requires venue=url pairs")
+            venue, url = spec.split("=", 1)
             streams[venue.strip()] = url.strip()
         if not streams:
-            raise ValueError('--price-streams requires venue=url pairs')
+            raise ValueError("--price-streams requires venue=url pairs")
         tokens = (
-            [t.strip() for t in str(args.tokens).split(',') if t.strip()]
+            [t.strip() for t in str(args.tokens).split(",") if t.strip()]
             if args.tokens
             else list(price_map.keys())
         )
@@ -775,7 +781,8 @@ def main(argv: List[str] | None = None) -> None:
 
     # Compute correlations between strategy returns for the first token
     strategy_returns: Dict[str, List[float]] = {
-        name: strat(prices, args.fee, args.slippage) for name, strat in DEFAULT_STRATEGIES
+        name: strat(prices, args.fee, args.slippage)
+        for name, strat in DEFAULT_STRATEGIES
     }
     series: Dict[str, List[float]] = {}
     for name, rets in strategy_returns.items():
@@ -787,6 +794,7 @@ def main(argv: List[str] | None = None) -> None:
         series[name] = pseudo_prices
     corr_pairs: Dict[tuple[str, str], float] = {}
     if len(series) >= 2:
+
         def _manual_corr() -> None:
             keys = list(strategy_returns.keys())
             for i in range(len(keys)):
@@ -806,7 +814,7 @@ def main(argv: List[str] | None = None) -> None:
                         c = 0.0
                     else:
                         cov = sum((a[k] - ma) * (b[k] - mb) for k in range(n)) / n
-                        c = cov / (va ** 0.5 * vb ** 0.5)
+                        c = cov / (va**0.5 * vb**0.5)
                     corr_pairs[(keys[i], keys[j])] = c
 
         if correlation_matrix is not None:
@@ -820,9 +828,7 @@ def main(argv: List[str] | None = None) -> None:
                 _manual_corr()
         else:
             _manual_corr()
-    hedged_weights = hedge_allocation(
-        {"buy_hold": 1.0, "momentum": 0.0}, corr_pairs
-    )
+    hedged_weights = hedge_allocation({"buy_hold": 1.0, "momentum": 0.0}, corr_pairs)
 
     configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -873,7 +879,7 @@ def main(argv: List[str] | None = None) -> None:
                 roi = cum[-1] - 1
                 mean = sum(returns) / len(returns)
                 variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-                vol = variance ** 0.5
+                vol = variance**0.5
                 sharpe = mean / vol if vol else 0.0
                 trades = sum(1 for r in returns if r != 0)
                 wins = sum(1 for r in returns if r > 0)
@@ -978,7 +984,9 @@ def main(argv: List[str] | None = None) -> None:
     for row in summary:
         tok = str(row["token"])
         existing = per_token_best.get(tok)
-        if existing is None or float(row["final_capital"]) > float(existing["final_capital"]):
+        if existing is None or float(row["final_capital"]) > float(
+            existing["final_capital"]
+        ):
             per_token_best[tok] = row
 
     agg_rows = [
@@ -996,9 +1004,7 @@ def main(argv: List[str] | None = None) -> None:
         sum(float(r["roi"]) for r in agg_rows) / len(agg_rows) if agg_rows else 0.0
     )
     global_sharpe = (
-        sum(float(r["sharpe"]) for r in agg_rows) / len(agg_rows)
-        if agg_rows
-        else 0.0
+        sum(float(r["sharpe"]) for r in agg_rows) / len(agg_rows) if agg_rows else 0.0
     )
 
     top = max(summary, key=lambda e: e["final_capital"]) if summary else None
@@ -1143,17 +1149,13 @@ def main(argv: List[str] | None = None) -> None:
         )
         print(line)
     if top:
-        top_prefix = (
-            f"{top['token']} {top['config']}" if multi_token else top["config"]
-        )
+        top_prefix = f"{top['token']} {top['config']}" if multi_token else top["config"]
         print(
             f"Top strategy: {top_prefix} with final capital {top['final_capital']:.2f}"
         )
     print("Trade type results:", json.dumps(trade_outputs))
     if cpu_usage is not None and mem_pct is not None:
-        print(
-            f"Resource usage - CPU: {cpu_usage:.2f}% Memory: {mem_pct:.2f}%"
-        )
+        print(f"Resource usage - CPU: {cpu_usage:.2f}% Memory: {mem_pct:.2f}%")
 
     print(f"Wrote reports to {args.reports}")
 

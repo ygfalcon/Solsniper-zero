@@ -1,10 +1,9 @@
-import json
 import csv
+import json
 
 import pytest
 
 from solhunter_zero import investor_demo
-
 
 pytestmark = pytest.mark.timeout(30)
 
@@ -19,14 +18,16 @@ def test_investor_demo_single_price(tmp_path, monkeypatch, dummy_mem):
     monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
 
     # run the demo with the minimal dataset
-    investor_demo.main([
-        "--data",
-        str(data_file),
-        "--reports",
-        str(tmp_path),
-        "--capital",
-        "100",
-    ])
+    investor_demo.main(
+        [
+            "--data",
+            str(data_file),
+            "--reports",
+            str(tmp_path),
+            "--capital",
+            "100",
+        ]
+    )
 
     # ensure trade history files exist and contain unique (strategy, period) pairs
     trade_json_path = tmp_path / "trade_history.json"
@@ -95,21 +96,25 @@ def test_investor_demo_empty_dataset(tmp_path):
     data_file = tmp_path / "prices.json"
     data_file.write_text("[]")
     with pytest.raises(ValueError, match="price data must contain at least one entry"):
-        investor_demo.main([
-            "--data",
-            str(data_file),
-            "--reports",
-            str(tmp_path),
-        ])
+        investor_demo.main(
+            [
+                "--data",
+                str(data_file),
+                "--reports",
+                str(tmp_path),
+            ]
+        )
 
 
 def test_investor_demo_empty_token_map(tmp_path):
     data_file = tmp_path / "prices.json"
     data_file.write_text("{}")
     with pytest.raises(ValueError, match="price data must contain at least one token"):
-        investor_demo.main([
-            "--data",
-            str(data_file),
-            "--reports",
-            str(tmp_path),
-        ])
+        investor_demo.main(
+            [
+                "--data",
+                str(data_file),
+                "--reports",
+                str(tmp_path),
+            ]
+        )

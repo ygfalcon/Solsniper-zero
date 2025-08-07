@@ -1,15 +1,19 @@
 import pytest
+
 transformers = pytest.importorskip("transformers")
 if not hasattr(transformers, "pipeline"):
     transformers.pipeline = lambda *a, **k: lambda x: []
-import solhunter_zero.news as news
 import solhunter_zero.http as http
+import solhunter_zero.news as news
+
 
 class FakeResp:
     def __init__(self, text):
         self.text = text
+
     def raise_for_status(self):
         pass
+
 
 SAMPLE_XML = """
 <rss><channel>
@@ -26,11 +30,14 @@ class DummyModel:
 
 def test_fetch_headlines(monkeypatch):
     http._session = None
+
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=10):
             return FakeResp(SAMPLE_XML)
 
@@ -42,11 +49,14 @@ def test_fetch_headlines(monkeypatch):
 def test_blocked_feed(monkeypatch):
     http._session = None
     called = {}
+
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=10):
             called["url"] = url
             return FakeResp(SAMPLE_XML)
@@ -66,11 +76,14 @@ def test_compute_sentiment(monkeypatch):
 
 def test_fetch_sentiment(monkeypatch):
     http._session = None
+
     class FakeSession:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc, tb):
             pass
+
         def get(self, url, timeout=10):
             return FakeResp(SAMPLE_XML)
 

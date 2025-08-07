@@ -2,22 +2,28 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import Iterable, List, Dict, Any
+from typing import Any, Dict, Iterable, List
 
 from .. import order_book_ws
-
-from . import BaseAgent
-from ..portfolio import Portfolio
 from ..advanced_memory import AdvancedMemory
+from ..portfolio import Portfolio
+from . import BaseAgent
 
 
 class AgentSwarm:
     """Coordinate multiple agents and aggregate their proposals."""
 
-    def __init__(self, agents: Iterable[BaseAgent] | None = None, *, memory: AdvancedMemory | None = None):
+    def __init__(
+        self,
+        agents: Iterable[BaseAgent] | None = None,
+        *,
+        memory: AdvancedMemory | None = None,
+    ):
         self.agents: List[BaseAgent] = list(agents or [])
         self.memory = memory
-        self._last_outcomes: Dict[str, bool | None] = {a.name: None for a in self.agents}
+        self._last_outcomes: Dict[str, bool | None] = {
+            a.name: None for a in self.agents
+        }
         self._last_actions: List[Dict[str, Any]] = []
         # cache propose_trade parameter names for each agent to avoid repeated
         # inspect.signature calls during execution
@@ -28,7 +34,9 @@ class AgentSwarm:
             setattr(a, "swarm", self)
             setattr(a, "last_outcome", None)
             try:
-                self._param_cache[a.name] = set(inspect.signature(a.propose_trade).parameters)
+                self._param_cache[a.name] = set(
+                    inspect.signature(a.propose_trade).parameters
+                )
             except Exception:
                 self._param_cache[a.name] = set()
 
@@ -104,7 +112,11 @@ class AgentSwarm:
 
         results = await asyncio.gather(*(run(a) for a in self.agents))
 
-        weights_map = {a.name: float(weights.get(a.name, 1.0)) for a in self.agents} if weights else {}
+        weights_map = (
+            {a.name: float(weights.get(a.name, 1.0)) for a in self.agents}
+            if weights
+            else {}
+        )
 
         merged: Dict[tuple[str, str], Dict[str, Any]] = {}
         for agent, res in zip(self.agents, results):
@@ -120,8 +132,16 @@ class AgentSwarm:
                 amt = float(r.get("amount", 0.0)) * weight
                 price = float(r.get("price", 0.0))
                 key = (token, side)
-                m = merged.setdefault(key, {"token": token, "side": side, "amount": 0.0, "price": 0.0})
-                for extra in ("conviction_delta", "regret", "misfires", "agent", "bias"):
+                m = merged.setdefault(
+                    key, {"token": token, "side": side, "amount": 0.0, "price": 0.0}
+                )
+                for extra in (
+                    "conviction_delta",
+                    "regret",
+                    "misfires",
+                    "agent",
+                    "bias",
+                ):
                     if extra not in r:
                         continue
                     if extra == "agent":
@@ -143,14 +163,36 @@ class AgentSwarm:
             sell = merged.get((tok, "sell"), {"amount": 0.0, "price": 0.0})
             net = buy["amount"] - sell["amount"]
             if net > 0:
-                entry = {"token": tok, "side": "buy", "amount": net, "price": buy["price"]}
-                for extra in ("conviction_delta", "regret", "misfires", "agent", "bias"):
+                entry = {
+                    "token": tok,
+                    "side": "buy",
+                    "amount": net,
+                    "price": buy["price"],
+                }
+                for extra in (
+                    "conviction_delta",
+                    "regret",
+                    "misfires",
+                    "agent",
+                    "bias",
+                ):
                     if extra in buy:
                         entry[extra] = buy[extra]
                 final.append(entry)
             elif net < 0:
-                entry = {"token": tok, "side": "sell", "amount": -net, "price": sell["price"]}
-                for extra in ("conviction_delta", "regret", "misfires", "agent", "bias"):
+                entry = {
+                    "token": tok,
+                    "side": "sell",
+                    "amount": -net,
+                    "price": sell["price"],
+                }
+                for extra in (
+                    "conviction_delta",
+                    "regret",
+                    "misfires",
+                    "agent",
+                    "bias",
+                ):
                     if extra in sell:
                         entry[extra] = sell[extra]
                 final.append(entry)

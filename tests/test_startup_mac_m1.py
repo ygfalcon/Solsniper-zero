@@ -1,7 +1,7 @@
 import os
 import platform
-import types
 import sys
+import types
 from pathlib import Path
 
 from scripts import startup
@@ -64,17 +64,18 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
 
     from solhunter_zero import bootstrap, wallet
+
     monkeypatch.setattr(bootstrap, "bootstrap", lambda one_click=False: None)
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
-    monkeypatch.setattr(
-        bootstrap, "ensure_config", lambda: (Path("config.toml"), {})
-    )
+    monkeypatch.setattr(bootstrap, "ensure_config", lambda: (Path("config.toml"), {}))
     monkeypatch.setattr(wallet, "get_active_keypair_name", lambda: "default")
     monkeypatch.setattr(wallet, "list_keypairs", lambda: ["default"])
 
-    monkeypatch.setattr(startup.subprocess, "run", lambda cmd: types.SimpleNamespace(returncode=0))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda cmd: types.SimpleNamespace(returncode=0)
+    )
     logs: list[str] = []
     monkeypatch.setattr(startup, "log_startup", lambda msg: logs.append(msg))
 
@@ -92,4 +93,3 @@ def test_startup_mac_m1(monkeypatch, capsys):
     assert msg in out
     assert msg in logs
     assert code == 0
-

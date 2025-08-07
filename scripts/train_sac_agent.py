@@ -1,6 +1,7 @@
 import argparse
-from solhunter_zero.agents.sac_agent import SACAgent
+
 from solhunter_zero.agents.memory import MemoryAgent
+from solhunter_zero.agents.sac_agent import SACAgent
 from solhunter_zero.memory import Memory
 
 

@@ -12,6 +12,7 @@ from solhunter_zero.execution import EventExecutor, run_event_loop
 
 def test_event_executor_run(monkeypatch):
     monkeypatch.setattr("solhunter_zero.execution.USE_DEPTH_STREAM", False)
+
     async def fake_stream_depth(token, rate_limit=0.05):
         for _ in range(2):
             yield {"tx_rate": 1.0}

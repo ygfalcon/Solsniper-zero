@@ -3,9 +3,8 @@ from __future__ import annotations
 import shutil  # used for copying template configs
 import subprocess
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 __all__ = ["ensure_config"]
 
@@ -51,11 +50,7 @@ def ensure_config(cfg_path: str | Path | None = None) -> tuple[Path, dict]:
     validated.  The normalized configuration is written back to disk and both the
     active path and dictionary are returned.
     """
-    from .config import (
-        apply_env_overrides,
-        find_config_file,
-        validate_config,
-    )
+    from .config import apply_env_overrides, find_config_file, validate_config
 
     if cfg_path is not None:
         cfg_file = Path(cfg_path)

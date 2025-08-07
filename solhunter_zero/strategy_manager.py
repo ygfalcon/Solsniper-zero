@@ -1,10 +1,9 @@
-import importlib
 import asyncio
-import os
 import contextlib
+import importlib
 import logging
-from typing import Iterable, Any, List, Dict
-
+import os
+from typing import Any, Dict, Iterable, List
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,9 @@ class StrategyManager:
 
             return weight, res
 
-        tasks = [asyncio.create_task(run_module(mod, name)) for mod, name in self._modules]
+        tasks = [
+            asyncio.create_task(run_module(mod, name)) for mod, name in self._modules
+        ]
         raw_results = await asyncio.gather(*tasks)
 
         actions: List[Dict[str, Any]] = []
@@ -143,10 +144,11 @@ class StrategyManager:
             amt = float(action.get("amount", 0))
             price = float(action.get("price", 0))
             key = (token, side)
-            m = merged.setdefault(key, {"token": token, "side": side, "amount": 0.0, "price": 0.0})
+            m = merged.setdefault(
+                key, {"token": token, "side": side, "amount": 0.0, "price": 0.0}
+            )
             old_amt = m["amount"]
             if old_amt + amt > 0:
                 m["price"] = (m["price"] * old_amt + price * amt) / (old_amt + amt)
             m["amount"] += amt
         return list(merged.values())
-

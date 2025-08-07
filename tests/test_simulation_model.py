@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-torch = pytest.importorskip("torch")
-from solhunter_zero.simulation import SimulationResult
 
+torch = pytest.importorskip("torch")
 from solhunter_zero import models, simulation
+from solhunter_zero.simulation import SimulationResult
 
 
 def setup_function(_):
@@ -35,17 +35,21 @@ def test_run_simulations_uses_model(tmp_path, monkeypatch):
     }
 
     monkeypatch.setattr(simulation, "fetch_token_metrics", lambda _t: metrics)
+
     async def metrics_async(_t):
         return metrics
 
     monkeypatch.setattr(simulation, "fetch_token_metrics_async", metrics_async)
+
     async def fake_fetch(_t):
         return {}
 
     monkeypatch.setattr(
         simulation.onchain_metrics, "fetch_dex_metrics_async", fake_fetch
     )
-    monkeypatch.setattr(simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean))
+    monkeypatch.setattr(
+        simulation.np.random, "normal", lambda mean, vol, size: np.full(size, mean)
+    )
     monkeypatch.setenv("PRICE_MODEL_PATH", str(model_path))
 
     res = simulation.run_simulations("tok", count=1, days=2)[0]
