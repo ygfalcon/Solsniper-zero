@@ -137,10 +137,38 @@ async def _depth_service_watchdog(cfg: dict, proc_ref: list[subprocess.Popen | N
             if not proc:
                 logging.error("depth_service restart returned None; aborting")
                 raise RuntimeError("depth_service restart failed")
-            proc_ref[0] = proc
-            restarted = True
+        proc_ref[0] = proc
+        restarted = True
     except asyncio.CancelledError:
         pass
+
+
+def ensure_connectivity(*, offline: bool = False) -> None:
+    """Verify Solana RPC and DEX websocket connectivity."""
+
+    if offline:
+        return
+
+    from scripts.startup import ensure_rpc as _ensure_rpc
+    from .dex_ws import stream_listed_tokens
+
+    _ensure_rpc()
+
+    url = os.getenv("DEX_LISTING_WS_URL", "")
+    if not url:
+        return
+
+    async def _check_ws() -> None:
+        gen = stream_listed_tokens(url)
+        try:
+            await asyncio.wait_for(gen.__anext__(), timeout=1)
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            with contextlib.suppress(Exception):
+                await gen.aclose()
+
+    asyncio.run(_check_ws())
 
 
 # Load configuration at startup so modules relying on environment variables
@@ -620,6 +648,7 @@ def main(
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
+    ensure_connectivity(offline=offline or dry_run)
     metrics_aggregator.start()
 
     use_bundles = str(

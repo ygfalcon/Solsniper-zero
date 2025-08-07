@@ -132,6 +132,11 @@ def test_run_auto_integration(monkeypatch, tmp_path):
             "fetch_dex_metrics_async",
             fake_fetch,
         )
+        monkeypatch.setattr(main_module, "ensure_connectivity", lambda **_: None)
+        async def _noop(*_a, **_k):
+            return None
+        monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop)
+        monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
 
         mem_path = tmp_path / "mem.db"
         pf_path = tmp_path / "pf.json"
