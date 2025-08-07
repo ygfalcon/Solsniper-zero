@@ -13,7 +13,7 @@ from .config import ENV_VARS
 from .env_defaults import DEFAULTS
 from .paths import ROOT
 
-__all__ = ["configure_environment"]
+__all__ = ["configure_environment", "report_env_changes"]
 
 
 def configure_environment(root: Path | None = None) -> dict[str, str]:
@@ -52,11 +52,19 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
                 applied[env_name] = value_str
                 missing_lines.append(f"{env_name}={value_str}\n")
 
+    added_vars: dict[str, str] = {}
     if missing_lines:
         env_file.parent.mkdir(parents=True, exist_ok=True)
         env_file.touch(exist_ok=True)
         with env_file.open("a", encoding="utf-8") as fh:
             fh.writelines(missing_lines)
+        for line in missing_lines:
+            name, _, value = line.partition("=")
+            added_vars[name] = value.strip()
+        log_startup(
+            f"Updated environment file {env_file} with: {', '.join(added_vars)}"
+        )
+        report_env_changes(added_vars, env_file)
 
     for key, value in DEFAULTS.items():
         if key not in os.environ:
@@ -70,4 +78,17 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         log_startup(f"{key}: {value}")
 
     return applied
+
+
+def report_env_changes(changes: dict[str, str], env_file: Path | None = None) -> None:
+    """Print environment variable *changes* for command-line feedback."""
+
+    if not changes:
+        return
+    if env_file is not None:
+        print(f"Updated environment file {env_file} with:")
+    else:
+        print("Environment variables applied:")
+    for key, value in changes.items():
+        print(f"{key}={value}")
 
