@@ -112,9 +112,9 @@ rotate_startup_log()
 ensure_venv(None)
 log_startup(f"Virtual environment: {sys.prefix}")
 
-from solhunter_zero import env  # noqa: E402
+import solhunter_zero.env_config as env_config  # noqa: E402
 
-env.load_env_file(ROOT / ".env")
+env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
 os.chdir(ROOT)
 
