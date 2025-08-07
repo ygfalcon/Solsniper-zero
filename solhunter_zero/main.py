@@ -192,7 +192,7 @@ from .prices import fetch_token_prices_async, warm_cache
 
 from . import order_book_ws
 
-from .memory import Memory
+from .memory import Memory, load_snapshot
 from .portfolio import Portfolio
 from .exchange import place_order_async as _exchange_place_order_async
 from .strategy_manager import StrategyManager
@@ -781,7 +781,18 @@ def main(
         else:
             weight_config_paths = list(paths) if paths else []
 
+    snapshot_path = cfg.get("memory_snapshot_path")
+    snapshot_trades = load_snapshot(snapshot_path) if snapshot_path else []
     memory = Memory(memory_path)
+    if snapshot_trades:
+        async def _seed(mem: Memory, trades: Sequence[dict]) -> None:
+            for tr in trades:
+                try:
+                    await mem.log_trade(_broadcast=False, **tr)
+                except Exception:
+                    continue
+        asyncio.run(_seed(memory, snapshot_trades))
+    memory.start_writer()
     portfolio = Portfolio(path=portfolio_path)
     warm_cache(portfolio.balances.keys())
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 import datetime
 import os
 import asyncio
+import json
 from contextlib import suppress
 from sqlalchemy import (
     Column,
@@ -46,6 +47,28 @@ class VaRLog(Base):
     id = Column(Integer, primary_key=True)
     value = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=utcnow)
+
+
+def load_snapshot(path: str) -> list[dict]:
+    """Deserialize memory snapshot from ``path``.
+
+    The snapshot is expected to be a JSON file containing either a list of
+    trade dictionaries or a mapping with a ``trades`` key. Entries are returned
+    as a list of dictionaries suitable for :meth:`log_trade`.
+    """
+
+    if not path or not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return []
+    if isinstance(data, dict):
+        trades = data.get("trades", [])
+    else:
+        trades = data
+    return [t for t in trades if isinstance(t, dict)]
 
 
 class Memory(BaseMemory):
