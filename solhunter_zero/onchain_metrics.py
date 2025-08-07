@@ -236,7 +236,9 @@ async def fetch_liquidity_onchain_async(token: str, rpc_url: str) -> float:
                         try:
                             total += float(val)
                         except Exception:
-                            pass
+                            logger.debug(
+                                "Invalid token amount %r in account %s", val, acc
+                            )
             return total
         except Exception as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch liquidity for %s: %s", token, exc)
@@ -268,7 +270,9 @@ def fetch_liquidity_onchain(token: str, rpc_url: str) -> float:
                     try:
                         total += float(val)
                     except Exception:
-                        pass
+                        logger.debug(
+                            "Invalid token amount %r in account %s", val, acc
+                        )
         return total
     except Exception as exc:  # pragma: no cover - network errors
         logger.warning("Failed to fetch liquidity for %s: %s", token, exc)

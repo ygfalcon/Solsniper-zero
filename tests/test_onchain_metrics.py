@@ -1,6 +1,7 @@
 import pytest
 import aiohttp
 import asyncio
+import logging
 from solhunter_zero import http
 
 from solhunter_zero import onchain_metrics
@@ -347,6 +348,53 @@ def test_onchain_metric_functions_error(monkeypatch):
     assert liq == 0.0
     assert slip == 0.0
     assert vol == 0.0
+
+
+def test_fetch_liquidity_onchain_logs_invalid_amount(monkeypatch, caplog):
+    accounts = [{"uiAmount": "bad_ui", "amount": "bad_amount"}]
+
+    def fake_client(url):
+        return RPCClient(url, accounts, [])
+
+    monkeypatch.setattr(onchain_metrics, "Client", fake_client)
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    with caplog.at_level(logging.DEBUG):
+        total = onchain_metrics.fetch_liquidity_onchain("tok", "http://node")
+
+    assert total == 0.0
+    assert "bad_amount" in caplog.text
+
+
+def test_fetch_liquidity_onchain_async_logs_invalid_amount(monkeypatch, caplog):
+    accounts = [
+        {"uiAmount": "bad_ui", "amount": "bad_amount"},
+        {"uiAmount": 1.0},
+    ]
+
+    class FakeAsyncClient:
+        def __init__(self, url):
+            self.url = url
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def get_token_largest_accounts(self, addr):
+            return {"result": {"value": accounts}}
+
+    monkeypatch.setattr(onchain_metrics, "AsyncClient", lambda url: FakeAsyncClient(url))
+    monkeypatch.setattr(onchain_metrics, "PublicKey", lambda x: x)
+
+    with caplog.at_level(logging.DEBUG):
+        total = asyncio.run(
+            onchain_metrics.fetch_liquidity_onchain_async("tok", "http://node")
+        )
+
+    assert total == pytest.approx(1.0)
+    assert "bad_amount" in caplog.text
 
 
 def test_order_book_depth_change(monkeypatch):
