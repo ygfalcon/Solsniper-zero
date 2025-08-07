@@ -398,7 +398,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
 
 
 def test_ensure_endpoints_success(monkeypatch):
-    from scripts.startup import ensure_endpoints
+    from solhunter_zero.bootstrap_utils import ensure_endpoints
     import urllib.request
 
     calls: list[tuple[str, str]] = []
@@ -428,7 +428,7 @@ def test_ensure_endpoints_success(monkeypatch):
 
 
 def test_ensure_endpoints_failure(monkeypatch, capsys):
-    from scripts.startup import ensure_endpoints
+    from solhunter_zero.bootstrap_utils import ensure_endpoints
     import urllib.request, urllib.error
 
     def fake_urlopen(req, timeout=5):
