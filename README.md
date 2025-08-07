@@ -1627,6 +1627,16 @@ python -m grpc_tools.protoc -I proto --python_out=solhunter_zero proto/event.pro
 
 This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
 
+## Development
+
+Install the pre-commit hooks to run linters and formatters before committing:
+
+```bash
+pip install -e '.[dev]'
+pre-commit install
+pre-commit run --all-files
+```
+
 ## Troubleshooting
 
 ### Preflight checks
