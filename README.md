@@ -10,7 +10,10 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `python start.py` for a fully automated launch. This script forwards to `scripts.launcher.main` and is the canonical entry point.
+2. Run `python start.py` for a fully automated launch. This script forwards to
+   `scripts.launcher.main` and is the canonical entry point. On macOS you can
+   instead double-click `start.command` (or run `./start.command`) for a
+   one-click start that executes the same entry point via `arch -arm64`.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
@@ -90,6 +93,8 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
    ```
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
+
+On macOS, double-click `start.command` (or run `./start.command` from Terminal) for a one-click launch that wraps `arch -arm64 python3 start.py` and forwards any additional arguments to the standard entry point.
 
 Developers embedding SolHunter Zero can initialize the environment
 programmatically:
