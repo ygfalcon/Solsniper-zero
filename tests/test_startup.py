@@ -1,5 +1,4 @@
 import os
-import os
 import shutil
 import subprocess
 import sys
@@ -45,11 +44,6 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     deps_marker.parent.mkdir(parents=True, exist_ok=True)
     deps_marker.write_text("ok")
 
-    from solhunter_zero import device
-
-    device.MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-    device.MPS_SENTINEL.write_text("ok")
-
     called = {}
 
     def fake_prepare(non_interactive=True):
@@ -94,7 +88,6 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     assert called["called"]
     assert not cargo_marker.exists()
     assert not deps_marker.exists()
-    assert not device.MPS_SENTINEL.exists()
 
 
 def test_mac_startup_prereqs(monkeypatch):

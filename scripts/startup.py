@@ -395,7 +395,6 @@ def main(argv: list[str] | None = None) -> int:
         # Clear cache markers so subsequent steps rerun fully
         (ROOT / ".cache" / "cargo-installed").unlink(missing_ok=True)
         (ROOT / ".cache" / "deps-installed").unlink(missing_ok=True)
-        device.MPS_SENTINEL.unlink(missing_ok=True)
 
     if args.self_test:
         from solhunter_zero.bootstrap import bootstrap

@@ -16,20 +16,6 @@ from urllib import request
 from .cache_paths import MAC_SETUP_MARKER, TOOLS_OK_MARKER
 from .logging_utils import log_startup
 
-try:
-    from solhunter_zero.device import (
-        METAL_EXTRA_INDEX,
-        TORCH_METAL_VERSION,
-        TORCHVISION_METAL_VERSION,
-    )
-except Exception:  # pragma: no cover - optional import for CI
-    METAL_EXTRA_INDEX = []
-    TORCH_METAL_VERSION = ""
-    TORCHVISION_METAL_VERSION = ""
-
-
-
-
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
     print("Running:", " ".join(cmd))
@@ -167,24 +153,10 @@ def ensure_profile() -> None:
         print(f"No change needed for {profile}: {cargo_line}")
 
 
-def upgrade_pip_and_torch() -> None:
+def upgrade_pip() -> None:
     if shutil.which("python3.11") is None:
         return
     _run(["python3.11", "-m", "pip", "install", "--upgrade", "pip"], check=False)
-    if not TORCH_METAL_VERSION or not TORCHVISION_METAL_VERSION:
-        return
-    _run(
-        [
-            "python3.11",
-            "-m",
-            "pip",
-            "install",
-            f"torch=={TORCH_METAL_VERSION}",
-            f"torchvision=={TORCHVISION_METAL_VERSION}",
-            *METAL_EXTRA_INDEX,
-        ],
-        check=False,
-    )
 
 
 def verify_tools() -> None:
@@ -205,10 +177,7 @@ MANUAL_FIXES = {
     "homebrew": "Install Homebrew from https://brew.sh and ensure it is on your PATH.",
     "brew_packages": "Run 'brew install python@3.11 rustup-init pkg-config cmake protobuf'.",
     "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
-    "pip_torch": (
-        "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip '"
-        f"'torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} {' '.join(METAL_EXTRA_INDEX)}'."
-    ),
+    "pip": "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip'.",
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
     "profile": (
         "Add 'eval $(brew shellenv)' and 'source \"$HOME/.cargo/env\"' to your shell profile"
@@ -234,7 +203,7 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
         ("homebrew", ensure_homebrew),
         ("brew_packages", install_brew_packages),
         ("rustup", ensure_rustup),
-        ("pip_torch", upgrade_pip_and_torch),
+        ("pip", upgrade_pip),
         ("verify_tools", verify_tools),
         ("profile", ensure_profile),
     ]
