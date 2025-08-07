@@ -10,7 +10,7 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `./run.sh` for a fully automated launch. This script executes `python start.py --one-click --full-deps` and forwards any additional options.
+2. Run `./run.sh` for a fully automated launch. This script executes `python start.py --one-click --full-deps` and forwards any additional options. After installing the package with `pip install .`, launch it via the `solhunter-start` command, which is the recommended entry point and mirrors the same startup flow for global installs.
    On macOS, double-click `start.command` to invoke `start.py` from the Finder.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
