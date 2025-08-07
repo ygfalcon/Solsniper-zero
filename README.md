@@ -118,8 +118,8 @@ profit calculation so routes are ranked based on the borrowed size.
    Set the base URL of the DEX API for mainnet and (optionally) the testnet
    endpoint. You can also override URLs for individual venues:
    ```bash
-   export DEX_BASE_URL=https://dex.example/api
-   export DEX_TESTNET_URL=https://dex.testnet/api
+   export DEX_BASE_URL=https://quote-api.jup.ag
+   export DEX_TESTNET_URL=https://quote-api.jup.ag
    export ORCA_DEX_URL=https://dex.orca.so
    export RAYDIUM_DEX_URL=https://dex.raydium.io
    ```

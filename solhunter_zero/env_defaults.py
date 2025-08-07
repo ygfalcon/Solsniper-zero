@@ -19,7 +19,7 @@ DEFAULTS: dict[str, str] = {
     # Solana RPC endpoints
     "SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com",
     "SOLANA_TESTNET_RPC_URL": "https://api.devnet.solana.com",
-    "DEX_BASE_URL": "https://dex.example/api",
+    "DEX_BASE_URL": "https://quote-api.jup.ag",
     "AGENTS": "['sim']",
     "AGENT_WEIGHTS": "{'sim': 1.0}",
 

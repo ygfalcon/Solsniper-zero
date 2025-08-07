@@ -96,8 +96,8 @@ The helper wraps the dependency checks and keypair/setup logic used by
    ```yaml
 birdeye_api_key: YOUR_BIRDEYE_KEY
 solana_rpc_url: https://api.mainnet-beta.solana.com
-dex_base_url: https://dex.example/api
-dex_testnet_url: https://dex.testnet/api
+dex_base_url: https://quote-api.jup.ag
+dex_testnet_url: https://quote-api.jup.ag
 orca_api_url: https://api.orca.so
 raydium_api_url: https://api.raydium.io
 orca_ws_url: ""
