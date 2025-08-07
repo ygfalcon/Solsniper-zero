@@ -291,8 +291,8 @@ def setup_default_keypair() -> KeypairInfo:
             from scripts import quick_setup
 
             quick_setup.main(["--auto", "--non-interactive"])
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("quick setup failed: %s", exc)
 
     active = get_active_keypair_name()
     if active:
@@ -310,14 +310,18 @@ def setup_default_keypair() -> KeypairInfo:
             print("Available keypairs:")
             for idx, name in enumerate(keypairs, 1):
                 print(f"{idx}. {name}")
-            try:
-                sel = input("Select keypair [1]: ").strip()
-                if sel:
+            sel = input("Select keypair [1]: ").strip()
+            if sel:
+                try:
                     i = int(sel) - 1
                     if 0 <= i < len(keypairs):
                         choice = keypairs[i]
-            except Exception:
-                pass
+                    else:
+                        logger.warning(
+                            "selected keypair index %s out of range", sel
+                        )
+                except Exception as exc:
+                    logger.warning("invalid keypair selection %s: %s", sel, exc)
         select_keypair(choice)
         return KeypairInfo(choice, None)
 

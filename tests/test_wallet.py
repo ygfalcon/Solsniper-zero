@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import pytest
 
@@ -119,3 +120,42 @@ def test_setup_default_keypair(tmp_path, monkeypatch):
     assert info.mnemonic_path == tmp_path / "default.mnemonic"
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"
+
+
+def test_setup_default_keypair_quick_setup_failure(
+    tmp_path, monkeypatch, caplog
+):
+    setup_wallet(tmp_path, monkeypatch)
+    monkeypatch.delenv("KEYPAIR_JSON", raising=False)
+    import sys
+    import types
+
+    qs = types.ModuleType("quick_setup")
+
+    def fail(args):
+        raise RuntimeError("boom")
+
+    qs.main = fail
+    monkeypatch.setitem(sys.modules, "scripts.quick_setup", qs)
+    with caplog.at_level(logging.WARNING, logger="solhunter_zero.wallet"):
+        info = wallet.setup_default_keypair()
+    assert "quick setup failed" in caplog.text
+    assert info.name == "default"
+    assert wallet.get_active_keypair_name() == "default"
+
+
+def test_setup_default_keypair_invalid_input(tmp_path, monkeypatch, caplog):
+    setup_wallet(tmp_path, monkeypatch)
+    kp = Keypair()
+    wallet.save_keypair("b", list(kp.to_bytes()))
+    wallet.save_keypair("a", list(kp.to_bytes()))
+    monkeypatch.setenv("AUTO_SELECT_KEYPAIR", "0")
+    import sys
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda _: "foo")
+    with caplog.at_level(logging.WARNING, logger="solhunter_zero.wallet"):
+        info = wallet.setup_default_keypair()
+    assert "invalid keypair selection" in caplog.text
+    assert info.name == "a"
+    assert wallet.get_active_keypair_name() == "a"
