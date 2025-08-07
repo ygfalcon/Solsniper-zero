@@ -28,8 +28,12 @@ def ensure_depth_service() -> None:
     _ensure_depth_service()
 
 
-def ensure_config() -> Path:
-    """Ensure a configuration file exists and is valid and return its path."""
+def ensure_config() -> tuple[Path, dict]:
+    """Ensure a configuration file exists and is valid.
+
+    Returns the active configuration path together with the validated
+    dictionary.
+    """
 
     return _ensure_config()
 

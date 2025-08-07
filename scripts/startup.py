@@ -308,8 +308,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             log_startup("Internet connectivity check passed")
 
-    from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
-    from solhunter_zero.config import load_config, validate_config
+    from solhunter_zero.config_bootstrap import ensure_config
+    from solhunter_zero.config_utils import select_active_keypair
     from solhunter_zero import wallet
 
     cfg_data: dict = {}
@@ -321,32 +321,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_setup:
         try:
-            config_path = ensure_default_config()
+            config_path, cfg_data = ensure_config()
         except (Exception, SystemExit):
-            config_path = None
-        if not config_path or not Path(config_path).exists():
             cfg_new = run_quick_setup()
-            if cfg_new:
-                config_path = Path(cfg_new)
-            ran_quick_setup = True
-        if not config_path or not Path(config_path).exists():
-            print("Failed to create configuration via quick setup")
-            return 1
-        try:
-            cfg_data = validate_config(load_config(config_path))
-        except Exception:
-            if args.one_click:
-                cfg_new = run_quick_setup()
-                if cfg_new:
-                    config_path = Path(cfg_new)
-                    ran_quick_setup = True
-                if not config_path or not Path(config_path).exists():
-                    print("Failed to create configuration via quick setup")
-                    return 1
-                cfg_data = validate_config(load_config(config_path))
-            else:
-                print("Invalid configuration. Run 'scripts/quick_setup.py' to fix it.")
+            if not cfg_new:
+                print("Failed to create configuration via quick setup")
                 return 1
+            config_path, cfg_data = ensure_config(cfg_new)
+            ran_quick_setup = True
         try:
             ensure_wallet_cli()
         except SystemExit as exc:
