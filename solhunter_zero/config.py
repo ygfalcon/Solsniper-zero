@@ -167,7 +167,7 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
         return {}
     cfg = _read_config_file(Path(path))
     try:
-        cfg = ConfigModel(**cfg).dict()
+        cfg = ConfigModel(**cfg).model_dump(mode="json")
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
     return cfg
@@ -195,7 +195,7 @@ def validate_config(cfg: Mapping[str, Any]) -> dict:
     Returns the normalized configuration dictionary.
     """
     try:
-        return ConfigModel(**cfg).dict()
+        return ConfigModel(**cfg).model_dump(mode="json")
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
 

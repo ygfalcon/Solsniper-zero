@@ -24,8 +24,8 @@ def test_load_config_yaml(tmp_path):
     )
     cfg = load_config(str(path))
     assert cfg["birdeye_api_key"] == "KEY"
-    assert cfg["solana_rpc_url"] == "http://local"
-    assert cfg["dex_base_url"] == "http://dex"
+    assert cfg["solana_rpc_url"] == "http://local/"
+    assert cfg["dex_base_url"] == "http://dex/"
     assert cfg["agents"] == ["sim"]
     assert cfg["agent_weights"] == {"sim": 1.0}
     assert cfg["event_bus_url"] == "ws://bus"
@@ -44,8 +44,8 @@ def test_load_config_toml(tmp_path):
     )
     cfg = load_config(str(path))
     assert cfg["birdeye_api_key"] == "KEY"
-    assert cfg["solana_rpc_url"] == "http://local"
-    assert cfg["dex_base_url"] == "http://dex"
+    assert cfg["solana_rpc_url"] == "http://local/"
+    assert cfg["dex_base_url"] == "http://dex/"
     assert cfg["agents"] == ["sim"]
     assert cfg["event_bus_url"] == "ws://bus"
     assert cfg["agent_weights"] == {"sim": 1.0}
@@ -258,6 +258,34 @@ def test_validate_config_missing():
         "dex_base_url": "http://dex",
         "agents": ["a"],
         "agent_weights": {"a": 1.0},
+    }
+    import pytest
+
+    with pytest.raises(ValueError):
+        validate_config(cfg)
+
+
+def test_validate_config_risk_fields_ok():
+    cfg = {
+        "solana_rpc_url": "http://local",
+        "dex_base_url": "http://dex",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
+        "stop_loss": 0.1,
+        "take_profit": 0.2,
+        "risk_tolerance": 0.3,
+        "max_allocation": 0.5,
+    }
+    validate_config(cfg)
+
+
+def test_validate_config_risk_fields_invalid():
+    cfg = {
+        "solana_rpc_url": "http://local",
+        "dex_base_url": "http://dex",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
+        "stop_loss": 1.5,
     }
     import pytest
 
