@@ -1,3 +1,5 @@
+"""Event bus helpers for serializing and broadcasting application events."""
+
 import asyncio
 import inspect
 import logging
@@ -1136,7 +1138,6 @@ async def verify_broker_connection(
     lightweight ping by publishing a message to a temporary channel and
     awaiting its delivery.
     """
-
     if urls is None:
         try:
             urls = _get_broker_urls()
