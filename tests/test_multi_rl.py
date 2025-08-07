@@ -3,7 +3,7 @@ pytest.importorskip("torch.nn.utils.rnn")
 from solhunter_zero.multi_rl import PopulationRL
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 
 
 def test_population_rl_evolves_and_persists(tmp_path):
@@ -44,7 +44,8 @@ def test_agent_manager_population_rl_updates_weights(tmp_path):
     ]
 
     mgr_path = tmp_path / 'mgr_weights.json'
-    mgr = AgentManager([], memory_agent=mem_agent, weights_path=str(mgr_path), population_rl=rl)
+    cfg = AgentManagerConfig(memory_agent=mem_agent, weights_path=str(mgr_path), population_rl=rl)
+    mgr = AgentManager([], config=cfg)
     mgr.evolve(spawn_count=0)
 
     assert mgr.weights['a1'] >= mgr.weights['a2']

@@ -4,7 +4,7 @@ import pytest
 pytest.importorskip("transformers")
 pytest.importorskip("torch.nn.utils.rnn")
 
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.advanced_memory import AdvancedMemory
@@ -49,7 +49,8 @@ def test_explanation_persisted(tmp_path, monkeypatch):
     )
 
     agent = ExplainAgent()
-    mgr = AgentManager([agent, mem_agent], executor=exec_agent, memory_agent=mem_agent)
+    cfg = AgentManagerConfig(memory_agent=mem_agent)
+    mgr = AgentManager([agent, mem_agent], executor=exec_agent, config=cfg)
 
     pf = DummyPortfolio()
     asyncio.run(mgr.execute("TOK", pf))

@@ -82,7 +82,7 @@ if importlib.util.find_spec("pytorch_lightning") is None:
     pl.Trainer = type("Trainer", (), {"fit": lambda *a, **k: None})
     sys.modules.setdefault("pytorch_lightning", pl)
 
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.agents.llm_reasoner import LLMReasoner
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.portfolio import Portfolio
@@ -127,7 +127,7 @@ def test_bias_output(monkeypatch):
     )
 
     agent = LLMReasoner(feeds=["f"])
-    mgr = AgentManager([agent], executor=ExecutionAgent(rate_limit=0), memory_agent=None)
+    mgr = AgentManager([agent], executor=ExecutionAgent(rate_limit=0))
     pf = DummyPortfolio()
     actions = asyncio.run(mgr.evaluate("TOK", pf))
     assert actions and actions[0]["bias"] == pytest.approx(0.8)

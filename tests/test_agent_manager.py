@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.attention_swarm import AttentionSwarm
 from solhunter_zero.advanced_memory import AdvancedMemory
@@ -21,7 +21,8 @@ def test_update_weights_persists(tmp_path):
     idx = tmp_path / "idx"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
     mem_agent = MemoryAgent(mem)
-    mgr = AgentManager([], memory_agent=mem_agent, weights={"a": 1.0}, weights_path=str(path))
+    cfg = AgentManagerConfig(memory_agent=mem_agent, weights={"a": 1.0}, weights_path=str(path))
+    mgr = AgentManager([], config=cfg)
 
     mem.log_trade(token="tok", direction="buy", amount=1, price=1, reason="a")
     mem.log_trade(token="tok", direction="sell", amount=1, price=2, reason="a")
@@ -41,7 +42,8 @@ def test_rl_weights_event_updates_manager(tmp_path):
     idx = tmp_path / "idx"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
     mem_agent = MemoryAgent(mem)
-    mgr = AgentManager([], memory_agent=mem_agent, weights={}, weights_path=str(path))
+    cfg = AgentManagerConfig(memory_agent=mem_agent, weights={}, weights_path=str(path))
+    mgr = AgentManager([], config=cfg)
 
     from solhunter_zero.event_bus import publish
     from solhunter_zero.schemas import RLWeights
@@ -68,12 +70,12 @@ def test_rotate_weight_configs_selects_best(tmp_path):
     w2 = tmp_path / "w2.json"
     w2.write_text('{"a1": 2.0, "a2": 0.5}')
 
-    mgr = AgentManager(
-        [],
+    cfg = AgentManagerConfig(
         memory_agent=mem_agent,
         weights_path=str(tmp_path / "active.json"),
         weight_config_paths=[str(w1), str(w2)],
     )
+    mgr = AgentManager([], config=cfg)
 
     mgr.rotate_weight_configs()
     assert mgr.weights["a1"] == 2.0
@@ -93,7 +95,8 @@ def test_attention_swarm_device_env(monkeypatch, tmp_path):
     monkeypatch.setattr(am.torch.cuda, "is_available", lambda: True)
     model_path = tmp_path / "m.pt"
     model_path.write_text("x")
-    AgentManager([], use_attention_swarm=True, attention_model_path=str(model_path))
+    cfg = AgentManagerConfig(use_attention_swarm=True, attention_model_path=str(model_path))
+    AgentManager([], config=cfg)
     assert called["device"] == "cuda"
 
 
@@ -106,7 +109,8 @@ def test_close_persists_mutation_state(tmp_path):
     mem = AdvancedMemory(url=f"sqlite:///{db1}", index_path=str(idx1))
     mem_agent = MemoryAgent(mem)
     base = ConvictionAgent(threshold=0.1)
-    mgr = AgentManager([base, mem_agent], memory_agent=mem_agent, mutation_path=str(state_path))
+    cfg = AgentManagerConfig(memory_agent=mem_agent, mutation_path=str(state_path))
+    mgr = AgentManager([base, mem_agent], config=cfg)
 
     spawned = mgr.spawn_mutations(1)
     assert spawned
@@ -118,6 +122,7 @@ def test_close_persists_mutation_state(tmp_path):
     idx2 = tmp_path / "idx2"
     mem2 = AdvancedMemory(url=f"sqlite:///{db2}", index_path=str(idx2))
     mem_agent2 = MemoryAgent(mem2)
-    mgr2 = AgentManager([base, mem_agent2], memory_agent=mem_agent2, mutation_path=str(state_path))
+    cfg2 = AgentManagerConfig(memory_agent=mem_agent2, mutation_path=str(state_path))
+    mgr2 = AgentManager([base, mem_agent2], config=cfg2)
     assert any(a.name == mut_name for a in mgr2.agents)
 

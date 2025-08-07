@@ -7,6 +7,7 @@ import os
 import random
 import inspect
 from typing import Iterable, Dict, Any, List
+from dataclasses import dataclass, field
 
 from .backtester import backtest_weighted, DEFAULT_STRATEGIES
 from .backtest_cli import bayesian_optimize_weights
@@ -50,6 +51,35 @@ from .datasets.sample_ticks import load_sample_ticks, DEFAULT_PATH as _TICKS_PAT
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AgentManagerConfig:
+    """Configuration options for :class:`AgentManager`."""
+
+    weights: Dict[str, float] = field(default_factory=dict)
+    memory_agent: MemoryAgent | None = None
+    emotion_agent: EmotionAgent | None = None
+    population_rl: PopulationRL | None = None
+    rl_daemon: Any | None = None
+    weights_path: str | os.PathLike | None = None
+    strategy_selection: bool = False
+    vote_threshold: float = 0.0
+    mutation_path: str | os.PathLike | None = "mutation_state.json"
+    depth_service: bool = False
+    priority_rpc: list[str] | None = None
+    regime_weights: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    evolve_interval: int = 1
+    mutation_threshold: float = 0.0
+    weight_config_paths: list[str] = field(default_factory=list)
+    strategy_rotation_interval: int = 0
+    use_attention_swarm: bool = False
+    attention_model_path: str | None = None
+    use_rl_weights: bool = False
+    rl_weights_path: str | None = None
+    hierarchical_rl: MultiAgentRL | None = None
+    use_supervisor: bool = False
+    supervisor_checkpoint: str | None = None
 
 
 class StrategySelector:
@@ -125,126 +155,104 @@ class StrategySelector:
 class AgentManager:
     """Manage and coordinate trading agents and execute actions."""
 
+
     def __init__(
         self,
         agents: Iterable[BaseAgent],
         executor: ExecutionAgent | None = None,
         *,
-        weights: Dict[str, float] | None = None,
-        memory_agent: MemoryAgent | None = None,
-        emotion_agent: EmotionAgent | None = None,
-        population_rl: PopulationRL | None = None,
-        rl_daemon: Any | None = None,
-        weights_path: str | os.PathLike | None = None,
-        strategy_selection: bool = False,
-        vote_threshold: float = 0.0,
-        mutation_path: str | os.PathLike | None = "mutation_state.json",
-        depth_service: bool = False,
-        priority_rpc: list[str] | None = None,
-        regime_weights: Dict[str, Dict[str, float]] | None = None,
-        evolve_interval: int = 1,
-        mutation_threshold: float = 0.0,
-        weight_config_paths: list[str] | None = None,
-        strategy_rotation_interval: int = 0,
-        use_attention_swarm: bool = False,
-        attention_model_path: str | None = None,
-        use_rl_weights: bool = False,
-        rl_weights_path: str | None = None,
-        hierarchical_rl: MultiAgentRL | None = None,
-        use_supervisor: bool = False,
-        supervisor_checkpoint: str | None = None,
+        config: AgentManagerConfig | None = None,
     ):
+        cfg = config or AgentManagerConfig()
         self.agents = list(agents)
         self.executor = executor or ExecutionAgent(
-            depth_service=depth_service,
-            priority_rpc=priority_rpc,
+            depth_service=cfg.depth_service,
+            priority_rpc=cfg.priority_rpc,
         )
         self.weights_path = (
-            str(weights_path) if weights_path is not None else "weights.json"
+            str(cfg.weights_path) if cfg.weights_path is not None else "weights.json"
         )
         file_weights: Dict[str, float] = {}
         if self.weights_path and os.path.exists(self.weights_path):
             file_weights = self._load_weights(self.weights_path)
-
-        init_weights = weights or {}
+    
+        init_weights = cfg.weights or {}
         self.weights = {**file_weights, **init_weights}
-        self.regime_weights = regime_weights or {}
-
-        self.memory_agent = memory_agent or next(
+        self.regime_weights = cfg.regime_weights or {}
+    
+        self.memory_agent = cfg.memory_agent or next(
             (a for a in self.agents if isinstance(a, MemoryAgent)),
             None,
         )
-
-        self.emotion_agent = emotion_agent or next(
+    
+        self.emotion_agent = cfg.emotion_agent or next(
             (a for a in self.agents if isinstance(a, EmotionAgent)),
             None,
         )
-
-        self.population_rl = population_rl
-        self.rl_daemon = rl_daemon
-
-        self.weight_config_paths = list(weight_config_paths or [])
+    
+        self.population_rl = cfg.population_rl
+        self.rl_daemon = cfg.rl_daemon
+    
+        self.weight_config_paths = list(cfg.weight_config_paths or [])
         self.weight_configs = self._load_weight_configs(self.weight_config_paths)
-        self.strategy_rotation_interval = int(strategy_rotation_interval)
+        self.strategy_rotation_interval = int(cfg.strategy_rotation_interval)
         self.active_weight_config: str | None = None
-
-        self.use_attention_swarm = bool(use_attention_swarm)
+    
+        self.use_attention_swarm = bool(cfg.use_attention_swarm)
         self.attention_swarm: AttentionSwarm | None = None
         self._attn_history: list[list[float]] = []
-        if self.use_attention_swarm and attention_model_path:
+        if self.use_attention_swarm and cfg.attention_model_path:
             try:
                 attn_device = os.getenv(
                     "ATTENTION_SWARM_DEVICE", str(get_default_device())
                 )
-                self.attention_swarm = load_model(attention_model_path, device=attn_device)
+                self.attention_swarm = load_model(cfg.attention_model_path, device=attn_device)
             except Exception:
                 self.attention_swarm = None
-
-        self.use_rl_weights = bool(use_rl_weights)
+    
+        self.use_rl_weights = bool(cfg.use_rl_weights)
         self.rl_weight_agent: RLWeightAgent | None = None
         if self.use_rl_weights:
             self.rl_weight_agent = RLWeightAgent(
                 self.memory_agent,
-                weights_path=rl_weights_path or "rl_weights.json",
+                weights_path=cfg.rl_weights_path or "rl_weights.json",
             )
             self.agents.append(self.rl_weight_agent)
-
-        self.hierarchical_rl = hierarchical_rl
+    
+        self.hierarchical_rl = cfg.hierarchical_rl
         self.hierarchical_agent: HierarchicalRLAgent | None = None
         if self.hierarchical_rl is not None:
             self.hierarchical_agent = HierarchicalRLAgent(self.hierarchical_rl)
             self.agents.append(self.hierarchical_agent)
-
+    
         self.supervisor: SupervisorAgent | None = None
-        if use_supervisor:
+        if cfg.use_supervisor:
             self.supervisor = SupervisorAgent(
-                checkpoint=supervisor_checkpoint or "supervisor.json"
+                checkpoint=cfg.supervisor_checkpoint or "supervisor.json",
             )
-
+    
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
         )
-
+    
         self.mutation_path = (
-            str(mutation_path)
-            if mutation_path is not None
-            else "mutation_state.json"
+            str(cfg.mutation_path) if cfg.mutation_path is not None else "mutation_state.json"
         )
         self.mutation_state = mutation.load_state(self.mutation_path)
         self._restore_mutations()
-
-        self.strategy_selection = strategy_selection
-        self.vote_threshold = float(vote_threshold)
+    
+        self.strategy_selection = cfg.strategy_selection
+        self.vote_threshold = float(cfg.vote_threshold)
         self.selector: StrategySelector | None = None
         if self.strategy_selection and self.memory_agent:
             self.selector = StrategySelector(
                 self.memory_agent, vote_threshold=self.vote_threshold
             )
-
-        self.evolve_interval = int(evolve_interval)
-        self.mutation_threshold = float(mutation_threshold)
-
-        self.depth_service = depth_service
+    
+        self.evolve_interval = int(cfg.evolve_interval)
+        self.mutation_threshold = float(cfg.mutation_threshold)
+    
+        self.depth_service = cfg.depth_service
         self._event_executors: Dict[str, EventExecutor] = {}
         self._event_tasks: Dict[str, asyncio.Task] = {}
         self._subscriptions: list[Any] = []
@@ -941,8 +949,7 @@ class AgentManager:
 
         if not agents:
             return None
-        return cls(
-            agents,
+        cfg_obj = AgentManagerConfig(
             weights=weights,
             memory_agent=memory_agent,
             emotion_agent=emotion_agent,
@@ -964,6 +971,7 @@ class AgentManager:
             use_supervisor=use_supervisor,
             supervisor_checkpoint=supervisor_checkpoint,
         )
+        return cls(agents, config=cfg_obj)
 
     def close(self) -> None:
         for sub in getattr(self, "_subscriptions", []):
