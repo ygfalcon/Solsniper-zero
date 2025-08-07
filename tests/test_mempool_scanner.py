@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import solhunter_zero.mempool_scanner as mp_scanner
 from solhunter_zero import dynamic_limit
@@ -399,3 +400,31 @@ def test_mempool_concurrency_functions(monkeypatch):
     )
     tgt = dynamic_limit._target_concurrency(10.0, 4, 40.0, 80.0)
     assert tgt == 1
+
+
+def test_metrics_subscription_exit_logs_warning(monkeypatch, caplog):
+    """Ensure a warning is logged when metrics subscription cleanup fails."""
+
+    class BadSub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            raise RuntimeError("boom")
+
+    async def fake_stream(*args, **kwargs):
+        if False:  # pragma: no cover - keeps async generator type
+            yield None
+
+    monkeypatch.setattr(mp_scanner, "subscription", lambda *a, **k: BadSub())
+    monkeypatch.setattr(mp_scanner, "stream_mempool_tokens", fake_stream)
+
+    async def run():
+        async for _ in mp_scanner.stream_ranked_mempool_tokens("rpc"):
+            pass
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(run())
+
+    assert "metrics subscription exit failed" in caplog.text.lower()
+    assert "boom" in caplog.text.lower()

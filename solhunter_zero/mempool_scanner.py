@@ -300,8 +300,9 @@ async def stream_ranked_mempool_tokens(
                     )
                     if new_limit != current_limit:
                         await _set_limit(new_limit)
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.debug("dynamic concurrency adjust task cancelled: %s", exc)
+                # swallow cancellation to allow graceful shutdown
 
         adjust_task = asyncio.create_task(_adjust())
     queue: asyncio.Queue[Dict[str, float]] = asyncio.Queue()
@@ -336,8 +337,8 @@ async def stream_ranked_mempool_tokens(
             await adjust_task
     try:
         _metrics_sub.__exit__(None, None, None)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("metrics subscription exit failed: %s", exc)
 
 
 async def stream_ranked_mempool_tokens_with_depth(
