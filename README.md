@@ -10,11 +10,11 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `./start.py` for a fully automated launch. This script forwards to `python scripts/launcher.py` and is the canonical entry point.
-   For convenience, `run.sh` and `start.command` are symlinks to this Python shim.
+2. Run `./start.py` for a fully automated launch. This script forwards to `scripts/one_click.py` and is the canonical entry point.
+   For convenience, `run.sh` and `start.command` are thin wrappers around this Python shim.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
-   `start.py`, `run.sh`, `start.command`, and `make start` all forward to this Python entry point for consistent behaviour across platforms.
+   `start.py`, `run.sh`, `start.command`, and `make start` all forward to this entry point for consistent behaviour across platforms.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
@@ -108,7 +108,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
 
 ### One-Click macOS M1 Setup
 
-1. **Launch** — In Finder, double-click `start.command` (a wrapper for `scripts/launcher.py`) to begin the automated setup.
+1. **Launch** — In Finder, double-click `start.command` (a wrapper for `scripts/one_click.py`) to begin the automated setup.
    If the file isn't executable, run `chmod +x start.command` from Terminal and try again.
    Alternatively, run `make setup` from Terminal to invoke `./start.py --one-click` directly.
 2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  

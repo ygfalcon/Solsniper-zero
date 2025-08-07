@@ -8,7 +8,7 @@ PYTHON ?= python3
 .PHONY: start run test demo demo-rl demo-multi setup
 
 start:
->./scripts/launcher.py --one-click $(ARGS)
+>./start.py $(ARGS)
 
 setup:
 >./start.py --one-click $(ARGS)
