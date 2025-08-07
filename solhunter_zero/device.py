@@ -325,6 +325,9 @@ def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.d
 def ensure_gpu_env() -> dict[str, str]:
     """Configure environment variables for GPU execution.
 
+    This helper is used internally by :func:`initialize_gpu`.  External callers
+    should prefer :func:`initialize_gpu` to avoid diverging GPU configuration.
+
     If a GPU backend is available, ``TORCH_DEVICE`` is set to the preferred
     device (``"mps"`` on macOS with Apple Silicon or ``"cuda"`` elsewhere).
     When the Metal backend is used, ``PYTORCH_ENABLE_MPS_FALLBACK`` is set to
@@ -398,11 +401,13 @@ _GPU_LOGGED = False
 def initialize_gpu() -> dict[str, str]:
     """Ensure GPU environment variables are set and log once.
 
-    This helper delegates to :func:`ensure_gpu_env` to perform the actual
-    environment configuration.  The configured variables are then appended to
-    ``startup.log`` the first time the function is invoked.  Subsequent calls
-    simply refresh the environment without producing additional log entries.
-    The mapping of environment variables is returned in all cases.
+    This is the canonical entry point for GPU configuration; other modules
+    should not call :func:`ensure_gpu_env` directly.  The helper delegates to
+    :func:`ensure_gpu_env` to perform the actual environment configuration.  The
+    configured variables are then appended to ``startup.log`` the first time the
+    function is invoked.  Subsequent calls simply refresh the environment
+    without producing additional log entries.  The mapping of environment
+    variables is returned in all cases.
     """
 
     if platform.system() == "Darwin" and platform.machine() == "arm64":

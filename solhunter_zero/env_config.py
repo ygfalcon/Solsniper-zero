@@ -7,7 +7,7 @@ import os
 
 import tomllib
 
-from . import env, device
+from . import env
 from .logging_utils import log_startup
 from .config import ENV_VARS
 from .env_defaults import DEFAULTS
@@ -18,6 +18,10 @@ __all__ = ["configure_environment"]
 
 def configure_environment(root: Path | None = None) -> dict[str, str]:
     """Load ``.env`` and apply defaults defined in :mod:`env_defaults`.
+
+    GPU environment variables are intentionally not configured here. They are
+    handled by :func:`solhunter_zero.device.initialize_gpu` during the launcher
+    startup sequence to maintain a single source of truth.
 
     Parameters
     ----------
@@ -63,8 +67,10 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             os.environ[key] = value
         applied[key] = os.environ[key]
 
-    gpu_env = device.ensure_gpu_env()
-    applied.update(gpu_env)
+    # GPU-related environment variables are configured exclusively via
+    # :func:`device.initialize_gpu` during launcher startup to keep a single
+    # source of truth.  ``configure_environment`` deliberately avoids calling
+    # :func:`device.ensure_gpu_env`.
 
     for key, value in applied.items():
         log_startup(f"{key}: {value}")
