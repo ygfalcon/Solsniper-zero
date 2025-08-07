@@ -12,6 +12,8 @@ from typing import Sequence
 
 from .cache_paths import MPS_SENTINEL
 
+logger = logging.getLogger(__name__)
+
 METAL_EXTRA_INDEX = [
     "--extra-index-url",
     "https://download.pytorch.org/whl/metal",
@@ -40,7 +42,7 @@ def load_torch_metal_versions() -> tuple[str, str]:
             torch_ver = torch_ver or torch_cfg.get("torch_metal_version")
             vision_ver = vision_ver or torch_cfg.get("torchvision_metal_version")
         except Exception:
-            pass
+            logger.exception("Failed to load torch Metal versions from config")
     return torch_ver or "", vision_ver or ""
 
 
