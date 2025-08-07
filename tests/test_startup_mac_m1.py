@@ -1,3 +1,4 @@
+import os
 import platform
 import types
 import sys
@@ -11,10 +12,15 @@ def test_startup_mac_m1(monkeypatch):
 
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
 
+    def fake_gpu_env():
+        os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"
+        os.environ["SOLHUNTER_GPU_DEVICE"] = "none"
+        return {"SOLHUNTER_GPU_AVAILABLE": "0", "SOLHUNTER_GPU_DEVICE": "none"}
+
     dummy_device = types.SimpleNamespace(
         detect_gpu=lambda: True,
         get_default_device=lambda: "cpu",
-        ensure_gpu_env=lambda: {},
+        ensure_gpu_env=fake_gpu_env,
     )
     monkeypatch.setattr("solhunter_zero.device", dummy_device)
     monkeypatch.setattr(startup, "device", dummy_device)
