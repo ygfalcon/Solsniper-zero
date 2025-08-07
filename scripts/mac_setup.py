@@ -20,6 +20,10 @@ from solhunter_zero.device import (
 )
 
 
+ROOT = Path(__file__).resolve().parent.parent
+MAC_SETUP_MARKER = ROOT / ".cache" / "mac_setup_complete"
+
+
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
     print("Running:", " ".join(cmd))
@@ -183,15 +187,24 @@ MANUAL_FIXES = {
 }
 
 
-def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
+def prepare_macos_env(
+    non_interactive: bool = True, force: bool = False
+) -> dict[str, object]:
     """Ensure core macOS development tools are installed.
 
     Returns a report dictionary describing the status of each setup step.
     The returned mapping contains a ``steps`` dict with per-step ``status`` and
-    an overall ``success`` boolean.
+    an overall ``success`` boolean. If a cache marker exists and ``force`` is
+    ``False`` the installation steps are skipped.
     """
 
     report: dict[str, object] = {"steps": {}, "success": True}
+
+    if MAC_SETUP_MARKER.exists() and not force:
+        return report
+
+    if force and MAC_SETUP_MARKER.exists():
+        MAC_SETUP_MARKER.unlink(missing_ok=True)
 
     steps: list[tuple[str, Callable[[], None]]] = [
         ("xcode", lambda: ensure_xcode(non_interactive)),
@@ -225,6 +238,10 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
             break
         else:
             report["steps"][name] = {"status": "ok"}
+
+    if report.get("success"):
+        MAC_SETUP_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        MAC_SETUP_MARKER.write_text("ok")
 
     return report
 
@@ -263,7 +280,7 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     print(
         "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
     )
-    report = prepare_macos_env(non_interactive=non_interactive)
+    report = prepare_macos_env(non_interactive=non_interactive, force=True)
     apply_brew_env()
     for step, info in report["steps"].items():
         msg = info.get("message", "")
@@ -287,8 +304,9 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--non-interactive", action="store_true")
+    parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
-    report = prepare_macos_env(args.non_interactive)
+    report = prepare_macos_env(args.non_interactive, force=args.force)
     for step, info in report["steps"].items():
         msg = info.get("message", "")
         if msg:

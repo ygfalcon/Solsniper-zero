@@ -6,7 +6,7 @@ def test_ensure_deps_calls_apply_brew_env(monkeypatch):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     called = {"prepare": 0, "apply": 0}
 
-    def fake_prepare_macos_env(non_interactive=True):
+    def fake_prepare_macos_env(non_interactive=True, force=False):
         called["prepare"] += 1
         return {"success": True}
 

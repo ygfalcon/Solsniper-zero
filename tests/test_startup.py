@@ -39,7 +39,7 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 
     called = {}
 
-    def fake_prepare(non_interactive=True):
+    def fake_prepare(non_interactive=True, force=False):
         called["called"] = True
         return {
             "success": False,
