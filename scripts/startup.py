@@ -15,9 +15,12 @@ import io
 from pathlib import Path
 import json
 
-ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from solhunter_zero.paths import ROOT
+
 os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
+sys.path[0] = str(ROOT)
 
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402

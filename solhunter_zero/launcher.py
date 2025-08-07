@@ -19,8 +19,7 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-
-ROOT = Path(__file__).resolve().parent.parent
+from .paths import ROOT
 
 
 def _check_python(exe: str) -> bool:

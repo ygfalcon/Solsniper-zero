@@ -9,7 +9,7 @@ import tomllib
 
 __all__ = ["ensure_config"]
 
-ROOT = Path(__file__).resolve().parent.parent
+from .paths import ROOT
 
 
 def _copy_template(dst: Path) -> bool:

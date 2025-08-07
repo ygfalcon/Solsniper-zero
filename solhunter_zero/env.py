@@ -6,9 +6,9 @@ from pathlib import Path
 import os
 
 from .logging_utils import log_startup
+from .paths import ROOT
 
-ROOT = Path(__file__).resolve().parent.parent
-TEMPLATE_PATH = Path(__file__).resolve().with_name("static") / "env.template"
+TEMPLATE_PATH = ROOT / "solhunter_zero" / "static" / "env.template"
 
 __all__ = ["load_env_file"]
 
