@@ -113,3 +113,19 @@ def test_check_wallet_balance_insufficient(monkeypatch, tmp_path):
     ok, msg = preflight_utils.check_wallet_balance(1, kp_path)
     assert ok is False
     assert "below required" in msg
+
+
+def test_check_keypair_custom_dir(monkeypatch, tmp_path):
+    key_dir = tmp_path / "a"
+    other_dir = tmp_path / "b"
+    key_dir.mkdir()
+    other_dir.mkdir()
+    (key_dir / "active").write_text("my")
+    (other_dir / "my.json").write_text("[]")
+    monkeypatch.setattr(preflight_utils.wallet, "KEYPAIR_DIR", str(key_dir))
+    monkeypatch.setattr(
+        preflight_utils.wallet, "ACTIVE_KEYPAIR_FILE", str(key_dir / "active")
+    )
+    ok, msg = preflight_utils.check_keypair(other_dir)
+    assert ok is True
+    assert "Active keypair my present" in msg

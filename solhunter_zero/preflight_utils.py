@@ -126,12 +126,16 @@ def check_config_file(path: str = "config.toml") -> Check:
     return False, f"Missing {cfg}"
 
 
-def check_keypair(dir_path: str = "keypairs") -> Check:
+def check_keypair(dir_path: str | Path | None = None) -> Check:
+    if dir_path is None or dir_path == "keypairs":
+        base_dir = Path(wallet.KEYPAIR_DIR)
+    else:
+        base_dir = Path(dir_path)
     try:
         info = select_active_keypair(auto=True)
     except Exception:
-        return False, "keypairs/active not found"
-    keyfile = Path(wallet.KEYPAIR_DIR) / f"{info.name}.json"
+        return False, f"{base_dir / 'active'} not found"
+    keyfile = base_dir / f"{info.name}.json"
     if keyfile.exists():
         return True, f"Active keypair {info.name} present"
     return False, f"Keypair {keyfile} not found"
