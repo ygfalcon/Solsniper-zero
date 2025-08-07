@@ -26,6 +26,7 @@ from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero import preflight_utils  # noqa: E402
+from solhunter_zero.config import apply_env_overrides, load_config
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
     ensure_venv,
@@ -161,6 +162,17 @@ def ensure_cargo() -> None:
     bootstrap_utils.ensure_cargo()
 
 
+def _disk_space_required_bytes() -> int:
+    """Return the minimum free bytes required based on configuration."""
+
+    try:
+        cfg = apply_env_overrides(load_config())
+        limit_gb = float(cfg.get("offline_data_limit_gb", 50))
+    except Exception:
+        limit_gb = 50
+    return int(limit_gb * (1024 ** 3))
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
@@ -228,10 +240,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args, rest = parser.parse_known_args(argv)
 
+    disk_required = _disk_space_required_bytes()
+
     # Run early environment checks before any heavy work
     print("Checking disk space...")
     try:
-        preflight_utils.check_disk_space(1 << 30)
+        preflight_utils.check_disk_space(disk_required)
     except SystemExit:
         log_startup("Disk space check failed")
         raise
@@ -311,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
         from solhunter_zero.bootstrap import bootstrap
         import re
 
-        preflight_utils.check_disk_space(1 << 30)
+        preflight_utils.check_disk_space(disk_required)
         b_code = 0
         try:
             bootstrap(one_click=True)
