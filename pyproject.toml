@@ -62,6 +62,7 @@ solhunter-backtest = "solhunter_zero.backtest_cli:main"
 solhunter-train = "solhunter_zero.train_cli:main"
 solhunter-demo = "scripts.investor_demo:main"
 solhunter-start = "solhunter_zero.launcher:main"
+solhunter-one-click = "scripts.setup_one_click:main"
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
