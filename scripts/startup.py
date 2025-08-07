@@ -31,6 +31,7 @@ from solhunter_zero.bootstrap_utils import (
 )
 
 from solhunter_zero import env  # noqa: E402
+from solhunter_zero.logging_utils import log_startup  # noqa: E402
 
 env.load_env_file(ROOT / ".env")
 os.environ.setdefault("DEPTH_SERVICE", "true")
@@ -170,12 +171,8 @@ def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | No
         lines.append(f"Active keypair: {active_keypair}")
     if not lines:
         return
-    try:
-        with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-            for line in lines:
-                fh.write(line + "\n")
-    except OSError:
-        pass
+    for line in lines:
+        log_startup(line)
 
 
 def run_quick_setup() -> str | None:

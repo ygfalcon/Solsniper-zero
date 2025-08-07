@@ -14,6 +14,7 @@ from pathlib import Path
 from scripts import deps
 from . import device
 from .device import METAL_EXTRA_INDEX
+from .logging_utils import log_startup
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -107,8 +108,7 @@ def ensure_venv(argv: list[str] | None) -> None:
         except OSError as exc:
             msg = f"Failed to execv {python}: {exc}"
             logging.exception(msg)
-            with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-                fh.write(msg + "\n")
+            log_startup(msg)
             raise
 
 
@@ -122,19 +122,15 @@ def _pip_install(*args: str, retries: int = 3) -> None:
             capture_output=True,
             text=True,
         )
-        with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-            fh.write(
-                f"{' '.join(cmd)} (attempt {attempt}/{retries})\n"
-            )
-            if result.stdout:
-                fh.write(result.stdout)
-            if result.stderr:
-                fh.write(result.stderr)
+        log_startup(f"{' '.join(cmd)} (attempt {attempt}/{retries})")
+        if result.stdout:
+            log_startup(result.stdout.rstrip())
+        if result.stderr:
+            log_startup(result.stderr.rstrip())
         if result.returncode == 0:
-            with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-                fh.write(
-                    f"pip install {' '.join(args)} succeeded on attempt {attempt}\n"
-                )
+            log_startup(
+                f"pip install {' '.join(args)} succeeded on attempt {attempt}"
+            )
             return
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
@@ -145,12 +141,11 @@ def _pip_install(*args: str, retries: int = 3) -> None:
             time.sleep(wait)
     msg = f"Failed to install {' '.join(args)} after {retries} attempts:"
     print(msg)
-    with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-        fh.write(msg + "\n")
-        for err in errors:
-            if err:
-                fh.write(err + "\n")
-                print(err)
+    log_startup(msg)
+    for err in errors:
+        if err:
+            log_startup(err)
+            print(err)
     raise SystemExit(result.returncode)
 
 
