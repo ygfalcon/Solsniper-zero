@@ -75,7 +75,7 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
     from scripts import preflight as preflight_mod
-    monkeypatch.setattr(preflight_mod, "check_internet", lambda: None)
+    monkeypatch.setattr(preflight_mod, "check_internet", lambda: (True, "ok"))
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
 
@@ -1031,7 +1031,7 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(
-        "solhunter_zero.preflight_utils.check_disk_space", lambda min_bytes: None
+        "solhunter_zero.preflight_utils.check_disk_space", lambda min_bytes: (True, "ok")
     )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
@@ -1098,7 +1098,7 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(
-        "solhunter_zero.preflight_utils.check_disk_space", lambda min_bytes: None
+        "solhunter_zero.preflight_utils.check_disk_space", lambda min_bytes: (True, "ok")
     )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
