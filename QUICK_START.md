@@ -39,6 +39,14 @@ python scripts/investor_demo.py --full-system --reports reports
 All modes emit the same report files and console snippets. The `reports/`
 directory is ignored by Git so these generated files remain local.
 
+## Strategy Showcase Test
+
+Run the default strategies against a fixed price feed:
+
+```bash
+pytest tests/staging/test_investor_showcase.py
+```
+
 ## Troubleshooting Preflight Checks
 
 - **RPC unreachable** — ensure `SOLANA_RPC_URL` points to a healthy endpoint and that your network allows outbound requests.
