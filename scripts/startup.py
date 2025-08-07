@@ -422,9 +422,10 @@ def main(argv: list[str] | None = None) -> int:
         failures: list[tuple[str, str]] = []
         for name, ok, msg in results:
             status = "OK" if ok else "FAIL"
-            line = f"{name}: {status} - {msg}\n"
-            sys.stdout.write(line)
-            log_lines.append(line)
+            line = f"{name}: {status} - {msg}"
+            sys.stdout.write(line + "\n")
+            log_lines.append(line + "\n")
+            log_startup(line)
             if not ok:
                 failures.append((name, msg))
         try:
