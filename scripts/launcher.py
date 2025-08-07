@@ -113,10 +113,16 @@ from solhunter_zero import device  # noqa: E402
 os.chdir(ROOT)
 
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
+from solhunter_zero.bootstrap import verify_launch_ready  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
+
+    ok, msg = verify_launch_ready()
+    if not ok:
+        print(msg, file=sys.stderr)
+        raise SystemExit(1)
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
