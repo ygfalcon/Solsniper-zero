@@ -82,6 +82,8 @@ ENV_VARS = {
     "event_bus_peers": "EVENT_BUS_PEERS",
     "broker_url": "BROKER_URL",
     "broker_urls": "BROKER_URLS",
+    "broker_heartbeat_interval": "BROKER_HEARTBEAT_INTERVAL",
+    "broker_retry_limit": "BROKER_RETRY_LIMIT",
     "compress_events": "COMPRESS_EVENTS",
     "event_serialization": "EVENT_SERIALIZATION",
     "event_batch_ms": "EVENT_BATCH_MS",

@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import logging
 
 from .util import install_uvloop
 
@@ -459,6 +460,9 @@ _BROKER_TYPES: list[str] = []
 _BROKER_CONNS: list[Any] = []
 _BROKER_TASKS: list[Any] = []
 _BROKER_CHANNEL: str = os.getenv("BROKER_CHANNEL", "solhunter-events")
+_BROKER_HEARTBEAT_INTERVAL = float(os.getenv("BROKER_HEARTBEAT_INTERVAL", "30") or 30)
+_BROKER_RETRY_LIMIT = int(os.getenv("BROKER_RETRY_LIMIT", "3") or 3)
+_BROKER_HEARTBEAT_TASK: asyncio.Task | None = None
 
 
 def _encode_event(topic: str, payload: Any) -> Any:
@@ -1003,9 +1007,68 @@ async def _connect_nats(url: str):
     return nc
 
 
+async def _reconnect_broker(index: int) -> None:
+    """Attempt to reconnect broker at ``index`` up to the retry limit."""
+    url = _BROKER_URLS[index]
+    typ = _BROKER_TYPES[index]
+    conn = _BROKER_CONNS[index]
+    task = _BROKER_TASKS[index]
+    if task is not None:
+        task.cancel()
+    if conn is not None:
+        try:
+            await conn.close()
+        except Exception:
+            pass
+    for attempt in range(1, _BROKER_RETRY_LIMIT + 1):
+        try:
+            if typ == "redis":
+                if aioredis is None:
+                    raise RuntimeError("redis package required for redis broker")
+                new_conn = aioredis.from_url(url)
+                pubsub = new_conn.pubsub()
+                await pubsub.subscribe(_BROKER_CHANNEL)
+                new_task = asyncio.create_task(_redis_listener(pubsub))
+                _BROKER_CONNS[index] = new_conn
+                _BROKER_TASKS[index] = new_task
+            elif typ == "nats":
+                if nats is None:
+                    raise RuntimeError("nats-py package required for nats broker")
+                new_conn = await _connect_nats(url)
+                _BROKER_CONNS[index] = new_conn
+                _BROKER_TASKS[index] = None
+            return
+        except Exception as exc:
+            logging.warning(
+                "Broker reconnect failed for %s (attempt %d/%d): %s",
+                url,
+                attempt,
+                _BROKER_RETRY_LIMIT,
+                exc,
+            )
+            await asyncio.sleep(_BROKER_HEARTBEAT_INTERVAL)
+    logging.warning("Failed to reconnect to broker %s after %d attempts", url, _BROKER_RETRY_LIMIT)
+
+
+async def _broker_heartbeat() -> None:
+    """Periodically ping brokers and reconnect if unresponsive."""
+    while True:
+        await asyncio.sleep(_BROKER_HEARTBEAT_INTERVAL)
+        for idx, (typ, conn, url) in enumerate(zip(_BROKER_TYPES, _BROKER_CONNS, _BROKER_URLS)):
+            if conn is None:
+                continue
+            try:
+                if typ == "redis":
+                    await asyncio.wait_for(conn.ping(), timeout=_BROKER_HEARTBEAT_INTERVAL)
+                elif typ == "nats":
+                    await asyncio.wait_for(conn.flush(), timeout=_BROKER_HEARTBEAT_INTERVAL)
+            except Exception:
+                logging.warning("Broker %s unresponsive, attempting reconnect", url)
+                await _reconnect_broker(idx)
+
 async def connect_broker(urls: Sequence[str] | str) -> None:
     """Connect to one or more Redis or NATS message brokers."""
-    global _BROKER_URLS, _BROKER_CONNS, _BROKER_TASKS, _BROKER_TYPES
+    global _BROKER_URLS, _BROKER_CONNS, _BROKER_TASKS, _BROKER_TYPES, _BROKER_HEARTBEAT_TASK
     if isinstance(urls, str):
         urls = [urls]
     for url in urls:
@@ -1030,11 +1093,13 @@ async def connect_broker(urls: Sequence[str] | str) -> None:
             _BROKER_URLS.append(url)
         else:
             raise ValueError(f"unsupported broker url: {url}")
+    if _BROKER_HEARTBEAT_TASK is None:
+        _BROKER_HEARTBEAT_TASK = asyncio.create_task(_broker_heartbeat())
 
 
 async def disconnect_broker() -> None:
     """Disconnect from all active message brokers."""
-    global _BROKER_URLS, _BROKER_CONNS, _BROKER_TASKS, _BROKER_TYPES
+    global _BROKER_URLS, _BROKER_CONNS, _BROKER_TASKS, _BROKER_TYPES, _BROKER_HEARTBEAT_TASK
     tasks = list(_BROKER_TASKS)
     conns = list(_BROKER_CONNS)
     types = list(_BROKER_TYPES)
@@ -1042,6 +1107,9 @@ async def disconnect_broker() -> None:
     _BROKER_CONNS.clear()
     _BROKER_TYPES.clear()
     _BROKER_URLS.clear()
+    if _BROKER_HEARTBEAT_TASK is not None:
+        _BROKER_HEARTBEAT_TASK.cancel()
+        _BROKER_HEARTBEAT_TASK = None
     for t in tasks:
         if t is not None:
             t.cancel()

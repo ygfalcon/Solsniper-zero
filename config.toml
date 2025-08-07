@@ -119,6 +119,8 @@ broker_url = ""  # optional Redis or NATS endpoint
 # Point to your lowest-latency broker(s). Multiple entries may be comma
 # separated. Redis or NATS are both supported.
 broker_urls = "redis://localhost:6379"  # comma-separated list of broker URLs
+broker_heartbeat_interval = 30  # seconds between broker heartbeat pings
+broker_retry_limit = 3  # reconnection attempts before giving up
 replicate_trades = false  # subscribe to trade_logged events when true
 memory_sync_interval = 5.0  # seconds between trade sync requests
 weights_path = "weights.json"
