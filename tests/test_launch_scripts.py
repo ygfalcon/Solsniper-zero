@@ -6,40 +6,32 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _run_script(script: str, tmp_path: Path, monkeypatch) -> list[str]:
-    """Run *script* and capture the args passed to the Python interpreter.
+def test_run_sh_is_symlink_to_start_py():
+    script = REPO_ROOT / "run.sh"
+    assert script.is_symlink()
+    assert os.readlink(script) == "start.py"
 
-    A temporary ``python`` executable is placed at the front of ``PATH`` which
-    writes the received arguments to a file. This allows us to assert which
-    script and options the shell wrappers forward without executing the real
-    launcher.
-    """
+
+def test_start_command_is_symlink_to_start_py():
+    script = REPO_ROOT / "start.command"
+    assert script.is_symlink()
+    assert os.readlink(script) == "start.py"
+
+
+def test_start_py_invokes_launcher(tmp_path):
+    start_src = REPO_ROOT / "start.py"
+    tmp_start = tmp_path / "start.py"
+    tmp_start.write_text(start_src.read_text())
 
     called = tmp_path / "called.txt"
-    stub = tmp_path / "python3"
-    stub.write_text(
-        f"#!{sys.executable}\n"
+    stub_launcher = tmp_path / "scripts" / "launcher.py"
+    stub_launcher.parent.mkdir()
+    stub_launcher.write_text(
         "import sys, pathlib\n"
         f"pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
     )
-    stub.chmod(0o755)
-    os.symlink(stub, tmp_path / "python")
+    stub_launcher.chmod(0o755)
 
-    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    subprocess.run([sys.executable, str(tmp_start), "EXTRA"], check=True)
 
-    subprocess.run([str(REPO_ROOT / script), "EXTRA"], check=True, cwd=REPO_ROOT)
-
-    return called.read_text().split()
-
-
-def test_start_command_invokes_launcher(monkeypatch, tmp_path):
-    args = _run_script("start.command", tmp_path, monkeypatch)
-    assert args[0] == "scripts/launcher.py"
-    assert args[-1] == "EXTRA"
-
-
-def test_run_sh_invokes_launcher(monkeypatch, tmp_path):
-    args = _run_script("run.sh", tmp_path, monkeypatch)
-    assert args[0] == "scripts/launcher.py"
-    assert args[-1] == "EXTRA"
-
+    assert called.read_text().split() == ["EXTRA"]
