@@ -12,7 +12,7 @@ def _script_lines(name: str) -> list[str]:
 
 def test_run_sh_invokes_launcher():
     lines = _script_lines("run.sh")
-    assert any("scripts/launcher.py" in line for line in lines)
+    assert any("start.py" in line for line in lines)
 
 
 def test_start_py_invokes_launcher(tmp_path):
@@ -21,7 +21,7 @@ def test_start_py_invokes_launcher(tmp_path):
     tmp_start.write_text(start_src.read_text())
 
     called = tmp_path / "called.txt"
-    stub = tmp_path / "scripts" / "launcher.py"
+    stub = tmp_path / "solhunter_zero" / "launcher.py"
     stub.parent.mkdir()
     stub.write_text(
         "import sys, pathlib\n"

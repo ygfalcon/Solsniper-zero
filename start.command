@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
+# macOS launcher wrapper.
+
 cd "$(dirname "$0")"
-exec arch -arm64 python3 start.py "$@"
+exec ./run.sh "$@"
+
