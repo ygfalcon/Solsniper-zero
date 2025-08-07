@@ -15,7 +15,7 @@ if aiohttp is not None:  # pragma: no cover - optional dependency
 else:  # pragma: no cover - optional dependency
     get_session = None
 
-from .event_bus import subscribe
+from .event_bus import subscribe, publish
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +65,11 @@ def start_metrics_exporter(url: str | None = None) -> Callable[[], None]:
             loop.create_task(_post(data))
 
     return subscribe("rl_metrics", _handler)
+
+
+def report_depth_service_failure(attempt: int, error: str | None = None) -> None:
+    """Publish a metric indicating a failed depth_service restart attempt."""
+    payload: dict[str, Any] = {"attempt": float(attempt)}
+    if error is not None:
+        payload["error"] = str(error)
+    publish("depth_service_restart_failure", payload)

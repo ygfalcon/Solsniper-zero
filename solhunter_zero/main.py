@@ -34,6 +34,7 @@ from .config import (
 from .http import close_session
 from . import wallet
 from . import metrics_aggregator
+from . import metrics_client
 from .bootstrap import bootstrap
 
 _SERVICE_MANIFEST = (
@@ -115,30 +116,41 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
 
 
 async def _depth_service_watchdog(cfg: dict, proc_ref: list[subprocess.Popen | None]) -> None:
-    """Monitor the depth_service process and attempt a single restart."""
+    """Monitor the depth_service process and restart with backoff."""
     proc = proc_ref[0]
     if not proc:
         return
-    restarted = False
+
+    max_attempts = int(os.getenv("DEPTH_WATCHDOG_RETRIES", "3") or 3)
+    initial_backoff = float(os.getenv("DEPTH_WATCHDOG_BACKOFF", "1") or 1.0)
+    max_backoff = float(os.getenv("DEPTH_WATCHDOG_MAX_BACKOFF", "30") or 30.0)
+
+    backoff = initial_backoff
+    attempts = 0
     try:
         while True:
             await asyncio.sleep(1.0)
             if proc.poll() is None:
                 continue
-            if restarted:
-                logging.error("depth_service exited after restart; aborting")
-                raise RuntimeError("depth_service terminated")
-            logging.warning("depth_service exited; attempting restart")
+            attempts += 1
+            logging.warning(
+                "depth_service exited; attempting restart %s/%s", attempts, max_attempts
+            )
             try:
                 proc = await asyncio.to_thread(_start_depth_service, cfg)
+                if not proc:
+                    raise RuntimeError("depth_service restart returned None")
             except Exception as exc:
                 logging.error("Failed to restart depth_service: %s", exc)
-                raise
-            if not proc:
-                logging.error("depth_service restart returned None; aborting")
-                raise RuntimeError("depth_service restart failed")
+                metrics_client.report_depth_service_failure(attempts, str(exc))
+                if attempts >= max_attempts:
+                    raise RuntimeError("depth_service terminated") from exc
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
+                continue
             proc_ref[0] = proc
-            restarted = True
+            attempts = 0
+            backoff = initial_backoff
     except asyncio.CancelledError:
         pass
 
