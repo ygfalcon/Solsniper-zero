@@ -741,6 +741,23 @@ def main(
             )
             raise SystemExit(1)
 
+    if not offline:
+        try:
+            asyncio.run(
+                place_order_async(
+                    "So11111111111111111111111111111111111111112",
+                    "buy",
+                    0.001,
+                    0.0,
+                    testnet=testnet,
+                    dry_run=True,
+                    connectivity_test=True,
+                )
+            )
+        except Exception as exc:
+            logging.error("Connectivity test order failed: %s", exc)
+            raise SystemExit(1)
+
     async def loop() -> None:
         ws_task = None
         book_task = None

@@ -212,6 +212,7 @@ async def place_order_async(
     *,
     testnet: bool = False,
     dry_run: bool = False,
+    connectivity_test: bool = False,
     keypair: Keypair | None = None,
     base_url: str | None = None,
     venues: list[str] | None = None,
@@ -223,6 +224,8 @@ async def place_order_async(
     When ``venues`` contains multiple base URLs or venue names the order is
     submitted to all of them concurrently and the first successful result is
     returned.  ``max_retries`` controls the number of attempts per venue.
+    When ``connectivity_test`` is ``True`` a minimal dry-run request is sent to
+    verify connectivity without broadcasting a transaction.
     """
 
     fee = await get_current_fee_async(testnet=testnet)
@@ -244,7 +247,7 @@ async def place_order_async(
         "cluster": "devnet" if testnet else "mainnet-beta",
     }
 
-    if dry_run:
+    if dry_run and not connectivity_test:
         logger.info(
             "Dry run: would place %s order for %s amount %s at price %s",
             side,
@@ -253,6 +256,10 @@ async def place_order_async(
             price,
         )
         return {"dry_run": True, **payload_base}
+
+    if connectivity_test:
+        keypair = None
+        dry_run = True
 
     async def _submit(url: str) -> Optional[Dict[str, Any]]:
         remaining = trade_amount
@@ -268,38 +275,38 @@ async def place_order_async(
                 await asyncio.sleep(0.5)
                 continue
 
-                tx_b64 = data.get("swapTransaction")
-                if not tx_b64 or keypair is None:
-                    return data
+            tx_b64 = data.get("swapTransaction")
+            if not tx_b64 or keypair is None:
+                return data
 
-                tx = _sign_transaction(tx_b64, keypair)
-                if USE_RUST_EXEC:
-                    res = await _place_order_ipc(
-                        base64.b64encode(bytes(tx)).decode(),
-                        testnet=testnet,
-                        dry_run=dry_run,
-                        timeout=timeout,
-                        max_retries=max_retries,
-                    )
-                    if res:
-                        data.update(res)
-                        return data
+            tx = _sign_transaction(tx_b64, keypair)
+            if USE_RUST_EXEC:
+                res = await _place_order_ipc(
+                    base64.b64encode(bytes(tx)).decode(),
+                    testnet=testnet,
+                    dry_run=dry_run,
+                    timeout=timeout,
+                    max_retries=max_retries,
+                )
+                if res:
+                    data.update(res)
+                    return data
+                continue
+            else:
+                try:
+                    async with AsyncClient(RPC_TESTNET_URL if testnet else RPC_URL) as client:
+                        result = await client.send_raw_transaction(bytes(tx))
+                    data["signature"] = str(result.value)
+                except Exception as exc:
+                    logger.error("RPC send failed via %s: %s", url, exc)
+                    await asyncio.sleep(0.5)
                     continue
-                else:
-                    try:
-                        async with AsyncClient(RPC_TESTNET_URL if testnet else RPC_URL) as client:
-                            result = await client.send_raw_transaction(bytes(tx))
-                        data["signature"] = str(result.value)
-                    except Exception as exc:
-                        logger.error("RPC send failed via %s: %s", url, exc)
-                        await asyncio.sleep(0.5)
-                        continue
 
-                filled = float(data.get("filled_amount", remaining))
-                remaining -= filled
-                if remaining <= 0:
-                    return data
-            return None
+            filled = float(data.get("filled_amount", remaining))
+            remaining -= filled
+            if remaining <= 0:
+                return data
+        return None
 
     tasks = [asyncio.create_task(_submit(u)) for u in base_urls]
     done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout)
