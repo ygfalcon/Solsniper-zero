@@ -8,6 +8,7 @@ import time
 from argparse import ArgumentParser
 import cProfile
 from typing import Sequence
+import datetime
 
 try:  # pragma: no cover - optional dependency
     import psutil
@@ -225,6 +226,8 @@ async def place_order_async(*args, **kwargs):
 
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
+# track last trade times by token
+_LAST_TRADE_TIMES: dict[str, datetime.datetime] = {}
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
@@ -283,6 +286,18 @@ async def _run_iteration(
 
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
+
+    recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
+    if recent_window > 0:
+        now = datetime.datetime.utcnow()
+        tokens = [
+            t
+            for t in tokens
+            if (
+                (ts := _LAST_TRADE_TIMES.get(t)) is None
+                or (now - ts).total_seconds() > recent_window
+            )
+        ]
 
     rpc_url = os.getenv("SOLANA_RPC_URL")
     if rpc_url and not offline:
@@ -767,6 +782,21 @@ def main(
     portfolio = Portfolio(path=portfolio_path)
     warm_cache(portfolio.balances.keys())
 
+    recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
+    if recent_window > 0:
+        async def _load_recent_trades() -> None:
+            trades = await memory.list_trades()
+            for tr in trades:
+                ts = getattr(tr, "created_at", None)
+                if ts is not None:
+                    prev = _LAST_TRADE_TIMES.get(tr.token)
+                    if prev is None or ts > prev:
+                        _LAST_TRADE_TIMES[tr.token] = ts
+        try:
+            asyncio.run(_load_recent_trades())
+        except Exception as exc:
+            logging.warning("Failed to load recent trade timestamps: %s", exc)
+
     agent_manager: AgentManager | None = None
 
     if cfg.get("agents"):
@@ -816,6 +846,9 @@ def main(
             nonlocal depth_updates
             depth_updates += 1
         unsub_counter = event_bus.subscribe("depth_update", _count)
+        def _record_trade(payload):
+            _LAST_TRADE_TIMES[payload.token] = datetime.datetime.utcnow()
+        unsub_trade = event_bus.subscribe("trade_logged", _record_trade)
         bus_started = False
         if get_event_bus_url() is None:
             await event_bus.start_ws_server()
@@ -1058,6 +1091,7 @@ def main(
             stop_collector()
         if bus_started:
             await event_bus.stop_ws_server()
+        unsub_trade()
         unsub_counter()
 
     try:
