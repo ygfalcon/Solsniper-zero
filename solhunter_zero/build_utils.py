@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+import platform
+import shutil
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def build_rust_component(
+    name: str, cargo_path: Path, output: Path, *, target: str | None = None
+) -> None:
+    cmd = ["cargo", "build", "--manifest-path", str(cargo_path), "--release"]
+    if target is not None:
+        try:
+            installed_targets = subprocess.check_output(
+                ["rustup", "target", "list", "--installed"], text=True
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError("failed to verify rust targets") from exc
+        if target not in installed_targets:
+            subprocess.check_call(["rustup", "target", "add", target])
+        cmd.extend(["--target", target])
+    elif platform.system() == "Darwin" and platform.machine() == "arm64":
+        try:
+            installed_targets = subprocess.check_output(
+                ["rustup", "target", "list", "--installed"], text=True
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError("failed to verify rust targets") from exc
+        if "aarch64-apple-darwin" not in installed_targets:
+            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+        cmd.extend(["--target", "aarch64-apple-darwin"])
+
+    subprocess.check_call(cmd)
+
+    artifact = output.name
+    target_dirs = [cargo_path.parent / "target", ROOT / "target"]
+    candidates: list[Path] = []
+    for base in target_dirs:
+        candidates.append(base / "release" / artifact)
+        if target is not None:
+            candidates.append(base / target / "release" / artifact)
+        elif platform.system() == "Darwin" and platform.machine() == "arm64":
+            candidates.append(base / "aarch64-apple-darwin" / "release" / artifact)
+
+    built = next((p for p in candidates if p.exists()), None)
+    if built is None:
+        paths = ", ".join(str(p) for p in candidates)
+        raise RuntimeError(f"failed to build {name}: expected {artifact} in {paths}")
+
+    if built.resolve() != output.resolve():
+        output.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(built, output)
+
+    if not output.exists():
+        raise RuntimeError(
+            f"{name} build succeeded but {output} is missing. Please build manually."
+        )
+
+    if platform.system() == "Darwin":
+        try:
+            subprocess.check_call(["codesign", "--force", "--sign", "-", str(output)])
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"WARNING: failed to codesign {output}: {exc}. "
+                "Please codesign the binary manually if required."
+            )
+
+
+def ensure_route_ffi() -> None:
+    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libpath = ROOT / "solhunter_zero" / libname
+    if libpath.exists():
+        return
+    try:
+        build_rust_component(
+            "route_ffi",
+            ROOT / "route_ffi" / "Cargo.toml",
+            libpath,
+        )
+    except Exception as exc:  # pragma: no cover - build errors are rare
+        print(f"Failed to build route_ffi: {exc}")
+        print(
+            "To retry the build, run 'cargo build --manifest-path route_ffi/Cargo.toml --release' "
+            "and re-run this program."
+        )
+        raise SystemExit(1)
+
+
+def ensure_depth_service() -> None:
+    bin_path = ROOT / "target" / "release" / "depth_service"
+    if bin_path.exists():
+        return
+    target = "aarch64-apple-darwin" if platform.system() == "Darwin" else None
+    try:
+        build_rust_component(
+            "depth_service",
+            ROOT / "depth_service" / "Cargo.toml",
+            bin_path,
+            target=target,
+        )
+    except Exception as exc:  # pragma: no cover - build errors are rare
+        hint = ""
+        if platform.system() == "Darwin":
+            hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
+        print(f"Failed to build depth_service: {exc}.{hint}")
+        print(
+            "You can retry by running 'cargo build --manifest-path depth_service/Cargo.toml --release' "
+            "and then re-running this program."
+        )
+        raise SystemExit(1)

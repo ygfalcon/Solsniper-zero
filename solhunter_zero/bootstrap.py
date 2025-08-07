@@ -7,8 +7,6 @@ from pathlib import Path
 from solhunter_zero.bootstrap_utils import (
     ensure_cargo,
     ensure_deps,
-    ensure_depth_service,
-    ensure_route_ffi,
     ensure_venv,
 )
 from .config_bootstrap import ensure_config as _ensure_config
@@ -16,6 +14,18 @@ from . import wallet
 from . import env
 
 import solhunter_zero.device as device
+
+
+def ensure_route_ffi() -> None:
+    from .build_utils import ensure_route_ffi as _ensure_route_ffi
+
+    _ensure_route_ffi()
+
+
+def ensure_depth_service() -> None:
+    from .build_utils import ensure_depth_service as _ensure_depth_service
+
+    _ensure_depth_service()
 
 
 def ensure_config() -> Path:
@@ -100,5 +110,3 @@ def bootstrap(one_click: bool = False) -> None:
 
     wallet.ensure_default_keypair()
     ensure_cargo()
-    ensure_route_ffi()
-    ensure_depth_service()
