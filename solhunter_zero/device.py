@@ -39,8 +39,23 @@ def _load_torch_versions() -> tuple[str, str]:
     )
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = _load_torch_versions()
-
 MPS_SENTINEL = Path(__file__).resolve().parent.parent / ".cache" / "torch_mps_ready"
+
+
+def _sentinel_matches() -> bool:
+    if not MPS_SENTINEL.exists():
+        return False
+    try:
+        torch_ver, vision_ver = MPS_SENTINEL.read_text().splitlines()[:2]
+    except Exception:
+        return False
+    return torch_ver == TORCH_METAL_VERSION and vision_ver == TORCHVISION_METAL_VERSION
+
+
+def _write_sentinel() -> None:
+    MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+    MPS_SENTINEL.write_text(f"{TORCH_METAL_VERSION}\n{TORCHVISION_METAL_VERSION}\n")
+
 
 try:  # pragma: no cover - optional dependency
     import torch
@@ -92,7 +107,7 @@ def ensure_torch_with_metal() -> None:
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         return
 
-    if MPS_SENTINEL.exists():
+    if _sentinel_matches():
         return
 
     logger = logging.getLogger(__name__)
@@ -100,8 +115,7 @@ def ensure_torch_with_metal() -> None:
     global torch
     try:
         if torch is not None and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-            MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-            MPS_SENTINEL.touch()
+            _write_sentinel()
             return
     except Exception:
         pass
@@ -120,8 +134,7 @@ def ensure_torch_with_metal() -> None:
     if not status.success:
         logger.error("PyTorch installation failed: %s", status.message)
         logger.error("Install manually with: %s", install_cmd)
-        MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-        MPS_SENTINEL.touch()
+        _write_sentinel()
         raise RuntimeError("Failed to install MPS-enabled PyTorch")
 
     importlib.invalidate_caches()
@@ -144,8 +157,7 @@ def ensure_torch_with_metal() -> None:
         if not status.success:
             logger.error("PyTorch reinstallation failed: %s", status.message)
             logger.error("Install manually with: %s", reinstall_cmd_str)
-            MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-            MPS_SENTINEL.touch()
+            _write_sentinel()
             raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
         importlib.invalidate_caches()
         torch = importlib.reload(torch)
@@ -154,16 +166,14 @@ def ensure_torch_with_metal() -> None:
                 "MPS backend still not available after installation. Install manually with: %s",
                 reinstall_cmd_str,
             )
-            MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-            MPS_SENTINEL.touch()
+            _write_sentinel()
             raise RuntimeError(
                 "MPS backend still not available. Install manually with: pip install "
                 f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
                 + " ".join(METAL_EXTRA_INDEX),
             )
 
-    MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-    MPS_SENTINEL.touch()
+    _write_sentinel()
 
 
 if platform.system() == "Darwin" and platform.machine() == "arm64":
@@ -173,7 +183,8 @@ if platform.system() == "Darwin" and platform.machine() == "arm64":
             or not getattr(torch.backends, "mps", None)
             or not torch.backends.mps.is_available()
         )
-        if needs_install and not MPS_SENTINEL.exists():
+        sentinel_ok = _sentinel_matches()
+        if not sentinel_ok:
             ensure_torch_with_metal()
             if (
                 torch is None
@@ -204,7 +215,7 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
 
     if torch is None:
         if _attempt_install:
-            if MPS_SENTINEL.exists():
+            if _sentinel_matches():
                 logging.getLogger(__name__).info(
                     "Skipping PyTorch installation; sentinel %s present",
                     MPS_SENTINEL,
@@ -237,32 +248,32 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 "--extra-index-url https://download.pytorch.org/whl/metal"
             )
 
-            def _install_and_retry(reason: str) -> bool:
-                logger = logging.getLogger(__name__)
-                if MPS_SENTINEL.exists():
-                    logger.warning(
-                        "%s; sentinel %s exists, skipping reinstall",
-                        reason,
-                        MPS_SENTINEL,
-                    )
-                    return False
+        def _install_and_retry(reason: str) -> bool:
+            logger = logging.getLogger(__name__)
+            if _sentinel_matches():
                 logger.warning(
-                    "%s; attempting to install MPS-enabled PyTorch", reason
+                    "%s; sentinel %s exists, skipping reinstall",
+                    reason,
+                    MPS_SENTINEL,
                 )
-                try:
-                    ensure_torch_with_metal()
-                except Exception:
-                    logger.exception("PyTorch installation failed")
-                    raise RuntimeError(
-                        "Failed to install MPS-enabled PyTorch",
-                    )
-                if detect_gpu(_attempt_install=False):
-                    logger.info("MPS backend detected after installation")
-                    return True
-                logger.error("MPS backend unavailable after installation")
+                return False
+            logger.warning(
+                "%s; attempting to install MPS-enabled PyTorch", reason
+            )
+            try:
+                ensure_torch_with_metal()
+            except Exception:
+                logger.exception("PyTorch installation failed")
                 raise RuntimeError(
-                    "MPS backend unavailable even after installing PyTorch",
+                    "Failed to install MPS-enabled PyTorch",
                 )
+            if detect_gpu(_attempt_install=False):
+                logger.info("MPS backend detected after installation")
+                return True
+            logger.error("MPS backend unavailable after installation")
+            raise RuntimeError(
+                "MPS backend unavailable even after installing PyTorch",
+            )
             if not getattr(torch.backends, "mps", None):
                 if _attempt_install:
                     return _install_and_retry("MPS backend not present")
