@@ -4,10 +4,19 @@
 from solhunter_zero.investor_demo import main
 
 
-def run() -> None:
-    """Execute the demo with the full preset and default report path."""
-    main(["--preset", "full"])
+def run(argv: list[str] | None = None) -> None:
+    """Execute the demo with the given CLI args.
+
+    Defaults to the ``full`` preset if no arguments are provided so that the
+    script remains a quick showcase.  Additional arguments like ``--reports``
+    are forwarded to :func:`solhunter_zero.investor_demo.main`.
+    """
+    if argv is None or len(argv) == 0:
+        argv = ["--preset", "full"]
+    main(argv)
 
 
 if __name__ == "__main__":  # pragma: no cover
-    run()
+    import sys
+
+    run(sys.argv[1:])
