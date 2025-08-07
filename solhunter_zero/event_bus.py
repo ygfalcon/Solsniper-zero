@@ -257,7 +257,7 @@ def close_mmap() -> None:
         try:
             _MMAP.close()
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("Failed to close event mmap")
     _MMAP = None
 
 
@@ -283,7 +283,7 @@ def _flush_mmap_buffer() -> None:
         try:
             handle.cancel()
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("Failed to cancel mmap flush handle")
     if not _MMAP_BUFFER:
         return
     mm = open_mmap()
@@ -298,7 +298,8 @@ def _flush_mmap_buffer() -> None:
     try:
         mm.flush()
     except Exception:
-        pass
+        logging.getLogger(__name__).exception("Failed to flush event mmap buffer")
+        raise
 
 
 def _mmap_write(data: bytes) -> None:
@@ -315,7 +316,8 @@ def _mmap_write(data: bytes) -> None:
         try:
             mm.flush()
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("Failed to flush event mmap")
+            raise
         return
 
     _MMAP_BUFFER.append(data)
