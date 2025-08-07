@@ -10,12 +10,9 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from solhunter_zero import env  # noqa: E402
+from solhunter_zero import bootstrap_env
 
-env.load_env_file(ROOT / ".env")
-os.chdir(ROOT)
+bootstrap_env.init_env()
 
 import tomllib
 

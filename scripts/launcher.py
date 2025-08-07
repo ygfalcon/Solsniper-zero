@@ -19,8 +19,9 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
+from solhunter_zero import bootstrap_env
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = bootstrap_env.ROOT
 
 
 def _check_python(exe: str) -> bool:
@@ -99,18 +100,14 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
     raise SystemExit(1)
 
 
-sys.path.insert(0, str(ROOT))
+bootstrap_env.init_env()
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
 from solhunter_zero.logging_utils import log_startup  # noqa: E402
 
 ensure_venv(None)
 log_startup(f"Virtual environment: {sys.prefix}")
 
-from solhunter_zero import env  # noqa: E402
-
-env.load_env_file(ROOT / ".env")
 from solhunter_zero import device  # noqa: E402
-os.chdir(ROOT)
 
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
 

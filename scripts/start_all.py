@@ -13,12 +13,9 @@ import logging
 from pathlib import Path
 from typing import IO
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from solhunter_zero import env  # noqa: E402
+from solhunter_zero import bootstrap_env
 
-env.load_env_file(ROOT / ".env")
-os.chdir(ROOT)
+bootstrap_env.init_env()
 
 from solhunter_zero.config import (  # noqa: E402
     set_env_from_config,

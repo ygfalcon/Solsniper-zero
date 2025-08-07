@@ -15,9 +15,10 @@ import io
 from pathlib import Path
 import json
 
-ROOT = Path(__file__).resolve().parent.parent
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
+from solhunter_zero import bootstrap_env
+
+bootstrap_env.init_env()
+ROOT = bootstrap_env.ROOT
 
 MAX_STARTUP_LOG_SIZE = 1_000_000  # 1 MB
 
@@ -49,10 +50,8 @@ from solhunter_zero.bootstrap_utils import (
     ensure_venv,
 )
 
-from solhunter_zero import env  # noqa: E402
 from solhunter_zero.logging_utils import log_startup  # noqa: E402
 
-env.load_env_file(ROOT / ".env")
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device  # noqa: E402
 
