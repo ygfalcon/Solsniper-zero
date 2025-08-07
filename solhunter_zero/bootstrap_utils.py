@@ -172,13 +172,13 @@ def ensure_deps(
     """
 
     if platform.system() == "Darwin":
-        from . import mac_env
+        from . import macos_setup
 
-        report = mac_env.prepare_macos_env(non_interactive=True)
+        report = macos_setup.prepare_macos_env(non_interactive=True)
         if not report.get("success"):
             for step, info in report.get("steps", {}).items():
                 if info.get("status") == "error":
-                    fix = mac_env.MANUAL_FIXES.get(step)
+                    fix = macos_setup.MANUAL_FIXES.get(step)
                     if fix:
                         print(f"Manual fix for {step}: {fix}")
             print(
@@ -388,7 +388,7 @@ def ensure_cargo() -> None:
     installed = False
     cache_marker = ROOT / ".cache" / "cargo-installed"
     if platform.system() == "Darwin":
-        from scripts.mac_setup import apply_brew_env, ensure_tools
+        from solhunter_zero.macos_setup import apply_brew_env, ensure_tools
 
         ensure_tools()
         apply_brew_env()

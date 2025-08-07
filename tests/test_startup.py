@@ -39,15 +39,15 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 
     called = {}
 
-    def fake_prepare(non_interactive=True, force=False):
+    def fake_prepare(non_interactive=True):
         called["called"] = True
         return {
             "success": False,
             "steps": {"xcode": {"status": "error", "message": "boom"}}
         }
-
-    monkeypatch.setattr("scripts.mac_setup.prepare_macos_env", fake_prepare)
-    monkeypatch.setattr("scripts.mac_setup.apply_brew_env", lambda: None)
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare
+    )
     monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     def fake_gpu_env():
@@ -100,7 +100,9 @@ def test_mac_startup_prereqs(monkeypatch):
     startup.ensure_venv([])
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+    )
     startup.ensure_deps(ensure_wallet_cli=False)
 
     dummy_torch = types.SimpleNamespace(
@@ -336,7 +338,9 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+    )
     startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
     assert calls == [
@@ -385,7 +389,9 @@ def test_ensure_deps_requires_mps(monkeypatch):
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+    )
     with pytest.raises(SystemExit) as excinfo:
         startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
@@ -584,13 +590,17 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+    )
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
 
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+    )
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
