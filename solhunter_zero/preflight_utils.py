@@ -124,6 +124,27 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
     return False, f"Keypair {keyfile} not found"
 
 
+def check_libroute_ffi(pattern: str = "solhunter_zero/libroute_ffi.*") -> Check:
+    """Ensure the compiled route FFI library is present."""
+
+    matches = list(ROOT.glob(pattern))
+    if matches:
+        return True, f"Found {matches[0].relative_to(ROOT)}"
+    return False, f"Missing {pattern}"
+
+
+def check_depth_service(path: str = "target/release/depth_service") -> Check:
+    """Ensure the Rust depth service binary exists."""
+
+    exe = ROOT / path
+    if exe.exists():
+        return True, f"Found {exe.relative_to(ROOT)}"
+    exe_win = exe.with_suffix(".exe")
+    if exe_win.exists():
+        return True, f"Found {exe_win.relative_to(ROOT)}"
+    return False, f"Missing {path}"
+
+
 def check_disk_space(min_bytes: int) -> None:
     """Ensure there is at least ``min_bytes`` free on the current filesystem."""
 
