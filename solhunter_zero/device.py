@@ -114,64 +114,67 @@ def ensure_torch_with_metal() -> None:
 
     global torch
     try:
-        if torch is not None and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-            _write_sentinel()
-            return
+        needs_install = not (
+            torch is not None
+            and getattr(torch.backends, "mps", None)
+            and torch.backends.mps.is_available()
+        )
     except Exception:
-        pass
+        needs_install = True
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        f"torch=={TORCH_METAL_VERSION}",
-        f"torchvision=={TORCHVISION_METAL_VERSION}",
-        *METAL_EXTRA_INDEX,
-    ]
-    install_cmd = " ".join(cmd)
-    status = _run_with_timeout(cmd, timeout=INSTALL_TIMEOUT)
-    if not status.success:
-        logger.error("PyTorch installation failed: %s", status.message)
-        logger.error("Install manually with: %s", install_cmd)
-        _write_sentinel()
-        raise RuntimeError("Failed to install MPS-enabled PyTorch")
-
-    importlib.invalidate_caches()
-    torch = importlib.import_module("torch")
-
-    if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
-        logger.warning("MPS backend not available; attempting to reinstall Metal wheel")
-        reinstall_cmd = [
+    if needs_install:
+        cmd = [
             sys.executable,
             "-m",
             "pip",
             "install",
-            "--force-reinstall",
             f"torch=={TORCH_METAL_VERSION}",
             f"torchvision=={TORCHVISION_METAL_VERSION}",
             *METAL_EXTRA_INDEX,
         ]
-        reinstall_cmd_str = " ".join(reinstall_cmd)
-        status = _run_with_timeout(reinstall_cmd, timeout=INSTALL_TIMEOUT)
+        install_cmd = " ".join(cmd)
+        status = _run_with_timeout(cmd, timeout=INSTALL_TIMEOUT)
         if not status.success:
-            logger.error("PyTorch reinstallation failed: %s", status.message)
-            logger.error("Install manually with: %s", reinstall_cmd_str)
-            _write_sentinel()
-            raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
+            logger.error("PyTorch installation failed: %s", status.message)
+            logger.error("Install manually with: %s", install_cmd)
+            raise RuntimeError("Failed to install MPS-enabled PyTorch")
+
         importlib.invalidate_caches()
-        torch = importlib.reload(torch)
+        torch = importlib.import_module("torch")
+
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
-            logger.error(
-                "MPS backend still not available after installation. Install manually with: %s",
-                reinstall_cmd_str,
-            )
-            _write_sentinel()
-            raise RuntimeError(
-                "MPS backend still not available. Install manually with: pip install "
-                f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
-                + " ".join(METAL_EXTRA_INDEX),
-            )
+            logger.warning("MPS backend not available; attempting to reinstall Metal wheel")
+            reinstall_cmd = [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--force-reinstall",
+                f"torch=={TORCH_METAL_VERSION}",
+                f"torchvision=={TORCHVISION_METAL_VERSION}",
+                *METAL_EXTRA_INDEX,
+            ]
+            reinstall_cmd_str = " ".join(reinstall_cmd)
+            status = _run_with_timeout(reinstall_cmd, timeout=INSTALL_TIMEOUT)
+            if not status.success:
+                logger.error("PyTorch reinstallation failed: %s", status.message)
+                logger.error("Install manually with: %s", reinstall_cmd_str)
+                raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
+            importlib.invalidate_caches()
+            torch = importlib.reload(torch)
+            if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+                logger.error(
+                    "MPS backend still not available after installation. Install manually with: %s",
+                    reinstall_cmd_str,
+                )
+                raise RuntimeError(
+                    "MPS backend still not available. Install manually with: pip install "
+                    f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
+                    + " ".join(METAL_EXTRA_INDEX),
+                )
+
+    if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+        raise RuntimeError("MPS backend still not available after installation attempts")
 
     _write_sentinel()
 
