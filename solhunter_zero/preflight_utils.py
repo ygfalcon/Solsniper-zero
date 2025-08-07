@@ -171,16 +171,26 @@ def check_internet(url: str = "https://example.com") -> None:
 
 
 def check_required_env(keys: List[str] | None = None) -> Check:
-    """Ensure critical environment variables are configured."""
+    """Ensure critical environment variables are configured.
 
-    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
+    Parameters
+    ----------
+    keys:
+        Explicit list of environment variable names that must be set. When
+        omitted only ``SOLANA_RPC_URL`` is required. Callers enabling optional
+        integrations such as BirdEye should include the relevant variables in
+        ``keys``.
+    """
+
+    required = list(keys or ["SOLANA_RPC_URL"])
     missing = []
     for key in required:
         val = os.getenv(key)
-        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+        placeholders = {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}
+        if not val or (key == "BIRDEYE_API_KEY" and val in placeholders):
             missing.append(key)
     if missing:
-        joined = ", ".join(missing)
+        joined = ", ".join(sorted(missing))
         return False, (
             f"Missing environment variables: {joined}. "
             "Set them and retry"

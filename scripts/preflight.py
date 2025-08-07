@@ -29,6 +29,22 @@ from solhunter_zero.preflight_utils import (
     check_config_file,
 )
 from solhunter_zero.logging_utils import log_startup
+from solhunter_zero.config import load_config, apply_env_overrides, set_env_from_config
+
+
+def _required_env_keys() -> List[str]:
+    """Return environment variables that must be present for this run."""
+
+    keys = ["SOLANA_RPC_URL"]
+    try:
+        cfg = apply_env_overrides(load_config())
+        set_env_from_config(cfg)
+        key = cfg.get("birdeye_api_key")
+        if key and key not in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+            keys.append("BIRDEYE_API_KEY")
+    except Exception:
+        pass
+    return keys
 
 
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
@@ -40,7 +56,7 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Xcode CLT", check_xcode_clt),
     ("Config", check_config_file),
     ("Keypair", check_keypair),
-    ("Environment", check_required_env),
+    ("Environment", lambda: check_required_env(_required_env_keys())),
     (
         "Network",
         lambda: check_network(
