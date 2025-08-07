@@ -70,8 +70,13 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
 
     results: List[Tuple[str, bool, str]] = []
     for name, func in CHECKS:
-        ok, msg = func()
-        results.append((name, ok, msg))
+        try:
+            ok, msg = func()
+        except Exception as exc:  # noqa: BLE001
+            results.append((name, False, str(exc)))
+            log_startup("%s check failed: %s", name, exc)
+        else:
+            results.append((name, ok, msg))
 
     data = {
         "successes": [
