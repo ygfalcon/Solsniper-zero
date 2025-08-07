@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 from .jsonutil import loads, dumps
 import ast
 from typing import Mapping, Any, Sequence, cast
@@ -13,6 +14,8 @@ import tomllib
 from pydantic import ValidationError
 
 from .config_schema import ConfigModel
+
+logger = logging.getLogger(__name__)
 
 try:
     import yaml  # type: ignore
@@ -238,6 +241,7 @@ def ensure_config_file() -> str | None:
 
         quick_setup.main(["--auto"])
     except Exception:
+        logger.exception("Failed to generate default configuration")
         return None
     return find_config_file()
 
@@ -301,7 +305,7 @@ def save_config(name: str, data: bytes) -> None:
     try:
         cfg = _read_config_file(Path(path))
     except Exception:
-        pass
+        logger.exception("Failed to parse configuration file %s", path)
     _publish("config_updated", cfg)
 
 
@@ -362,9 +366,11 @@ def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
             try:
                 data = loads(val)
             except Exception:
+                logger.exception("Failed to parse JSON mapping: %s", val)
                 try:
                     data = ast.literal_eval(val)
                 except Exception:
+                    logger.exception("Failed to parse literal mapping: %s", val)
                     return {}
         else:
             return {}
@@ -417,7 +423,7 @@ try:
     _event_bus._reload_broker(None)
     _event_bus._reload_serialization(None)
 except Exception:
-    pass
+    logger.exception("Failed to reload event bus settings")
 
 
 def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
