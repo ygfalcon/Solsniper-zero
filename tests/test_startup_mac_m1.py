@@ -21,6 +21,7 @@ def test_startup_mac_m1(monkeypatch):
         detect_gpu=lambda: True,
         get_default_device=lambda: "cpu",
         ensure_gpu_env=fake_gpu_env,
+        initialize_gpu=lambda: fake_gpu_env(),
     )
     monkeypatch.setattr("solhunter_zero.device", dummy_device)
     monkeypatch.setattr(startup, "device", dummy_device)

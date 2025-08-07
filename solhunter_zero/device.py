@@ -418,6 +418,30 @@ def ensure_gpu_env() -> dict[str, str]:
     return env
 
 
+_GPU_LOGGED = False
+
+
+def initialize_gpu() -> dict[str, str]:
+    """Ensure GPU environment variables are set and log once.
+
+    This helper delegates to :func:`ensure_gpu_env` to perform the actual
+    environment configuration.  The configured variables are then appended to
+    ``startup.log`` the first time the function is invoked.  Subsequent calls
+    simply refresh the environment without producing additional log entries.
+    The mapping of environment variables is returned in all cases.
+    """
+
+    env = ensure_gpu_env()
+    global _GPU_LOGGED
+    if not _GPU_LOGGED:
+        from .logging_utils import log_startup
+
+        for key, value in env.items():
+            log_startup(f"{key}: {value}")
+        _GPU_LOGGED = True
+    return env
+
+
 def _main() -> int:  # pragma: no cover - CLI helper
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-gpu", action="store_true", help="exit 0 if a GPU is available")

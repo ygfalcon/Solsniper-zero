@@ -570,19 +570,7 @@ def main(argv: list[str] | None = None) -> int:
         mnemonic_path = kp_info.mnemonic_path
         active_keypair = kp_info.name
 
-    gpu_env = device.ensure_gpu_env()
-    gpu_available = os.environ.get("SOLHUNTER_GPU_AVAILABLE") == "1"
-    gpu_device = os.environ.get("SOLHUNTER_GPU_DEVICE", "none")
-    if gpu_env:
-        print(
-            "Configured GPU environment: "
-            + ", ".join(f"{k}={v}" for k, v in gpu_env.items())
-        )
-    if not gpu_available:
-        print(
-            "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
-            "scripts/mac_setup.py to enable GPU support."
-        )
+    device.initialize_gpu()
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:

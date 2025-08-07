@@ -120,9 +120,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
-    device.ensure_gpu_env()
-    with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-        fh.write(f"TORCH_DEVICE: {os.environ.get('TORCH_DEVICE', 'cpu')}\n")
+    device.initialize_gpu()
 
     if "--one-click" not in argv:
         argv.insert(0, "--one-click")
