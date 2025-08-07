@@ -2,6 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -11,11 +12,6 @@ def _script_lines(name: str) -> list[str]:
 
 def test_run_sh_invokes_launcher():
     lines = _script_lines("run.sh")
-    assert any("scripts/launcher.py" in line for line in lines)
-
-
-def test_start_command_invokes_launcher():
-    lines = _script_lines("start.command")
     assert any("scripts/launcher.py" in line for line in lines)
 
 
@@ -29,7 +25,7 @@ def test_start_py_invokes_launcher(tmp_path):
     stub.parent.mkdir()
     stub.write_text(
         "import sys, pathlib\n"
-        f"pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
+        f"def main(argv=None):\n    pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
     )
     stub.chmod(0o755)
 

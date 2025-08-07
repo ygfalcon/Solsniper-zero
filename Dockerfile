@@ -18,8 +18,6 @@ RUN cargo build --manifest-path route_ffi/Cargo.toml --release --features=parall
     && cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ \
     && cargo build --manifest-path depth_service/Cargo.toml --release
 
-# Ensure start script is executable
-RUN chmod +x start.py
-
-ENTRYPOINT ["./start.py"]
+# Use the Python entry point directly
+ENTRYPOINT ["python", "start.py"]
 CMD ["--auto"]

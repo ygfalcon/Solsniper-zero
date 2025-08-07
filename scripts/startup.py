@@ -55,7 +55,7 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
     except OSError as exc:  # pragma: no cover - hard failure
         msg = (
             f"Failed to re-exec {script.name} via 'arch -arm64': {exc}\n"
-            "Please use the unified entry point (start.py, run.sh, or start.command)."
+            "Please use 'python start.py'."
         )
         raise SystemExit(msg)
 

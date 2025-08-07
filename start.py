@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Shim that forwards execution to ``scripts/launcher.py``."""
+"""Entry point that delegates to ``scripts.launcher.main``."""
 
-import os
-import sys
-from pathlib import Path
+from scripts.launcher import main
 
 
 if __name__ == "__main__":
-    script = Path(__file__).resolve().parent / "scripts" / "launcher.py"
-    os.execv(sys.executable, [sys.executable, str(script), *sys.argv[1:]])
+    main()

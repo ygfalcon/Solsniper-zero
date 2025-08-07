@@ -8,10 +8,10 @@ PYTHON ?= python3
 .PHONY: start run test demo demo-rl demo-multi setup
 
 start:
->./start.py $(ARGS)
+>$(PYTHON) start.py $(ARGS)
 
 setup:
->./start.py --one-click $(ARGS)
+>$(PYTHON) start.py --one-click $(ARGS)
 
 # Launch directly without the shell script (works on all platforms)
 run:
