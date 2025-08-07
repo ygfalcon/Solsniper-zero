@@ -241,3 +241,10 @@ def test_initialize_gpu_stale_sentinel_installs_once(monkeypatch, tmp_path):
 
     device_module.initialize_gpu()
     assert calls == ["install"]
+
+
+def test_initialize_gpu_rosetta_error(monkeypatch):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "x86_64")
+    with pytest.raises(RuntimeError, match="arch -arm64"):
+        device_module.initialize_gpu()

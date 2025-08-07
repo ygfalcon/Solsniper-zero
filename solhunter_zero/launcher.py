@@ -127,7 +127,17 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
-    device.initialize_gpu()
+    try:
+        device.initialize_gpu()
+    except RuntimeError as exc:
+        if platform.system() == "Darwin" and platform.machine() == "x86_64":
+            print(
+                "GPU initialization failed: running under Rosetta. "
+                "Re-run using 'arch -arm64' to use the native arm64 Python interpreter.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from None
+        raise
 
     if "--one-click" not in argv:
         argv.insert(0, "--one-click")

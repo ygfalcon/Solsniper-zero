@@ -66,9 +66,11 @@ def test_one_click_launch(monkeypatch, capsys):
     dummy_device = types.ModuleType("device")
     dummy_device.initialize_gpu = lambda: None
     sys.modules["solhunter_zero.device"] = dummy_device
+    if "solhunter_zero" in sys.modules:
+        setattr(sys.modules["solhunter_zero"], "device", dummy_device)
 
     launcher = load_launcher()
-    monkeypatch.setattr(launcher, "device", dummy_device)
+    monkeypatch.setattr(launcher, "device", dummy_device, raising=False)
 
     def fake_execvp(prog, argv):
         if argv[0] == "arch":
