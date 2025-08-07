@@ -8,6 +8,7 @@ import pytest
 
 from scripts import diagnostics, startup
 from solhunter_zero import bootstrap
+from solhunter_zero import setup as sh_setup
 
 
 def test_collect_no_torch(monkeypatch, tmp_path):
@@ -97,7 +98,9 @@ def test_startup_diagnostics_flag(capsys):
 
 def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
     monkeypatch.setattr(
-        startup, "ensure_deps", lambda install_optional=False: (_ for _ in ()).throw(SystemExit(2))
+        sh_setup,
+        "prepare",
+        lambda *a, **k: (_ for _ in ()).throw(SystemExit(2)),
     )
     code = startup.run([])
     out = capsys.readouterr().out.lower()
@@ -109,8 +112,7 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(sh_setup, "prepare", lambda *a, **k: None)
     monkeypatch.setattr(bootstrap.device, "initialize_gpu", lambda: None)
     monkeypatch.setattr(startup.device, "initialize_gpu", lambda: None)
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)

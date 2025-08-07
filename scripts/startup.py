@@ -27,6 +27,7 @@ from solhunter_zero.bootstrap_utils import (
     ensure_venv,
     ensure_endpoints,
 )
+from solhunter_zero.setup import prepare
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
@@ -34,18 +35,6 @@ from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa
 rotate_startup_log()
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
-
-
-def ensure_route_ffi() -> None:
-    from solhunter_zero.build_utils import ensure_route_ffi as _ensure_route_ffi
-
-    _ensure_route_ffi()
-
-
-def ensure_depth_service() -> None:
-    from solhunter_zero.build_utils import ensure_depth_service as _ensure_depth_service
-
-    _ensure_depth_service()
 
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     script = Path(__file__).resolve()
@@ -395,9 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         rest = ["--non-interactive", *rest]
 
     if not args.skip_deps:
-        ensure_deps(install_optional=args.full_deps)
-        ensure_route_ffi()
-        ensure_depth_service()
+        prepare(install_optional=args.full_deps)
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
