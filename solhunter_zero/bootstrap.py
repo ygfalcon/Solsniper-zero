@@ -117,6 +117,35 @@ def bootstrap(one_click: bool = False) -> None:
     if os.getenv("SOLHUNTER_SKIP_SETUP") != "1":
         config_path = ensure_config()
         _info, keypair_path = ensure_keypair()
+        min_balance = float(os.getenv("MIN_STARTING_BALANCE", "0") or 0)
+        if keypair_path and min_balance > 0:
+            from solana.rpc.api import Client
+            from .gas import LAMPORTS_PER_SOL
+
+            try:
+                kp = wallet.load_keypair(str(keypair_path))
+                client = Client(
+                    os.getenv(
+                        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+                    )
+                )
+                resp = client.get_balance(kp.pubkey())
+                try:
+                    lamports = int(resp["result"]["value"])  # type: ignore[index]
+                except Exception:
+                    lamports = int(getattr(resp, "value", 0))
+            except Exception as exc:
+                logging.getLogger(__name__).error(
+                    "Failed to fetch wallet balance: %s", exc
+                )
+                raise SystemExit(1)
+            if lamports < min_balance * LAMPORTS_PER_SOL:
+                logging.getLogger(__name__).error(
+                    "Wallet balance %.9f SOL below required %.9f SOL",
+                    lamports / LAMPORTS_PER_SOL,
+                    min_balance,
+                )
+                raise SystemExit(1)
 
     wallet.ensure_default_keypair()
     ensure_cargo()

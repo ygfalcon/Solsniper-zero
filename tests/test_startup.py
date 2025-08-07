@@ -1063,3 +1063,46 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
     assert ret == 0
     assert calls.get("quick_setup") == 1
     assert calls.get("auto") is True
+
+def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
+    from solhunter_zero import bootstrap
+    from solhunter_zero.wallet import KeypairInfo
+    import types
+    import solana.rpc.api as rpc_api
+    import pytest
+
+    monkeypatch.setenv("SOLHUNTER_SKIP_VENV", "1")
+    monkeypatch.setenv("SOLHUNTER_SKIP_DEPS", "1")
+    monkeypatch.setenv("MIN_STARTING_BALANCE", "1")
+
+    monkeypatch.setattr(bootstrap, "ensure_venv", lambda *_: None)
+    monkeypatch.setattr(bootstrap, "ensure_deps", lambda *_: None)
+    monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap.device, "initialize_gpu", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_config", lambda: (tmp_path / "c.toml", {}))
+
+    kp_path = tmp_path / "dummy.json"
+    kp_path.write_text("[]")
+    monkeypatch.setattr(
+        bootstrap,
+        "ensure_keypair",
+        lambda: (KeypairInfo("dummy", None), kp_path),
+    )
+    monkeypatch.setattr(bootstrap.wallet, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(
+        bootstrap.wallet, "load_keypair", lambda _p: types.SimpleNamespace(pubkey=lambda: "pk")
+    )
+
+    class FakeClient:
+        def __init__(self, url):
+            pass
+
+        def get_balance(self, pubkey):
+            return {"result": {"value": 0}}
+
+    monkeypatch.setattr(rpc_api, "Client", FakeClient)
+
+    with pytest.raises(SystemExit):
+        bootstrap.bootstrap(one_click=True)

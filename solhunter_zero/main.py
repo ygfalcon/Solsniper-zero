@@ -1236,6 +1236,12 @@ if __name__ == "__main__":
         help="Path to a JSON keypair for signing transactions",
     )
     parser.add_argument(
+        "--min-balance",
+        type=float,
+        default=float(os.getenv("MIN_STARTING_BALANCE", "0") or 0),
+        help="Minimum starting balance in SOL",
+    )
+    parser.add_argument(
         "--portfolio-path",
         default="portfolio.json",
         help="Path to a JSON file for persisting portfolio state",
@@ -1358,6 +1364,7 @@ if __name__ == "__main__":
         help="Load selected config and start trading automatically",
     )
     args = parser.parse_args()
+    os.environ["MIN_STARTING_BALANCE"] = str(args.min_balance)
     kwargs = dict(
         memory_path=args.memory_path,
         loop_delay=args.loop_delay,
