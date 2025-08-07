@@ -35,8 +35,13 @@ def check_deps() -> tuple[list[str], list[str]]:
         data = tomllib.load(fh)
     deps = data.get("project", {}).get("dependencies", [])
     missing_required: list[str] = []
+    module_aliases = {
+        "pyyaml": "yaml",
+        "scikit_learn": "sklearn",
+    }
     for dep in deps:
         mod = re.split("[<=>]", dep)[0].replace("-", "_")
+        mod = module_aliases.get(mod, mod)
         if pkgutil.find_loader(mod) is None:
             missing_required.append(mod)
     missing_optional = [m for m in OPTIONAL_DEPS if pkgutil.find_loader(m) is None]

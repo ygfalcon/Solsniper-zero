@@ -29,7 +29,14 @@ from . import wallet
 def ensure_default_config() -> Path:
     """Ensure a usable configuration file exists and return its path."""
 
-    return _ensure_config()
+    # ``_ensure_config`` returns a tuple of ``(Path, dict)`` where the
+    # first element is the path to the active configuration file.  The
+    # previous implementation returned this tuple directly which caused
+    # callers expecting a :class:`Path` to fail with an ``AttributeError``
+    # when accessing ``.exists``.  Unpack the tuple and return only the
+    # path to match the documented behaviour.
+    cfg_file, _ = _ensure_config()
+    return cfg_file
 
 
 def select_active_keypair(auto: bool = True) -> wallet.KeypairInfo:
