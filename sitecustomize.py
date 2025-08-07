@@ -10,6 +10,16 @@ import importlib.machinery
 import os
 import sys
 import types
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+bin_dir = ROOT / "target" / "release"
+os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+lib_dir = ROOT / "solhunter_zero"
+_ld = os.environ.get("LD_LIBRARY_PATH")
+os.environ["LD_LIBRARY_PATH"] = (
+    f"{lib_dir}{os.pathsep}{_ld}" if _ld else str(lib_dir)
+)
 
 TESTING = os.getenv("SOLHUNTER_TESTING")
 
