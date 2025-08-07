@@ -21,4 +21,6 @@ def test_load_env_file(tmp_path, monkeypatch):
     assert os.environ["BAZ"] == "orig2"
 
     missing = tmp_path / "missing.env"
-    env.load_env_file(missing)  # should not raise
+    env.load_env_file(missing)
+    assert missing.exists()
+    assert "SOLANA_RPC_URL" in missing.read_text()
