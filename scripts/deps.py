@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import json
+import argparse
 import pkgutil
 import re
 from pathlib import Path
@@ -44,9 +44,27 @@ def check_deps() -> tuple[list[str], list[str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    req, opt = check_deps()
-    print(json.dumps({"required": req, "optional": opt}))
-    return 1 if req or opt else 0
+    parser = argparse.ArgumentParser(description="Install project dependencies")
+    parser.add_argument(
+        "--install-optional",
+        action="store_true",
+        help="Install optional dependencies",
+    )
+    parser.add_argument(
+        "--extras",
+        nargs="*",
+        help="Extras to install from the local package",
+    )
+    args = parser.parse_args(argv)
+
+    from solhunter_zero.bootstrap_utils import DepsConfig, ensure_deps
+
+    cfg = DepsConfig(
+        install_optional=args.install_optional,
+        extras=args.extras if args.extras else ("uvloop",),
+    )
+    ensure_deps(cfg)
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
