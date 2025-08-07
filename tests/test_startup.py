@@ -1,5 +1,4 @@
 import os
-import os
 import shutil
 import subprocess
 import sys
@@ -7,11 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from solhunter_zero.device import (
-    METAL_EXTRA_INDEX,
-    TORCH_METAL_VERSION,
-    TORCHVISION_METAL_VERSION,
-)
+from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
+
+TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
 
 def test_startup_help():
@@ -350,8 +347,8 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
                 "-m",
                 "pip",
                 "install",
-                "torch==2.1.0",
-                "torchvision==0.16.0",
+                f"torch=={TORCH_METAL_VERSION}",
+                f"torchvision=={TORCHVISION_METAL_VERSION}",
                 "--extra-index-url",
                 "https://download.pytorch.org/whl/metal",
             ]
@@ -408,8 +405,8 @@ def test_ensure_deps_requires_mps(monkeypatch):
                 "pip",
                 "install",
                 "--force-reinstall",
-                "torch==2.1.0",
-                "torchvision==0.16.0",
+                f"torch=={TORCH_METAL_VERSION}",
+                f"torchvision=={TORCHVISION_METAL_VERSION}",
                 "--extra-index-url",
                 "https://download.pytorch.org/whl/metal",
             ]

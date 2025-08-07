@@ -210,13 +210,12 @@ forwards to the Python launcher for a fully automated start.
    ```
 2. The startup script automatically installs the Metal-enabled PyTorch build on Apple Silicon. To install manually, run:
    ```bash
-   pip install torch==2.1.0 torchvision==0.16.0 \
+   pip install torch==<torch_metal_version> torchvision==<torchvision_metal_version> \
      --extra-index-url https://download.pytorch.org/whl/metal
    ```
-   Versions for these wheels can be overridden with the `torch_metal_version`
-   and `torchvision_metal_version` options in the `[torch]` section of
-   `config.toml` or the `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION`
-   environment variables.
+   Set the versions in the `torch_metal_version` and `torchvision_metal_version`
+   options of the `[torch]` section in `config.toml` or via the
+   `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION` environment variables.
 
 3. Enable CPU fallback for unsupported MPS operations:
    ```bash
@@ -949,9 +948,12 @@ pip install -e .[dev]
 Install the ARM64 wheels for PyTorch on Apple M1/M2 machines:
 
 ```bash
-pip install torch==2.1.0 torchvision==0.16.0 \
+pip install torch==<torch_metal_version> torchvision==<torchvision_metal_version> \
   --extra-index-url https://download.pytorch.org/whl/metal
 ```
+The versions are configured via the `torch_metal_version` and
+`torchvision_metal_version` values in `config.toml` or the
+`TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION` environment variables.
 
 Enable the Metal backend for GPU acceleration:
 

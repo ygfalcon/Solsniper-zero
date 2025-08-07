@@ -19,9 +19,10 @@ from .logging_utils import log_startup
 try:
     from solhunter_zero.device import (
         METAL_EXTRA_INDEX,
-        TORCH_METAL_VERSION,
-        TORCHVISION_METAL_VERSION,
+        load_torch_metal_versions,
     )
+
+    TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 except Exception:  # pragma: no cover - optional import for CI
     METAL_EXTRA_INDEX = []
     TORCH_METAL_VERSION = ""
