@@ -14,7 +14,6 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import List, Tuple
-from urllib import error
 
 from scripts.deps import check_deps
 from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
@@ -277,7 +276,7 @@ def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> C
         from solhunter_zero.http import check_endpoint
 
         check_endpoint(url)
-    except error.URLError as exc:
+    except Exception as exc:
         return False, f"Network error: {exc}"
     return True, f"Network access to {url} OK"
 
