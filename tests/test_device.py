@@ -107,7 +107,9 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
     assert "Tensor operation failed" in caplog.text
 
 
-def test_ensure_torch_with_metal_failure_marks_sentinel(monkeypatch, tmp_path, caplog):
+def test_ensure_torch_with_metal_failure_does_not_write_sentinel(
+    monkeypatch, tmp_path, caplog
+):
     monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
     sentinel = tmp_path / "sentinel"
@@ -127,7 +129,38 @@ def test_ensure_torch_with_metal_failure_marks_sentinel(monkeypatch, tmp_path, c
         with pytest.raises(RuntimeError):
             device_module.ensure_torch_with_metal()
     assert manual_cmd in caplog.text
+    assert not sentinel.exists()
+
+
+def test_ensure_torch_with_metal_rewrites_sentinel_on_version_change(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("1.0.0\n1.0.0\n")
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
+    monkeypatch.setattr(device_module, "torch", None, raising=False)
+
+    def fake_run_with_timeout(cmd, timeout):
+        assert not sentinel.exists()
+        return device_module.InstallStatus(True, "")
+
+    monkeypatch.setattr(device_module, "_run_with_timeout", fake_run_with_timeout)
+    fake_torch = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: True)
+        )
+    )
+    monkeypatch.setattr(device_module.importlib, "invalidate_caches", lambda: None)
+    monkeypatch.setattr(device_module.importlib, "import_module", lambda name: fake_torch)
+
+    device_module.ensure_torch_with_metal()
     assert sentinel.exists()
+    assert (
+        sentinel.read_text()
+        == f"{TORCH_METAL_VERSION}\n{TORCHVISION_METAL_VERSION}\n"
+    )
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
