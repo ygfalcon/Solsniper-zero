@@ -783,7 +783,7 @@ def _decode_payload(ev: pb.Event) -> Any:
         return {"trades": trades, "index": bytes(msg.index)}
     return None
 
-def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
+def _subscribe_impl(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     """Register ``handler`` for ``topic`` events.
 
     Returns a callable that will remove the handler when invoked.
@@ -791,21 +791,21 @@ def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     _subscribers[topic].append(handler)
 
     def _unsub() -> None:
-        unsubscribe(topic, handler)
+        _unsubscribe_impl(topic, handler)
 
     return _unsub
 
 
 @contextmanager
-def subscription(topic: str, handler: Callable[[Any], Awaitable[None] | None]) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
+def _subscription_impl(topic: str, handler: Callable[[Any], Awaitable[None] | None]) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
     """Context manager that registers ``handler`` for ``topic`` and automatically unsubscribes."""
-    unsub = subscribe(topic, handler)
+    unsub = _subscribe_impl(topic, handler)
     try:
         yield handler
     finally:
         unsub()
 
-def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
+def _unsubscribe_impl(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     """Remove ``handler`` from ``topic`` subscriptions."""
     handlers = _subscribers.get(topic)
     if not handlers:
@@ -817,7 +817,7 @@ def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
     if not handlers:
         _subscribers.pop(topic, None)
 
-def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
+def _publish_impl(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
     """Publish ``payload`` to all subscribers of ``topic`` and over websockets."""
     payload = validate_message(topic, payload)
     handlers = list(_subscribers.get(topic, []))
@@ -854,6 +854,89 @@ def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
             loop.create_task(_broker_send(msg))
         else:
             asyncio.run(_broker_send(msg))
+
+
+class EventBus:
+    """Lightweight wrapper holding configuration and broker state."""
+
+    def __init__(self) -> None:
+        self.serialization = _EVENT_SERIALIZATION
+        self.compression = EVENT_COMPRESSION
+        self.broker_urls = _BROKER_URLS
+        self.broker_conns = _BROKER_CONNS
+
+    def configure(
+        self,
+        *,
+        serialization: str | None = None,
+        compression: str | None = None,
+        broker_urls: Sequence[str] | None = None,
+    ) -> None:
+        """Update event bus configuration dynamically."""
+        global _EVENT_SERIALIZATION, _USE_MSGPACK, EVENT_COMPRESSION, _BROKER_URLS
+        if serialization is not None:
+            _EVENT_SERIALIZATION = serialization.lower()
+            self.serialization = _EVENT_SERIALIZATION
+            _USE_MSGPACK = msgpack is not None and _EVENT_SERIALIZATION == "msgpack"
+        if compression is not None:
+            EVENT_COMPRESSION = compression
+            self.compression = EVENT_COMPRESSION
+        if broker_urls is not None:
+            _BROKER_URLS.clear()
+            _BROKER_URLS.extend(broker_urls)
+            self.broker_urls = _BROKER_URLS
+
+    def subscribe(self, topic: str, handler: Callable[[Any], Awaitable[None] | None]):
+        return _subscribe_impl(topic, handler)
+
+    @contextmanager
+    def subscription(
+        self, topic: str, handler: Callable[[Any], Awaitable[None] | None]
+    ) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
+        with _subscription_impl(topic, handler) as h:
+            yield h
+
+    def unsubscribe(self, topic: str, handler: Callable[[Any], Awaitable[None] | None]):
+        _unsubscribe_impl(topic, handler)
+
+    def publish(self, topic: str, payload: Any, *, _broadcast: bool = True) -> None:
+        _publish_impl(topic, payload, _broadcast=_broadcast)
+
+    def reset(self) -> None:
+        """Reset subscriptions and broker state for tests."""
+        _subscribers.clear()
+        _BROKER_CONNS.clear()
+        _BROKER_TASKS.clear()
+        _BROKER_URLS.clear()
+
+
+BUS = EventBus()
+
+
+def subscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
+    return BUS.subscribe(topic, handler)
+
+
+@contextmanager
+def subscription(topic: str, handler: Callable[[Any], Awaitable[None] | None]) -> Generator[Callable[[Any], Awaitable[None] | None], None, None]:
+    with BUS.subscription(topic, handler) as h:
+        yield h
+
+
+def unsubscribe(topic: str, handler: Callable[[Any], Awaitable[None] | None]):
+    BUS.unsubscribe(topic, handler)
+
+
+def publish(topic: str, payload: Any, *, _broadcast: bool = True) -> None:
+    BUS.publish(topic, payload, _broadcast=_broadcast)
+
+
+def configure(**kw) -> None:
+    BUS.configure(**kw)
+
+
+def reset() -> None:
+    BUS.reset()
 
 
 async def broadcast_ws(
