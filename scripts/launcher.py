@@ -79,7 +79,7 @@ def find_python() -> str:
                 "Python 3.11 not found; running macOS setup...",
                 file=sys.stderr,
             )
-            prepare_macos_env(non_interactive=True)
+            prepare_macos_env(non_interactive=True, force=True)
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
                 if path and _check_python(path):

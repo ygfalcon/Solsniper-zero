@@ -318,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.repair and platform.system() == "Darwin":
         from scripts import mac_setup
 
-        report = mac_setup.prepare_macos_env(non_interactive=True)
+        report = mac_setup.prepare_macos_env(non_interactive=True, force=True)
         mac_setup.apply_brew_env()
         for step, info in report.get("steps", {}).items():
             msg = info.get("message", "")
