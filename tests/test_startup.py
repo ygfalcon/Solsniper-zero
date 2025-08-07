@@ -27,6 +27,8 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
         ValidationError=Exception,
         root_validator=lambda *a, **k: (lambda f: f),
         validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
     )
     monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
     from scripts import startup

@@ -24,8 +24,8 @@ def test_load_config_yaml(tmp_path):
     )
     cfg = load_config(str(path))
     assert cfg["birdeye_api_key"] == "KEY"
-    assert cfg["solana_rpc_url"] == "http://local"
-    assert cfg["dex_base_url"] == "http://dex"
+    assert str(cfg["solana_rpc_url"]).rstrip("/") == "http://local"
+    assert str(cfg["dex_base_url"]).rstrip("/") == "http://dex"
     assert cfg["agents"] == ["sim"]
     assert cfg["agent_weights"] == {"sim": 1.0}
     assert cfg["event_bus_url"] == "ws://bus"
@@ -44,8 +44,8 @@ def test_load_config_toml(tmp_path):
     )
     cfg = load_config(str(path))
     assert cfg["birdeye_api_key"] == "KEY"
-    assert cfg["solana_rpc_url"] == "http://local"
-    assert cfg["dex_base_url"] == "http://dex"
+    assert str(cfg["solana_rpc_url"]).rstrip("/") == "http://local"
+    assert str(cfg["dex_base_url"]).rstrip("/") == "http://dex"
     assert cfg["agents"] == ["sim"]
     assert cfg["event_bus_url"] == "ws://bus"
     assert cfg["agent_weights"] == {"sim": 1.0}
@@ -107,6 +107,7 @@ def test_apply_env_overrides(monkeypatch):
         "agent_weights": {"a": 1.0},
         "event_bus_url": "ws://old",
     }
+    monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
     monkeypatch.setenv("BIRDEYE_API_KEY", "NEW")
     monkeypatch.setenv("RISK_TOLERANCE", "0.2")
     monkeypatch.setenv("TOKEN_SUFFIX", "doge")
