@@ -17,6 +17,8 @@ from pathlib import Path
 import json
 
 ROOT = Path(__file__).resolve().parent.parent
+LOG_DIR = ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
@@ -47,29 +49,25 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
         )
         raise SystemExit(msg)
 
-MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
-
-
 def rotate_preflight_log(
-    path: Path | None = None, max_bytes: int = MAX_PREFLIGHT_LOG_SIZE
-) -> None:
-    """Rotate or truncate the preflight log before writing new output.
+    log_dir: Path | None = None, *, max_logs: int = 5
+) -> Path:
+    """Return path for a new preflight log and clean up old logs."""
 
-    When ``path`` exists and exceeds ``max_bytes`` it is moved to ``.1``.
-    Otherwise the file is truncated to start fresh for the current run.
-    """
-
-    path = path or ROOT / "preflight.log"
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > max_bytes:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
+    log_dir = log_dir or LOG_DIR
+    log_dir.mkdir(exist_ok=True)
+    logs = sorted(
+        log_dir.glob("preflight-*.log"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for old in logs[max_logs - 1 :]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    return log_dir / f"preflight-{timestamp}.log"
 
 
 def _run_rustup_setup(cmd, *, shell: bool = False, retries: int = 2) -> None:
@@ -443,7 +441,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.self_test:
         from solhunter_zero.bootstrap import bootstrap
-        from scripts import preflight
         import re
 
         b_code = 0
@@ -501,7 +498,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if not args.skip_preflight:
-        rotate_preflight_log()
+        log_path = rotate_preflight_log()
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
         with (
@@ -519,7 +516,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(out)
         sys.stderr.write(err)
         try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
+            with open(log_path, "a", encoding="utf-8") as log:
                 log.write(out)
                 log.write(err)
         except OSError:

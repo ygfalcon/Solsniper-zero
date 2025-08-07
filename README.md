@@ -15,10 +15,9 @@ The default workflow is intentionally simple:
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
    `run.sh`, `start.command`, and `make start` all forward to this script for consistent behaviour across platforms.
-   All startup output is also appended to `startup.log` in the project directory for later inspection.
-   Output from environment preflight checks is written to `preflight.log`, which is truncated
-   before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
-   remains available.
+   All startup output is appended to `logs/startup-<timestamp>.log` for later inspection.
+   Output from environment preflight checks is written to `logs/preflight-<timestamp>.log`.
+   Each run creates new timestamped logs under `logs/`.
    A machine-readable diagnostics summary is written to `diagnostics.json` after the bot exits
    unless `--no-diagnostics` is supplied.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
@@ -114,11 +113,10 @@ The helper wraps the dependency checks and keypair/setup logic used by
    Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.
 3. **GPU detection** — The launcher runs `solhunter_zero.device --check-gpu` and sets `TORCH_DEVICE=mps` when an Apple GPU is available.
     `PYTORCH_ENABLE_MPS_FALLBACK=1` is exported so unsupported operations transparently fall back to the CPU.
-4. **Logs** — All output is appended to `startup.log` in the project directory.
+4. **Logs** — All output is written to `logs/startup-<timestamp>.log` in the project directory.
     A diagnostics summary is written to `diagnostics.json` for accessibility tools.
-    Output from environment preflight checks is written to `preflight.log`, which rotates to
-    `preflight.log.1` once it exceeds 1 MB so you can review the previous run.
-    Older logs rotate with timestamps for easy troubleshooting.
+    Output from environment preflight checks is written to `logs/preflight-<timestamp>.log`.
+    Older logs are retained with timestamps for easy troubleshooting.
 5. **Troubleshooting** — If the script exits early, open Terminal and run `./start.command` to view errors.  
    Common issues include missing network access, Homebrew not on `PATH`, or stale permissions on the script.
 

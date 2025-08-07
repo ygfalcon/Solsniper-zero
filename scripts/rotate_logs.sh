@@ -11,9 +11,10 @@
 # removes older logs beyond the retention limit.
 
 rotate_logs() {
-  local logfile="${1:-startup.log}"
+  local logfile="${1:-logs/startup.log}"
   local max_logs="${2:-5}"
   local timestamp="$(date +'%Y%m%d-%H%M%S')"
+  mkdir -p "$(dirname "$logfile")"
   if [ -f "$logfile" ]; then
     mv "$logfile" "${logfile%.log}-$timestamp.log"
   fi

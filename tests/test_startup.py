@@ -661,9 +661,10 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
 
-    log_file = Path(__file__).resolve().parent.parent / "preflight.log"
-    if log_file.exists():
-        log_file.unlink()
+    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    for old in log_dir.glob("preflight-*.log"):
+        old.unlink()
 
     ret = startup.main([
         "--one-click",
@@ -675,22 +676,29 @@ def test_main_preflight_failure(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
-    assert log_file.exists()
-    log_contents = log_file.read_text()
+    logs = sorted(log_dir.glob("preflight-*.log"))
+    assert logs
+    log_contents = logs[-1].read_text()
     assert "out" in log_contents
     assert "err" in log_contents
 
 
 def test_preflight_log_rotation(tmp_path):
     from scripts import startup
-    log_path = tmp_path / "preflight.log"
-    log_path.write_text("x" * 20)
-    rotated = tmp_path / "preflight.log.1"
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    old = log_dir / "preflight-old.log"
+    old.touch()
+    recent = log_dir / "preflight-new.log"
+    recent.touch()
 
-    startup.rotate_preflight_log(log_path, max_bytes=10)
+    path = startup.rotate_preflight_log(log_dir=log_dir, max_logs=2)
 
-    assert rotated.exists()
-    assert not log_path.exists()
+    assert path.parent == log_dir
+    assert path.name.startswith("preflight-")
+    remaining = list(log_dir.glob("preflight-*.log"))
+    assert recent in remaining
+    assert old not in remaining
 
 
 def test_startup_sets_mps_device(monkeypatch):

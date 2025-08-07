@@ -17,3 +17,4 @@ solhunter_zero/libroute_ffi.so
 solhunter_zero.egg-info/
 .env
 .cache/
+logs/

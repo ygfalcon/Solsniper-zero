@@ -16,6 +16,9 @@ from . import device
 from .device import METAL_EXTRA_INDEX
 
 ROOT = Path(__file__).resolve().parent.parent
+LOG_DIR = ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+STARTUP_LOG = LOG_DIR / f"startup-{time.strftime('%Y%m%d-%H%M%S')}.log"
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -92,8 +95,11 @@ def ensure_venv(argv: list[str] | None) -> None:
         except OSError as exc:
             msg = f"Failed to execv {python}: {exc}"
             logging.exception(msg)
-            with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-                fh.write(msg + "\n")
+            try:
+                with open(STARTUP_LOG, "a", encoding="utf-8") as fh:
+                    fh.write(msg + "\n")
+            except OSError:
+                pass
             raise
 
 
