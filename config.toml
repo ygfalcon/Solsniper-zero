@@ -17,6 +17,8 @@ phoenix_ws_url = ""
 meteora_ws_url = ""
 order_book_ws_url = ""
 depth_service = true  # start the Rust depth_service automatically when true
+# maximum number of times to attempt restarting the depth_service process
+depth_max_restarts = 1
 # IPC paths for the depth_service (change if running on another host)
 # DEPTH_SERVICE_SOCKET = "/tmp/depth_service.sock"
 # DEPTH_MMAP_PATH = "/tmp/depth_service.mmap"
