@@ -16,7 +16,7 @@ from typing import Sequence
 from scripts import deps
 from . import device
 from .device import METAL_EXTRA_INDEX
-from .logging_utils import log_startup
+from .logging_utils import log_step
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -35,15 +35,15 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     if venv_dir.exists():
         if not python.exists() or not os.access(str(python), os.X_OK):
-            print("Virtual environment missing interpreter; recreating .venv...")
+            log_step("Virtual environment missing interpreter; recreating .venv...")
             shutil.rmtree(venv_dir)
 
     if not venv_dir.exists():
-        print("Creating virtual environment in .venv...")
+        log_step("Creating virtual environment in .venv...")
         try:
             subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv: {exc}")
+            log_step(f"Failed to create .venv: {exc}")
             raise SystemExit(1)
 
     def _inspect(p: Path) -> tuple[str | None, tuple[int, int, int]]:
@@ -62,7 +62,7 @@ def ensure_venv(argv: list[str] | None) -> None:
             data = json.loads(info)
             return data.get("machine"), tuple(data.get("version", []))
         except Exception as exc:  # pragma: no cover - hard failure
-            print(f"Failed to inspect virtual environment interpreter: {exc}")
+            log_step(f"Failed to inspect virtual environment interpreter: {exc}")
             return None, (0, 0, 0)
 
     machine, version = _inspect(python)
@@ -70,17 +70,16 @@ def ensure_venv(argv: list[str] | None) -> None:
     if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
         brew_python = shutil.which("python3.11")
         if not brew_python:
-            print(
-                "python3.11 from Homebrew not found. "
-                "Install it with 'brew install python@3.11'."
+            log_step(
+                "python3.11 from Homebrew not found. Install it with 'brew install python@3.11'."
             )
             raise SystemExit(1)
-        print("Recreating .venv using Homebrew python3.11...")
+        log_step("Recreating .venv using Homebrew python3.11...")
         shutil.rmtree(venv_dir, ignore_errors=True)
         try:
             subprocess.check_call([brew_python, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv with Homebrew python3.11: {exc}")
+            log_step(f"Failed to create .venv with Homebrew python3.11: {exc}")
             raise SystemExit(1)
         python = (
             venv_dir
@@ -90,12 +89,12 @@ def ensure_venv(argv: list[str] | None) -> None:
         machine, version = _inspect(python)
 
     if version < (3, 11):
-        print("Recreating .venv using current interpreter...")
+        log_step("Recreating .venv using current interpreter...")
         shutil.rmtree(venv_dir, ignore_errors=True)
         try:
             subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv with current interpreter: {exc}")
+            log_step(f"Failed to create .venv with current interpreter: {exc}")
             raise SystemExit(1)
         python = (
             venv_dir
@@ -110,7 +109,7 @@ def ensure_venv(argv: list[str] | None) -> None:
         except OSError as exc:
             msg = f"Failed to execv {python}: {exc}"
             logging.exception(msg)
-            log_startup(msg)
+            log_step(msg)
             raise
 
 
@@ -124,30 +123,28 @@ def _pip_install(*args: str, retries: int = 3) -> None:
             capture_output=True,
             text=True,
         )
-        log_startup(f"{' '.join(cmd)} (attempt {attempt}/{retries})")
+        log_step(f"{' '.join(cmd)} (attempt {attempt}/{retries})")
         if result.stdout:
-            log_startup(result.stdout.rstrip())
+            log_step(result.stdout.rstrip())
         if result.stderr:
-            log_startup(result.stderr.rstrip())
+            log_step(result.stderr.rstrip())
         if result.returncode == 0:
-            log_startup(
+            log_step(
                 f"pip install {' '.join(args)} succeeded on attempt {attempt}"
             )
             return
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
             wait = 2 ** (attempt - 1)
-            print(
+            log_step(
                 f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
             )
             time.sleep(wait)
     msg = f"Failed to install {' '.join(args)} after {retries} attempts:"
-    print(msg)
-    log_startup(msg)
+    log_step(msg)
     for err in errors:
         if err:
-            log_startup(err)
-            print(err)
+            log_step(err)
     raise SystemExit(result.returncode)
 
 
@@ -165,7 +162,7 @@ def _package_missing(pkg: str) -> bool:
         stderr=subprocess.DEVNULL,
     )
     if result.returncode == 0:
-        log_startup(f"Skipping installation of {pkg}; already satisfied")
+        log_step(f"Skipping installation of {pkg}; already satisfied")
         return False
     return True
 
@@ -199,18 +196,18 @@ def ensure_deps(
                 if info.get("status") == "error":
                     fix = macos_setup.MANUAL_FIXES.get(step)
                     if fix:
-                        print(f"Manual fix for {step}: {fix}")
-            print(
-                "macOS environment preparation failed. Please address the issues above and re-run.",
+                        log_step(f"Manual fix for {step}: {fix}")
+            log_step(
+                "macOS environment preparation failed. Please address the issues above and re-run."
             )
             raise SystemExit(1)
 
     req, opt = deps.check_deps()
     if req:
-        print("Missing required modules: " + ", ".join(req))
+        log_step("Missing required modules: " + ", ".join(req))
     if opt:
-        print(
-            "Optional modules missing: " + ", ".join(opt) + " (features disabled).",
+        log_step(
+            "Optional modules missing: " + ", ".join(opt) + " (features disabled)."
         )
 
     # Filter out packages that are already satisfied according to pip.
@@ -241,12 +238,12 @@ def ensure_deps(
                     [sys.executable, "-m", "ensurepip", "--default-pip"]
                 )
             except subprocess.CalledProcessError as exc:  # pragma: no cover - hard failure
-                print(f"Failed to bootstrap pip: {exc}")
+                log_step(f"Failed to bootstrap pip: {exc}")
                 raise SystemExit(exc.returncode)
             else:
                 subprocess.check_call([sys.executable, "-m", "pip", "--version"])
         else:  # pragma: no cover - unexpected failure
-            print(f"Failed to invoke pip: {pip_check.stderr.strip()}")
+            log_step(f"Failed to invoke pip: {pip_check.stderr.strip()}")
             raise SystemExit(pip_check.returncode)
 
     extra_index: list[str] = []
@@ -270,7 +267,7 @@ def ensure_deps(
                 ) from exc
 
     if req or need_cli:
-        print("Installing required dependencies...")
+        log_step("Installing required dependencies...")
         extras_arg = ""
         if extras:
             extras_arg = f".[{','.join(extras)}]"
@@ -279,26 +276,26 @@ def ensure_deps(
         _pip_install(extras_arg, *extra_index)
         failed_req = [m for m in req if importlib.util.find_spec(m) is None]
         if failed_req:
-            print(
+            log_step(
                 "Missing required dependencies after installation: "
                 + ", ".join(failed_req)
             )
             raise SystemExit(1)
         if need_cli and shutil.which("solhunter-wallet") is None:
-            print("'solhunter-wallet' still not available after installation. Aborting.")
+            log_step("'solhunter-wallet' still not available after installation. Aborting.")
             raise SystemExit(1)
 
     if install_optional and extra_index:
         try:
             device.initialize_gpu()
         except Exception as exc:
-            print(str(exc))
+            log_step(str(exc))
             raise SystemExit(str(exc))
         if "torch" in opt:
             opt.remove("torch")
 
     if install_optional and opt:
-        print("Installing optional dependencies...")
+        log_step("Installing optional dependencies...")
         mapping = {
             "faiss": "faiss-cpu",
             "sentence_transformers": "sentence-transformers",
@@ -326,7 +323,7 @@ def ensure_deps(
 
         missing_opt = [m for m in opt if importlib.util.find_spec(m) is None]
         if missing_opt:
-            print(
+            log_step(
                 "Optional modules missing: "
                 + ", ".join(missing_opt)
                 + " (features disabled)."
@@ -371,9 +368,8 @@ def ensure_endpoints(cfg: dict) -> None:
                 if attempt == 2:
                     return name, exc
                 wait = 2**attempt
-                print(
-                    f"Attempt {attempt + 1} failed for {name} at {url}: {exc}. "
-                    f"Retrying in {wait} seconds..."
+                log_step(
+                    f"Attempt {attempt + 1} failed for {name} at {url}: {exc}. Retrying in {wait} seconds..."
                 )
                 await asyncio.sleep(wait)
 
@@ -394,7 +390,7 @@ def ensure_endpoints(cfg: dict) -> None:
         details = "; ".join(
             f"{name} at {url} ({exc})" for name, url, exc in failures
         )
-        print(
+        log_step(
             "Failed to reach the following endpoints: "
             f"{details}. Check your network connection or configuration."
         )
@@ -410,13 +406,12 @@ def _run_rustup_setup(cmd, *, shell: bool = False, retries: int = 2) -> None:
             return
         except subprocess.CalledProcessError as exc:
             if attempt == retries:
-                print(
-                    "Failed to install Rust toolchain via rustup. "
-                    "Please visit https://rustup.rs/ and follow the instructions.",
+                log_step(
+                    "Failed to install Rust toolchain via rustup. Please visit https://rustup.rs/ and follow the instructions."
                 )
                 raise SystemExit(exc.returncode)
             time.sleep(1)
-            print("Rustup setup failed, retrying...")
+            log_step("Rustup setup failed, retrying...")
 
 
 def ensure_cargo() -> None:
@@ -433,29 +428,27 @@ def ensure_cargo() -> None:
 
     if shutil.which("cargo") is None:
         if cache_marker.exists():
-            print(
-                "Rust toolchain previously installed but 'cargo' was not found. "
-                "Ensure ~/.cargo/bin is in your PATH or remove the cache marker and rerun the script.",
+            log_step(
+                "Rust toolchain previously installed but 'cargo' was not found. Ensure ~/.cargo/bin is in your PATH or remove the cache marker and rerun the script."
             )
             raise SystemExit(1)
 
         cache_marker.parent.mkdir(parents=True, exist_ok=True)
         if shutil.which("brew") is not None:
-            print("Installing rustup with Homebrew...")
+            log_step("Installing rustup with Homebrew...")
             try:
                 subprocess.check_call(["brew", "install", "rustup"])
             except subprocess.CalledProcessError as exc:
-                print(f"Homebrew failed to install rustup: {exc}")
+                log_step(f"Homebrew failed to install rustup: {exc}")
                 raise SystemExit(exc.returncode)
             _run_rustup_setup(["rustup-init", "-y"])
         else:
             if shutil.which("curl") is None:
-                print(
-                    "curl is required to install the Rust toolchain. "
-                    "Install it (e.g., with Homebrew: 'brew install curl') and re-run this script.",
+                log_step(
+                    "curl is required to install the Rust toolchain. Install it (e.g., with Homebrew: 'brew install curl') and re-run this script."
                 )
                 raise SystemExit(1)
-            print("Installing Rust toolchain via rustup...")
+            log_step("Installing Rust toolchain via rustup...")
             _run_rustup_setup(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
                 shell=True,
@@ -466,7 +459,7 @@ def ensure_cargo() -> None:
     try:
         subprocess.check_call(["cargo", "--version"], stdout=subprocess.DEVNULL)
     except subprocess.CalledProcessError as exc:
-        print("Failed to run 'cargo --version'. Is Rust installed correctly?")
+        log_step("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
     if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
         subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
@@ -474,7 +467,7 @@ def ensure_cargo() -> None:
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
         except subprocess.CalledProcessError as exc:
-            print("Failed to list rust targets. Is rustup installed correctly?")
+            log_step("Failed to list rust targets. Is rustup installed correctly?")
             raise SystemExit(exc.returncode)
         if "aarch64-apple-darwin" not in targets:
             subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
@@ -482,13 +475,13 @@ def ensure_cargo() -> None:
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
         if platform.system() == "Darwin" and shutil.which("brew") is not None:
-            print(
-                f"Missing {', '.join(missing)}. Attempting to install with Homebrew...",
+            log_step(
+                f"Missing {', '.join(missing)}. Attempting to install with Homebrew..."
             )
             try:
                 subprocess.check_call(["brew", "install", "pkg-config", "cmake"])
             except subprocess.CalledProcessError as exc:
-                print(f"Homebrew installation failed: {exc}")
+                log_step(f"Homebrew installation failed: {exc}")
             else:
                 missing = [
                     tool
@@ -498,9 +491,8 @@ def ensure_cargo() -> None:
         if missing:
             names = " and ".join(missing)
             brew = " ".join(missing)
-            print(
-                f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. "
-                f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script.",
+            log_step(
+                f"{names} {'are' if len(missing) > 1 else 'is'} required to build native extensions. Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script."
             )
             raise SystemExit(1)
 

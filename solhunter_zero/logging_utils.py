@@ -31,3 +31,10 @@ def log_startup(message: str) -> None:
             fh.write(f"{timestamp} {message}\n")
     except OSError:
         pass
+
+
+def log_step(name: str) -> None:
+    """Record a startup *name* to both stdout and ``startup.log``."""
+
+    print(name)
+    log_startup(name)

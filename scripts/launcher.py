@@ -21,6 +21,8 @@ from typing import NoReturn
 
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from solhunter_zero.logging_utils import log_step  # early import
 
 
 def _check_python(exe: str) -> bool:
@@ -69,16 +71,12 @@ def find_python() -> str:
             return candidate
 
     if platform.system() == "Darwin":
-        sys.path.insert(0, str(ROOT))
         try:
             from solhunter_zero.macos_setup import prepare_macos_env  # type: ignore
         except Exception:
             prepare_macos_env = None  # type: ignore
         if prepare_macos_env is not None:
-            print(
-                "Python 3.11 not found; running macOS setup...",
-                file=sys.stderr,
-            )
+            log_step("Python 3.11 not found; running macOS setup...")
             prepare_macos_env(non_interactive=True)
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
@@ -93,7 +91,7 @@ def find_python() -> str:
         )
     else:
         message += " Please install Python 3.11 and try again."
-    print(message, file=sys.stderr)
+    log_step(message)
     raise SystemExit(1)
 
 
@@ -104,15 +102,14 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
     raise SystemExit(1)
 
 
-sys.path.insert(0, str(ROOT))
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.logging_utils import log_step, rotate_startup_log  # noqa: E402
 
 rotate_startup_log()
 ensure_tools(non_interactive=True)
 ensure_venv(None)
-log_startup(f"Virtual environment: {sys.prefix}")
+log_step(f"Virtual environment: {sys.prefix}")
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 
