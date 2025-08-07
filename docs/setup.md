@@ -146,6 +146,10 @@ strategy_rotation_interval: 0
 weight_config_paths: []
 ```
 
+When MEV bundles are enabled (`use_mev_bundles: true` or `USE_MEV_BUNDLES=1`),
+set the `JITO_AUTH` environment variable to your Jito authentication token.
+Preflight checks will fail if the token is missing.
+
 Key discovery options:
 
 - `mempool_score_threshold` sets the minimum score for tokens observed in the

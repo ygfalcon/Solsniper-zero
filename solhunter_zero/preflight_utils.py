@@ -20,6 +20,7 @@ from scripts.deps import check_deps
 from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
 from solhunter_zero import wallet
 from solhunter_zero.paths import ROOT
+from solhunter_zero.config import apply_env_overrides, load_config
 
 Check = Tuple[bool, str]
 
@@ -204,7 +205,16 @@ def check_internet(url: str | None = None) -> None:
 def check_required_env(keys: List[str] | None = None) -> Check:
     """Ensure critical environment variables are configured."""
 
-    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
+    required = list(keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"])
+    try:
+        cfg = apply_env_overrides(load_config())
+    except Exception:
+        cfg = {}
+    use_mev = cfg.get("use_mev_bundles")
+    if isinstance(use_mev, str):
+        use_mev = use_mev.lower() in {"1", "true", "yes", "on"}
+    if use_mev:
+        required.append("JITO_AUTH")
     missing = []
     for key in required:
         val = os.getenv(key)
