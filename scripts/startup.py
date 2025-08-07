@@ -650,21 +650,18 @@ def main(argv: list[str] | None = None) -> int:
         mnemonic_path = kp_info.mnemonic_path
         active_keypair = kp_info.name
 
-    gpu_env = device.ensure_gpu_env()
-    gpu_available = "TORCH_DEVICE" in gpu_env
-    gpu_device = str(device.get_default_device()) if gpu_available else "none"
-    if gpu_env:
-        print(
-            "Configured GPU environment: "
-            + ", ".join(f"{k}={v}" for k, v in gpu_env.items())
-        )
-    if not gpu_available:
+    gpu_device = os.environ.get("TORCH_DEVICE")
+    gpu_available = gpu_device is not None
+    gpu_device_str = gpu_device or "none"
+    if gpu_device:
+        print(f"Configured GPU device: {gpu_device}")
+    else:
         print(
             "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
             "scripts/mac_setup.py to enable GPU support."
         )
     os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
-    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
+    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device_str
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
@@ -707,7 +704,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Startup summary:")
     print(f"  Config file: {config_path or 'none'}")
     print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
+    print(f"  GPU device: {gpu_device_str}")
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
 
     proc = subprocess.run(
