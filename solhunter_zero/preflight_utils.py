@@ -165,27 +165,37 @@ def check_disk_space(min_bytes: int) -> None:
         raise SystemExit(1)
 
 
-def check_internet(url: str = "https://example.com") -> None:
-    """Ensure basic internet connectivity by reaching a known host."""
+def check_internet(url: str | None = None) -> None:
+    """Ensure basic internet connectivity by reaching a known Solana RPC host.
+
+    Parameters
+    ----------
+    url:
+        Optional URL to test. When ``None`` the function uses the value of
+        ``SOLANA_RPC_URL`` from the environment, falling back to the public
+        mainnet endpoint if unset.
+    """
 
     import urllib.request
     import time
 
+    target = url or os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(url, timeout=5) as resp:  # nosec B310
+            with urllib.request.urlopen(target, timeout=5) as resp:  # nosec B310
                 resp.read()
                 return
         except Exception as exc:  # pragma: no cover - network failure
             if attempt == 2:
                 print(
-                    f"Failed to reach {url} after 3 attempts: {exc}. "
+                    f"Failed to reach {target} after 3 attempts: {exc}. "
                     "Check your internet connection."
                 )
                 raise SystemExit(1)
             wait = 2**attempt
             print(
-                f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
+                f"Attempt {attempt + 1} failed to reach {target}: {exc}. "
                 f"Retrying in {wait} seconds..."
             )
             time.sleep(wait)
@@ -239,4 +249,21 @@ def check_gpu() -> Check:
         return device.verify_gpu()
     except Exception as exc:  # pragma: no cover - defensive
         return False, str(exc)
+
+
+def run_basic_checks(min_bytes: int = 1 << 30, url: str | None = None) -> None:
+    """Run minimal startup checks for disk space and internet connectivity.
+
+    Parameters
+    ----------
+    min_bytes:
+        Minimum free disk space required for the application to run.
+    url:
+        Optional URL to test for network reachability. Defaults to the
+        ``SOLANA_RPC_URL`` environment variable or the public Solana RPC
+        endpoint when unset.
+    """
+
+    check_disk_space(min_bytes)
+    check_internet(url)
 

@@ -15,10 +15,8 @@ from solhunter_zero.paths import ROOT
 from solhunter_zero.preflight_utils import (
     Check,
     check_dependencies,
-    check_disk_space,
     check_gpu,
     check_homebrew,
-    check_internet,
     check_keypair,
     check_libroute_ffi,
     check_depth_service,
@@ -29,6 +27,7 @@ from solhunter_zero.preflight_utils import (
     check_rustup,
     check_xcode_clt,
     check_config_file,
+    run_basic_checks,
 )
 from solhunter_zero.logging_utils import log_startup
 
@@ -55,15 +54,6 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ),
     ("GPU", check_gpu),
 ]
-
-
-def run_basic_checks(
-    min_bytes: int = 1 << 30, url: str = "https://example.com"
-) -> None:
-    """Run minimal startup checks for disk space and internet connectivity."""
-
-    check_disk_space(min_bytes)
-    check_internet(url)
 
 
 def run_preflight() -> List[Tuple[str, bool, str]]:
