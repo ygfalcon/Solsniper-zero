@@ -427,10 +427,17 @@ def initialize_gpu() -> dict[str, str]:
                     or not torch.backends.mps.is_available()
                 )
                 if needs_install:
-                    logging.getLogger(__name__).warning(
-                        "MPS backend unavailable but sentinel %s exists; delete to retry",
-                        MPS_SENTINEL,
-                    )
+                    if torch is None:
+                        logging.getLogger(__name__).info(
+                            "PyTorch missing despite sentinel %s; reinstalling", MPS_SENTINEL
+                        )
+                        ensure_torch_with_metal()
+                        _write_sentinel()
+                    else:
+                        logging.getLogger(__name__).warning(
+                            "MPS backend unavailable but sentinel %s exists; delete to retry",
+                            MPS_SENTINEL,
+                        )
             except Exception as exc:  # pragma: no cover - fail fast
                 logging.getLogger(__name__).exception(
                     "Automatic PyTorch Metal setup failed"
