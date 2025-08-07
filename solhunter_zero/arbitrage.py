@@ -914,21 +914,25 @@ async def stream_orca_prices(
         return
 
     session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
         try:
-            await ws.send_str(dumps({"token": token}).decode())
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
-            if msg.type != aiohttp.WSMsgType.TEXT:
-                continue
-            try:
-                data = loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
-                continue
-            price = data.get("price")
-            if isinstance(price, (int, float)):
-                yield float(price)
+            async with session.ws_connect(url) as ws:
+                await ws.send_str(dumps({"token": token}).decode())
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = loads(msg.data)
+                    except Exception:  # pragma: no cover - invalid message
+                        continue
+                    price = data.get("price")
+                    if isinstance(price, (int, float)):
+                        yield float(price)
+        except Exception:  # pragma: no cover - connection failures
+            logger.exception(
+                "stream_orca_prices websocket error for %s; reconnecting", token
+            )
+            await asyncio.sleep(1)
 
 
 async def stream_raydium_prices(
@@ -940,21 +944,25 @@ async def stream_raydium_prices(
         return
 
     session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
         try:
-            await ws.send_str(dumps({"token": token}).decode())
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
-            if msg.type != aiohttp.WSMsgType.TEXT:
-                continue
-            try:
-                data = loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
-                continue
-            price = data.get("price")
-            if isinstance(price, (int, float)):
-                yield float(price)
+            async with session.ws_connect(url) as ws:
+                await ws.send_str(dumps({"token": token}).decode())
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = loads(msg.data)
+                    except Exception:  # pragma: no cover - invalid message
+                        continue
+                    price = data.get("price")
+                    if isinstance(price, (int, float)):
+                        yield float(price)
+        except Exception:  # pragma: no cover - connection failures
+            logger.exception(
+                "stream_raydium_prices websocket error for %s; reconnecting", token
+            )
+            await asyncio.sleep(1)
 
 
 async def stream_phoenix_prices(
@@ -966,21 +974,25 @@ async def stream_phoenix_prices(
         return
 
     session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
         try:
-            await ws.send_str(dumps({"token": token}).decode())
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
-            if msg.type != aiohttp.WSMsgType.TEXT:
-                continue
-            try:
-                data = loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
-                continue
-            price = data.get("price")
-            if isinstance(price, (int, float)):
-                yield float(price)
+            async with session.ws_connect(url) as ws:
+                await ws.send_str(dumps({"token": token}).decode())
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = loads(msg.data)
+                    except Exception:  # pragma: no cover - invalid message
+                        continue
+                    price = data.get("price")
+                    if isinstance(price, (int, float)):
+                        yield float(price)
+        except Exception:  # pragma: no cover - connection failures
+            logger.exception(
+                "stream_phoenix_prices websocket error for %s; reconnecting", token
+            )
+            await asyncio.sleep(1)
 
 
 async def stream_meteora_prices(
@@ -992,21 +1004,25 @@ async def stream_meteora_prices(
         return
 
     session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
         try:
-            await ws.send_str(dumps({"token": token}).decode())
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
-            if msg.type != aiohttp.WSMsgType.TEXT:
-                continue
-            try:
-                data = loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
-                continue
-            price = data.get("price")
-            if isinstance(price, (int, float)):
-                yield float(price)
+            async with session.ws_connect(url) as ws:
+                await ws.send_str(dumps({"token": token}).decode())
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = loads(msg.data)
+                    except Exception:  # pragma: no cover - invalid message
+                        continue
+                    price = data.get("price")
+                    if isinstance(price, (int, float)):
+                        yield float(price)
+        except Exception:  # pragma: no cover - connection failures
+            logger.exception(
+                "stream_meteora_prices websocket error for %s; reconnecting", token
+            )
+            await asyncio.sleep(1)
 
 
 async def stream_jupiter_prices(
@@ -1018,21 +1034,25 @@ async def stream_jupiter_prices(
         return
 
     session = await get_session()
-    async with session.ws_connect(url) as ws:
+    while True:
         try:
-            await ws.send_str(dumps({"token": token}).decode())
-        except Exception:  # pragma: no cover - send failures
-            pass
-        async for msg in ws:
-            if msg.type != aiohttp.WSMsgType.TEXT:
-                continue
-            try:
-                data = loads(msg.data)
-            except Exception:  # pragma: no cover - invalid message
-                continue
-            price = data.get("price")
-            if isinstance(price, (int, float)):
-                yield float(price)
+            async with session.ws_connect(url) as ws:
+                await ws.send_str(dumps({"token": token}).decode())
+                async for msg in ws:
+                    if msg.type != aiohttp.WSMsgType.TEXT:
+                        continue
+                    try:
+                        data = loads(msg.data)
+                    except Exception:  # pragma: no cover - invalid message
+                        continue
+                    price = data.get("price")
+                    if isinstance(price, (int, float)):
+                        yield float(price)
+        except Exception:  # pragma: no cover - connection failures
+            logger.exception(
+                "stream_jupiter_prices websocket error for %s; reconnecting", token
+            )
+            await asyncio.sleep(1)
 
 
 def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
@@ -1042,21 +1062,25 @@ def make_ws_stream(url: str) -> Callable[[str], AsyncGenerator[float, None]]:
         if not url:
             return
         session = await get_session()
-        async with session.ws_connect(url) as ws:
+        while True:
             try:
-                await ws.send_str(dumps({"token": token}).decode())
-            except Exception:  # pragma: no cover - send failures
-                pass
-            async for msg in ws:
-                if msg.type != aiohttp.WSMsgType.TEXT:
-                    continue
-                try:
-                    data = loads(msg.data)
-                except Exception:  # pragma: no cover - invalid message
-                    continue
-                price = data.get("price")
-                if isinstance(price, (int, float)):
-                    yield float(price)
+                async with session.ws_connect(url) as ws:
+                    await ws.send_str(dumps({"token": token}).decode())
+                    async for msg in ws:
+                        if msg.type != aiohttp.WSMsgType.TEXT:
+                            continue
+                        try:
+                            data = loads(msg.data)
+                        except Exception:  # pragma: no cover - invalid message
+                            continue
+                        price = data.get("price")
+                        if isinstance(price, (int, float)):
+                            yield float(price)
+            except Exception:  # pragma: no cover - connection failures
+                logger.exception(
+                    "websocket error for %s in make_ws_stream; reconnecting", token
+                )
+                await asyncio.sleep(1)
 
     return _stream
 
