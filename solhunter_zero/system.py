@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import platform
+from . import platform_utils
 import subprocess
 import sys
 from typing import Iterable
@@ -20,10 +20,10 @@ def _try_commands(cmds: Iterable[list[str]]) -> int | None:
 
 def detect_cpu_count() -> int:
     """Detect the number of CPUs across platforms."""
-    system = platform.system()
+    system = platform_utils.system()
     if system == "Linux":
         count = _try_commands([["nproc"], ["getconf", "_NPROCESSORS_ONLN"]])
-    elif system == "Darwin":
+    elif platform_utils.is_macos():
         count = _try_commands([["sysctl", "-n", "hw.ncpu"]])
     else:
         count = None

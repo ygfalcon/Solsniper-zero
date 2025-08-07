@@ -4,7 +4,7 @@ import argparse
 import importlib
 import logging
 import os
-import platform
+from . import platform_utils
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -115,7 +115,7 @@ def ensure_torch_with_metal() -> None:
     reinstallation attempts.
     """
 
-    if platform.system() != "Darwin" or platform.machine() != "arm64":
+    if not platform_utils.is_macos_arm64():
         return
 
     sentinel_versions = _read_sentinel_versions()
@@ -197,7 +197,7 @@ def ensure_torch_with_metal() -> None:
     _write_sentinel()
 
 
-if platform.system() == "Darwin" and platform.machine() == "arm64":
+if platform_utils.is_macos_arm64():
     try:
         needs_install = (
             torch is None
@@ -255,10 +255,8 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
         )
         return False
     try:
-        system = platform.system()
-        if system == "Darwin":
-            machine = platform.machine()
-            if machine == "x86_64":
+        if platform_utils.is_macos():
+            if platform_utils.requires_rosetta():
                 logging.getLogger(__name__).warning(
                     "Running under Rosetta (x86_64); GPU unavailable"
                 )
@@ -406,7 +404,7 @@ def get_default_device(device: str | "torch.device" | None = "auto") -> "torch.d
     if torch is None:
         raise RuntimeError("PyTorch is required for device selection")
     if device is None or (isinstance(device, str) and device == "auto"):
-        if platform.system() == "Darwin" and torch.backends.mps.is_available():
+        if platform_utils.is_macos() and torch.backends.mps.is_available():
             return torch.device("mps")
         if torch.cuda.is_available():
             return torch.device("cuda")
@@ -431,8 +429,7 @@ def ensure_gpu_env() -> dict[str, str]:
     env: dict[str, str] = {}
     if torch is not None:
         try:
-            system = platform.system()
-            if system == "Darwin" and torch.backends.mps.is_available():
+            if platform_utils.is_macos() and torch.backends.mps.is_available():
                 env["TORCH_DEVICE"] = "mps"
                 env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
             elif torch.cuda.is_available():

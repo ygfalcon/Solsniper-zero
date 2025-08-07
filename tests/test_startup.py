@@ -25,8 +25,8 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     import platform
     from scripts import startup
 
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform_utils, "machine", lambda: "arm64")
 
     cargo_marker = startup.ROOT / ".cache" / "cargo-installed"
     cargo_marker.parent.mkdir(parents=True, exist_ok=True)
@@ -50,6 +50,15 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     monkeypatch.setattr("scripts.mac_setup.apply_brew_env", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    import types, sys
+    monkeypatch.setitem(
+        sys.modules,
+        "solhunter_zero.config_schema",
+        types.SimpleNamespace(validate_config=lambda cfg: cfg),
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.config_bootstrap.ensure_config", lambda: startup.ROOT / "config.toml"
+    )
     def fake_gpu_env():
         os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"
         os.environ["SOLHUNTER_GPU_DEVICE"] = "cpu"
@@ -334,8 +343,8 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform_utils, "machine", lambda: "arm64")
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
@@ -382,8 +391,8 @@ def test_ensure_deps_requires_mps(monkeypatch):
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
     monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform_utils, "machine", lambda: "arm64")
 
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     with pytest.raises(SystemExit) as excinfo:
@@ -457,7 +466,7 @@ def test_ensure_cargo_requires_curl(monkeypatch, capsys, tmp_path):
         return None if cmd in {"cargo", "curl", "brew"} else "/usr/bin/" + cmd
 
     monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Linux")
     monkeypatch.setattr(startup, "ROOT", tmp_path)
 
     with pytest.raises(SystemExit):
@@ -474,7 +483,7 @@ def test_ensure_cargo_requires_pkg_config_and_cmake(monkeypatch, capsys, tmp_pat
         return None if cmd in {"pkg-config", "cmake"} else "/usr/bin/" + cmd
 
     monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Linux")
     monkeypatch.setattr(startup.subprocess, "check_call", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ROOT", tmp_path)
 
@@ -507,8 +516,8 @@ def test_ensure_cargo_installs_pkg_config_and_cmake_with_brew(monkeypatch, tmp_p
                 installed[tool] = f"/usr/local/bin/{tool}"
 
     monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(startup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(startup.platform_utils, "machine", lambda: "x86_64")
     monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup, "ROOT", tmp_path)
 
@@ -535,7 +544,7 @@ def test_ensure_cargo_installs_rustup_with_brew(monkeypatch, tmp_path):
             return
 
     monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Linux")
     monkeypatch.setattr(startup.subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(startup, "ROOT", tmp_path)
 
@@ -557,7 +566,7 @@ def test_ensure_cargo_skips_install_when_cached(monkeypatch, tmp_path, capsys):
     marker.write_text("ok")
 
     monkeypatch.setattr(startup.shutil, "which", fake_which)
-    monkeypatch.setattr(startup.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(startup.platform_utils, "system", lambda: "Linux")
     monkeypatch.setattr(startup, "ROOT", tmp_path)
 
     with pytest.raises(SystemExit):

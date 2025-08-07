@@ -7,7 +7,7 @@ import sys
 
 import argparse
 import os
-import platform
+from solhunter_zero import platform_utils
 import subprocess
 import shutil
 import contextlib
@@ -37,7 +37,7 @@ rotate_startup_log()
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
 
-if platform.system() == "Darwin" and platform.machine() == "x86_64":
+if platform_utils.requires_rosetta():
     script = Path(__file__).resolve()
     cmd = ["arch", "-arm64", sys.executable, str(script), *sys.argv[1:]]
     try:
@@ -315,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_endpoints(cfg_data)
         endpoint_status = "reachable"
 
-    if args.repair and platform.system() == "Darwin":
+    if args.repair and platform_utils.is_macos():
         from scripts import mac_setup
 
         report = mac_setup.prepare_macos_env(non_interactive=True, force=True)
@@ -386,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    if platform.system() == "Darwin" and platform.machine() == "x86_64":
+    if platform_utils.requires_rosetta():
         print("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
             print("Use '--allow-rosetta' to continue anyway.")

@@ -4,7 +4,7 @@ import json
 import importlib.util
 import logging
 import os
-import platform
+from . import platform_utils
 import shutil
 import subprocess
 import sys
@@ -67,7 +67,7 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     machine, version = _inspect(python)
 
-    if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
+    if platform_utils.is_macos() and (machine != "arm64" or version < (3, 11)):
         brew_python = shutil.which("python3.11")
         if not brew_python:
             print(
@@ -171,7 +171,7 @@ def ensure_deps(
         available by installing the current package if necessary.
     """
 
-    if platform.system() == "Darwin":
+    if platform_utils.is_macos():
         from . import mac_env
 
         report = mac_env.prepare_macos_env(non_interactive=True)
@@ -219,7 +219,7 @@ def ensure_deps(
             raise SystemExit(pip_check.returncode)
 
     extra_index: list[str] = []
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
+    if platform_utils.is_macos_arm64():
         extra_index = list(METAL_EXTRA_INDEX)
 
     need_install = bool(req) or need_cli or (install_optional and (opt or extra_index))
@@ -387,7 +387,7 @@ def _run_rustup_setup(cmd, *, shell: bool = False, retries: int = 2) -> None:
 def ensure_cargo() -> None:
     installed = False
     cache_marker = ROOT / ".cache" / "cargo-installed"
-    if platform.system() == "Darwin":
+    if platform_utils.is_macos():
         from scripts.mac_setup import apply_brew_env, ensure_tools
 
         ensure_tools()
@@ -433,9 +433,9 @@ def ensure_cargo() -> None:
     except subprocess.CalledProcessError as exc:
         print("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
-    if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
+    if installed and platform_utils.is_macos_arm64():
         subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
+    if platform_utils.is_macos_arm64():
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
         except subprocess.CalledProcessError as exc:
@@ -446,7 +446,7 @@ def ensure_cargo() -> None:
 
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
-        if platform.system() == "Darwin" and shutil.which("brew") is not None:
+        if platform_utils.is_macos() and shutil.which("brew") is not None:
             print(
                 f"Missing {', '.join(missing)}. Attempting to install with Homebrew...",
             )
@@ -484,7 +484,7 @@ def build_rust_component(
         if target not in installed_targets:
             subprocess.check_call(["rustup", "target", "add", target])
         cmd.extend(["--target", target])
-    elif platform.system() == "Darwin" and platform.machine() == "arm64":
+    elif platform_utils.is_macos_arm64():
         try:
             installed_targets = subprocess.check_output(
                 ["rustup", "target", "list", "--installed"], text=True
@@ -504,7 +504,7 @@ def build_rust_component(
         candidates.append(base / "release" / artifact)
         if target is not None:
             candidates.append(base / target / "release" / artifact)
-        elif platform.system() == "Darwin" and platform.machine() == "arm64":
+        elif platform_utils.is_macos_arm64():
             candidates.append(base / "aarch64-apple-darwin" / "release" / artifact)
 
     built = next((p for p in candidates if p.exists()), None)
@@ -521,7 +521,7 @@ def build_rust_component(
             f"{name} build succeeded but {output} is missing. Please build manually."
         )
 
-    if platform.system() == "Darwin":
+    if platform_utils.is_macos():
         try:
             subprocess.check_call(["codesign", "--force", "--sign", "-", str(output)])
         except subprocess.CalledProcessError as exc:
@@ -532,7 +532,7 @@ def build_rust_component(
 
 
 def ensure_route_ffi() -> None:
-    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    libname = "libroute_ffi.dylib" if platform_utils.is_macos() else "libroute_ffi.so"
     libpath = ROOT / "solhunter_zero" / libname
     if libpath.exists():
         return
@@ -549,7 +549,7 @@ def ensure_depth_service() -> None:
     if bin_path.exists():
         return
 
-    target = "aarch64-apple-darwin" if platform.system() == "Darwin" else None
+    target = "aarch64-apple-darwin" if platform_utils.is_macos() else None
     try:
         build_rust_component(
             "depth_service",
@@ -559,7 +559,7 @@ def ensure_depth_service() -> None:
         )
     except Exception as exc:  # pragma: no cover - build errors are rare
         hint = ""
-        if platform.system() == "Darwin":
+        if platform_utils.is_macos():
             hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
         print(f"Failed to build depth_service: {exc}.{hint}")
         raise SystemExit(1)

@@ -12,7 +12,7 @@ script so that all entry points invoke the same Python-based logic.
 from __future__ import annotations
 
 import os
-import platform
+from solhunter_zero import platform_utils
 import shutil
 import subprocess
 import sys
@@ -68,7 +68,7 @@ def find_python() -> str:
         if _check_python(candidate):
             return candidate
 
-    if platform.system() == "Darwin":
+    if platform_utils.is_macos():
         sys.path.insert(0, str(ROOT))
         try:
             from solhunter_zero.mac_env import prepare_macos_env  # type: ignore
@@ -86,7 +86,7 @@ def find_python() -> str:
                     return path
 
     message = "Python 3.11 or higher is required."
-    if platform.system() == "Darwin":
+    if platform_utils.is_macos():
         message += (
             " Run 'python -c \"from solhunter_zero.mac_env import prepare_macos_env; "
             "prepare_macos_env()\"' to install Python 3.11."
@@ -138,7 +138,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
     startup = ROOT / "scripts" / "startup.py"
     cmd = [python_exe, str(startup), *argv]
 
-    if platform.system() == "Darwin":
+    if platform_utils.is_macos():
         cmd = ["arch", "-arm64", *cmd]
     os.execvp(cmd[0], cmd)
 

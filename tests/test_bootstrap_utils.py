@@ -1,9 +1,8 @@
-import platform
-from solhunter_zero import bootstrap_utils
+from solhunter_zero import bootstrap_utils, platform_utils
 
 
 def test_ensure_deps_calls_apply_brew_env(monkeypatch):
-    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform_utils, "is_macos", lambda: True)
     called = {"prepare": 0, "apply": 0}
 
     def fake_prepare_macos_env(non_interactive=True, force=False):

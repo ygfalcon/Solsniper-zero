@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import platform
+from solhunter_zero import platform_utils
 import shutil
 import subprocess
 import sys
@@ -287,7 +287,7 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     ``prepare_macos_env``'s output.
     """
 
-    if platform.system() != "Darwin" or platform.machine() != "arm64":
+    if not platform_utils.is_macos_arm64():
         return {"steps": {}, "success": True}
 
     missing_tools: list[str] = []

@@ -35,8 +35,8 @@ def test_run_with_timeout_timeout(monkeypatch):
 
 
 def test_detect_gpu_and_get_default_device_mps(monkeypatch):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "machine", lambda: "arm64")
     torch_stub = types.SimpleNamespace(
         backends=types.SimpleNamespace(
             mps=types.SimpleNamespace(is_available=lambda: True, is_built=lambda: True)
@@ -52,8 +52,8 @@ def test_detect_gpu_and_get_default_device_mps(monkeypatch):
 
 
 def test_detect_gpu_rosetta(monkeypatch, caplog):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "machine", lambda: "x86_64")
     torch_stub = types.SimpleNamespace(
         backends=types.SimpleNamespace(
             mps=types.SimpleNamespace(is_available=lambda: True, is_built=lambda: True)
@@ -67,8 +67,8 @@ def test_detect_gpu_rosetta(monkeypatch, caplog):
 
 
 def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "machine", lambda: "arm64")
     torch_stub = types.SimpleNamespace(
         backends=types.SimpleNamespace(
             mps=types.SimpleNamespace(is_built=lambda: False, is_available=lambda: False)
@@ -88,8 +88,8 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
 
 
 def test_detect_gpu_tensor_failure(monkeypatch, caplog):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "machine", lambda: "arm64")
 
     def failing_ones(*args, **kwargs):
         raise RuntimeError("boom")
@@ -110,8 +110,8 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
 def test_ensure_torch_with_metal_failure_does_not_write_sentinel(
     monkeypatch, tmp_path, caplog
 ):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "machine", lambda: "arm64")
     sentinel = tmp_path / "sentinel"
     monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
     monkeypatch.setattr(device_module, "torch", None, raising=False)
@@ -135,8 +135,8 @@ def test_ensure_torch_with_metal_failure_does_not_write_sentinel(
 def test_ensure_torch_with_metal_rewrites_sentinel_on_version_change(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "machine", lambda: "arm64")
     sentinel = tmp_path / "sentinel"
     sentinel.write_text("1.0.0\n1.0.0\n")
     monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
@@ -165,7 +165,7 @@ def test_ensure_torch_with_metal_rewrites_sentinel_on_version_change(
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
 def test_configure_gpu_env_mps(monkeypatch):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
     torch_stub = types.SimpleNamespace(
         backends=types.SimpleNamespace(
             mps=types.SimpleNamespace(is_available=lambda: True)
@@ -190,7 +190,7 @@ def test_configure_gpu_env_mps(monkeypatch):
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
 def test_configure_gpu_env_mps_unavailable(monkeypatch):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform_utils, "system", lambda: "Darwin")
     torch_stub = types.SimpleNamespace(
         backends=types.SimpleNamespace(
             mps=types.SimpleNamespace(is_available=lambda: False)

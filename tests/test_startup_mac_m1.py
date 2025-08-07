@@ -42,6 +42,14 @@ def test_startup_mac_m1(monkeypatch):
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", dummy_config)
+    monkeypatch.setitem(
+        sys.modules,
+        "solhunter_zero.config_schema",
+        types.SimpleNamespace(validate_config=lambda cfg: cfg),
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.config_bootstrap.ensure_config", lambda: startup.ROOT / "config.toml"
+    )
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
