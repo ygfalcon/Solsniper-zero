@@ -61,6 +61,17 @@ def fetch_token_prices(tokens: Iterable[str]) -> Dict[str, float]:
     return asyncio.run(fetch_token_prices_async(tokens))
 
 
+def warm_cache(tokens: Iterable[str]) -> None:
+    """Fetch prices for ``tokens`` and populate ``PRICE_CACHE``.
+
+    This is a convenience wrapper around :func:`fetch_token_prices_async` that
+    runs the asynchronous fetcher and discards the return value.  It is useful
+    when callers only need the cache to be primed without immediately using the
+    fetched prices.
+    """
+    asyncio.run(fetch_token_prices_async(tokens))
+
+
 async def fetch_token_prices_async(tokens: Iterable[str]) -> Dict[str, float]:
     """Asynchronously retrieve USD prices for multiple tokens."""
     token_list = _tokens_key(tokens)
