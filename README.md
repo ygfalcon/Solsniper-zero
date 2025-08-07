@@ -7,7 +7,10 @@ This project is targeted towards being the greatest Solana bot ever created and 
 
 For a quick preview across all bundled strategies, double-click `demo.command`
 (or run `python demo.py`) to generate sample reports without additional
-setup.
+setup. The sample metrics in [docs/demo_full_sample.md](docs/demo_full_sample.md)
+show the expected output, and the integration test
+[`tests/test_demo_full_preset_output.py`](tests/test_demo_full_preset_output.py)
+verifies that the demo produces those values.
 
 ## Table of Contents
 
