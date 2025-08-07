@@ -15,7 +15,7 @@ def test_strategy_manager_showcase(monkeypatch):
     cfg_path.write_text(
         """
 solana_rpc_url = "https://example.com"
-dex_base_url = "https://dex.example.com"
+dex_base_url = "https://quote-api.jup.ag"
 agents = ["demo"]
 [agent_weights]
 demo = 1.0

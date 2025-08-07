@@ -492,7 +492,7 @@ def test_ensure_endpoints_success(monkeypatch):
     monkeypatch.setattr(websockets, "connect", fake_connect)
 
     cfg = {
-        "dex_base_url": "https://dex.example",
+        "dex_base_url": "https://quote-api.jup.ag",
         "birdeye_api_key": "k",
         "jito_ws_url": "wss://ws.example",
         "jito_ws_auth": "T",
@@ -501,7 +501,7 @@ def test_ensure_endpoints_success(monkeypatch):
 
     urls = {u for u, _ in calls}
     assert urls == {
-        "https://dex.example",
+        "https://quote-api.jup.ag",
         "https://public-api.birdeye.so/defi/tokenlist",
     }
     assert all(m == "HEAD" for _, m in calls)
@@ -517,7 +517,7 @@ def test_ensure_endpoints_failure(monkeypatch, capsys):
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    cfg = {"dex_base_url": "https://dex.example"}
+    cfg = {"dex_base_url": "https://quote-api.jup.ag"}
 
     with pytest.raises(SystemExit):
         ensure_endpoints(cfg)
@@ -675,6 +675,9 @@ def test_ensure_cargo_skips_install_when_cached(monkeypatch, tmp_path, capsys):
 
 def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     from scripts import startup
+    import types, sys
+    from solhunter_zero import preflight_utils
+    monkeypatch.setattr(preflight_utils, "check_disk_space", lambda *a, **k: (True, "ok"))
 
     called: dict[str, object] = {}
 
@@ -704,7 +707,6 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
-    import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(
@@ -722,7 +724,7 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
         startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
     )
     conf = types.SimpleNamespace(
-        load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        load_config=lambda path=None: {"dex_base_url": "https://quote-api.jup.ag"},
         validate_config=lambda cfg: cfg,
         apply_env_overrides=lambda cfg: cfg,
         find_config_file=lambda: "config.toml",
@@ -763,7 +765,7 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
-        load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        load_config=lambda path=None: {"dex_base_url": "https://quote-api.jup.ag"},
         validate_config=lambda cfg: cfg,
         apply_env_overrides=lambda cfg: cfg,
         find_config_file=lambda: "config.toml",
@@ -955,7 +957,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
         ),
     )
     conf = types.SimpleNamespace(
-        load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
+        load_config=lambda path=None: {"dex_base_url": "https://quote-api.jup.ag"},
         validate_config=lambda cfg: cfg,
         apply_env_overrides=lambda cfg: cfg,
         find_config_file=lambda: "config.toml",
