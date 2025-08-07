@@ -283,29 +283,41 @@ def main(argv: list[str] | None = None) -> int:
     )
     args, rest = parser.parse_known_args(argv)
 
-    # Ensure configuration exists and is valid before proceeding
-    from solhunter_zero.config_bootstrap import ensure_config as bootstrap_ensure_config
-    from solhunter_zero import config_schema
-    import tomllib
+    from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
+    from solhunter_zero.config import load_config, validate_config
+    from solhunter_zero import wallet
 
-    try:
-        cfg_file = bootstrap_ensure_config()
-        with cfg_file.open("rb") as fh:
-            cfg_data = tomllib.load(fh)
-        cfg_data = config_schema.validate_config(cfg_data)
-    except (Exception, SystemExit) as exc:
-        print(f"Invalid configuration: {exc}")
+    cfg_data: dict = {}
+    config_path: Path | None = None
+    keypair_path: Path | None = None
+    mnemonic_path: Path | None = None
+    active_keypair: str | None = None
+
+    if not args.skip_setup:
         try:
-            resp = input(
-                "Run quick setup to regenerate configuration? [y/N]: "
-            )
-        except EOFError:
-            resp = ""
-        if resp.strip().lower() in {"y", "yes"}:
-            from scripts.quick_setup import run as quick_setup_run
+            config_path = ensure_default_config()
+            cfg_data = validate_config(load_config(config_path))
+        except (Exception, SystemExit) as exc:
+            print(f"Invalid configuration: {exc}")
+            try:
+                resp = input(
+                    "Run quick setup to regenerate configuration? [y/N]: "
+                )
+            except EOFError:
+                resp = ""
+            if resp.strip().lower() in {"y", "yes"}:
+                from scripts.quick_setup import run as quick_setup_run
 
-            quick_setup_run()
-        return 1
+                quick_setup_run()
+            return 1
+        try:
+            ensure_wallet_cli()
+        except SystemExit as exc:
+            return exc.code if isinstance(exc.code, int) else 1
+        info = select_active_keypair(auto=args.one_click)
+        active_keypair = info.name
+        keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
+        mnemonic_path = info.mnemonic_path
 
     if args.offline:
         endpoint_status = "offline"
@@ -435,57 +447,11 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
 
-    config_path: Path | None = None
-    keypair_path: Path | None = None
-    mnemonic_path: Path | None = None
-    active_keypair: str | None = None
-
-    if args.one_click and not args.skip_setup:
-        bootstrap(one_click=True)
-        from solhunter_zero import wallet
-        from solhunter_zero.config import find_config_file
-
-        cfg_path = find_config_file()
-        if cfg_path is not None:
-            config_path = Path(cfg_path)
-        active_keypair = wallet.get_active_keypair_name()
-        if active_keypair:
-            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
-            mn = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.mnemonic"
-            if mn.exists():
-                mnemonic_path = mn
-
     gpu_env = device.initialize_gpu()
     gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
-    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
-
-    if not args.skip_setup:
-        from solhunter_zero.config import (
-            load_config,
-            validate_config,
-            find_config_file,
-        )
-
-        if config_path is None:
-            cfg_path = find_config_file()
-            if cfg_path is None:
-                cfg_path = run_quick_setup()
-            if cfg_path is not None:
-                config_path = Path(cfg_path)
-        if config_path is not None:
-            cfg = load_config(config_path)
-            cfg = validate_config(cfg)
-        else:
-            cfg = {}
-        try:
-            ensure_wallet_cli()
-        except SystemExit as exc:
-            return exc.code if isinstance(exc.code, int) else 1
-        from solhunter_zero import wallet
-        if active_keypair is None:
-            active_keypair = wallet.get_active_keypair_name()
-        if keypair_path is None and active_keypair:
-            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
+    rpc_url = os.environ.get(
+        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+    )
 
     os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 from pathlib import Path
 import tomllib
@@ -12,22 +11,13 @@ import tomllib
 import tomli_w  # type: ignore
 
 from solhunter_zero.config_schema import validate_config
-from solhunter_zero.config import find_config_file
+from solhunter_zero.config_utils import ensure_default_config
 
-_existing = find_config_file()
-CONFIG_PATH = (
-    Path(_existing) if _existing and _existing.endswith(".toml") else Path("config.toml")
-)
-DEFAULT_PATH = Path("config" ) / "default.toml"
+CONFIG_PATH = ensure_default_config()
 
 
 def load_config(auto: bool = False) -> dict:
     if CONFIG_PATH.is_file():
-        with CONFIG_PATH.open("rb") as fh:
-            return tomllib.load(fh)
-    template = DEFAULT_PATH
-    if template.is_file():
-        shutil.copy(template, CONFIG_PATH)
         with CONFIG_PATH.open("rb") as fh:
             return tomllib.load(fh)
     return {}
