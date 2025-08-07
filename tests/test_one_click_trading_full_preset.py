@@ -1,4 +1,5 @@
 import json
+from importlib import resources
 from pathlib import Path
 
 from solhunter_zero import investor_demo
@@ -49,9 +50,11 @@ def test_one_click_trading_full_preset(tmp_path: Path, monkeypatch) -> None:
     summary = json.loads((tmp_path / "summary.json").read_text())
     configs = {row["config"] for row in summary}
 
-    agents_dir = Path(investor_demo.__file__).resolve().parent / "agents"
+    agents_pkg = resources.files("solhunter_zero.agents")
     strategy_modules = {
-        p.stem for p in agents_dir.glob("*.py") if not p.name.startswith("__")
+        p.stem
+        for p in agents_pkg.iterdir()
+        if p.suffix == ".py" and p.name != "__init__.py"
     }
 
     assert strategy_modules <= configs
