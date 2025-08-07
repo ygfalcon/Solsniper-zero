@@ -78,6 +78,9 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _stop_all)
 
     logging.basicConfig(level=logging.INFO)
+    from . import device
+
+    device.initialize_gpu()
 
     _ensure_keypair()
 
