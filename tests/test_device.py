@@ -132,6 +132,28 @@ def test_detect_gpu_tensor_failure(monkeypatch, caplog):
     assert "Tensor operation failed" in caplog.text
 
 
+def test_get_gpu_backend_warns_on_torch_error(monkeypatch, caplog):
+    def raising_cuda_available():
+        raise RuntimeError("boom")
+
+    torch_stub = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: False)
+        ),
+        cuda=types.SimpleNamespace(is_available=raising_cuda_available),
+    )
+    monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    cp_stub = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(
+            runtime=types.SimpleNamespace(getDeviceCount=lambda: 0)
+        )
+    )
+    monkeypatch.setitem(sys.modules, "cupy", cp_stub)
+    with caplog.at_level("WARNING"):
+        assert device_module.get_gpu_backend() is None
+    assert "GPU backend probe failed" in caplog.text
+
+
 def test_ensure_torch_with_metal_failure_does_not_write_sentinel(
     monkeypatch, tmp_path, caplog
 ):

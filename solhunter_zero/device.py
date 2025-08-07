@@ -279,14 +279,18 @@ def get_gpu_backend() -> str | None:
             if torch.cuda.is_available() or mps_available:
                 return "torch"
         except Exception:
-            pass
+            logging.getLogger(__name__).warning(
+                "GPU backend probe failed", exc_info=True
+            )
     try:  # pragma: no cover - optional dependency
         import cupy as cp  # type: ignore
 
         if cp.cuda.runtime.getDeviceCount() > 0:
             return "cupy"
     except Exception:
-        pass
+        logging.getLogger(__name__).warning(
+            "GPU backend probe failed", exc_info=True
+        )
     return None
 
 
