@@ -14,6 +14,8 @@ def test_ensure_deps_runs_prepare_macos_env(monkeypatch):
         "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare_macos_env
     )
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
 
     bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
 

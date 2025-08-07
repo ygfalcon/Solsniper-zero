@@ -103,6 +103,11 @@ def test_mac_startup_prereqs(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
     )
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+    )
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     startup.ensure_deps(ensure_wallet_cli=False)
 
     dummy_torch = types.SimpleNamespace(
@@ -252,6 +257,7 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
 
 def test_ensure_deps_installs_optional(monkeypatch):
     from scripts import startup
+    from solhunter_zero import bootstrap
 
     calls: list[list[str]] = []
 
@@ -270,12 +276,16 @@ def test_ensure_deps_installs_optional(monkeypatch):
                 "zstandard",
                 "msgpack",
             ],
-        ),
-        ([], []),
+        )
     ]
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
+    monkeypatch.setattr(
+        startup.bootstrap_utils, "_package_missing", lambda pkg: True
+    )
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
 
     startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
@@ -291,17 +301,20 @@ def test_ensure_deps_installs_optional(monkeypatch):
         "sentence-transformers",
         "torch",
     }
-    assert not results  # ensure check_deps called twice
+    assert not results  # ensure check_deps called once
 
 
 def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
     from scripts import startup
+    from solhunter_zero import bootstrap
 
     results = [([], ["orjson", "faiss"])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", lambda *a, **k: None)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
 
     startup.ensure_deps(ensure_wallet_cli=False)
     out = capsys.readouterr().out
@@ -312,6 +325,7 @@ def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
 
 def test_ensure_deps_installs_torch_metal(monkeypatch):
     from scripts import startup
+    from solhunter_zero import bootstrap
 
     calls: list[list[str]] = []
 
@@ -330,10 +344,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
         )
         return {}
 
-    results = [
-        ([], ["torch"]),
-        ([], []),
-    ]
+    results = [([], ["torch"])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_install)
@@ -342,6 +353,15 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
     )
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+    )
+    monkeypatch.setattr(startup.bootstrap_utils, "_package_missing", lambda pkg: True)
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+    )
+    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
     assert calls == [
@@ -382,17 +402,32 @@ def test_ensure_deps_requires_mps(monkeypatch):
         )
         raise RuntimeError("install the Metal wheel manually")
 
-    results = [(["req"], []), ([], [])]
+    results = [(["req"], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
-
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
     )
+    monkeypatch.setattr(startup.bootstrap_utils, "_package_missing", lambda pkg: True)
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
+    )
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    import importlib
+    orig_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name):
+        if name == "req":
+            return object()
+        return orig_find_spec(name)
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
     with pytest.raises(SystemExit) as excinfo:
         startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
