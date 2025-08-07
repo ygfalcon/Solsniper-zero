@@ -20,7 +20,6 @@ from solhunter_zero.config_utils import (
 from solhunter_zero import wallet
 
 
-
 ROOT = Path(__file__).resolve().parent.parent
 
 Check = Tuple[bool, str]
@@ -138,11 +137,26 @@ def check_required_env(keys: List[str] | None = None) -> Check:
             missing.append(key)
     if missing:
         joined = ", ".join(missing)
-        return False, f"Missing environment variables: {joined}. Set them and retry"
+        return False, (
+            f"Missing environment variables: {joined}. "
+            "Set them and retry"
+        )
     return True, "Required environment variables set"
 
 
-def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> Check:
+def check_network(
+    default_url: str = "https://api.mainnet-beta.solana.com",
+) -> Check:
+    if sys.platform == "darwin":
+        try:
+            from solhunter_zero import macos_setup
+
+            macos_setup.ensure_network()
+        except SystemExit:
+            return False, "macOS network check failed"
+        except Exception as exc:  # pragma: no cover - defensive
+            return False, f"Network error: {exc}"
+        return True, "Network connectivity OK"
     url = os.environ.get("SOLANA_RPC_URL", default_url)
     try:
         from solhunter_zero.http import check_endpoint
@@ -202,7 +216,9 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
             {"name": name, "message": msg} for name, ok, msg in results if ok
         ],
         "failures": [
-            {"name": name, "message": msg} for name, ok, msg in results if not ok
+            {"name": name, "message": msg}
+            for name, ok, msg in results
+            if not ok
         ],
     }
     try:
