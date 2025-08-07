@@ -19,25 +19,6 @@ ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
-MAX_STARTUP_LOG_SIZE = 1_000_000  # 1 MB
-
-
-def rotate_startup_log(path: Path = ROOT / "startup.log") -> None:
-    """Rotate or truncate the startup log before writing new output."""
-
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > MAX_STARTUP_LOG_SIZE:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
-
-rotate_startup_log()
-
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
@@ -50,8 +31,9 @@ from solhunter_zero.bootstrap_utils import (
 )
 
 from solhunter_zero import env  # noqa: E402
-from solhunter_zero.logging_utils import log_startup  # noqa: E402
+from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
 
+rotate_startup_log()
 env.load_env_file(ROOT / ".env")
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device  # noqa: E402

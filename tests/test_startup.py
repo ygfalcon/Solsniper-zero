@@ -730,12 +730,13 @@ def test_preflight_log_rotation(tmp_path):
 
 
 def test_startup_log_rotation(tmp_path):
-    from scripts import startup
+    from solhunter_zero import logging_utils
+
     log_path = tmp_path / "startup.log"
-    log_path.write_text("x" * (startup.MAX_STARTUP_LOG_SIZE + 1))
+    log_path.write_text("x" * (logging_utils.MAX_STARTUP_LOG_SIZE + 1))
     rotated = tmp_path / "startup.log.1"
 
-    startup.rotate_startup_log(log_path)
+    logging_utils.rotate_startup_log(log_path)
 
     assert rotated.exists()
     assert not log_path.exists()
