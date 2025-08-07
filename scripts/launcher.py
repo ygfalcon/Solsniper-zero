@@ -101,8 +101,9 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
 
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup  # noqa: E402
+from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
 
+rotate_startup_log()
 ensure_venv(None)
 log_startup(f"Virtual environment: {sys.prefix}")
 
