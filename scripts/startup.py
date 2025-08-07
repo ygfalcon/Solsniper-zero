@@ -20,13 +20,9 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
 from scripts import preflight  # noqa: E402
-from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
-from solhunter_zero.bootstrap_utils import (
-    ensure_deps,
-    ensure_venv,
-    ensure_endpoints,
-)
+from solhunter_zero.bootstrap_utils import ensure_endpoints
+from solhunter_zero.startup_utils import bootstrap_all
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
@@ -84,27 +80,6 @@ rotate_startup_log()
 rotate_preflight_log()
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
-
-
-def ensure_wallet_cli() -> None:
-    """Ensure the ``solhunter-wallet`` CLI is available."""
-
-    if shutil.which("solhunter-wallet") is not None:
-        return
-
-    print("'solhunter-wallet' command not found. Attempting installation via pip...")
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
-        text=True,
-    )
-    if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
-        print(
-            "Failed to install 'solhunter-wallet'. Please install it manually with "
-            "'pip install solhunter-wallet' and re-run.",
-        )
-        raise SystemExit(1)
-
-
 def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | None = None,
                      mnemonic_path: Path | None = None, active_keypair: str | None = None) -> None:
     """Append startup details to ``startup.log``."""
@@ -122,20 +97,6 @@ def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | No
         return
     for line in lines:
         log_startup(line)
-
-
-def run_quick_setup() -> str | None:
-    """Run the quick setup non-interactively and return new config path."""
-    try:
-        from scripts import quick_setup
-        from solhunter_zero.config import find_config_file
-
-        quick_setup.main(["--auto", "--non-interactive"])
-        return find_config_file()
-    except Exception:
-        return None
-
-
 def check_disk_space(min_bytes: int) -> None:
     """Ensure there is at least ``min_bytes`` free on the current filesystem.
 
@@ -326,49 +287,18 @@ def main(argv: list[str] | None = None) -> int:
         else:
             log_startup("Internet connectivity check passed")
 
-    from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
-    from solhunter_zero.config import load_config, validate_config
-    from solhunter_zero import wallet
-
     cfg_data: dict = {}
-    config_path: Path | None = None
-    keypair_path: Path | None = None
     mnemonic_path: Path | None = None
     active_keypair: str | None = None
-    ran_quick_setup = False
 
-    if not args.skip_setup:
-        try:
-            config_path = ensure_default_config()
-        except (Exception, SystemExit):
-            config_path = None
-        if not config_path or not Path(config_path).exists():
-            cfg_new = run_quick_setup()
-            if cfg_new:
-                config_path = Path(cfg_new)
-            ran_quick_setup = True
-        if not config_path or not Path(config_path).exists():
-            print("Failed to create configuration via quick setup")
-            return 1
-        try:
-            cfg_data = validate_config(load_config(config_path))
-        except Exception:
-            cfg_new = run_quick_setup()
-            if cfg_new:
-                config_path = Path(cfg_new)
-            ran_quick_setup = True
-            if not config_path or not Path(config_path).exists():
-                print("Failed to create configuration via quick setup")
-                return 1
-            cfg_data = validate_config(load_config(config_path))
-        try:
-            ensure_wallet_cli()
-        except SystemExit as exc:
-            return exc.code if isinstance(exc.code, int) else 1
-        info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
-        active_keypair = info.name
-        keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
-        mnemonic_path = info.mnemonic_path
+    if key_info:
+        active_keypair = key_info.name
+        mnemonic_path = key_info.mnemonic_path
+
+    if not args.skip_setup and config_path:
+        from solhunter_zero.config import load_config, validate_config
+
+        cfg_data = validate_config(load_config(config_path))
 
     if args.offline:
         endpoint_status = "offline"
@@ -436,13 +366,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.one_click:
         rest = ["--non-interactive", *rest]
 
-    if not args.skip_deps:
-        ensure_deps(install_optional=args.full_deps)
-        ensure_route_ffi()
-        ensure_depth_service()
-    os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
+    if args.skip_deps:
+        os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
+
+    config_path, key_info, keypair_path = bootstrap_all(
+        install_optional=args.full_deps, one_click=args.one_click
+    )
+
+    os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
+
+    if not args.skip_deps:
+        ensure_route_ffi()
+        ensure_depth_service()
 
     if sys.version_info < (3, 11):
         print(
