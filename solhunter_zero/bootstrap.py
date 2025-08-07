@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from solhunter_zero.bootstrap_utils import (
+    ensure_cargo,
     ensure_deps,
     ensure_depth_service,
     ensure_route_ffi,
@@ -40,5 +41,6 @@ def bootstrap(one_click: bool = False) -> None:
         ensure_keypair()
 
     wallet.ensure_default_keypair()
+    ensure_cargo()
     ensure_route_ffi()
     ensure_depth_service()
