@@ -8,8 +8,9 @@ import platform
 import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Sequence
+
+from .cache_paths import MPS_SENTINEL
 
 METAL_EXTRA_INDEX = [
     "--extra-index-url",
@@ -39,7 +40,6 @@ def _load_torch_versions() -> tuple[str, str]:
     )
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = _load_torch_versions()
-MPS_SENTINEL = Path(__file__).resolve().parent.parent / ".cache" / "torch_mps_ready"
 
 
 def _read_sentinel_versions() -> tuple[str, str] | None:

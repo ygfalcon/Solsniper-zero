@@ -13,6 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib import request
 
+from .cache_paths import MAC_SETUP_MARKER, TOOLS_OK_MARKER
 from .logging_utils import log_startup
 
 try:
@@ -27,9 +28,6 @@ except Exception:  # pragma: no cover - optional import for CI
     TORCHVISION_METAL_VERSION = ""
 
 
-ROOT = Path(__file__).resolve().parent.parent
-MAC_SETUP_MARKER = ROOT / ".cache" / "mac_setup_complete"
-TOOLS_OK_MARKER = ROOT / ".cache" / "macos_tools_ok"
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
