@@ -32,7 +32,8 @@ def main(argv: list[str] | None = None) -> None:
         and gpu["ok"]
         and net["ok"]
     ):
-        sys.exit(1)
+        print("See preflight.log and startup.log for details.")
+        raise SystemExit("Fix the issues and rerun: python scripts/one_click.py")
     launcher.main(argv)
 
 
