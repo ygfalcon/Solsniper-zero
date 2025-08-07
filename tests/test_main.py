@@ -57,8 +57,26 @@ def test_main_invokes_place_order(monkeypatch):
 
     called = {}
 
-    async def fake_place_order(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
-        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+    async def fake_place_order(
+        token,
+        side,
+        amount,
+        price,
+        testnet=False,
+        dry_run=False,
+        keypair=None,
+        connectivity_test=False,
+    ):
+        called["args"] = (
+            token,
+            side,
+            amount,
+            price,
+            testnet,
+            dry_run,
+            keypair,
+            connectivity_test,
+        )
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
@@ -83,7 +101,7 @@ def test_main_invokes_place_order(monkeypatch):
         iterations=1,
     )
 
-    assert called["args"][-2] is True
+    assert called["args"][5] is True
     assert called["args"][0] == "tok"
 
 
@@ -157,8 +175,26 @@ def test_run_iteration_sells(monkeypatch):
 
     called = {}
 
-    async def fake_place_order_async(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
-        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+    async def fake_place_order_async(
+        token,
+        side,
+        amount,
+        price,
+        testnet=False,
+        dry_run=False,
+        keypair=None,
+        connectivity_test=False,
+    ):
+        called["args"] = (
+            token,
+            side,
+            amount,
+            price,
+            testnet,
+            dry_run,
+            keypair,
+            connectivity_test,
+        )
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
@@ -199,8 +235,26 @@ def test_run_iteration_stop_loss(monkeypatch):
 
     called = {}
 
-    async def fake_place_order_async(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
-        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+    async def fake_place_order_async(
+        token,
+        side,
+        amount,
+        price,
+        testnet=False,
+        dry_run=False,
+        keypair=None,
+        connectivity_test=False,
+    ):
+        called["args"] = (
+            token,
+            side,
+            amount,
+            price,
+            testnet,
+            dry_run,
+            keypair,
+            connectivity_test,
+        )
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
@@ -241,8 +295,26 @@ def test_run_iteration_take_profit(monkeypatch):
 
     called = {}
 
-    async def fake_place_order_async(token, side, amount, price, testnet=False, dry_run=False, keypair=None):
-        called["args"] = (token, side, amount, price, testnet, dry_run, keypair)
+    async def fake_place_order_async(
+        token,
+        side,
+        amount,
+        price,
+        testnet=False,
+        dry_run=False,
+        keypair=None,
+        connectivity_test=False,
+    ):
+        called["args"] = (
+            token,
+            side,
+            amount,
+            price,
+            testnet,
+            dry_run,
+            keypair,
+            connectivity_test,
+        )
         return {"order_id": "1"}
 
     monkeypatch.setattr(main_module, "place_order_async", fake_place_order_async)
@@ -324,7 +396,10 @@ def test_discovery_methods(monkeypatch, method, target):
             return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
-    monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
+    async def _fake_place_order(*a, **k):
+        return None
+
+    monkeypatch.setattr(main_module, "place_order_async", _fake_place_order)
 
     async def fake_log_trade(*a, **k):
         pass
@@ -663,7 +738,10 @@ def test_main_uses_agent_manager(monkeypatch, tmp_path):
         return ["tok"]
 
     monkeypatch.setattr(main_module, "scan_tokens_async", fake_scan)
-    monkeypatch.setattr(main_module, "place_order_async", lambda *a, **k: None)
+    async def _fake_place_order2(*a, **k):
+        return None
+
+    monkeypatch.setattr(main_module, "place_order_async", _fake_place_order2)
 
     async def fake_log_trade(*a, **k):
         pass
