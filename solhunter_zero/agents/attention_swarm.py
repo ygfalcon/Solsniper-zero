@@ -2,24 +2,27 @@ from __future__ import annotations
 
 from typing import Sequence, Iterable, Dict, Any
 
-try:
-    import torch
-    import torch.nn as nn
-except ImportError as exc:  # pragma: no cover - optional dependency
-    class _TorchStub:
-        def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for AttentionSwarm"
-            )
-
-    torch = nn = _TorchStub()  # type: ignore
+from ..optional_imports import try_import
 import numpy as np
+
+
+class _TorchStub:
+    def __getattr__(self, name):
+        raise ImportError(
+            "torch is required for AttentionSwarm",
+        )
+
+
+_torch = try_import("torch", stub=_TorchStub())
+if isinstance(_torch, _TorchStub):  # pragma: no cover - optional dependency
+    torch = nn = _torch  # type: ignore
+else:
+    torch = _torch  # type: ignore
+    import torch.nn as nn  # type: ignore
 
 from ..regime import detect_regime
 from ..advanced_memory import AdvancedMemory
 from ..device import get_default_device
-
-
 class AttentionSwarm(nn.Module):
     """Tiny transformer predicting agent weights from ROI history."""
 

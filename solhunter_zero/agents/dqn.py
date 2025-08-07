@@ -11,29 +11,34 @@ from pathlib import Path
 
 import numpy as np
 import solhunter_zero.device as device_module
-try:
-    import torch
-    from torch import nn, optim
-except ImportError as exc:  # pragma: no cover - optional dependency
-    class _TorchStub:
-        class Tensor:
+from ..optional_imports import try_import
+
+
+class _TorchStub:
+    class Tensor:
+        pass
+
+    class device:
+        def __init__(self, *a, **k) -> None:
             pass
 
-        class device:
-            def __init__(self, *a, **k) -> None:
-                pass
-
-        class Module:
-            def __init__(self, *a, **k) -> None:
-                raise ImportError("torch is required for DQN")
-
-        def manual_seed(self, *a, **k):  # pragma: no cover - stub
+    class Module:
+        def __init__(self, *a, **k) -> None:
             raise ImportError("torch is required for DQN")
 
-        def __getattr__(self, name):
-            raise ImportError("torch is required for DQN")
+    def manual_seed(self, *a, **k):  # pragma: no cover - stub
+        raise ImportError("torch is required for DQN")
 
-    torch = nn = optim = _TorchStub()  # type: ignore
+    def __getattr__(self, name):
+        raise ImportError("torch is required for DQN")
+
+
+_torch = try_import("torch", stub=_TorchStub())
+if isinstance(_torch, _TorchStub):  # pragma: no cover - optional dependency
+    torch = nn = optim = _torch  # type: ignore
+else:
+    torch = _torch  # type: ignore
+    from torch import nn, optim  # type: ignore
 
 from . import BaseAgent
 from .memory import MemoryAgent

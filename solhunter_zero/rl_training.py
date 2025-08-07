@@ -11,10 +11,10 @@ from concurrent.futures import ProcessPoolExecutor
 import time
 from collections import deque
 
-try:  # pragma: no cover - optional dependency
-    import psutil
-except Exception:  # pragma: no cover - psutil optional
-    psutil = None  # type: ignore
+from .optional_imports import try_import
+
+psutil = try_import("psutil", stub=None)
+if psutil is None:  # pragma: no cover - psutil optional
     logging.getLogger(__name__).warning(
         "psutil not installed; RL worker scaling will use defaults"
     )
@@ -23,11 +23,11 @@ from .advanced_memory import AdvancedMemory
 from solhunter_zero.device import get_default_device
 from .system import detect_cpu_count
 
-try:
-    from numba import njit  # type: ignore
-
+_numba = try_import("numba", stub=None)
+if _numba is not None:  # pragma: no cover - optional dependency
+    njit = _numba.njit  # type: ignore[attr-defined]
     _NUMBA = True
-except Exception:  # pragma: no cover - optional
+else:  # pragma: no cover - optional
     _NUMBA = False
 
     def njit(*a, **k):  # type: ignore
@@ -36,59 +36,67 @@ except Exception:  # pragma: no cover - optional
 
         return wrapper
 
-
 import numpy as np
 
-try:  # pragma: no cover - optional dependency
-    import torch
-    from torch import nn
-    from torch.utils.data import Dataset, DataLoader
-except ImportError as exc:  # pragma: no cover - optional
-    class _TorchStub:
-        def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for RL training"
-            )
 
-    class _DatasetStub:
-        def __init__(self, *a, **k) -> None:
-            raise ImportError(
-                "torch is required for RL training"
-            )
+class _TorchStub:
+    class Module:
+        pass
 
-    torch = nn = _TorchStub()  # type: ignore
+    def __getattr__(self, name):
+        raise ImportError("torch is required for RL training")
+
+
+class _DatasetStub:
+    def __init__(self, *a, **k) -> None:
+        raise ImportError("torch is required for RL training")
+
+
+_torch = try_import("torch", stub=_TorchStub())
+if isinstance(_torch, _TorchStub):  # pragma: no cover - optional dependency
+    torch = nn = _torch  # type: ignore
     Dataset = DataLoader = _DatasetStub  # type: ignore
-try:
-    from torch.utils.data import WeightedRandomSampler
-except Exception:  # pragma: no cover - optional dependency
     WeightedRandomSampler = None  # type: ignore
+else:
+    torch = _torch  # type: ignore
+    from torch import nn  # type: ignore
+    _data_mod = try_import("torch.utils.data", stub=None)
+    if _data_mod is not None:
+        Dataset = getattr(_data_mod, "Dataset", _DatasetStub)  # type: ignore
+        DataLoader = getattr(_data_mod, "DataLoader", _DatasetStub)  # type: ignore
+        WeightedRandomSampler = getattr(
+            _data_mod, "WeightedRandomSampler", None
+        )  # type: ignore
+    else:
+        Dataset = DataLoader = _DatasetStub  # type: ignore
+        WeightedRandomSampler = None  # type: ignore
+
 from typing import Callable
 
-try:
-    import pytorch_lightning as pl
-except Exception:  # pragma: no cover - optional dependency
 
-    class _Trainer:
-        def __init__(self, *a, **k):
-            pass
+class _Trainer:
+    def __init__(self, *a, **k):
+        pass
 
-        def fit(self, model, data):
-            pass
+    def fit(self, model, data):
+        pass
 
-    class _LightningModule(nn.Module):
-        def save_hyperparameters(self, *args, **kwargs):
-            pass
 
-    class _PL:
-        LightningModule = _LightningModule
-        LightningDataModule = object
-        Trainer = _Trainer
+class _LightningModule(nn.Module):  # type: ignore[misc]
+    def save_hyperparameters(self, *args, **kwargs):
+        pass
 
-        class callbacks:
-            Callback = object
 
-    pl = _PL()
+class _PL:
+    LightningModule = _LightningModule
+    LightningDataModule = object
+    Trainer = _Trainer
 
+    class callbacks:
+        Callback = object
+
+
+pl = try_import("pytorch_lightning", stub=_PL())
 from .offline_data import OfflineData
 from .simulation import predict_price_movement
 from .news import fetch_sentiment
