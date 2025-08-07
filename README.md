@@ -10,11 +10,9 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `./start.py` for a fully automated launch. This script forwards to `scripts/launcher.py` and is the canonical entry point.
-   For convenience, `run.sh` and `start.command` invoke the same launcher.
+2. Run `python start.py` for a fully automated launch. This script forwards to `scripts.launcher.main` and is the canonical entry point.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
-   `start.py`, `run.sh`, `start.command`, and `make start` all forward to this entry point for consistent behaviour across platforms.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
@@ -58,7 +56,7 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running
-  `./start.py` (or the `run.sh` wrapper) performs the same installation
+  `python start.py` performs the same installation
   when dependencies are missing. On Apple Silicon machines the script
   also installs the Metal PyTorch wheel if it isn't already present.
   `python -m solhunter_zero.main --auto` offers identical behaviour.
@@ -108,9 +106,8 @@ The helper wraps the dependency checks and keypair/setup logic used by
 
 ### One-Click macOS M1 Setup
 
-1. **Launch** — In Finder, double-click `start.command` (a wrapper for `scripts/launcher.py`) to begin the automated setup.
-   If the file isn't executable, run `chmod +x start.command` from Terminal and try again.
-   Alternatively, run `make setup` from Terminal to invoke `./start.py --one-click` directly.
+1. **Launch** — From Terminal, run `python start.py --one-click` to begin the automated setup.
+   Alternatively, run `make setup` from Terminal to invoke the same command directly.
 2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  
    Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.
 3. **GPU detection** — The launcher runs `solhunter_zero.device --check-gpu` and sets `TORCH_DEVICE=mps` when an Apple GPU is available.
@@ -120,7 +117,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
     Output from environment preflight checks is written to `preflight.log`, which rotates to
     `preflight.log.1` once it exceeds 1 MB so you can review the previous run.
     Older logs rotate with timestamps for easy troubleshooting.
-5. **Troubleshooting** — If the script exits early, open Terminal and run `./start.command` to view errors.  
+5. **Troubleshooting** — If the script exits early, open Terminal and run `python start.py --one-click` to view errors.
    Common issues include missing network access, Homebrew not on `PATH`, or stale permissions on the script.
 
 3. **Create a configuration file**
@@ -196,7 +193,7 @@ Key discovery options:
 
 ## macOS Setup
 
-macOS users can launch the bot using the bundled `start.command` script.
+macOS users can launch the bot using `python start.py`.
 Double‑clicking it opens a terminal, installs any missing dependencies and
 forwards to the Python launcher for a fully automated start.
 
@@ -224,7 +221,6 @@ forwards to the Python launcher for a fully automated start.
 
 ### Troubleshooting
 
-- **`start.command` cannot be opened** – run `chmod +x start.command` or
   right-click and choose *Open*.
 - **`python` not found** – ensure Python 3.11 is installed and on your
   `PATH`.
@@ -290,7 +286,7 @@ python scripts/paper_test.py --capital 100 --iterations 100
 The `depth_service` crate provides low‑latency order book snapshots and
 direct transaction submission to the Solana RPC. It is required for trading
 and starts automatically when using `make start` or
-`python -m solhunter_zero.main --auto` (or `./start.py` on Unix).
+`python -m solhunter_zero.main --auto` (or `python start.py`).
 
 Install the Rust toolchain if `cargo` isn't available:
 `curl https://sh.rustup.rs -sSf | sh`. More details at
@@ -577,7 +573,7 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
 15. **Run the bot**
    ```bash
-   python -m solhunter_zero.main --auto  # or ./run.sh on Unix
+  python start.py --auto
    ```
 16. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
@@ -630,13 +626,13 @@ profit calculation so routes are ranked based on the borrowed size.
    The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
 Running `scripts/startup.py` handles these steps interactively and forwards any options to the cross-platform entry point
-`./start.py` (or `python -m solhunter_zero.main --auto`), which performs a fully automated launch using the bundled defaults.
+`python start.py` (or `python -m solhunter_zero.main --auto`), which performs a fully automated launch using the bundled defaults.
 
    The script ensures the `solhunter-wallet` command-line tool is available, loads the active configuration (falling back to `config/default.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
 
    You can still run the bot manually with explicit options:
    ```bash
-   ./start.py --dry-run
+   python start.py --dry-run
    # or
    python -m solhunter_zero.main
 
@@ -1008,14 +1004,14 @@ the bot with:
 ```bash
 python -m solhunter_zero.main --config config.toml
 ```
-Or simply use the helper script which installs any missing dependencies:
+Or simply run the helper script which installs any missing dependencies:
 ```bash
-./run.sh
+python start.py
 ```
 This performs the automatic configuration and keypair selection described above.
 Pass any additional CLI options to control the run manually, for example:
 ```bash
-./run.sh --dry-run
+python start.py --dry-run
 ```
 You can customize the database path and the delay between iterations.  The bot
 also saves a FAISS index named `trade.index` next to the database.  The bot can
@@ -1488,7 +1484,7 @@ Loading the compiled variant reduces inference latency by roughly 15%.
 You can also launch the built-in RL daemon directly with GPU acceleration:
 
 ```bash
-./run.sh --daemon --device cuda
+python start.py --daemon --device cuda
 ```
 
 To forward events to a remote bus use the `--event-bus` option when running
@@ -1591,9 +1587,9 @@ This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
 - **Missing keypair** — ensure a valid Solana keypair file is available.
   Set `KEYPAIR_PATH` or `SOLANA_KEYPAIR` to its path or place it in the
   `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so the launcher
-  (`./run.sh` or `python -m solhunter_zero.main --auto`) or the Web UI select the
+ (`python start.py --auto` or `python -m solhunter_zero.main --auto`) or the Web UI select the
   sole available key automatically.
-- **Service not running** — `depth_service` starts automatically with `make start` or `python -m solhunter_zero.main --auto` (or `./run.sh` on Unix). If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
+- **Service not running** — `depth_service` starts automatically with `make start` or `python -m solhunter_zero.main --auto`. If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
 - **Slow routing** — the Rust service computes paths much faster. Leave
   `USE_SERVICE_ROUTE` enabled unless debugging the Python fallback.
 
