@@ -38,6 +38,8 @@ def test_one_click_trading_full_preset(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: 0.0)
     investor_demo.used_trade_types.clear()
 
+    monkeypatch.setattr(investor_demo, "RL_REPORT_DIR", tmp_path)
+
     investor_demo.main(["--preset", "full", "--reports", str(tmp_path)])
 
     assert (tmp_path / "aggregated_summary.json").exists()
