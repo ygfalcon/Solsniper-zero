@@ -126,7 +126,6 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
-    device.initialize_gpu()
 
     if "--one-click" not in argv:
         argv.insert(0, "--one-click")

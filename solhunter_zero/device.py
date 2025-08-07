@@ -351,18 +351,6 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
         return False
 
 
-def verify_gpu() -> tuple[bool, str]:
-    """Return a tuple describing GPU availability.
-
-    The check delegates to :func:`detect_gpu` without attempting any
-    installation.  A ``True`` result indicates a functional GPU backend
-    while ``False`` means no usable GPU was found.
-    """
-
-    ok = detect_gpu(_attempt_install=False)
-    return ok, "GPU available" if ok else "GPU unavailable"
-
-
 def get_gpu_backend() -> str | None:
     """Return the default GPU backend name if available."""
 
@@ -452,40 +440,26 @@ def ensure_gpu_env() -> dict[str, str]:
 
 
 def verify_gpu() -> tuple[bool, str]:
-    """Verify GPU availability and configure environment variables.
+    """Verify GPU availability and perform a minimal tensor round-trip.
 
-    The function ensures :func:`ensure_gpu_env` has been executed so
-    ``SOLHUNTER_GPU_*`` variables are always populated.  If a GPU backend is
-    detected the returned message indicates the device in use, otherwise a hint
-    explaining how to enable GPU support is provided.
+    The helper configures environment variables via :func:`ensure_gpu_env`,
+    forcing ``PYTORCH_ENABLE_MPS_FALLBACK=1`` when the Metal backend is used.
+    If a supported GPU backend is detected a tiny tensor is moved to the GPU
+    and back to ensure the backend is operational.  A tuple of ``(status,
+    message)`` is returned describing the outcome.
     """
 
-    hint = (
-        "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
-        "scripts/mac_setup.py to enable GPU support"
-    )
-
-    env_available = os.environ.get("SOLHUNTER_GPU_AVAILABLE")
-    env_device = os.environ.get("SOLHUNTER_GPU_DEVICE")
-    if env_available is not None:
-        if env_available == "1":
-            return True, f"Using GPU device: {env_device or 'unknown'}"
-        return False, hint
+    env = ensure_gpu_env()
+    dev = env.get("TORCH_DEVICE", "cpu")
+    if dev not in ("mps", "cuda"):
+        return False, "GPU unavailable"
 
     try:
-        if not detect_gpu():
-            ensure_gpu_env()
-            return False, hint
-        try:
-            dev = get_default_device("auto")
-        except Exception as exc:
-            ensure_gpu_env()
-            return False, f"GPU detected but unusable: {exc}"
-        env = ensure_gpu_env()
-        return True, f"Using GPU device: {env.get('TORCH_DEVICE', dev)}"
-    except Exception as exc:  # pragma: no cover - defensive
-        ensure_gpu_env()
-        return False, str(exc)
+        torch.ones(1, device=dev).cpu()
+    except Exception as exc:
+        return False, f"Tensor round-trip failed on {dev}: {exc}"
+
+    return True, f"Using GPU device: {dev}"
 
 
 _GPU_LOGGED = False

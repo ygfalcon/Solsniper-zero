@@ -815,6 +815,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
 
+    bootstrap.device.initialize_gpu()
     bootstrap.bootstrap(one_click=True)
 
     assert os.environ.get("TORCH_DEVICE") == "mps"
