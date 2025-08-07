@@ -18,25 +18,12 @@ import json
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
+from solhunter_zero.logging_utils import rotate_log, log_startup  # noqa: E402
 
 MAX_STARTUP_LOG_SIZE = 1_000_000  # 1 MB
+MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
-
-def rotate_startup_log(path: Path = ROOT / "startup.log") -> None:
-    """Rotate or truncate the startup log before writing new output."""
-
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > MAX_STARTUP_LOG_SIZE:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
-
-rotate_startup_log()
+rotate_log(ROOT / "startup.log", MAX_STARTUP_LOG_SIZE)
 
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
@@ -50,7 +37,6 @@ from solhunter_zero.bootstrap_utils import (
 )
 
 from solhunter_zero import env  # noqa: E402
-from solhunter_zero.logging_utils import log_startup  # noqa: E402
 
 env.load_env_file(ROOT / ".env")
 os.environ.setdefault("DEPTH_SERVICE", "true")
@@ -67,30 +53,6 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
             "Please use the unified entry point (scripts/launcher.py or start.command)."
         )
         raise SystemExit(msg)
-
-MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
-
-
-def rotate_preflight_log(
-    path: Path | None = None, max_bytes: int = MAX_PREFLIGHT_LOG_SIZE
-) -> None:
-    """Rotate or truncate the preflight log before writing new output.
-
-    When ``path`` exists and exceeds ``max_bytes`` it is moved to ``.1``.
-    Otherwise the file is truncated to start fresh for the current run.
-    """
-
-    path = path or ROOT / "preflight.log"
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > max_bytes:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
 
 
 def ensure_config() -> Path:
@@ -518,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if not args.skip_preflight:
-        rotate_preflight_log()
+        rotate_log(ROOT / "preflight.log", MAX_PREFLIGHT_LOG_SIZE)
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
         with (
