@@ -264,8 +264,7 @@ def ensure_deps(
 
     if install_optional and extra_index:
         try:
-            if not device.MPS_SENTINEL.exists():
-                device.ensure_torch_with_metal()
+            device.initialize_gpu()
         except Exception as exc:
             print(str(exc))
             raise SystemExit(str(exc))

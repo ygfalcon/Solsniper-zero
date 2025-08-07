@@ -76,10 +76,9 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
         cuda=types.SimpleNamespace(is_available=lambda: False),
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
-    monkeypatch.setattr(device_module, "ensure_torch_with_metal", lambda: None)
     with caplog.at_level("WARNING"):
         assert device_module.detect_gpu() is False
-    assert "CUDA backend not available" in caplog.text
+    assert "MPS backend not built" in caplog.text
 
 
 def test_detect_gpu_tensor_failure(monkeypatch, caplog):
@@ -125,37 +124,6 @@ def test_ensure_torch_with_metal_failure_does_not_write_sentinel(
             device_module.ensure_torch_with_metal()
     assert manual_cmd in caplog.text
     assert not sentinel.exists()
-
-
-def test_ensure_torch_with_metal_rewrites_sentinel_on_version_change(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
-    sentinel = tmp_path / "sentinel"
-    sentinel.write_text("1.0.0\n1.0.0\n")
-    monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
-    monkeypatch.setattr(device_module, "torch", None, raising=False)
-
-    def fake_run_with_timeout(cmd, timeout):
-        assert not sentinel.exists()
-        return device_module.InstallStatus(True, "")
-
-    monkeypatch.setattr(device_module, "_run_with_timeout", fake_run_with_timeout)
-    fake_torch = types.SimpleNamespace(
-        backends=types.SimpleNamespace(
-            mps=types.SimpleNamespace(is_available=lambda: True)
-        )
-    )
-    monkeypatch.setattr(device_module.importlib, "invalidate_caches", lambda: None)
-    monkeypatch.setattr(device_module.importlib, "import_module", lambda name: fake_torch)
-
-    device_module.ensure_torch_with_metal()
-    assert sentinel.exists()
-    assert (
-        sentinel.read_text()
-        == f"{TORCH_METAL_VERSION}\n{TORCHVISION_METAL_VERSION}\n"
-    )
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
@@ -205,7 +173,7 @@ def test_configure_gpu_env_mps_unavailable(monkeypatch):
     assert "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ
 
 
-def test_initialize_gpu_installs_before_verify(monkeypatch):
+def test_initialize_gpu_installs_before_verify(monkeypatch, tmp_path):
     call_order: list[str] = []
 
     def fake_install() -> None:
@@ -217,6 +185,10 @@ def test_initialize_gpu_installs_before_verify(monkeypatch):
     def fake_env() -> dict[str, str]:
         return {"SOLHUNTER_GPU_AVAILABLE": "1", "SOLHUNTER_GPU_DEVICE": "mps", "TORCH_DEVICE": "mps"}
 
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module, "_sentinel_matches", lambda: False)
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", tmp_path / "sentinel")
     monkeypatch.setattr(device_module, "ensure_torch_with_metal", fake_install)
     monkeypatch.setattr(device_module, "verify_gpu", fake_verify)
     monkeypatch.setattr(device_module, "ensure_gpu_env", fake_env)
@@ -226,12 +198,46 @@ def test_initialize_gpu_installs_before_verify(monkeypatch):
     assert call_order == ["install", "verify"]
 
 
-def test_initialize_gpu_install_failure(monkeypatch):
+def test_initialize_gpu_install_failure(monkeypatch, tmp_path):
     def fake_install() -> None:
         raise RuntimeError("boom")
 
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(device_module, "_sentinel_matches", lambda: False)
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", tmp_path / "sentinel")
     monkeypatch.setattr(device_module, "ensure_torch_with_metal", fake_install)
     monkeypatch.setattr(device_module, "_GPU_LOGGED", True)
 
     with pytest.raises(RuntimeError, match="scripts/mac_setup.py"):
         device_module.initialize_gpu()
+
+
+def test_initialize_gpu_stale_sentinel_installs_once(monkeypatch, tmp_path):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("1.0.0\n1.0.0\n")
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
+
+    calls: list[str] = []
+
+    def fake_install() -> None:
+        assert not sentinel.exists()
+        calls.append("install")
+
+    monkeypatch.setattr(device_module, "ensure_torch_with_metal", fake_install)
+    monkeypatch.setattr(device_module, "verify_gpu", lambda: None)
+    monkeypatch.setattr(
+        device_module,
+        "ensure_gpu_env",
+        lambda: {
+            "SOLHUNTER_GPU_AVAILABLE": "1",
+            "SOLHUNTER_GPU_DEVICE": "mps",
+            "TORCH_DEVICE": "mps",
+        },
+    )
+    monkeypatch.setattr(device_module, "_GPU_LOGGED", True)
+
+    device_module.initialize_gpu()
+    assert calls == ["install"]
