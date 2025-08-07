@@ -344,6 +344,8 @@ def test_full_system_integration(monkeypatch, tmp_path):
     mem_path = tmp_path / "mem.db"
     pf_path = tmp_path / "pf.json"
 
+    monkeypatch.setattr(main_module, "ensure_connectivity", lambda **_: None)
+
     main_module.run_auto(
         memory_path=f"sqlite:///{mem_path}",
         portfolio_path=str(pf_path),

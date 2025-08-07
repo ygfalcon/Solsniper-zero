@@ -52,6 +52,12 @@ def test_main_invokes_place_order(monkeypatch):
     monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
     monkeypatch.setattr(main_module.asyncio, "sleep", lambda *_a, **_k: None)
+    async def _noop(*_a, **_k):
+        return None
+    monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop)
+    monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
+    monkeypatch.setattr(main_module, "fetch_dex_metrics_async", lambda *_a, **_k: {})
+    monkeypatch.setattr(main_module.depth_client, "listen_depth_ws", _noop)
 
     main_module.main(
         memory_path="sqlite:///:memory:",
