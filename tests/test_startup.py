@@ -624,6 +624,7 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        apply_env_overrides=lambda cfg: cfg,
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
@@ -664,6 +665,7 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        apply_env_overrides=lambda cfg: cfg,
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
@@ -855,6 +857,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
+        apply_env_overrides=lambda cfg: cfg,
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
@@ -866,3 +869,24 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
     ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     assert ret == 5
+
+
+def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
+    from scripts import startup
+    import types, subprocess, shutil, sys
+
+    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+
+    calls: dict[str, list[str]] = {}
+
+    def fake_run(cmd, **kwargs):
+        calls["cmd"] = cmd
+        return types.SimpleNamespace(returncode=1)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit):
+        startup.ensure_wallet_cli()
+
+    assert calls["cmd"][:4] == [sys.executable, "-m", "pip", "install"]
+    assert "Please install it manually" in capsys.readouterr().out
