@@ -9,23 +9,23 @@ def _script_lines(name: str) -> list[str]:
     return (REPO_ROOT / name).read_text().splitlines()
 
 
-def test_run_sh_invokes_one_click():
+def test_run_sh_invokes_launcher():
     lines = _script_lines("run.sh")
-    assert any("scripts/one_click.py" in line for line in lines)
+    assert any("scripts/launcher.py" in line for line in lines)
 
 
-def test_start_command_invokes_one_click():
+def test_start_command_invokes_launcher():
     lines = _script_lines("start.command")
-    assert any("scripts/one_click.py" in line for line in lines)
+    assert any("scripts/launcher.py" in line for line in lines)
 
 
-def test_start_py_invokes_one_click(tmp_path):
+def test_start_py_invokes_launcher(tmp_path):
     start_src = REPO_ROOT / "start.py"
     tmp_start = tmp_path / "start.py"
     tmp_start.write_text(start_src.read_text())
 
     called = tmp_path / "called.txt"
-    stub = tmp_path / "scripts" / "one_click.py"
+    stub = tmp_path / "scripts" / "launcher.py"
     stub.parent.mkdir()
     stub.write_text(
         "import sys, pathlib\n"
@@ -36,4 +36,3 @@ def test_start_py_invokes_one_click(tmp_path):
     subprocess.run([sys.executable, str(tmp_start), "EXTRA"], check=True)
 
     assert called.read_text().split() == ["EXTRA"]
-
