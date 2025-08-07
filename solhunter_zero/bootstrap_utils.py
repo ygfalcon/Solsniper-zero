@@ -266,7 +266,7 @@ def ensure_deps(
 
     need_install = bool(req) or need_cli or (install_optional and (opt or extra_index))
     if need_install:
-        from scripts import startup
+        from scripts import preflight
         import contextlib
         import io
 
@@ -274,7 +274,7 @@ def ensure_deps(
             io.StringIO()
         ):
             try:
-                startup.check_internet()
+                preflight.check_internet()
             except SystemExit as exc:
                 raise SystemExit(
                     "Unable to establish an internet connection; aborting."

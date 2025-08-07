@@ -116,65 +116,6 @@ def run_quick_setup() -> str | None:
         return find_config_file()
     except Exception:
         return None
-
-
-def check_disk_space(min_bytes: int) -> None:
-    """Ensure there is at least ``min_bytes`` free on the current filesystem.
-
-    The check uses the repository root path to determine available free space.
-    If the requirement is not met, an instructive message is printed and the
-    process exits.
-    """
-
-    try:
-        _, _, free = shutil.disk_usage(ROOT)
-    except OSError as exc:  # pragma: no cover - unexpected failure
-        print(f"Unable to determine free disk space: {exc}")
-        raise SystemExit(1)
-
-    if free < min_bytes:
-        required_gb = min_bytes / (1024 ** 3)
-        free_gb = free / (1024 ** 3)
-        print(
-            f"Insufficient disk space: {free_gb:.2f} GB available,"
-            f" {required_gb:.2f} GB required."
-        )
-        print("Please free up disk space and try again.")
-        raise SystemExit(1)
-
-
-def check_internet(url: str = "https://example.com") -> None:
-    """Ensure basic internet connectivity by reaching a known host.
-
-    The function performs a simple ``GET`` request to ``url`` with
-    exponential backoff.  If all attempts fail, startup is aborted with a
-    clear error message.
-    """
-
-    import urllib.request
-    import urllib.error
-    import time
-
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(url, timeout=5) as resp:  # nosec B310
-                resp.read()
-                return
-        except Exception as exc:  # pragma: no cover - network failure
-            if attempt == 2:
-                print(
-                    f"Failed to reach {url} after 3 attempts: {exc}. "
-                    "Check your internet connection."
-                )
-                raise SystemExit(1)
-            wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
-                f"Retrying in {wait} seconds..."
-            )
-            time.sleep(wait)
-
-
 def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
@@ -289,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     # Run early environment checks before any heavy work
     print("Checking disk space...")
     try:
-        check_disk_space(1 << 30)
+        preflight.check_disk_space(1 << 30)
     except SystemExit:
         log_startup("Disk space check failed")
         raise
@@ -301,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("Checking internet connectivity...")
         try:
-            check_internet()
+            preflight.check_internet()
         except SystemExit:
             log_startup("Internet connectivity check failed")
             raise
@@ -387,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
         from solhunter_zero.bootstrap import bootstrap
         import re
 
-        check_disk_space(1 << 30)
+        preflight.check_disk_space(1 << 30)
         b_code = 0
         try:
             bootstrap(one_click=True)
