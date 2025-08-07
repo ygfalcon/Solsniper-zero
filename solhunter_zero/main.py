@@ -177,6 +177,42 @@ def ensure_connectivity(*, offline: bool = False) -> None:
     asyncio.run(_check_ws())
 
 
+def validate_environment(*, require_keypair: bool = True) -> None:
+    """Ensure required environment variables are present and well formed.
+
+    Parameters
+    ----------
+    require_keypair:
+        Skip keypair validation when ``False``. Useful for dry-run modes
+        where no signing is needed.
+    """
+
+    from urllib.parse import urlparse
+
+    rpc_url = os.getenv("SOLANA_RPC_URL")
+    if not rpc_url:
+        raise RuntimeError("SOLANA_RPC_URL is not set")
+    parsed = urlparse(rpc_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise RuntimeError(f"SOLANA_RPC_URL '{rpc_url}' is malformed")
+
+    if not require_keypair:
+        return
+
+    keypair = os.getenv("KEYPAIR_PATH") or os.getenv("SOLANA_KEYPAIR")
+    if not keypair:
+        raise RuntimeError("KEYPAIR_PATH is not set")
+
+    path = Path(keypair).expanduser()
+    if not path.is_file():
+        raise RuntimeError(f"Keypair file not found at {path}")
+
+    try:
+        wallet.load_keypair(str(path))
+    except Exception as exc:  # pragma: no cover - rare errors
+        raise RuntimeError(f"Invalid keypair file at {path}: {exc}") from exc
+
+
 # Load configuration at startup so modules relying on environment variables
 # pick up the values from config files or environment.
 _cfg = apply_env_overrides(load_config())
@@ -691,6 +727,9 @@ def main(
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)
+    if keypair_path:
+        os.environ["KEYPAIR_PATH"] = keypair_path
+    validate_environment(require_keypair=not dry_run)
     ensure_connectivity(offline=offline or dry_run)
     metrics_aggregator.start()
 
@@ -1171,6 +1210,11 @@ def run_auto(**kwargs) -> None:
         os.environ["KEYPAIR_PATH"] = os.path.join(
             wallet.KEYPAIR_DIR, active_name + ".json"
         )
+
+    if kwargs.get("keypair_path"):
+        os.environ["KEYPAIR_PATH"] = kwargs["keypair_path"]
+
+    validate_environment(require_keypair=not kwargs.get("dry_run", False))
 
     try:
         main(config_path=cfg_path, **kwargs)
