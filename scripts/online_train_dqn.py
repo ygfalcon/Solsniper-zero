@@ -4,7 +4,7 @@ import asyncio
 from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-from solhunter_zero.device import get_default_device
+import solhunter_zero.device as device
 
 
 async def main() -> None:
@@ -16,11 +16,11 @@ async def main() -> None:
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 
-    device = get_default_device(args.device)
+    dev = device.get_default_device(args.device)
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)
-    agent = DQNAgent(memory_agent=mem_agent, model_path=args.model, replay_url=args.replay, device=device)
+    agent = DQNAgent(memory_agent=mem_agent, model_path=args.model, replay_url=args.replay, device=dev)
     agent.start_online_learning(interval=args.interval)
     await asyncio.Event().wait()
 

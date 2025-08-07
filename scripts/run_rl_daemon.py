@@ -7,7 +7,7 @@ from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-from solhunter_zero.device import get_default_device
+import solhunter_zero.device as device
 
 
 async def main() -> None:
@@ -24,7 +24,7 @@ async def main() -> None:
     parser.add_argument("--no-hierarchical-rl", action="store_true")
     args = parser.parse_args()
 
-    device = get_default_device(args.device)
+    dev = device.get_default_device(args.device)
     if args.event_bus:
         os.environ["EVENT_BUS_URL"] = args.event_bus
 
@@ -35,13 +35,13 @@ async def main() -> None:
         memory_agent=mem_agent,
         model_path=args.dqn_model,
         replay_url=args.replay,
-        device=device,
+        device=dev,
     )
     ppo_agent = PPOAgent(
         memory_agent=mem_agent,
         data_url=f"sqlite:///{args.data}",
         model_path=args.ppo_model,
-        device=device,
+        device=dev,
     )
 
     dqn_daemon = RLDaemon(
@@ -49,7 +49,7 @@ async def main() -> None:
         data_path=args.data,
         model_path=args.dqn_model,
         algo="dqn",
-        device=device,
+        device=dev,
         agents=[dqn_agent],
         distributed_rl=args.distributed_rl,
         hierarchical_rl=not args.no_hierarchical_rl,
@@ -59,7 +59,7 @@ async def main() -> None:
         data_path=args.data,
         model_path=args.ppo_model,
         algo="ppo",
-        device=device,
+        device=dev,
         agents=[ppo_agent],
         distributed_rl=args.distributed_rl,
         hierarchical_rl=not args.no_hierarchical_rl,

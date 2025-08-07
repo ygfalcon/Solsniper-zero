@@ -4,7 +4,7 @@ import asyncio
 from solhunter_zero.agents.ppo_agent import PPOAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.memory import Memory
-from solhunter_zero.device import get_default_device
+import solhunter_zero.device as device
 
 
 async def main() -> None:
@@ -16,11 +16,11 @@ async def main() -> None:
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 
-    device = get_default_device(args.device)
+    dev = device.get_default_device(args.device)
 
     mem = Memory(args.memory)
     mem_agent = MemoryAgent(mem)
-    agent = PPOAgent(memory_agent=mem_agent, data_url=args.data, model_path=args.model, device=device)
+    agent = PPOAgent(memory_agent=mem_agent, data_url=args.data, model_path=args.model, device=dev)
     agent.start_online_learning(interval=args.interval)
     await asyncio.Event().wait()
 
