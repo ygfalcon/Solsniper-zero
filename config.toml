@@ -121,6 +121,7 @@ broker_url = ""  # optional Redis or NATS endpoint
 broker_urls = "redis://localhost:6379"  # comma-separated list of broker URLs
 replicate_trades = false  # subscribe to trade_logged events when true
 memory_sync_interval = 5.0  # seconds between trade sync requests
+memory_snapshot_path = ""  # optional path to JSON snapshot of trades
 weights_path = "weights.json"
 evolve_interval = 1
 mutation_threshold = 0.0
