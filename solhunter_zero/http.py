@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 import aiohttp
 import json as _json_std  # type: ignore
 
@@ -8,6 +9,8 @@ from .optional_imports import try_import
 
 _json = try_import("orjson", stub=_json_std)  # type: ignore
 USE_ORJSON = _json is not _json_std
+
+logger = logging.getLogger(__name__)
 
 
 def dumps(obj: object) -> bytes:
@@ -49,7 +52,7 @@ def check_endpoint(url: str, retries: int = 3) -> None:
             if attempt == retries - 1:
                 raise
             wait = 2**attempt
-            print(
+            logger.warning(
                 f"Attempt {attempt + 1} failed for {url}: {exc}. Retrying in {wait} seconds..."
             )
             time.sleep(wait)
