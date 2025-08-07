@@ -50,6 +50,13 @@ def test_startup_mac_m1(monkeypatch):
 
     monkeypatch.setattr("scripts.preflight.main", lambda: None)
     monkeypatch.setattr(startup.subprocess, "run", lambda cmd: types.SimpleNamespace(returncode=0))
+    from solhunter_zero import bootstrap_checks
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
 
     code = startup.run(["--one-click", "--self-test"])
     assert code == 0

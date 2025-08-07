@@ -83,6 +83,11 @@ def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
     monkeypatch.setattr(
         startup, "ensure_deps", lambda install_optional=False: (_ for _ in ()).throw(SystemExit(2))
     )
+    from solhunter_zero import bootstrap_checks
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
     code = startup.run([])
     out = capsys.readouterr().out.lower()
     assert code == 2
@@ -100,6 +105,13 @@ def _prep_startup(monkeypatch, tmp_path):
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
     monkeypatch.setattr(startup, "torch", dummy_torch, raising=False)
+    from solhunter_zero import bootstrap_checks
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
 
 
 def test_startup_collects_diagnostics(monkeypatch, tmp_path, capsys):

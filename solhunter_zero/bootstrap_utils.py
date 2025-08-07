@@ -203,12 +203,12 @@ def ensure_deps(*, install_optional: bool = False) -> None:
 
     need_install = bool(req) or (install_optional and (opt or extra_index))
     if need_install:
-        from scripts import startup
+        from solhunter_zero import bootstrap_checks
         import contextlib
         import io
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             try:
-                startup.check_internet()
+                bootstrap_checks.check_internet()
             except SystemExit as exc:
                 raise SystemExit("Unable to establish an internet connection; aborting.") from exc
 

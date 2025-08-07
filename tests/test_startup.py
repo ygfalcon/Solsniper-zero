@@ -599,6 +599,14 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
+    from solhunter_zero import bootstrap_checks, bootstrap
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
+
     ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     assert "endpoints" in called
     assert ret == 0
@@ -627,6 +635,14 @@ def test_main_skips_endpoint_check(monkeypatch):
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+
+    from solhunter_zero import bootstrap_checks, bootstrap
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
 
     ret = startup.main([
         "--skip-deps",
@@ -662,6 +678,14 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
+    from solhunter_zero import bootstrap_checks, bootstrap
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
+
     with pytest.raises(SystemExit) as exc:
         startup.main([
             "--one-click",
@@ -695,6 +719,14 @@ def test_main_preflight_failure(monkeypatch, capsys):
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
     if log_file.exists():
         log_file.unlink()
+
+    from solhunter_zero import bootstrap_checks, bootstrap
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
 
     ret = startup.main([
         "--one-click",
@@ -750,6 +782,15 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
+    from solhunter_zero import bootstrap_checks, bootstrap
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
+    monkeypatch.setattr(bootstrap, "load_config", lambda: {})
+    monkeypatch.setattr(bootstrap, "validate_config", lambda cfg: cfg)
 
     bootstrap.bootstrap(one_click=True)
 
@@ -775,6 +816,12 @@ def test_wallet_cli_failure_propagates(monkeypatch):
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+
+    from solhunter_zero import bootstrap_checks
+    monkeypatch.setattr(bootstrap_checks, "check_internet", lambda: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(bootstrap_checks, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(bootstrap_checks, "check_disk_space", lambda mb: None)
 
     def fail_wallet():
         raise SystemExit(5)
