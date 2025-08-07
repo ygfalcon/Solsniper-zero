@@ -32,6 +32,7 @@ from solhunter_zero.service_launcher import (  # noqa: E402
     start_rl_daemon,
     wait_for_depth_ws,
 )
+from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 
 if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     from solhunter_zero import autopilot
@@ -111,6 +112,7 @@ except OSError as exc:
     sys.exit(1)
 data_sync.start_scheduler(interval=interval, db_path=db_path)
 
+ensure_cargo()
 try:
     depth_proc = start_depth_service(cfg, stream_stderr=True)
     PROCS.append(depth_proc)
