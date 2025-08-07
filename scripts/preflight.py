@@ -56,7 +56,14 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("GPU", check_gpu),
 ]
 
-_MIN_BAL = float(os.getenv("MIN_STARTING_BALANCE", "0") or 0)
+_MIN_BAL_STR = os.getenv("MIN_STARTING_BALANCE", "0")
+try:
+    _MIN_BAL = float(_MIN_BAL_STR or 0)
+except ValueError:
+    log_startup(
+        f"WARNING: invalid MIN_STARTING_BALANCE '{_MIN_BAL_STR}' - defaulting to 0"
+    )
+    _MIN_BAL = 0.0
 if _MIN_BAL > 0:
     CHECKS.append(("Balance", lambda: check_wallet_balance(_MIN_BAL)))
 
