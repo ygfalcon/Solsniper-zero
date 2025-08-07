@@ -151,6 +151,25 @@ def _pip_install(*args: str, retries: int = 3) -> None:
     raise SystemExit(result.returncode)
 
 
+def _package_missing(pkg: str) -> bool:
+    """Return ``True`` if *pkg* is not installed.
+
+    The check uses ``pip show`` which is fast and avoids unnecessary
+    installations.  When a package is already present a message is logged to
+    ``startup.log`` for transparency.
+    """
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "show", pkg],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode == 0:
+        log_startup(f"Skipping installation of {pkg}; already satisfied")
+        return False
+    return True
+
+
 def ensure_deps(
     *,
     install_optional: bool = False,
@@ -193,6 +212,13 @@ def ensure_deps(
         print(
             "Optional modules missing: " + ", ".join(opt) + " (features disabled).",
         )
+
+    # Filter out packages that are already satisfied according to pip.
+    req = [m for m in req if _package_missing(m.replace("_", "-"))]
+    if install_optional:
+        opt = [m for m in opt if _package_missing(m.replace("_", "-"))]
+    else:
+        opt = []
 
     need_cli = ensure_wallet_cli and shutil.which("solhunter-wallet") is None
     need_install = bool(req) or need_cli or (install_optional and opt)
@@ -285,18 +311,19 @@ def ensure_deps(
         }
         mods = set(opt)
         extras_pkgs: list[str] = []
-        if "orjson" in mods:
+        if "orjson" in mods and _package_missing("fastjson"):
             extras_pkgs.append("fastjson")
-        if {"lz4", "zstandard"} & mods:
+        if {"lz4", "zstandard"} & mods and _package_missing("fastcompress"):
             extras_pkgs.append("fastcompress")
-        if "msgpack" in mods:
+        if "msgpack" in mods and _package_missing("msgpack"):
             extras_pkgs.append("msgpack")
         if extras_pkgs:
             _pip_install(f".[{','.join(extras_pkgs)}]", *extra_index)
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
-            _pip_install(pkg, *extra_index)
+            if _package_missing(pkg):
+                _pip_install(pkg, *extra_index)
 
         missing_opt = [m for m in opt if importlib.util.find_spec(m) is None]
         if missing_opt:
