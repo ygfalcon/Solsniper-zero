@@ -158,6 +158,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     if platform.system() == "Darwin":
         from scripts import mac_setup
         report = mac_setup.prepare_macos_env(non_interactive=True)
+        mac_setup.apply_brew_env()
         if not report.get("success"):
             for step, info in report.get("steps", {}).items():
                 if info.get("status") == "error":
