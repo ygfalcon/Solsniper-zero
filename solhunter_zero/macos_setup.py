@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import platform
 import shutil
@@ -15,6 +16,7 @@ from urllib import request
 
 from .cache_paths import MAC_SETUP_MARKER, TOOLS_OK_MARKER
 from .logging_utils import log_startup
+from .paths import ROOT
 
 try:
     from solhunter_zero.device import (
@@ -27,6 +29,16 @@ except Exception:  # pragma: no cover - optional import for CI
     METAL_EXTRA_INDEX = []
     TORCH_METAL_VERSION = ""
     TORCHVISION_METAL_VERSION = ""
+
+REPORT_PATH = ROOT / "macos_setup_report.json"
+
+
+def _write_report(report: dict[str, object]) -> None:
+    """Persist the macOS setup report to ``REPORT_PATH``."""
+    try:
+        REPORT_PATH.write_text(json.dumps(report, indent=2))
+    except Exception:
+        pass
 
 
 
@@ -285,6 +297,7 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     else:
         log_startup("mac setup failed")
 
+    _write_report(report)
     return report
 
 
@@ -298,7 +311,9 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     """
 
     if platform.system() != "Darwin" or platform.machine() != "arm64":
-        return {"steps": {}, "success": True, "missing": []}
+        report = {"steps": {}, "success": True, "missing": []}
+        _write_report(report)
+        return report
 
     def missing() -> list[str]:
         found: list[str] = []
@@ -324,13 +339,19 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
         if not TOOLS_OK_MARKER.exists():
             TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
             TOOLS_OK_MARKER.write_text("ok")
-        return {"steps": {}, "success": True, "missing": []}
+        report = {"steps": {}, "success": True, "missing": []}
+        _write_report(report)
+        return report
     if TOOLS_OK_MARKER.exists() and not missing_tools:
-        return {"steps": {}, "success": True, "missing": []}
+        report = {"steps": {}, "success": True, "missing": []}
+        _write_report(report)
+        return report
     if not missing_tools:
         TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
         TOOLS_OK_MARKER.write_text("ok")
-        return {"steps": {}, "success": True, "missing": []}
+        report = {"steps": {}, "success": True, "missing": []}
+        _write_report(report)
+        return report
 
     print(
         "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
@@ -357,6 +378,7 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
                 fix = MANUAL_FIXES.get(step)
                 if fix:
                     print(f"Manual fix for {step}: {fix}")
+    _write_report(report)
     return report
 
 

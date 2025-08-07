@@ -208,6 +208,7 @@ forwards to the Python launcher for a fully automated start.
    ```bash
    ./scripts/mac_setup.py
    ```
+   The run writes a machine-readable summary to `macos_setup_report.json` so you can review each step's result without scanning the full log.
 2. The startup script automatically installs the Metal-enabled PyTorch build on Apple Silicon. To install manually, run:
    ```bash
    pip install torch==<torch_metal_version> torchvision==<torchvision_metal_version> \
