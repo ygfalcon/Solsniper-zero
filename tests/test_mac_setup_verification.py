@@ -44,6 +44,7 @@ fi
     env['PATH'] = f"{bin_dir}:/usr/bin:/bin"
     env['HOME'] = str(tmp_path)
     env['SHELL'] = '/bin/bash'
+    env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
 
     result = subprocess.run([sys.executable, str(mac_setup), '--non-interactive'], cwd=tmp_path, env=env, capture_output=True, text=True)
 

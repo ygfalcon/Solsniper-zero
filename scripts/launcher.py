@@ -41,7 +41,7 @@ def find_python() -> str:
 
     If the current interpreter is already adequate, it is returned. Otherwise
     search common locations including ``.venv`` and system ``PATH``. On macOS
-    ``solhunter_zero.mac_env.prepare_macos_env`` is invoked once to provision
+    ``solhunter_zero.macos_setup.prepare_macos_env`` is invoked once to provision
     the interpreter and required toolchain.
     """
 
@@ -71,7 +71,7 @@ def find_python() -> str:
     if platform.system() == "Darwin":
         sys.path.insert(0, str(ROOT))
         try:
-            from solhunter_zero.mac_env import prepare_macos_env  # type: ignore
+            from solhunter_zero.macos_setup import prepare_macos_env  # type: ignore
         except Exception:
             prepare_macos_env = None  # type: ignore
         if prepare_macos_env is not None:
@@ -79,7 +79,7 @@ def find_python() -> str:
                 "Python 3.11 not found; running macOS setup...",
                 file=sys.stderr,
             )
-            prepare_macos_env(non_interactive=True, force=True)
+            prepare_macos_env(non_interactive=True)
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
                 if path and _check_python(path):
@@ -88,7 +88,7 @@ def find_python() -> str:
     message = "Python 3.11 or higher is required."
     if platform.system() == "Darwin":
         message += (
-            " Run 'python -c \"from solhunter_zero.mac_env import prepare_macos_env; "
+            " Run 'python -c \"from solhunter_zero.macos_setup import prepare_macos_env; "
             "prepare_macos_env()\"' to install Python 3.11."
         )
     else:

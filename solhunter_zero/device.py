@@ -462,7 +462,7 @@ def verify_gpu() -> tuple[bool, str]:
 
     hint = (
         "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
-        "scripts/mac_setup.py to enable GPU support"
+        "python -c 'from solhunter_zero.macos_setup import prepare_macos_env; prepare_macos_env()' to enable GPU support"
     )
 
     env_available = os.environ.get("SOLHUNTER_GPU_AVAILABLE")
