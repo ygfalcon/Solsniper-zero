@@ -8,6 +8,7 @@ from solhunter_zero.config import (
     save_config,
     validate_config,
     find_config_file,
+    get_env,
 )
 from solhunter_zero.event_bus import subscribe
 
@@ -167,12 +168,12 @@ def test_set_env_from_config(monkeypatch):
     monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
     monkeypatch.setenv("SOLANA_RPC_URL", "EXIST")
     set_env_from_config(cfg)
-    assert os.getenv("BIRDEYE_API_KEY") == "A"
-    assert os.getenv("SOLANA_RPC_URL") == "EXIST"
-    assert os.getenv("RISK_TOLERANCE") == "0.3"
-    assert os.getenv("TOKEN_SUFFIX") == "xyz"
-    assert os.getenv("AGENTS") == "['sim']"
-    assert os.getenv("AGENT_WEIGHTS") == "{'sim': 1.0}"
+    assert get_env("BIRDEYE_API_KEY") == "A"
+    assert get_env("SOLANA_RPC_URL") == "EXIST"
+    assert get_env("RISK_TOLERANCE") == "0.3"
+    assert get_env("TOKEN_SUFFIX") == "xyz"
+    assert get_env("AGENTS") == "['sim']"
+    assert get_env("AGENT_WEIGHTS") == "{'sim': 1.0}"
 
 
 def test_set_env_llm(monkeypatch):
@@ -180,8 +181,8 @@ def test_set_env_llm(monkeypatch):
     monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.delenv("LLM_CONTEXT_LENGTH", raising=False)
     set_env_from_config(cfg)
-    assert os.getenv("LLM_MODEL") == "model"
-    assert os.getenv("LLM_CONTEXT_LENGTH") == "64"
+    assert get_env("LLM_MODEL") == "model"
+    assert get_env("LLM_CONTEXT_LENGTH") == "64"
 
 
 def test_set_env_from_config_booleans(monkeypatch):
@@ -200,12 +201,12 @@ def test_set_env_from_config_booleans(monkeypatch):
     monkeypatch.delenv("USE_SERVICE_EXEC", raising=False)
     monkeypatch.delenv("USE_MEV_BUNDLES", raising=False)
     set_env_from_config(cfg)
-    assert os.getenv("USE_FLASH_LOANS") == "True"
-    assert os.getenv("USE_DEPTH_STREAM") == "True"
-    assert os.getenv("USE_DEPTH_FEED") == "True"
-    assert os.getenv("USE_RUST_EXEC") == "True"
-    assert os.getenv("USE_SERVICE_EXEC") == "True"
-    assert os.getenv("USE_MEV_BUNDLES") == "True"
+    assert get_env("USE_FLASH_LOANS") == "True"
+    assert get_env("USE_DEPTH_STREAM") == "True"
+    assert get_env("USE_DEPTH_FEED") == "True"
+    assert get_env("USE_RUST_EXEC") == "True"
+    assert get_env("USE_SERVICE_EXEC") == "True"
+    assert get_env("USE_MEV_BUNDLES") == "True"
 
 def test_load_dex_config_env(monkeypatch):
     monkeypatch.setenv("DEX_BASE_URL", "http://b")

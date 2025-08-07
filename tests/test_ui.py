@@ -192,9 +192,9 @@ def test_get_and_set_risk_params(monkeypatch):
         },
     )
     assert resp.get_json()["status"] == "ok"
-    assert os.getenv("RISK_TOLERANCE") == "0.2"
-    assert os.getenv("MAX_ALLOCATION") == "0.3"
-    assert os.getenv("RISK_MULTIPLIER") == "1.5"
+    assert config.get_env("RISK_TOLERANCE") == "0.2"
+    assert config.get_env("MAX_ALLOCATION") == "0.3"
+    assert config.get_env("RISK_MULTIPLIER") == "1.5"
 
 
 def test_risk_endpoint_emits_event(monkeypatch):
@@ -226,7 +226,7 @@ def test_get_and_set_discovery_method(monkeypatch):
 
     resp = client.post("/discovery", json={"method": "mempool"})
     assert resp.get_json()["status"] == "ok"
-    assert os.getenv("DISCOVERY_METHOD") == "mempool"
+    assert config.get_env("DISCOVERY_METHOD") == "mempool"
 
 
 def test_start_requires_env(monkeypatch):
@@ -320,7 +320,7 @@ def test_get_and_set_weights(monkeypatch):
 
     resp = client.post("/weights", json={"sim": 1.2})
     assert resp.get_json()["status"] == "ok"
-    assert json.loads(os.getenv("AGENT_WEIGHTS"))["sim"] == 1.2
+    assert json.loads(config.get_env("AGENT_WEIGHTS"))["sim"] == 1.2
 
 
 def test_rl_weights_event_updates_env(monkeypatch):
@@ -336,8 +336,8 @@ def test_rl_weights_event_updates_env(monkeypatch):
     )
     asyncio.run(asyncio.sleep(0))
 
-    assert json.loads(os.getenv("AGENT_WEIGHTS"))["x"] == 1.5
-    assert os.getenv("RISK_MULTIPLIER") == "2.0"
+    assert json.loads(config.get_env("AGENT_WEIGHTS"))["x"] == 1.5
+    assert config.get_env("RISK_MULTIPLIER") == "2.0"
 
 
 def test_logs_endpoint(monkeypatch):

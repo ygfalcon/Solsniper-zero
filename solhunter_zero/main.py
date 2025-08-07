@@ -31,6 +31,9 @@ from .config import (
     get_active_config_name,
     get_event_bus_url,
     CONFIG_DIR,
+    get_env,
+    get_float_env,
+    get_int_env,
 )
 from .http import close_session
 from . import wallet
@@ -65,7 +68,7 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     ]
 
     def add(flag: str, key: str) -> None:
-        val = os.getenv(key.upper()) or cfg.get(key)
+        val = get_env(key.upper()) or cfg.get(key)
         if val:
             args.extend([flag, str(val)])
 
@@ -76,20 +79,20 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     add("--jupiter", "jupiter_ws_url")
     add("--serum", "serum_ws_url")
 
-    rpc = os.getenv("SOLANA_RPC_URL") or cfg.get("solana_rpc_url")
+    rpc = get_env("SOLANA_RPC_URL") or cfg.get("solana_rpc_url")
     if rpc:
         args.extend(["--rpc", rpc])
-    keypair = os.getenv("SOLANA_KEYPAIR") or os.getenv("KEYPAIR_PATH")
+    keypair = get_env("SOLANA_KEYPAIR") or get_env("KEYPAIR_PATH")
     if keypair:
         args.extend(["--keypair", keypair])
 
-    socket_path = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
+    socket_path = get_env("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
     socket_path = Path(socket_path).resolve()
     socket_path.parent.mkdir(parents=True, exist_ok=True)
 
     proc = subprocess.Popen(args)
 
-    timeout = float(os.getenv("DEPTH_START_TIMEOUT", "5") or 5)
+    timeout = get_float_env("DEPTH_START_TIMEOUT", 5.0)
 
     async def wait_for_socket() -> None:
         deadline = time.monotonic() + timeout
@@ -129,9 +132,7 @@ async def _depth_service_watchdog(
     if not proc:
         return
 
-    max_restarts = int(
-        os.getenv("DEPTH_MAX_RESTARTS") or cfg.get("depth_max_restarts", 1)
-    )
+    max_restarts = get_int_env("DEPTH_MAX_RESTARTS", int(cfg.get("depth_max_restarts", 1)))
     restart_count = 0
 
     try:
@@ -177,11 +178,11 @@ def ensure_connectivity(*, offline: bool = False) -> None:
 
     _ensure_rpc()
 
-    url = os.getenv("DEX_LISTING_WS_URL", "")
+    url = get_env("DEX_LISTING_WS_URL", "")
     if not url:
         return
 
-    raise_on_ws_fail = os.getenv("RAISE_ON_WS_FAIL", "").lower() in {
+    raise_on_ws_fail = get_env("RAISE_ON_WS_FAIL", "").lower() in {
         "1",
         "true",
         "yes",
@@ -274,7 +275,7 @@ _LAST_TRADE_TIMES: dict[str, datetime.datetime] = {}
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
-_level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
+_level_name = get_env("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
 logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
 
 
@@ -304,9 +305,9 @@ async def _run_iteration(
     metrics_aggregator.start()
 
     if arbitrage_threshold is None:
-        arbitrage_threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
+        arbitrage_threshold = get_float_env("ARBITRAGE_THRESHOLD", 0.0)
     if arbitrage_amount is None:
-        arbitrage_amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
+        arbitrage_amount = get_float_env("ARBITRAGE_AMOUNT", 0.0)
 
     scan_kwargs = {
         "offline": offline,
@@ -333,7 +334,7 @@ async def _run_iteration(
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
 
-    recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
+    recent_window = get_float_env("RECENT_TRADE_WINDOW", 0.0)
     if recent_window > 0:
         now = datetime.datetime.utcnow()
         tokens = [
@@ -345,7 +346,7 @@ async def _run_iteration(
             )
         ]
 
-    rpc_url = os.getenv("SOLANA_RPC_URL")
+    rpc_url = get_env("SOLANA_RPC_URL")
     if rpc_url and not offline:
         try:
             ranked = await async_top_volume_tokens(rpc_url, limit=len(tokens))
@@ -396,13 +397,13 @@ async def _run_iteration(
 
                 rm = RiskManager.from_config(
                     {
-                        "risk_tolerance": os.getenv("RISK_TOLERANCE", "0.1"),
-                        "max_allocation": os.getenv("MAX_ALLOCATION", "0.2"),
-                        "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
+                        "risk_tolerance": get_env("RISK_TOLERANCE", "0.1"),
+                        "max_allocation": get_env("MAX_ALLOCATION", "0.2"),
+                        "max_risk_per_token": get_env("MAX_RISK_PER_TOKEN", "0.1"),
                         "max_drawdown": max_drawdown,
                         "volatility_factor": volatility_factor,
-                        "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
-                        "min_portfolio_value": os.getenv("MIN_PORTFOLIO_VALUE", "20"),
+                        "risk_multiplier": get_env("RISK_MULTIPLIER", "1.0"),
+                        "min_portfolio_value": get_env("MIN_PORTFOLIO_VALUE", "20"),
                     }
                 )
 
@@ -414,9 +415,9 @@ async def _run_iteration(
                     portfolio.price_history.get("USDC", []),
                 )
                 lev = leverage_scaling(1.0, 1.0 / (1 + abs(hedge)))
-                var_conf = float(os.getenv("VAR_CONFIDENCE", "0.95"))
-                var_window = int(os.getenv("VAR_WINDOW", "30"))
-                var_threshold = float(os.getenv("VAR_THRESHOLD", "0"))
+                var_conf = get_float_env("VAR_CONFIDENCE", 0.95)
+                var_window = get_int_env("VAR_WINDOW", 30)
+                var_threshold = get_float_env("VAR_THRESHOLD", 0.0)
                 hist = portfolio.price_history.get(token, [])
                 var = recent_value_at_risk(hist, window=var_window, confidence=var_conf)
                 params = rm.adjusted(
@@ -754,7 +755,7 @@ def main(
 
     if not asyncio.run(event_bus.verify_broker_connection()):
         logging.error("Message broker verification failed")
-        if os.getenv("BROKER_VERIFY_ABORT", "").lower() not in (
+        if get_env("BROKER_VERIFY_ABORT", "").lower() not in (
             "",
             "0",
             "false",
@@ -763,9 +764,9 @@ def main(
             raise SystemExit(1)
 
     use_bundles = str(
-        cfg.get("use_mev_bundles") or os.getenv("USE_MEV_BUNDLES", "false")
+        cfg.get("use_mev_bundles") or get_env("USE_MEV_BUNDLES", "false")
     ).lower() in {"1", "true", "yes"}
-    if use_bundles and (not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")):
+    if use_bundles and (not get_env("JITO_RPC_URL") or not get_env("JITO_AUTH")):
         logging.warning("MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing")
 
     proc_ref = [proc]
@@ -780,7 +781,7 @@ def main(
     if discovery_method is None:
         discovery_method = cfg.get("discovery_method")
     if discovery_method is None:
-        discovery_method = os.getenv("DISCOVERY_METHOD", "websocket")
+        discovery_method = get_env("DISCOVERY_METHOD", "websocket")
 
     if stop_loss is None:
         stop_loss = cfg.get("stop_loss")
@@ -804,11 +805,11 @@ def main(
     if market_ws_url is None:
         market_ws_url = cfg.get("market_ws_url")
     if market_ws_url is None:
-        market_ws_url = os.getenv("MARKET_WS_URL")
+        market_ws_url = get_env("MARKET_WS_URL")
     if order_book_ws_url is None:
         order_book_ws_url = cfg.get("order_book_ws_url")
     if order_book_ws_url is None:
-        order_book_ws_url = os.getenv("ORDER_BOOK_WS_URL")
+        order_book_ws_url = get_env("ORDER_BOOK_WS_URL")
     if arbitrage_tokens is None:
         tokens_cfg = cfg.get("arbitrage_tokens")
         if isinstance(tokens_cfg, str):
@@ -816,7 +817,7 @@ def main(
         elif tokens_cfg:
             arbitrage_tokens = list(tokens_cfg)
     if arbitrage_tokens is None:
-        env_tokens = os.getenv("ARBITRAGE_TOKENS")
+        env_tokens = get_env("ARBITRAGE_TOKENS")
         if env_tokens:
             arbitrage_tokens = [t.strip() for t in env_tokens.split(",") if t.strip()]
 
@@ -857,7 +858,7 @@ def main(
     portfolio = Portfolio(path=portfolio_path)
     warm_cache(portfolio.balances.keys())
 
-    recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
+    recent_window = get_float_env("RECENT_TRADE_WINDOW", 0.0)
     if recent_window > 0:
         async def _load_recent_trades() -> None:
             trades = await memory.list_trades()
@@ -951,7 +952,7 @@ def main(
         )
         collect_data = str(
             cfg.get("collect_offline_data")
-            or os.getenv("COLLECT_OFFLINE_DATA", "false")
+            or get_env("COLLECT_OFFLINE_DATA", "false")
         ).lower() in {"1", "true", "yes"}
         stop_collector = None
         if collect_data:
@@ -963,8 +964,8 @@ def main(
         iteration_idx = 0
         startup_reported = False
 
-        timeout = float(os.getenv("FIRST_TRADE_TIMEOUT", "0") or 0)
-        retry_first_trade = os.getenv("FIRST_TRADE_RETRY", "false").lower() in {
+        timeout = get_float_env("FIRST_TRADE_TIMEOUT", 0.0)
+        retry_first_trade = get_env("FIRST_TRADE_RETRY", "false").lower() in {
             "1",
             "true",
             "yes",
@@ -1023,7 +1024,7 @@ def main(
 
             ws_task = asyncio.create_task(run_market_ws())
 
-        use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {
+        use_depth_stream = get_env("USE_DEPTH_STREAM", "1").lower() in {
             "1",
             "true",
             "yes",
@@ -1104,7 +1105,7 @@ def main(
                 )
                 if _LAST_TOKENS:
                     metrics = await fetch_dex_metrics_async(
-                        _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
+                        _LAST_TOKENS[0], get_env("METRICS_BASE_URL")
                     )
                     adjust_delay(metrics)
                 iteration_idx += 1
@@ -1152,7 +1153,7 @@ def main(
                 )
                 if _LAST_TOKENS:
                     metrics = await fetch_dex_metrics_async(
-                        _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
+                        _LAST_TOKENS[0], get_env("METRICS_BASE_URL")
                     )
                     adjust_delay(metrics)
                 iteration_idx += 1
@@ -1256,7 +1257,7 @@ def run_auto(**kwargs) -> None:
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
     active_name = wallet.get_active_keypair_name()
-    if active_name and not os.getenv("KEYPAIR_PATH"):
+    if active_name and not get_env("KEYPAIR_PATH"):
         os.environ["KEYPAIR_PATH"] = os.path.join(
             wallet.KEYPAIR_DIR, active_name + ".json"
         )
@@ -1321,13 +1322,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--keypair",
-        default=os.getenv("KEYPAIR_PATH"),
+        default=get_env("KEYPAIR_PATH"),
         help="Path to a JSON keypair for signing transactions",
     )
     parser.add_argument(
         "--min-balance",
         type=float,
-        default=float(os.getenv("MIN_STARTING_BALANCE", "0") or 0),
+        default=get_float_env("MIN_STARTING_BALANCE", 0.0),
         help="Minimum starting balance in SOL",
     )
     parser.add_argument(

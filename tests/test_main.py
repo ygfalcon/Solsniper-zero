@@ -38,6 +38,7 @@ pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
+from solhunter_zero.config import get_env
 import asyncio
 import json
 pytest.importorskip("solders")
@@ -704,7 +705,7 @@ def test_run_auto_uses_default_and_selects_key(monkeypatch, tmp_path):
 
     assert called["path"].endswith("config/default.toml")
     assert (keys_dir / "active").read_text() == "only"
-    assert os.getenv("KEYPAIR_PATH") == str(keys_dir / "only.json")
+    assert get_env("KEYPAIR_PATH") == str(keys_dir / "only.json")
 
 
 def test_run_auto_uses_selected_config(monkeypatch, tmp_path):

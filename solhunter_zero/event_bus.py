@@ -16,6 +16,8 @@ import os
 import zlib
 import mmap
 
+from .config import get_env, get_int_env, get_float_env, _init_event_bus_hooks
+
 try:  # optional compression libraries
     import lz4.frame
     _HAS_LZ4 = True
@@ -43,7 +45,7 @@ except Exception:  # pragma: no cover - optional dependency
     msgpack = None
 
 # default serialization format for JSON events
-_EVENT_SERIALIZATION = os.getenv("EVENT_SERIALIZATION")
+_EVENT_SERIALIZATION = get_env("EVENT_SERIALIZATION")
 if not _EVENT_SERIALIZATION:
     _EVENT_SERIALIZATION = "msgpack" if msgpack is not None else "json"
 _EVENT_SERIALIZATION = _EVENT_SERIALIZATION.lower()
@@ -63,10 +65,10 @@ except Exception:  # pragma: no cover - optional dependency
 def _broker_preflight() -> None:
     """Ensure optional broker dependencies are installed when configured."""
     urls: list[str] = []
-    url = os.getenv("BROKER_URL")
+    url = get_env("BROKER_URL")
     if url:
         urls.append(url)
-    more = os.getenv("BROKER_URLS")
+    more = get_env("BROKER_URLS")
     if more:
         urls.extend(u.strip() for u in more.split(",") if u.strip())
     for u in urls:
@@ -114,18 +116,16 @@ _PB_MAP = {
 }
 
 # compress protobuf messages when broadcasting if enabled
-_COMPRESS_EVENTS = os.getenv("COMPRESS_EVENTS")
+_COMPRESS_EVENTS = get_env("COMPRESS_EVENTS")
 if _COMPRESS_EVENTS is None:
     COMPRESS_EVENTS = _HAS_ZSTD or _HAS_LZ4
 else:
     COMPRESS_EVENTS = _COMPRESS_EVENTS not in ("", "0")
 
 # chosen compression algorithm for protobuf events
-_EVENT_COMPRESSION = os.getenv("EVENT_COMPRESSION")
-_USE_ZLIB_EVENTS = os.getenv("USE_ZLIB_EVENTS")
-EVENT_COMPRESSION_THRESHOLD = int(
-    os.getenv("EVENT_COMPRESSION_THRESHOLD", "512") or 512
-)
+_EVENT_COMPRESSION = get_env("EVENT_COMPRESSION")
+_USE_ZLIB_EVENTS = get_env("USE_ZLIB_EVENTS")
+EVENT_COMPRESSION_THRESHOLD = get_int_env("EVENT_COMPRESSION_THRESHOLD", 512)
 if _EVENT_COMPRESSION is None:
     if COMPRESS_EVENTS:
         if _USE_ZLIB_EVENTS:
@@ -144,13 +144,13 @@ else:
         EVENT_COMPRESSION = comp
 
 # optional mmap ring buffer path for outgoing protobuf frames
-_EVENT_BUS_MMAP = os.getenv("EVENT_BUS_MMAP")
-_EVENT_BUS_MMAP_SIZE = int(os.getenv("EVENT_BUS_MMAP_SIZE", str(1 << 20)) or (1 << 20))
+_EVENT_BUS_MMAP = get_env("EVENT_BUS_MMAP")
+_EVENT_BUS_MMAP_SIZE = get_int_env("EVENT_BUS_MMAP_SIZE", 1 << 20)
 
 # how long to buffer mmap writes before flushing (ms)
-_EVENT_MMAP_BATCH_MS = int(os.getenv("EVENT_MMAP_BATCH_MS", "5") or 5)
+_EVENT_MMAP_BATCH_MS = get_int_env("EVENT_MMAP_BATCH_MS", 5)
 # number of events to batch before flushing
-_EVENT_MMAP_BATCH_SIZE = int(os.getenv("EVENT_MMAP_BATCH_SIZE", "16") or 16)
+_EVENT_MMAP_BATCH_SIZE = get_int_env("EVENT_MMAP_BATCH_SIZE", 16)
 
 _MMAP_BUFFER: list[bytes] = []
 _MMAP_FLUSH_HANDLE = None
@@ -354,18 +354,18 @@ except Exception:  # pragma: no cover - optional dependency
     websockets = None
 
 # compression algorithm for websockets
-_WS_COMPRESSION: str | None = os.getenv("EVENT_BUS_COMPRESSION")
+_WS_COMPRESSION: str | None = get_env("EVENT_BUS_COMPRESSION")
 if _WS_COMPRESSION:
     comp = _WS_COMPRESSION.lower()
     if comp in {"", "none", "0"}:
         _WS_COMPRESSION = None
 
 # ping interval and timeout for websocket connections
-_WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
-_WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
+_WS_PING_INTERVAL = get_float_env("WS_PING_INTERVAL", 20.0)
+_WS_PING_TIMEOUT = get_float_env("WS_PING_TIMEOUT", 20.0)
 
 # how long to buffer outgoing events before flushing (ms)
-_EVENT_BATCH_MS = int(os.getenv("EVENT_BATCH_MS", "10") or 10)
+_EVENT_BATCH_MS = get_int_env("EVENT_BATCH_MS", 10)
 
 # magic header for batched binary websocket messages
 _BATCH_MAGIC = b"EBAT"
@@ -459,9 +459,9 @@ _BROKER_URLS: list[str] = []
 _BROKER_TYPES: list[str] = []
 _BROKER_CONNS: list[Any] = []
 _BROKER_TASKS: list[Any] = []
-_BROKER_CHANNEL: str = os.getenv("BROKER_CHANNEL", "solhunter-events")
-_BROKER_HEARTBEAT_INTERVAL = float(os.getenv("BROKER_HEARTBEAT_INTERVAL", "30") or 30)
-_BROKER_RETRY_LIMIT = int(os.getenv("BROKER_RETRY_LIMIT", "3") or 3)
+_BROKER_CHANNEL: str = get_env("BROKER_CHANNEL", "solhunter-events")
+_BROKER_HEARTBEAT_INTERVAL = get_float_env("BROKER_HEARTBEAT_INTERVAL", 30.0)
+_BROKER_RETRY_LIMIT = get_int_env("BROKER_RETRY_LIMIT", 3)
 _BROKER_HEARTBEAT_TASK: asyncio.Task | None = None
 
 
@@ -1444,6 +1444,8 @@ def _reload_bus(cfg) -> None:
         asyncio.run(_reconnect())
     _ENV_PEERS = urls
 
+
+_init_event_bus_hooks()
 
 subscription("config_updated", _reload_bus).__enter__()
 

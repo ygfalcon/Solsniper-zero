@@ -140,6 +140,41 @@ REQUIRED_ENV_VARS = (
 )
 
 
+def get_env(key: str, default: str | None = None) -> str | None:
+    """Return environment variable ``key`` or ``default``."""
+    return os.getenv(key, default)
+
+
+def get_int_env(key: str, default: int = 0) -> int:
+    """Return ``key`` parsed as ``int`` with ``default`` fallback."""
+    val = get_env(key)
+    if val is None or val == "":
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+
+def get_float_env(key: str, default: float = 0.0) -> float:
+    """Return ``key`` parsed as ``float`` with ``default`` fallback."""
+    val = get_env(key)
+    if val is None or val == "":
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        return default
+
+
+def get_bool_env(key: str, default: bool = False) -> bool:
+    """Return ``key`` interpreted as boolean with ``default`` fallback."""
+    val = get_env(key)
+    if val is None:
+        return default
+    return val.lower() not in ("", "0", "false", "no")
+
+
 def _publish(topic: str, payload: Any) -> None:
     """Proxy to :func:`event_bus.publish` imported lazily."""
     ev = import_module("solhunter_zero.event_bus")
@@ -406,16 +441,21 @@ def reload_active_config() -> dict:
     return _ACTIVE_CONFIG
 
 
-from . import event_bus as _event_bus
+def _init_event_bus_hooks() -> None:
+    """Register config update hooks with the event bus lazily."""
+    try:
+        from . import event_bus as _event_bus
 
-_sub = _event_bus.subscription("config_updated", _update_active)
-_sub.__enter__()
-try:
-    _event_bus._reload_bus(None)
-    _event_bus._reload_broker(None)
-    _event_bus._reload_serialization(None)
-except Exception:
-    pass
+        sub = _event_bus.subscription("config_updated", _update_active)
+        sub.__enter__()
+        try:
+            _event_bus._reload_bus(None)
+            _event_bus._reload_broker(None)
+            _event_bus._reload_serialization(None)
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
