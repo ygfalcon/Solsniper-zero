@@ -195,27 +195,43 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
 ]
 
 
-def main() -> None:
-    failures: List[Tuple[str, str]] = []
-    successes: List[Tuple[str, str]] = []
+def run_preflight() -> List[Tuple[str, bool, str]]:
+    """Run all preflight checks and return their results.
+
+    The return value is a list of tuples containing the check name, a boolean
+    indicating success, and a descriptive message.
+    """
+
+    results: List[Tuple[str, bool, str]] = []
     for name, func in CHECKS:
         ok, msg = func()
-        status = "OK" if ok else "FAIL"
-        print(f"{name}: {status} - {msg}")
-        if ok:
-            successes.append((name, msg))
-        else:
-            failures.append((name, msg))
+        results.append((name, ok, msg))
 
     data = {
-        "successes": [{"name": n, "message": m} for n, m in successes],
-        "failures": [{"name": n, "message": m} for n, m in failures],
+        "successes": [
+            {"name": name, "message": msg} for name, ok, msg in results if ok
+        ],
+        "failures": [
+            {"name": name, "message": msg} for name, ok, msg in results if not ok
+        ],
     }
     try:
         with open(ROOT / "preflight.json", "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2)
     except OSError:
         pass
+
+    return results
+
+
+def main() -> None:
+    failures: List[Tuple[str, str]] = []
+    results = run_preflight()
+    for name, ok, msg in results:
+        status = "OK" if ok else "FAIL"
+        print(f"{name}: {status} - {msg}")
+        if not ok:
+            failures.append((name, msg))
 
     if failures:
         print("\nSummary of failures:")
