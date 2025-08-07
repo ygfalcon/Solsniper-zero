@@ -14,6 +14,7 @@ import contextlib
 import io
 from pathlib import Path
 import json
+from datetime import datetime
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -60,6 +61,8 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
         raise SystemExit(msg)
 
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
+DEFAULT_PREFLIGHT_EXPIRY = 24 * 60 * 60  # 24 hours
+PREFLIGHT_SENTINEL = ROOT / ".cache" / "preflight_ok"
 
 
 def rotate_preflight_log(
@@ -82,6 +85,19 @@ def rotate_preflight_log(
             path.write_text("")
     except OSError:
         pass
+
+
+def get_last_preflight_time() -> datetime | None:
+    if not PREFLIGHT_SENTINEL.exists():
+        return None
+    try:
+        text = PREFLIGHT_SENTINEL.read_text().strip()
+        return datetime.fromisoformat(text)
+    except Exception:
+        try:
+            return datetime.fromtimestamp(PREFLIGHT_SENTINEL.stat().st_mtime)
+        except OSError:
+            return None
 
 
 def ensure_wallet_cli() -> None:
@@ -271,6 +287,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip environment preflight checks",
     )
     parser.add_argument(
+        "--force-preflight",
+        action="store_true",
+        help="Run preflight even if recent results are cached",
+    )
+    parser.add_argument(
+        "--preflight-expiry",
+        type=int,
+        default=DEFAULT_PREFLIGHT_EXPIRY,
+        help="Seconds after which preflight is rerun",
+    )
+    parser.add_argument(
         "--self-test",
         action="store_true",
         help="Run bootstrap and preflight checks then exit",
@@ -425,27 +452,51 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if not args.skip_preflight:
-        rotate_preflight_log()
-        results = preflight.run_preflight()
-        log_lines: list[str] = []
-        failures: list[tuple[str, str]] = []
-        for name, ok, msg in results:
-            status = "OK" if ok else "FAIL"
-            line = f"{name}: {status} - {msg}"
-            sys.stdout.write(line + "\n")
-            log_lines.append(line + "\n")
-            log_startup(line)
-            if not ok:
-                failures.append((name, msg))
-        try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.writelines(log_lines)
-        except OSError:
-            pass
-        for name, msg in failures:
-            log_startup(f"Preflight failure: {name} - {msg}")
-        if failures:
-            return 1
+        last_run = get_last_preflight_time()
+        now = datetime.now()
+        expired = True
+        if last_run is not None:
+            expired = (now - last_run).total_seconds() > args.preflight_expiry
+        if last_run and not expired and not args.force_preflight:
+            print(
+                "Preflight last executed at "
+                f"{last_run.isoformat()} – skipping."
+            )
+        else:
+            if last_run:
+                print(
+                    "Preflight last executed at "
+                    f"{last_run.isoformat()} – running again."
+                )
+            else:
+                print("Running preflight checks...")
+            rotate_preflight_log()
+            results = preflight.run_preflight()
+            log_lines: list[str] = []
+            failures: list[tuple[str, str]] = []
+            for name, ok, msg in results:
+                status = "OK" if ok else "FAIL"
+                line = f"{name}: {status} - {msg}"
+                sys.stdout.write(line + "\n")
+                log_lines.append(line + "\n")
+                log_startup(line)
+                if not ok:
+                    failures.append((name, msg))
+            try:
+                with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
+                    log.writelines(log_lines)
+            except OSError:
+                pass
+            for name, msg in failures:
+                log_startup(f"Preflight failure: {name} - {msg}")
+            if failures:
+                return 1
+            try:
+                PREFLIGHT_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+                PREFLIGHT_SENTINEL.write_text(now.isoformat())
+            except OSError:
+                pass
+            print(f"Preflight completed at {now.isoformat()}")
 
     if args.offline:
         rpc_status = "offline"

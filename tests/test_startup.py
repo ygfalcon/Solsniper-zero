@@ -683,17 +683,33 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     assert ret == 0
 
 
-def test_main_preflight_success(monkeypatch):
+def test_main_preflight_success(monkeypatch, tmp_path):
     from scripts import startup
     import types, sys
+
+    monkeypatch.setattr(startup, "PREFLIGHT_SENTINEL", tmp_path / "preflight_ok")
+
+    dummy_config_utils = types.SimpleNamespace(
+        ensure_default_config=lambda: tmp_path / "config.toml",
+        select_active_keypair=lambda auto=True: types.SimpleNamespace(name="default", mnemonic_path=None),
+    )
+    dummy_config = types.SimpleNamespace(
+        load_config=lambda path: {},
+        validate_config=lambda cfg: {},
+        apply_env_overrides=lambda cfg: cfg,
+    )
+    dummy_wallet = types.SimpleNamespace(KEYPAIR_DIR=tmp_path)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config_utils", dummy_config_utils)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", dummy_config)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
 
     called = {}
 
     def fake_preflight():
         called["preflight"] = True
-        raise SystemExit(0)
+        return [("ok", True, "ok")]
 
-    monkeypatch.setattr("scripts.preflight.main", fake_preflight)
+    monkeypatch.setattr(startup.preflight, "run_preflight", fake_preflight)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -712,29 +728,43 @@ def test_main_preflight_success(monkeypatch):
             detect_gpu=lambda: False,
         ),
     )
-    monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(startup.subprocess, "run", lambda cmd: _types.SimpleNamespace(returncode=0))
 
-    with pytest.raises(SystemExit) as exc:
-        startup.main([
-            "--one-click",
-            "--skip-setup",
-            "--skip-deps",
-        ])
+    ret = startup.main([
+        "--one-click",
+        "--skip-setup",
+        "--skip-deps",
+    ])
 
     assert called.get("preflight") is True
-    assert exc.value.code == 0
+    assert ret == 0
 
 
-def test_main_preflight_failure(monkeypatch, capsys):
+def test_main_preflight_failure(monkeypatch, capsys, tmp_path):
     from scripts import startup
     from pathlib import Path
+    import types, sys
+
+    monkeypatch.setattr(startup, "PREFLIGHT_SENTINEL", tmp_path / "preflight_ok")
+
+    dummy_config_utils = types.SimpleNamespace(
+        ensure_default_config=lambda: tmp_path / "config.toml",
+        select_active_keypair=lambda auto=True: types.SimpleNamespace(name="default", mnemonic_path=None),
+    )
+    dummy_config = types.SimpleNamespace(
+        load_config=lambda path: {},
+        validate_config=lambda cfg: {},
+        apply_env_overrides=lambda cfg: cfg,
+    )
+    dummy_wallet = types.SimpleNamespace(KEYPAIR_DIR=tmp_path)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config_utils", dummy_config_utils)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", dummy_config)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
 
     def fake_preflight():
-        print("out")
-        print("err", file=sys.stderr)
-        raise SystemExit(2)
+        return [("bad", False, "nope")]
 
-    monkeypatch.setattr("scripts.preflight.main", fake_preflight)
+    monkeypatch.setattr(startup.preflight, "run_preflight", fake_preflight)
 
     import types
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
@@ -753,6 +783,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
+    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0))
 
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
     if log_file.exists():
@@ -764,14 +795,12 @@ def test_main_preflight_failure(monkeypatch, capsys):
         "--skip-setup",
     ])
 
-    assert ret == 2
+    assert ret == 1
     captured = capsys.readouterr()
-    assert "out" in captured.out
-    assert "err" in captured.err
+    assert "bad: FAIL - nope" in captured.out
     assert log_file.exists()
     log_contents = log_file.read_text()
-    assert "out" in log_contents
-    assert "err" in log_contents
+    assert "bad: FAIL - nope" in log_contents
 
 
 def test_preflight_log_rotation(tmp_path):
@@ -890,3 +919,66 @@ def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
 
     assert calls["cmd"][:4] == [sys.executable, "-m", "pip", "install"]
     assert "Please install it manually" in capsys.readouterr().out
+
+
+def test_preflight_sentinel_skips_and_forces(monkeypatch, tmp_path, capsys):
+    from scripts import startup
+    import types
+    startup.PREFLIGHT_SENTINEL = tmp_path / "preflight_ok"
+
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
+    monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "check_internet", lambda: None)
+    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {})
+    monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
+    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0))
+
+    calls = {"count": 0}
+
+    def fake_preflight():
+        calls["count"] += 1
+        return []
+
+    monkeypatch.setattr(startup.preflight, "run_preflight", fake_preflight)
+
+    code = startup.main([
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--no-diagnostics",
+    ])
+    assert code == 0
+    assert calls["count"] == 1
+    assert startup.PREFLIGHT_SENTINEL.exists()
+    out1 = capsys.readouterr().out
+    assert "Preflight completed" in out1
+
+    code = startup.main([
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--no-diagnostics",
+    ])
+    assert code == 0
+    assert calls["count"] == 1
+    out2 = capsys.readouterr().out
+    assert "Preflight last executed" in out2
+
+    code = startup.main([
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--no-diagnostics",
+        "--force-preflight",
+    ])
+    assert code == 0
+    assert calls["count"] == 2
+    out3 = capsys.readouterr().out
+    assert "Preflight completed" in out3
