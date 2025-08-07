@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+
+import pytest
+
 from solhunter_zero.config import (
     load_config,
     apply_env_overrides,
@@ -259,8 +262,27 @@ def test_validate_config_missing():
         "agents": ["a"],
         "agent_weights": {"a": 1.0},
     }
-    import pytest
+    with pytest.raises(ValueError):
+        validate_config(cfg)
 
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("birdeye_api_key", 123),
+        ("use_flash_loans", "maybe"),
+        ("max_hops", 1),
+        ("priority_fees", "a,b"),
+    ],
+)
+def test_validate_config_invalid_fields(key, value):
+    cfg = {
+        "solana_rpc_url": "http://local",
+        "dex_base_url": "http://dex",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
+        key: value,
+    }
     with pytest.raises(ValueError):
         validate_config(cfg)
 
