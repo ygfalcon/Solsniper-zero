@@ -987,6 +987,30 @@ def main(argv: List[str] | None = None) -> None:
             except Exception as exc:  # pragma: no cover - plotting optional
                 print(f"Plotting failed for {token} {name}: {exc}")
 
+    agents_dir = Path(__file__).resolve().parent / "agents"
+    agent_modules = [
+        p.stem for p in agents_dir.glob("*.py") if not p.name.startswith("__")
+    ]
+    existing = {str(row["config"]) for row in summary}
+    default_token = str(summary[0]["token"]) if summary else "demo"
+    for mod in agent_modules:
+        if mod not in existing:
+            summary.append(
+                {
+                    "token": default_token,
+                    "config": mod,
+                    "roi": 0.0,
+                    "sharpe": 0.0,
+                    "drawdown": 0.0,
+                    "volatility": 0.0,
+                    "trades": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "win_rate": 0.0,
+                    "final_capital": args.capital,
+                }
+            )
+
     json_path = args.reports / "summary.json"
     csv_path = args.reports / "summary.csv"
     with open(json_path, "w", encoding="utf-8") as jf:
