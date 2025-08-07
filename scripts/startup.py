@@ -308,9 +308,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             log_startup("Internet connectivity check passed")
 
-    from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
+    from solhunter_zero.config_utils import ensure_default_config
     from solhunter_zero.config import load_config, validate_config
-    from solhunter_zero import wallet
+    from solhunter_zero.wallet_bootstrap import ensure_active_keypair
 
     cfg_data: dict = {}
     config_path: Path | None = None
@@ -351,9 +351,10 @@ def main(argv: list[str] | None = None) -> int:
             ensure_wallet_cli()
         except SystemExit as exc:
             return exc.code if isinstance(exc.code, int) else 1
-        info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
+        info, keypair_path = ensure_active_keypair(
+            one_click=ran_quick_setup or args.one_click
+        )
         active_keypair = info.name
-        keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
         mnemonic_path = info.mnemonic_path
 
     if args.offline:

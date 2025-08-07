@@ -205,7 +205,7 @@ solana_keypair = "kp2"
     assert env1['SOLANA_KEYPAIR'] == 'kp1'
 
 
-def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
+def test_ensure_active_keypair_generates_default(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
     import sys
     import solhunter_zero
@@ -213,7 +213,7 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
     if hasattr(solhunter_zero, "wallet"):
         delattr(solhunter_zero, "wallet")
 
-    from solhunter_zero.bootstrap import ensure_keypair
+    from solhunter_zero.wallet_bootstrap import ensure_active_keypair
 
     from solhunter_zero import wallet
 
@@ -226,7 +226,7 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wallet, "generate_default_keypair", wrapped)
 
-    ensure_keypair()
+    ensure_active_keypair(one_click=False)
 
     assert calls["count"] == 1
     assert wallet.list_keypairs() == ["default"]
@@ -238,7 +238,7 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
     assert (mn.stat().st_mode & 0o777) == 0o600
 
 
-def test_ensure_keypair_from_json(tmp_path, monkeypatch):
+def test_ensure_active_keypair_from_json(tmp_path, monkeypatch):
     monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
     import sys
     import solhunter_zero
@@ -251,7 +251,7 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
     import json
     monkeypatch.setenv("KEYPAIR_JSON", json.dumps([0] * 64))
 
-    from solhunter_zero.bootstrap import ensure_keypair
+    from solhunter_zero.wallet_bootstrap import ensure_active_keypair
 
     from solhunter_zero import wallet
 
@@ -260,7 +260,7 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wallet, "generate_default_keypair", boom)
 
-    ensure_keypair()
+    ensure_active_keypair(one_click=False)
 
     assert wallet.list_keypairs() == ["default"]
     assert wallet.get_active_keypair_name() == "default"
@@ -870,7 +870,8 @@ def test_startup_sets_mps_device(monkeypatch):
 
     monkeypatch.setattr(bootstrap, "ensure_venv", lambda *a, **k: None)
     monkeypatch.setattr(bootstrap, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
+    import solhunter_zero.wallet_bootstrap as wallet_bootstrap
+    monkeypatch.setattr(wallet_bootstrap, "ensure_active_keypair", lambda one_click=False: (None, Path("dummy")))
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
@@ -970,11 +971,12 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", config_mod)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
 
-    def fake_select(auto=False):
-        calls["auto"] = auto
-        return KeypairInfo("kp1", None)
+    def fake_select(one_click=False):
+        calls["one_click"] = one_click
+        return KeypairInfo("kp1", None), Path(tmp_path / "kp1.json")
 
-    monkeypatch.setattr(cu, "select_active_keypair", fake_select)
+    import solhunter_zero.wallet_bootstrap as wb
+    monkeypatch.setattr(wb, "ensure_active_keypair", fake_select)
     import solhunter_zero.wallet as wallet_mod
     monkeypatch.setattr(wallet_mod, "KEYPAIR_DIR", tmp_path)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
@@ -999,7 +1001,7 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
 
     assert ret == 0
     assert calls.get("quick_setup") is True
-    assert calls.get("auto") is True
+    assert calls.get("one_click") is True
     out = capsys.readouterr().out
     assert str(cfg_path) in out
     assert "Active keypair: kp1" in out
@@ -1023,11 +1025,12 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(startup, "run_quick_setup", fake_quick_setup)
 
-    def fake_select(auto=False):
-        calls["auto"] = auto
-        return KeypairInfo("kp1", None)
+    def fake_select(one_click=False):
+        calls["one_click"] = one_click
+        return KeypairInfo("kp1", None), Path(tmp_path / "kp1.json")
 
-    monkeypatch.setattr(cu, "select_active_keypair", fake_select)
+    import solhunter_zero.wallet_bootstrap as wb
+    monkeypatch.setattr(wb, "ensure_active_keypair", fake_select)
     import solhunter_zero.wallet as wallet_mod
     monkeypatch.setattr(wallet_mod, "KEYPAIR_DIR", tmp_path)
 
@@ -1064,4 +1067,4 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
 
     assert ret == 0
     assert calls.get("quick_setup") == 1
-    assert calls.get("auto") is True
+    assert calls.get("one_click") is True

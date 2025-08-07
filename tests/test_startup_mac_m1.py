@@ -51,8 +51,8 @@ def test_startup_mac_m1(monkeypatch, capsys):
         lambda: Path("config.toml"),
     )
     monkeypatch.setattr(
-        "solhunter_zero.config_utils.select_active_keypair",
-        lambda auto=True: dummy_keypair_info,
+        "solhunter_zero.wallet_bootstrap.ensure_active_keypair",
+        lambda one_click=True: (dummy_keypair_info, Path("keypairs/default.json")),
     )
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
@@ -67,7 +67,8 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(bootstrap, "bootstrap", lambda one_click=False: None)
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
+    import solhunter_zero.wallet_bootstrap as wallet_bootstrap
+    monkeypatch.setattr(wallet_bootstrap, "ensure_active_keypair", lambda one_click=False: (dummy_keypair_info, Path("dummy")))
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
     monkeypatch.setattr(wallet, "get_active_keypair_name", lambda: "default")
     monkeypatch.setattr(wallet, "list_keypairs", lambda: ["default"])
