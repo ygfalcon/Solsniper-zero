@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 
+from dataclasses import dataclass
 from typing import Sequence
 
 from scripts import deps
@@ -20,6 +21,15 @@ from .logging_utils import log_startup
 from .paths import ROOT
 
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
+
+
+@dataclass
+class DepsConfig:
+    """Configuration for :func:`ensure_deps`."""
+
+    install_optional: bool = False
+    extras: Sequence[str] | None = ("uvloop",)
+    ensure_wallet_cli: bool = True
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -118,6 +128,7 @@ def ensure_venv(argv: list[str] | None) -> None:
 def _pip_install(*args: str, retries: int = 3) -> None:
     """Run ``pip install`` with retries and exponential backoff."""
     errors: list[str] = []
+    cmd: list[str] = []
     for attempt in range(1, retries + 1):
         cmd = [sys.executable, "-m", "pip", "install", *args]
         result = subprocess.run(
@@ -142,13 +153,16 @@ def _pip_install(*args: str, retries: int = 3) -> None:
                 f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
             )
             time.sleep(wait)
-    msg = f"Failed to install {' '.join(args)} after {retries} attempts:"
-    print(msg)
-    log_startup(msg)
-    for err in errors:
-        if err:
-            log_startup(err)
-            print(err)
+    msg = f"Failed to install {' '.join(args)} after {retries} attempts"
+    retry_cmd = " ".join(cmd)
+    print(f"{msg}. To retry manually, run: {retry_cmd}")
+    log_startup(
+        json.dumps({
+            "event": "pip_install_failed",
+            "cmd": retry_cmd,
+            "errors": [e for e in errors if e],
+        })
+    )
     raise SystemExit(result.returncode)
 
 
@@ -172,6 +186,7 @@ def _package_missing(pkg: str) -> bool:
 
 
 def ensure_deps(
+    cfg: DepsConfig | None = None,
     *,
     install_optional: bool = False,
     extras: Sequence[str] | None = ("uvloop",),
@@ -181,15 +196,20 @@ def ensure_deps(
 
     Parameters
     ----------
-    install_optional:
-        Install optional modules defined in :mod:`scripts.deps` when True.
-    extras:
-        Iterable of ``pyproject.toml`` extras to install when the local package
-        itself must be installed.  Defaults to ``("uvloop",)``.
-    ensure_wallet_cli:
-        When ``True`` the ``solhunter-wallet`` command is ensured to be
-        available by installing the current package if necessary.
+    cfg:
+        Optional :class:`DepsConfig` describing installation behaviour. When
+        omitted, legacy keyword arguments are used to build a configuration.
+    install_optional, extras, ensure_wallet_cli:
+        Deprecated keyword arguments retained for backward compatibility when
+        *cfg* is not provided.
     """
+
+    if cfg is None:
+        cfg = DepsConfig(
+            install_optional=install_optional,
+            extras=extras,
+            ensure_wallet_cli=ensure_wallet_cli,
+        )
 
     if platform.system() == "Darwin":
         from . import macos_setup
@@ -226,18 +246,28 @@ def ensure_deps(
 
     # Filter out packages that are already satisfied according to pip.
     req = [m for m in req if _package_missing(m.replace("_", "-"))]
-    if install_optional:
+    if cfg.install_optional:
         opt = [m for m in opt if _package_missing(m.replace("_", "-"))]
     else:
         opt = []
 
-    need_cli = ensure_wallet_cli and shutil.which("solhunter-wallet") is None
-    need_install = bool(req) or need_cli or (install_optional and opt)
+    need_cli = cfg.ensure_wallet_cli and shutil.which("solhunter-wallet") is None
+    need_install = bool(req) or need_cli or (cfg.install_optional and opt)
     if not need_install:
         from . import bootstrap as bootstrap_mod
 
         bootstrap_mod.ensure_route_ffi()
         bootstrap_mod.ensure_depth_service()
+        DEPS_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        DEPS_MARKER.write_text(
+            json.dumps(
+                {
+                    "extras": list(cfg.extras) if cfg.extras else [],
+                    "install_optional": cfg.install_optional,
+                    "timestamp": time.time(),
+                }
+            )
+        )
         return
 
     pip_check = subprocess.run(
@@ -264,7 +294,7 @@ def ensure_deps(
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         extra_index = list(METAL_EXTRA_INDEX)
 
-    need_install = bool(req) or need_cli or (install_optional and (opt or extra_index))
+    need_install = bool(req) or need_cli or (cfg.install_optional and (opt or extra_index))
     if need_install:
         from scripts import startup
         import contextlib
@@ -280,17 +310,14 @@ def ensure_deps(
                     "Unable to establish an internet connection; aborting."
                 ) from exc
 
-    installed_any = False
-
     if req or need_cli:
         print("Installing required dependencies...")
         extras_arg = ""
-        if extras:
-            extras_arg = f".[{','.join(extras)}]"
+        if cfg.extras:
+            extras_arg = f".[{','.join(cfg.extras)}]"
         else:
             extras_arg = "."
         _pip_install(extras_arg, *extra_index)
-        installed_any = True
         failed_req = [m for m in req if importlib.util.find_spec(m) is None]
         if failed_req:
             print(
@@ -302,7 +329,7 @@ def ensure_deps(
             print("'solhunter-wallet' still not available after installation. Aborting.")
             raise SystemExit(1)
 
-    if install_optional and extra_index:
+    if cfg.install_optional and extra_index:
         try:
             device.initialize_gpu()
         except Exception as exc:
@@ -311,7 +338,7 @@ def ensure_deps(
         if "torch" in opt:
             opt.remove("torch")
 
-    if install_optional and opt:
+    if cfg.install_optional and opt:
         print("Installing optional dependencies...")
         mapping = {
             "faiss": "faiss-cpu",
@@ -332,13 +359,11 @@ def ensure_deps(
             extras_pkgs.append("msgpack")
         if extras_pkgs:
             _pip_install(f".[{','.join(extras_pkgs)}]", *extra_index)
-            installed_any = True
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
             if _package_missing(pkg):
                 _pip_install(pkg, *extra_index)
-                installed_any = True
 
         missing_opt = [m for m in opt if importlib.util.find_spec(m) is None]
         if missing_opt:
@@ -352,9 +377,16 @@ def ensure_deps(
     bootstrap_mod.ensure_route_ffi()
     bootstrap_mod.ensure_depth_service()
 
-    if installed_any:
-        DEPS_MARKER.parent.mkdir(parents=True, exist_ok=True)
-        DEPS_MARKER.touch()
+    DEPS_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    DEPS_MARKER.write_text(
+        json.dumps(
+            {
+                "extras": list(cfg.extras) if cfg.extras else [],
+                "install_optional": cfg.install_optional,
+                "timestamp": time.time(),
+            }
+        )
+    )
 
 
 def ensure_endpoints(cfg: dict) -> None:

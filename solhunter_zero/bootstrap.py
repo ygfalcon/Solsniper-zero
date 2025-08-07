@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from solhunter_zero.bootstrap_utils import (
+    DepsConfig,
     ensure_cargo,
     ensure_deps,
     ensure_venv,
@@ -100,9 +101,10 @@ def bootstrap(one_click: bool = False) -> None:
         ensure_venv(None)
 
     if os.getenv("SOLHUNTER_SKIP_DEPS") != "1":
-        ensure_deps(
+        cfg = DepsConfig(
             install_optional=os.getenv("SOLHUNTER_INSTALL_OPTIONAL") == "1"
         )
+        ensure_deps(cfg)
 
     if os.getenv("SOLHUNTER_SKIP_SETUP") != "1":
         ensure_config()
