@@ -29,7 +29,11 @@ from solhunter_zero.bootstrap_utils import (
 )
 
 import solhunter_zero.env_config as env_config  # noqa: E402
-from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.logging_utils import (
+    log_startup,
+    rotate_startup_log,
+    rotate_preflight_log,
+)  # noqa: E402
 
 
 def ensure_route_ffi() -> None:
@@ -54,31 +58,6 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
             "Please use 'python start.py'."
         )
         raise SystemExit(msg)
-
-MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
-
-
-def rotate_preflight_log(
-    path: Path | None = None, max_bytes: int = MAX_PREFLIGHT_LOG_SIZE
-) -> None:
-    """Rotate or truncate the preflight log before writing new output.
-
-    When ``path`` exists and exceeds ``max_bytes`` it is moved to ``.1``.
-    Otherwise the file is truncated to start fresh for the current run.
-    """
-
-    path = path or ROOT / "preflight.log"
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > max_bytes:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
-
 
 rotate_startup_log()
 rotate_preflight_log()

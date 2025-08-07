@@ -7,4 +7,4 @@ def test_check_gpu_no_backend(monkeypatch):
     monkeypatch.setattr("solhunter_zero.device.detect_gpu", lambda: False)
     ok, msg = preflight.check_gpu()
     assert ok is False
-    assert "mac_setup.py" in msg
+    assert "prepare_macos_env" in msg
