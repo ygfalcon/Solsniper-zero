@@ -1,11 +1,10 @@
+import logging
 import os
-import sys
+import socket
 import subprocess
+import sys
 import threading
 import time
-import socket
-import logging
-from pathlib import Path
 from typing import IO
 
 from .paths import ROOT
