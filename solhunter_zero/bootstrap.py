@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
@@ -22,6 +23,9 @@ def bootstrap(one_click: bool = False) -> None:
     be used by entry points that need to guarantee the project is ready to run
     programmatically.
     """
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        if not device.MPS_SENTINEL.exists():
+            device.ensure_torch_with_metal()
     device.ensure_gpu_env()
 
     if one_click:
