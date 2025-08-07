@@ -31,10 +31,6 @@ from solhunter_zero.bootstrap_utils import (
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
 
-rotate_startup_log()
-env_config.configure_environment(ROOT)
-from solhunter_zero import device  # noqa: E402
-
 
 def ensure_route_ffi() -> None:
     from solhunter_zero.build_utils import ensure_route_ffi as _ensure_route_ffi
@@ -82,6 +78,12 @@ def rotate_preflight_log(
             path.write_text("")
     except OSError:
         pass
+
+
+rotate_startup_log()
+rotate_preflight_log()
+env_config.configure_environment(ROOT)
+from solhunter_zero import device  # noqa: E402
 
 
 def ensure_wallet_cli() -> None:
@@ -455,25 +457,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if not args.skip_preflight:
-        rotate_preflight_log()
         results = preflight.run_preflight()
-        log_lines: list[str] = []
         failures: list[tuple[str, str]] = []
         for name, ok, msg in results:
             status = "OK" if ok else "FAIL"
             line = f"{name}: {status} - {msg}"
             sys.stdout.write(line + "\n")
-            log_lines.append(line + "\n")
-            log_startup(line)
             if not ok:
                 failures.append((name, msg))
-        try:
-            with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.writelines(log_lines)
-        except OSError:
-            pass
-        for name, msg in failures:
-            log_startup(f"Preflight failure: {name} - {msg}")
         if failures:
             return 1
 
@@ -575,6 +566,11 @@ def main(argv: list[str] | None = None) -> int:
     for line in (out + err).splitlines():
         if line:
             log_startup(line)
+
+    log_path = ROOT / "startup.log"
+    print("Log summary:")
+    print(f"  Detailed logs: {log_path}")
+    log_startup(f"Log summary: see {log_path}")
 
     return proc.returncode or hc_code
 
