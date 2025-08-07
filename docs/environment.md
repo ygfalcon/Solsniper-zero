@@ -146,7 +146,7 @@ This document lists environment variables recognized by the project.
 | `SHELL` | `` | Configures shell |
 | `SIM_MODEL_CACHE_TTL` | `300` | TTL for sim model cache cache |
 | `SOLANA_KEYPAIR` | `` | Configures solana keypair |
-| `SOLANA_RPC_URL` | `https://api.mainnet-beta.solana.com` | URL for solana rpc |
+| `SOLANA_RPC_URL` | `https://api.mainnet-beta.solana.com` | URL for Solana RPC and default endpoint for connectivity checks |
 | `SOLANA_TESTNET_RPC_URL` | `https://api.devnet.solana.com` | URL for solana testnet rpc |
 | `SOLHUNTER_CONFIG` | `` | Configures solhunter config |
 | `SOLHUNTER_FORCE_DEPS` | `` | Configures solhunter force deps |
