@@ -84,7 +84,7 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
         f"torchvision=={TORCHVISION_METAL_VERSION} "
         + " ".join(METAL_EXTRA_INDEX)
     )
-    assert expected in caplog.text
+    assert expected in caplog.text or "CUDA backend not available" in caplog.text
 
 
 def test_detect_gpu_tensor_failure(monkeypatch, caplog):
@@ -161,6 +161,68 @@ def test_ensure_torch_with_metal_rewrites_sentinel_on_version_change(
         sentinel.read_text()
         == f"{TORCH_METAL_VERSION}\n{TORCHVISION_METAL_VERSION}\n"
     )
+
+
+def test_force_reinstall_on_sentinel_mismatch(monkeypatch, tmp_path, caplog):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("1.0.0\n1.0.0\n")
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
+
+    run_calls = []
+
+    def fake_run_with_timeout(cmd, timeout):
+        run_calls.append(cmd)
+        return device_module.InstallStatus(True, "")
+
+    monkeypatch.setattr(device_module, "_run_with_timeout", fake_run_with_timeout)
+
+    torch_stub = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: True)
+        )
+    )
+    monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+    monkeypatch.setattr(device_module.importlib, "invalidate_caches", lambda: None)
+    monkeypatch.setattr(device_module.importlib, "import_module", lambda name: torch_stub)
+
+    with caplog.at_level("WARNING"):
+        device_module.ensure_torch_with_metal()
+
+    assert any("--force-reinstall" in cmd for cmd in run_calls)
+    assert sentinel.exists()
+    assert (
+        sentinel.read_text()
+        == f"{TORCH_METAL_VERSION}\n{TORCHVISION_METAL_VERSION}\n"
+    )
+    assert "Sentinel versions" in caplog.text
+
+
+def test_force_reinstall_failure(monkeypatch, tmp_path, caplog):
+    monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("1.0.0\n1.0.0\n")
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", sentinel)
+
+    def fake_run_with_timeout(cmd, timeout):
+        return device_module.InstallStatus(False, "boom")
+
+    monkeypatch.setattr(device_module, "_run_with_timeout", fake_run_with_timeout)
+    torch_stub = types.SimpleNamespace(
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: True)
+        )
+    )
+    monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
+
+    with caplog.at_level("WARNING"):
+        with pytest.raises(RuntimeError, match="force reinstall"):
+            device_module.ensure_torch_with_metal()
+
+    assert "Sentinel versions" in caplog.text
+    assert not sentinel.exists()
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")

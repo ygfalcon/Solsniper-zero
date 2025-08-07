@@ -118,17 +118,25 @@ def ensure_torch_with_metal() -> None:
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         return
 
+    logger = logging.getLogger(__name__)
     sentinel_versions = _read_sentinel_versions()
+    force_reinstall = False
     if sentinel_versions == (TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION):
         return
+    if sentinel_versions is not None:
+        logger.warning(
+            "Sentinel versions %s do not match expected (%s, %s); forcing reinstall",
+            sentinel_versions,
+            TORCH_METAL_VERSION,
+            TORCHVISION_METAL_VERSION,
+        )
+        force_reinstall = True
     if MPS_SENTINEL.exists():
         # Versions differ or file is malformed; remove before installing
         try:
             MPS_SENTINEL.unlink(missing_ok=True)
         except Exception:
             pass
-
-    logger = logging.getLogger(__name__)
 
     global torch
     try:
@@ -140,19 +148,29 @@ def ensure_torch_with_metal() -> None:
     except Exception:
         needs_install = True
 
-    if needs_install:
+    if needs_install or force_reinstall:
         cmd = [
             sys.executable,
             "-m",
             "pip",
             "install",
-            f"torch=={TORCH_METAL_VERSION}",
-            f"torchvision=={TORCHVISION_METAL_VERSION}",
-            *METAL_EXTRA_INDEX,
         ]
+        if force_reinstall:
+            cmd.append("--force-reinstall")
+        cmd.extend(
+            [
+                f"torch=={TORCH_METAL_VERSION}",
+                f"torchvision=={TORCHVISION_METAL_VERSION}",
+                *METAL_EXTRA_INDEX,
+            ]
+        )
         install_cmd = " ".join(cmd)
         status = _run_with_timeout(cmd, timeout=INSTALL_TIMEOUT)
         if not status.success:
+            if force_reinstall:
+                logger.error("Forced PyTorch reinstall failed: %s", status.message)
+                logger.error("Install manually with: %s", install_cmd)
+                raise RuntimeError("Failed to force reinstall MPS-enabled PyTorch")
             logger.error("PyTorch installation failed: %s", status.message)
             logger.error("Install manually with: %s", install_cmd)
             raise RuntimeError("Failed to install MPS-enabled PyTorch")
