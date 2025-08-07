@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import os
 
+from .logging_utils import log_startup
+
 ROOT = Path(__file__).resolve().parent.parent
 
 __all__ = ["load_env_file"]
@@ -21,11 +23,7 @@ def load_env_file(path: Path) -> None:
     if not path.exists():
         msg = f"Warning: environment file {path} not found"
         print(msg)
-        try:
-            with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-                fh.write(msg + "\n")
-        except OSError:
-            pass
+        log_startup(msg)
         return
     for raw_line in path.read_text().splitlines():
         line = raw_line.strip()

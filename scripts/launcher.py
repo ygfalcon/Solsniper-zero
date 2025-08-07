@@ -33,10 +33,10 @@ if sys.version_info < (3, 11):
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
+from solhunter_zero.logging_utils import log_startup  # noqa: E402
 
 ensure_venv(None)
-with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
-    fh.write(f"Virtual environment: {sys.prefix}\n")
+log_startup(f"Virtual environment: {sys.prefix}")
 
 from solhunter_zero import env  # noqa: E402
 
