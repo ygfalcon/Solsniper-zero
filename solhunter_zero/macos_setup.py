@@ -29,6 +29,12 @@ except Exception:  # pragma: no cover - optional import for CI
 
 
 
+def mac_setup_completed() -> bool:
+    """Return ``True`` if the macOS setup marker exists."""
+    return MAC_SETUP_MARKER.exists()
+
+
+
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
@@ -313,6 +319,11 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
         return found
 
     missing_tools = missing()
+    if mac_setup_completed() and not missing_tools:
+        if not TOOLS_OK_MARKER.exists():
+            TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+            TOOLS_OK_MARKER.write_text("ok")
+        return {"steps": {}, "success": True, "missing": []}
     if TOOLS_OK_MARKER.exists() and not missing_tools:
         return {"steps": {}, "success": True, "missing": []}
     if not missing_tools:

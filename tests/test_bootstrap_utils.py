@@ -15,6 +15,9 @@ def test_ensure_deps_runs_prepare_macos_env(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare_macos_env
     )
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.mac_setup_completed", lambda: False
+    )
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
@@ -22,6 +25,31 @@ def test_ensure_deps_runs_prepare_macos_env(monkeypatch):
     bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
 
     assert called["prepare"] == 1
+
+
+def test_mac_setup_marker_skips_prepare(monkeypatch):
+    marker = bootstrap_utils.DEPS_MARKER
+    marker.unlink(missing_ok=True)
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    called = {"prepare": 0}
+
+    def fake_prepare_macos_env(non_interactive=True):
+        called["prepare"] += 1
+        return {"success": True}
+
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.prepare_macos_env", fake_prepare_macos_env
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.macos_setup.mac_setup_completed", lambda: True
+    )
+    monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
+
+    bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
+
+    assert called["prepare"] == 0
 
 
 def test_deps_marker_skips_install(monkeypatch):
