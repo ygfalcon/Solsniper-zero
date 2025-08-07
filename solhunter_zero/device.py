@@ -42,14 +42,25 @@ TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = _load_torch_versions()
 MPS_SENTINEL = Path(__file__).resolve().parent.parent / ".cache" / "torch_mps_ready"
 
 
-def _sentinel_matches() -> bool:
+def _read_sentinel_versions() -> tuple[str, str] | None:
+    """Return the torch and torchvision versions stored in the sentinel file.
+
+    The helper returns ``None`` when the sentinel does not exist or is malformed
+    so callers can decide whether it represents a version mismatch.
+    """
+
     if not MPS_SENTINEL.exists():
-        return False
+        return None
     try:
         torch_ver, vision_ver = MPS_SENTINEL.read_text().splitlines()[:2]
     except Exception:
-        return False
-    return torch_ver == TORCH_METAL_VERSION and vision_ver == TORCHVISION_METAL_VERSION
+        return None
+    return torch_ver, vision_ver
+
+
+def _sentinel_matches() -> bool:
+    versions = _read_sentinel_versions()
+    return versions == (TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION)
 
 
 def _write_sentinel() -> None:
@@ -107,8 +118,15 @@ def ensure_torch_with_metal() -> None:
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         return
 
-    if _sentinel_matches():
+    sentinel_versions = _read_sentinel_versions()
+    if sentinel_versions == (TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION):
         return
+    if MPS_SENTINEL.exists():
+        # Versions differ or file is malformed; remove before installing
+        try:
+            MPS_SENTINEL.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     logger = logging.getLogger(__name__)
 
