@@ -415,7 +415,13 @@ def initialize_gpu() -> dict[str, str]:
     variables is returned in all cases.
     """
 
-    if platform.system() == "Darwin" and platform.machine() == "arm64":
+    system = platform.system()
+    machine = platform.machine()
+    if system == "Darwin" and machine == "x86_64":
+        raise RuntimeError(
+            "Running under Rosetta (x86_64) is not supported; run via 'arch -arm64'"
+        )
+    if system == "Darwin" and machine == "arm64":
         sentinel_ok = _sentinel_matches()
         if not sentinel_ok:
             MPS_SENTINEL.unlink(missing_ok=True)
