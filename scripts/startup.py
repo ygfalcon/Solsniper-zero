@@ -47,6 +47,7 @@ from solhunter_zero.bootstrap_utils import (
     ensure_depth_service,
     ensure_route_ffi,
     ensure_venv,
+    ensure_endpoints,
 )
 
 from solhunter_zero import env  # noqa: E402
@@ -204,70 +205,6 @@ def run_quick_setup() -> str | None:
         return find_config_file()
     except Exception:
         return None
-
-
-def ensure_endpoints(cfg: dict) -> None:
-    """Ensure HTTP endpoints in ``cfg`` are reachable.
-
-    The configuration may specify several service URLs such as
-    ``DEX_BASE_URL`` or custom metrics endpoints.  This function attempts a
-    ``HEAD`` request to each HTTP(S) URL and aborts startup if any service is
-    unreachable.  BirdEye is only checked when an API key is configured.
-    """
-
-    import asyncio
-    import urllib.error
-    from solhunter_zero.http import check_endpoint
-
-    urls: dict[str, str] = {}
-    if cfg.get("birdeye_api_key"):
-        urls["BirdEye"] = "https://public-api.birdeye.so/defi/tokenlist"
-    for key, val in cfg.items():
-        if not isinstance(val, str):
-            continue
-        if not val.startswith("http://") and not val.startswith("https://"):
-            continue
-        urls[key] = val
-
-    async def _check(name: str, url: str) -> tuple[str, Exception] | None:
-        # Each URL is checked with its own exponential backoff.
-        for attempt in range(3):
-            try:
-                # ``check_endpoint`` is synchronous; run it in a thread to avoid blocking.
-                await asyncio.to_thread(check_endpoint, url, retries=1)
-                return None
-            except urllib.error.URLError as exc:  # pragma: no cover - network failure
-                if attempt == 2:
-                    return name, exc
-                wait = 2**attempt
-                print(
-                    f"Attempt {attempt + 1} failed for {name} at {url}: {exc}. "
-                    f"Retrying in {wait} seconds..."
-                )
-                await asyncio.sleep(wait)
-
-    async def _run() -> list[tuple[str, Exception] | None]:
-        tasks = [_check(name, url) for name, url in urls.items()]
-        return await asyncio.gather(*tasks)
-
-    results = asyncio.run(_run())
-    failures: list[tuple[str, str, Exception]] = []
-    for name_exc in results:
-        if name_exc is None:
-            continue
-        name, exc = name_exc
-        url = urls[name]
-        failures.append((name, url, exc))
-
-    if failures:
-        details = "; ".join(
-            f"{name} at {url} ({exc})" for name, url, exc in failures
-        )
-        print(
-            "Failed to reach the following endpoints: "
-            f"{details}. Check your network connection or configuration."
-        )
-        raise SystemExit(1)
 
 
 def check_disk_space(min_bytes: int) -> None:
