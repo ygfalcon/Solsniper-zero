@@ -27,6 +27,7 @@ def test_ensure_tools_skips_when_marker_exists(monkeypatch, tmp_path):
         return {"steps": {}, "success": True}
 
     monkeypatch.setattr(ms, "prepare_macos_env", fake_prepare)
+    monkeypatch.setattr(ms, "mac_setup_completed", lambda: False)
 
     report = ms.ensure_tools()
     assert report == {"steps": {}, "success": True, "missing": []}
@@ -54,6 +55,7 @@ def test_ensure_tools_runs_setup_and_marks(monkeypatch, tmp_path):
         return {"steps": {}, "success": True}
 
     monkeypatch.setattr(ms, "prepare_macos_env", fake_prepare)
+    monkeypatch.setattr(ms, "mac_setup_completed", lambda: False)
 
     report = ms.ensure_tools()
     assert calls["count"] >= 2
