@@ -33,10 +33,11 @@ from solhunter_zero.bootstrap_utils import (
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import (
+    init_startup_logging,
     log_startup,
-    rotate_startup_log,
-    rotate_preflight_log,
 )  # noqa: E402
+
+log = init_startup_logging()
 
 
 def ensure_route_ffi() -> None:
@@ -62,8 +63,6 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
         )
         raise SystemExit(msg)
 
-rotate_startup_log()
-rotate_preflight_log()
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
 
@@ -74,15 +73,15 @@ def ensure_wallet_cli() -> None:
     if shutil.which("solhunter-wallet") is not None:
         return
 
-    print("'solhunter-wallet' command not found. Attempting installation via pip...")
+    log.warning("'solhunter-wallet' command not found. Attempting installation via pip...")
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
         text=True,
     )
     if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
-        print(
+        log.error(
             "Failed to install 'solhunter-wallet'. Please install it manually with "
-            "'pip install solhunter-wallet' and re-run.",
+            "'pip install solhunter-wallet' and re-run."
         )
         raise SystemExit(1)
 
@@ -129,17 +128,17 @@ def check_disk_space(min_bytes: int) -> None:
     try:
         _, _, free = shutil.disk_usage(ROOT)
     except OSError as exc:  # pragma: no cover - unexpected failure
-        print(f"Unable to determine free disk space: {exc}")
+        log.error(f"Unable to determine free disk space: {exc}")
         raise SystemExit(1)
 
     if free < min_bytes:
         required_gb = min_bytes / (1024 ** 3)
         free_gb = free / (1024 ** 3)
-        print(
+        log.error(
             f"Insufficient disk space: {free_gb:.2f} GB available,"
             f" {required_gb:.2f} GB required."
         )
-        print("Please free up disk space and try again.")
+        log.error("Please free up disk space and try again.")
         raise SystemExit(1)
 
 
@@ -162,13 +161,13 @@ def check_internet(url: str = "https://example.com") -> None:
                 return
         except Exception as exc:  # pragma: no cover - network failure
             if attempt == 2:
-                print(
+                log.error(
                     f"Failed to reach {url} after 3 attempts: {exc}. "
                     "Check your internet connection."
                 )
                 raise SystemExit(1)
             wait = 2**attempt
-            print(
+            log.warning(
                 f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
                 f"Retrying in {wait} seconds..."
             )
@@ -179,7 +178,7 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
     """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
     if not os.environ.get("SOLANA_RPC_URL"):
-        print(f"Using default RPC URL {rpc_url}")
+        log.info(f"Using default RPC URL {rpc_url}")
 
     import json
     import urllib.request
@@ -201,12 +200,12 @@ def ensure_rpc(*, warn_only: bool = False) -> None:
                     " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
                 )
                 if warn_only:
-                    print(f"Warning: {msg}")
+                    log.warning(f"Warning: {msg}")
                     return
-                print(msg)
+                log.error(msg)
                 raise SystemExit(1)
             wait = 2**attempt
-            print(
+            log.warning(
                 f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}.",
                 f" Retrying in {wait} seconds...",
             )
@@ -287,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
     args, rest = parser.parse_known_args(argv)
 
     # Run early environment checks before any heavy work
-    print("Checking disk space...")
+    log.info("Checking disk space...")
     try:
         check_disk_space(1 << 30)
     except SystemExit:
@@ -299,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.offline or args.skip_rpc_check:
         log_startup("Internet connectivity check skipped")
     else:
-        print("Checking internet connectivity...")
+        log.info("Checking internet connectivity...")
         try:
             check_internet()
         except SystemExit:
@@ -330,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
                 config_path = Path(cfg_new)
             ran_quick_setup = True
         if not config_path or not Path(config_path).exists():
-            print("Failed to create configuration via quick setup")
+            log.error("Failed to create configuration via quick setup")
             return 1
         try:
             cfg_data = validate_config(load_config(config_path))
@@ -341,11 +340,13 @@ def main(argv: list[str] | None = None) -> int:
                     config_path = Path(cfg_new)
                     ran_quick_setup = True
                 if not config_path or not Path(config_path).exists():
-                    print("Failed to create configuration via quick setup")
+                    log.error("Failed to create configuration via quick setup")
                     return 1
                 cfg_data = validate_config(load_config(config_path))
             else:
-                print("Invalid configuration. Run 'scripts/quick_setup.py' to fix it.")
+                log.error(
+                    "Invalid configuration. Run 'scripts/quick_setup.py' to fix it."
+                )
                 return 1
         try:
             ensure_wallet_cli()
@@ -371,13 +372,13 @@ def main(argv: list[str] | None = None) -> int:
         for step, info in report.get("steps", {}).items():
             msg = info.get("message", "")
             if msg:
-                print(f"{step}: {info['status']} - {msg}")
+                log.info(f"{step}: {info['status']} - {msg}")
             else:
-                print(f"{step}: {info['status']}")
+                log.info(f"{step}: {info['status']}")
             if info.get("status") == "error":
                 fix = macos_setup.MANUAL_FIXES.get(step)
                 if fix:
-                    print(f"Manual fix for {step}: {fix}")
+                    log.info(f"Manual fix for {step}: {fix}")
         # Clear cache markers so subsequent steps rerun fully
         (ROOT / ".cache" / "cargo-installed").unlink(missing_ok=True)
         (ROOT / ".cache" / "deps-installed").unlink(missing_ok=True)
@@ -408,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(out)
         passes = len(re.findall(r": OK\b", out))
         fails = len(re.findall(r": FAIL\b", out))
-        print(
+        log.info(
             f"Self-test summary: bootstrap {'PASS' if b_code == 0 else 'FAIL'}, "
             f"preflight: {passes} passed, {fails} failed."
         )
@@ -431,16 +432,16 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
 
     if sys.version_info < (3, 11):
-        print(
+        log.error(
             "Python 3.11 or higher is required. "
             "Please install Python 3.11 following the instructions in README.md."
         )
         return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
+        log.warning("Warning: running under Rosetta; Metal acceleration unavailable.")
         if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
+            log.warning("Use '--allow-rosetta' to continue anyway.")
             return 1
 
     if not args.skip_preflight:
@@ -488,12 +489,12 @@ def main(argv: list[str] | None = None) -> int:
         mnemonic_path=mnemonic_path,
         active_keypair=active_keypair,
     )
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
-    print(f"  HTTP endpoints: {endpoint_status}")
+    log.info("Startup summary:")
+    log.info(f"  Config file: {config_path or 'none'}")
+    log.info(f"  Active keypair: {active_keypair or 'none'}")
+    log.info(f"  GPU device: {gpu_device}")
+    log.info(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    log.info(f"  HTTP endpoints: {endpoint_status}")
 
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
@@ -501,22 +502,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if proc.returncode == 0:
         msg = "SolHunter Zero launch complete – system ready."
-        print(msg)
-        log_startup(msg)
+        log.info(msg)
 
     if not args.no_diagnostics:
         from scripts import diagnostics
 
         info = diagnostics.collect()
         summary = ", ".join(f"{k}={v}" for k, v in info.items())
-        print(f"Diagnostics summary: {summary}")
+        log.info(f"Diagnostics summary: {summary}")
         out_path = Path("diagnostics.json")
         try:
             out_path.write_text(json.dumps(info, indent=2))
         except Exception:
             pass
         else:
-            print(f"Full diagnostics written to {out_path}")
+            log.info(f"Full diagnostics written to {out_path}")
 
     # Run a post-execution health check and append the results to startup.log.
     from scripts import healthcheck
@@ -555,8 +555,8 @@ def main(argv: list[str] | None = None) -> int:
             log_startup(line)
 
     log_path = ROOT / "startup.log"
-    print("Log summary:")
-    print(f"  Detailed logs: {log_path}")
+    log.info("Log summary:")
+    log.info(f"  Detailed logs: {log_path}")
     log_startup(f"Log summary: see {log_path}")
 
     return proc.returncode or hc_code

@@ -16,10 +16,10 @@ from typing import IO
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
-from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.logging_utils import init_startup_logging, log_startup  # noqa: E402
 from solhunter_zero import env  # noqa: E402
 
-rotate_startup_log()
+log = init_startup_logging()
 env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
 log_startup("start_all launched")
@@ -118,7 +118,7 @@ try:
     with open(db_path, "a"):
         pass
 except OSError as exc:
-    print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
+    log.error(f"Cannot write to {db_path}: {exc}")
     sys.exit(1)
 data_sync.start_scheduler(interval=interval, db_path=db_path)
 
@@ -132,7 +132,7 @@ try:
     deadline = time.monotonic() + 30.0
     wait_for_depth_ws(addr, port, deadline, depth_proc)
 except Exception as exc:
-    logging.error(str(exc))
+    log.error(str(exc))
     stop_all()
 
 main_cmd = [sys.executable, "-m", "solhunter_zero.main"]

@@ -45,23 +45,20 @@ def ensure_keypair() -> tuple["wallet.KeypairInfo", Path]:
     one_click = os.getenv("AUTO_SELECT_KEYPAIR") == "1"
 
     def _msg(msg: str) -> None:
-        if one_click:
-            log.info(msg)
-        else:
-            print(msg)
+        log.info(msg)
 
     keypair_json = os.environ.get("KEYPAIR_JSON")
     try:
         result = wallet.setup_default_keypair()
     except Exception as exc:  # pragma: no cover - handled interactively
-        print(f"Failed to set up default keypair: {exc}")
+        log.error(f"Failed to set up default keypair: {exc}")
         if keypair_json:
             os.environ.pop("KEYPAIR_JSON", None)
-            print("Removed KEYPAIR_JSON environment variable.")
+            log.info("Removed KEYPAIR_JSON environment variable.")
         if one_click:
             raise SystemExit(1)
         input(
-            "Press Enter to retry without KEYPAIR_JSON or Ctrl+C to abort..."
+            "Press Enter to retry without KEYPAIR_JSON or Ctrl+C to abort...",
         )
         result = wallet.setup_default_keypair()
     name, mnemonic_path = result.name, result.mnemonic_path

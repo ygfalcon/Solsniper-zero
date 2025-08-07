@@ -20,6 +20,9 @@ from pathlib import Path
 from typing import NoReturn
 
 from .paths import ROOT
+from solhunter_zero.logging_utils import init_startup_logging, log_startup
+
+log = init_startup_logging()
 
 
 def _check_python(exe: str) -> bool:
@@ -74,10 +77,7 @@ def find_python() -> str:
         except Exception:
             prepare_macos_env = None  # type: ignore
         if prepare_macos_env is not None:
-            print(
-                "Python 3.11 not found; running macOS setup...",
-                file=sys.stderr,
-            )
+            log.warning("Python 3.11 not found; running macOS setup...")
             prepare_macos_env(non_interactive=True)
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
@@ -92,7 +92,7 @@ def find_python() -> str:
         )
     else:
         message += " Please install Python 3.11 and try again."
-    print(message, file=sys.stderr)
+    log.error(message)
     raise SystemExit(1)
 
 
@@ -106,9 +106,7 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
 
-rotate_startup_log()
 ensure_tools(non_interactive=True)
 ensure_venv(None)
 log_startup(f"Virtual environment: {sys.prefix}")
