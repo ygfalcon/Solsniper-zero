@@ -38,16 +38,31 @@ def _ensure_tomli_w():
     return tomli_w
 
 
-def ensure_config(cfg_path: str | Path | None = None) -> Path:
-    """Ensure ``cfg_path`` exists and contains valid configuration.
+def ensure_config(cfg_path: str | Path | None = None) -> tuple[Path, dict]:
+    """Locate or generate the configuration and return its path and data.
 
-    If the configuration file is missing a default template is copied. Environment
-    overrides are applied and the resulting configuration is validated and written
-    back to disk. The final path to the configuration file is returned.
+    The search order honours ``cfg_path`` if provided, otherwise it mirrors
+    :func:`solhunter_zero.config.find_config_file` by checking the
+    ``SOLHUNTER_CONFIG`` environment variable followed by ``config.toml`` and
+    ``config.yaml`` / ``config.yml`` in the repository root.  When no file is
+    found a default ``config.toml`` is created from the bundled template.
+
+    Environment variable overrides are applied and the resulting configuration is
+    validated.  The normalized configuration is written back to disk and both the
+    active path and dictionary are returned.
     """
-    from .config import apply_env_overrides, validate_config
+    from .config import (
+        apply_env_overrides,
+        find_config_file,
+        validate_config,
+    )
 
-    cfg_file = Path(cfg_path) if cfg_path is not None else ROOT / "config.toml"
+    if cfg_path is not None:
+        cfg_file = Path(cfg_path)
+    else:
+        found = find_config_file()
+        cfg_file = Path(found) if found else ROOT / "config.toml"
+
     created = False
     if not cfg_file.exists():
         created = _copy_template(cfg_file)
@@ -71,4 +86,4 @@ def ensure_config(cfg_path: str | Path | None = None) -> Path:
         fh.write(tomli_w.dumps(cfg).encode("utf-8"))
     if created:
         print(f"Configuration created at {cfg_file}")
-    return cfg_file
+    return cfg_file, cfg
