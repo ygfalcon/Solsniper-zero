@@ -694,6 +694,16 @@ def main(
     ensure_connectivity(offline=offline or dry_run)
     metrics_aggregator.start()
 
+    if not asyncio.run(event_bus.verify_broker_connection()):
+        logging.error("Message broker verification failed")
+        if os.getenv("BROKER_VERIFY_ABORT", "").lower() not in (
+            "",
+            "0",
+            "false",
+            "no",
+        ):
+            raise SystemExit(1)
+
     use_bundles = str(
         cfg.get("use_mev_bundles") or os.getenv("USE_MEV_BUNDLES", "false")
     ).lower() in {"1", "true", "yes"}
@@ -821,7 +831,7 @@ def main(
         agent_manager = AgentManager.from_config(cfg)
         if agent_manager is None:
             strategy_manager = StrategyManager(strategies)
-            missing = strategy_manager.list_missing()
+            missing = getattr(strategy_manager, "list_missing", lambda: [])()
             if missing:
                 logging.warning("Skipped strategies: %s", ", ".join(missing))
         else:
@@ -829,7 +839,7 @@ def main(
 
     else:
         strategy_manager = StrategyManager(strategies)
-        missing = strategy_manager.list_missing()
+        missing = getattr(strategy_manager, "list_missing", lambda: [])()
         if missing:
             logging.warning("Skipped strategies: %s", ", ".join(missing))
 
