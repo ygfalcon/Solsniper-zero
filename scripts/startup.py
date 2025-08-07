@@ -90,6 +90,20 @@ def _run_rustup_setup(cmd, *, shell: bool = False, retries: int = 2) -> None:
             print("Rustup setup failed, retrying...")
 
 
+def _add_rust_target(target: str) -> None:
+    """Attempt to add a rustup target, exiting with instructions on failure."""
+
+    cmd = ["rustup", "target", "add", target]
+    try:
+        subprocess.check_call(cmd)
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - network
+        print(
+            f"Failed to add rust target '{target}'."
+            f" Please run '{' '.join(cmd)}' manually."
+        )
+        raise SystemExit(exc.returncode)
+
+
 def ensure_config() -> Path:
     """Ensure a configuration file exists and is valid and return its path."""
     from solhunter_zero.config_bootstrap import ensure_config as _ensure_config
@@ -415,7 +429,7 @@ def ensure_cargo() -> None:
         print("Failed to run 'cargo --version'. Is Rust installed correctly?")
         raise SystemExit(exc.returncode)
     if installed and platform.system() == "Darwin" and platform.machine() == "arm64":
-        subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+        _add_rust_target("aarch64-apple-darwin")
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             targets = subprocess.check_output(["rustup", "target", "list"], text=True)
@@ -423,7 +437,7 @@ def ensure_cargo() -> None:
             print("Failed to list rust targets. Is rustup installed correctly?")
             raise SystemExit(exc.returncode)
         if "aarch64-apple-darwin" not in targets:
-            subprocess.check_call(["rustup", "target", "add", "aarch64-apple-darwin"])
+            _add_rust_target("aarch64-apple-darwin")
 
     missing = [tool for tool in ("pkg-config", "cmake") if shutil.which(tool) is None]
     if missing:
