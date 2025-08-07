@@ -115,6 +115,28 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
     return True, f"Active keypair {name} present"
 
 
+def check_required_env(keys: List[str] | None = None) -> Check:
+    """Ensure critical environment variables are configured.
+
+    Parameters
+    ----------
+    keys:
+        Optional list of variable names to verify. Defaults to
+        ``["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]``.
+    """
+
+    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
+    missing = []
+    for key in required:
+        val = os.getenv(key)
+        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+            missing.append(key)
+    if missing:
+        joined = ", ".join(missing)
+        return False, f"Missing environment variables: {joined}. Set them and retry"
+    return True, "Required environment variables set"
+
+
 def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> Check:
     url = os.environ.get("SOLANA_RPC_URL", default_url)
     try:
@@ -163,6 +185,7 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Xcode CLT", check_xcode_clt),
     ("Config", check_config_file),
     ("Keypair", check_keypair),
+    ("Environment", check_required_env),
     (
         "Network",
         lambda: check_network(
