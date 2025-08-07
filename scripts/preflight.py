@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-import importlib
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -14,10 +12,7 @@ from typing import Callable, List, Tuple
 from urllib import error
 import json
 
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # pragma: no cover - only for very old Pythons
-    tomllib = None
+from scripts.deps import check_deps
 
 
 
@@ -35,35 +30,20 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
     )
 
 
-def _parse_dependencies() -> List[str]:
-    """Return a list of modules specified in pyproject.toml."""
-    pyproject = ROOT / "pyproject.toml"
-    if not pyproject.exists():
-        return []
-    if tomllib is None:
-        return []
-    with pyproject.open("rb") as fh:
-        data = tomllib.load(fh)
-    deps: List[str] = []
-    for entry in data.get("project", {}).get("dependencies", []):
-        name = re.split(r"[<>=\[]", entry, 1)[0].strip()
-        deps.append(name)
-    return deps
-
-
 def check_dependencies() -> Check:
-    """Attempt to import each dependency declared in pyproject.toml."""
-    missing: List[str] = []
-    for dep in _parse_dependencies():
-        module_name = dep.replace("-", "_")
-        if module_name == "scikit_learn":  # special case
-            module_name = "sklearn"
-        try:
-            importlib.import_module(module_name)
-        except Exception:
-            missing.append(dep)
-    if missing:
-        return False, f"Missing modules: {', '.join(sorted(missing))}"
+    """Report any missing required or optional dependencies."""
+    missing_required, missing_optional = check_deps()
+    if missing_required or missing_optional:
+        parts: List[str] = []
+        if missing_required:
+            parts.append(
+                "missing required: " + ", ".join(sorted(missing_required))
+            )
+        if missing_optional:
+            parts.append(
+                "missing optional: " + ", ".join(sorted(missing_optional))
+            )
+        return False, "; ".join(parts)
     return True, "All dependencies available"
 
 
