@@ -96,6 +96,9 @@ For a guided setup you can run `scripts/startup.py` which checks dependencies, v
 
 On macOS, double-click `start.command` (or run `./run.sh` from Terminal) for a one-click launch that executes the same Python entry point via `start.py`.
 
+For a quick showcase: download the repository and double-click `showcase.command`
+to run all strategies on bundled dummy data.
+
 Developers embedding SolHunter Zero can initialize the environment
 programmatically:
 
