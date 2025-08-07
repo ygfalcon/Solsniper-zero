@@ -18,13 +18,13 @@ The default workflow is intentionally simple:
    and warns if the wallet balance is below `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
-   before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
+   before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
    remains available.
    A machine-readable diagnostics summary is written to `diagnostics.json` after the bot exits
    unless `--no-diagnostics` is supplied.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
 
-The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50&nbsp;GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
+The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50 GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
 Control how often snapshots and trades are flushed to disk with `OFFLINE_BATCH_SIZE` and `OFFLINE_FLUSH_INTERVAL`.
 `OFFLINE_FLUSH_MAX_BATCH` caps the number of entries written per transaction.
 Executemany batching yields roughly 25–30% faster logging.
@@ -120,7 +120,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
 4. **Logs** — All output is appended to `startup.log` in the project directory.
     A diagnostics summary is written to `diagnostics.json` for accessibility tools.
     Output from environment preflight checks is written to `preflight.log`, which rotates to
-    `preflight.log.1` once it exceeds 1 MB so you can review the previous run.
+    `preflight.log.1` once it exceeds 1 MB so you can review the previous run.
     Older logs rotate with timestamps for easy troubleshooting.
 5. **Troubleshooting** — If the script exits early, open Terminal and run `python start.py --one-click` to view errors.
    Common issues include missing network access, Homebrew not on `PATH`, or stale permissions on the script.
@@ -227,10 +227,10 @@ forwards to the Python launcher for a fully automated start.
 ### Troubleshooting
 
   right-click and choose *Open*.
-- **`python` not found** – ensure Python 3.11 is installed and on your
+- **`python` not found** – ensure Python 3.11 is installed and on your
   `PATH`.
 - **Torch missing MPS backend** – confirm the Metal wheel installed and that
-  macOS 13+ is in use. Validate with `python -c "import torch; print(torch.backends.mps.is_available())"`.
+  macOS 13+ is in use. Validate with `python -c "import torch; print(torch.backends.mps.is_available())"`.
 - **Permission denied** – Gatekeeper may block the script; allow it via
   System Preferences or run from Terminal.
 
@@ -607,9 +607,9 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    export EVENT_COMPRESSION=zstd  # or lz4, zlib, none
    ```
-   A typical `depth_update` event (~2.2&nbsp;KB) becomes ~1.8&nbsp;KB with zlib
-   (~0.27&nbsp;ms), ~1.9&nbsp;KB with lz4 (~0.004&nbsp;ms) and ~1.7&nbsp;KB with
-   zstd (~0.012&nbsp;ms). When either `zstandard` or `lz4` is installed,
+   A typical `depth_update` event (~2.2 KB) becomes ~1.8 KB with zlib
+   (~0.27 ms), ~1.9 KB with lz4 (~0.004 ms) and ~1.7 KB with
+   zstd (~0.012 ms). When either `zstandard` or `lz4` is installed,
    compression is enabled automatically with `COMPRESS_EVENTS=1` and
    `EVENT_COMPRESSION=zstd` when available. Set `COMPRESS_EVENTS=0` to
    disable compression or `USE_ZLIB_EVENTS=1` if older nodes expect zlib
@@ -623,7 +623,7 @@ profit calculation so routes are ranked based on the borrowed size.
    latency with and without zstd compression.
 19. **Shared memory event bus**
    Export `EVENT_BUS_MMAP` so protobuf events are written to a local ring buffer
-   instead of a socket. Increase `EVENT_BUS_MMAP_SIZE` if the default 1&nbsp;MB
+   instead of a socket. Increase `EVENT_BUS_MMAP_SIZE` if the default 1 MB
    buffer is too small:
    ```bash
    export EVENT_BUS_MMAP=/tmp/events.mmap
@@ -849,7 +849,7 @@ adjust configuration in real time.
 When `replicate_trades` is enabled, `AdvancedMemory` also listens for
 `trade_logged` events to mirror trades from other nodes.
 Set `MEMORY_SYNC_INTERVAL` to control how often these sync requests are sent
-(defaults to 5&nbsp;s).
+(defaults to 5 s).
 
 When the Web UI is running, these events are also forwarded over a simple
 WebSocket endpoint at `ws://localhost:8766/ws`. Clients can subscribe and react
@@ -995,9 +995,9 @@ Monte Carlo simulations can also run on the GPU.  When a compatible device is
 detected the simulator now enables GPU acceleration automatically. You can still
 force or disable this behaviour via the `USE_GPU_SIM` environment variable.
 
-On a test machine with an RTX&nbsp;4090, generating 100k 30‑day simulations
-takes roughly **1.2&nbsp;s** compared to **6.5&nbsp;s** on a Ryzen&nbsp;9 5900X
-(Python&nbsp;3.11, PyTorch&nbsp;2.1).
+On a test machine with an RTX 4090, generating 100k 30‑day simulations
+takes roughly **1.2 s** compared to **6.5 s** on a Ryzen 9 5900X
+(Python 3.11, PyTorch 2.1).
 
 ### GPU Memory Index
 
@@ -1006,8 +1006,8 @@ index to all available GPUs when supported. If the variable is unset the index
 automatically moves to a CUDA or Metal (MPS) device when detected. GPU detection
 uses `python -m solhunter_zero.device --check-gpu`, which exits with status 0
 when a compatible accelerator is present; run the command manually to verify
-detection. Searching a 100k vector index drops from roughly **7&nbsp;ms** per query on
-CPU to **2&nbsp;ms** with a CUDA GPU. Set `FORCE_CPU_INDEX=1` to keep the index on CPU
+detection. Searching a 100k vector index drops from roughly **7 ms** per query on
+CPU to **2 ms** with a CUDA GPU. Set `FORCE_CPU_INDEX=1` to keep the index on CPU
 even when a GPU is present.
 
 ## Usage
@@ -1079,7 +1079,7 @@ The module `solhunter_zero.resource_monitor` automatically starts a background
 task when imported. It samples CPU and memory usage with `psutil` and publishes
 the results every second as `system_metrics` events. Running the Web UI or
 querying `/status` shows the latest values under `system_metrics`, allowing you
-to check if your hardware&mdash;for example an M1&nbsp;Pro laptop&mdash;is already
+to check if your hardware&mdash;for example an M1 Pro laptop&mdash;is already
 saturated.
 
 ## Web UI
@@ -1353,7 +1353,7 @@ very small.
 - **Route ranking** — `scripts/train_gat_route_gnn.py` trains a graph neural
   network on past trades. Add `--gat` to enable the attention-based variant.
 - **Scheduling loop** — trading iterations run in a time-driven loop using
-  `asyncio` with a default delay of 60&nbsp;s. The optional Flask Web UI runs
+  `asyncio` with a default delay of 60 s. The optional Flask Web UI runs
   this loop in a dedicated thread while the web server handles requests.
 - **Weight updates and ROI** — `SwarmCoordinator` computes ROI for each agent
   using the `MemoryAgent` logs and normalizes these values to produce
@@ -1364,7 +1364,7 @@ very small.
 - **Discovery ranking** — tokens from trending APIs, mempool events and on-chain
   scans are combined, deduplicated and sorted by volume and liquidity.
 - **Web UI polling** — the browser polls `/positions`, `/trades`, `/roi`,
-  `/risk` and `/weights` every 5&nbsp;s. It assumes a single user and exposes
+  `/risk` and `/weights` every 5 s. It assumes a single user and exposes
   JSON endpoints to inspect trades and ROI history.
 - **Status endpoint** — `/status` reports if the trading loop, RL daemon,
   depth service and external event bus are alive.
@@ -1418,7 +1418,7 @@ If it is missing it will be created automatically when `RLTraining` or
 `RL_BUILD_MMAP_DATASET=0` to disable this behaviour. When disabled the datamodule
 can prefetch rows asynchronously. The buffer size is controlled by
 `rl_prefetch_buffer` or `RL_PREFETCH_BUFFER`. On a small dataset memory mapping
-lowered preparation time from around 3&nbsp;s to roughly 0.2&nbsp;s thanks to
+lowered preparation time from around 3 s to roughly 0.2 s thanks to
 ``numpy.fromiter`` and memory mapping.
 A simple arithmetic dataset located at `solhunter_zero/data/artifact_math.json` powers the
 `ArtifactMathAgent` and can be loaded with `load_artifact_math`.
