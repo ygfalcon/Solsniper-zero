@@ -10,19 +10,15 @@ import tomllib
 from . import env, device
 from .logging_utils import log_startup
 from .config import ENV_VARS
+from .env_defaults import DEFAULTS
 
 ROOT = Path(__file__).resolve().parent.parent
 
 __all__ = ["configure_environment"]
 
 
-_DEFAULTS: dict[str, str] = {
-    "DEPTH_SERVICE": "true",
-}
-
-
 def configure_environment(root: Path | None = None) -> dict[str, str]:
-    """Load ``.env`` and ensure default and GPU variables are set.
+    """Load ``.env`` and apply defaults defined in :mod:`env_defaults`.
 
     Parameters
     ----------
@@ -63,7 +59,7 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         with env_file.open("a", encoding="utf-8") as fh:
             fh.writelines(missing_lines)
 
-    for key, value in _DEFAULTS.items():
+    for key, value in DEFAULTS.items():
         if key not in os.environ:
             os.environ[key] = value
         applied[key] = os.environ[key]
