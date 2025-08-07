@@ -5,8 +5,8 @@ This script mirrors the behaviour of the previous ``start.command`` shell
 script so that all entry points invoke the same Python-based logic.
 
 * Uses ``.venv`` if present.
-* On macOS, sets ``RAYON_NUM_THREADS`` based on the CPU count and re-execs
-  via ``arch -arm64`` to ensure native arm64 binaries.
+* Sets ``RAYON_NUM_THREADS`` based on the CPU count.
+* On macOS re-execs via ``arch -arm64`` to ensure native arm64 binaries.
 * Delegates all arguments to ``scripts/startup.py``.
 """
 from __future__ import annotations
@@ -43,11 +43,14 @@ from solhunter_zero import env  # noqa: E402
 env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
 
-from solhunter_zero.system import detect_cpu_count  # noqa: E402
+from solhunter_zero.system import set_rayon_threads  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
+
+    # Configure Rayon thread count once for all downstream imports
+    set_rayon_threads()
 
     if "--one-click" not in argv:
         argv.insert(0, "--one-click")
@@ -66,7 +69,6 @@ def main(argv: list[str] | None = None) -> NoReturn:
     cmd = [python_exe, str(startup), *argv]
 
     if platform.system() == "Darwin":
-        os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
         cmd = ["arch", "-arm64", *cmd]
         os.execvp(cmd[0], cmd)
     else:

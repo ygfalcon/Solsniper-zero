@@ -30,6 +30,19 @@ def detect_cpu_count() -> int:
     return count or os.cpu_count() or 1
 
 
+def set_rayon_threads() -> None:
+    """Set ``RAYON_NUM_THREADS`` based on the detected CPU count.
+
+    The environment variable is only set if it is not already defined so that
+    callers may override the value manually.  This central helper allows other
+    modules to configure the Rayon thread pool without duplicating environment
+    logic across the codebase.
+    """
+
+    if "RAYON_NUM_THREADS" not in os.environ:
+        os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "cpu-count":
