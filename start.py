@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Shim that forwards execution to ``scripts/launcher.py``."""
+"""Shim that forwards execution to ``solhunter_zero.startup``."""
 
 import os
 import sys
-from pathlib import Path
 
 
 if __name__ == "__main__":
-    script = Path(__file__).resolve().parent / "scripts" / "launcher.py"
-    os.execv(sys.executable, [sys.executable, str(script), *sys.argv[1:]])
+    os.execv(
+        sys.executable,
+        [sys.executable, "-m", "solhunter_zero.startup", *sys.argv[1:]],
+    )

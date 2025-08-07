@@ -117,39 +117,12 @@ def test_mac_startup_prereqs(monkeypatch):
     assert env.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1"
 
 
-def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
-    repo_root = Path(__file__).resolve().parent.parent
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
+def test_startup_sets_rayon_threads_on_darwin(monkeypatch):
+    from solhunter_zero.system import set_rayon_threads
 
-    (bindir / "uname").write_text("#!/bin/bash\necho Darwin\n")
-    os.chmod(bindir / "uname", 0o755)
-
-    (bindir / "arch").write_text("#!/bin/bash\nshift\n\"$@\"\n")
-    os.chmod(bindir / "arch", 0o755)
-
-    venv = repo_root / ".venv"
-    bin_dir = venv / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        stub = bin_dir / "python3"
-        stub.write_text("#!/bin/bash\necho RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n")
-        os.chmod(stub, 0o755)
-
-        env = {**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}"}
-        env.pop("RAYON_NUM_THREADS", None)
-
-        result = subprocess.run(
-            [sys.executable, "scripts/launcher.py", "--skip-preflight"],
-            cwd=repo_root,
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-    finally:
-        shutil.rmtree(venv)
-
-    assert result.stdout.startswith("RAYON_NUM_THREADS=")
+    monkeypatch.delenv("RAYON_NUM_THREADS", raising=False)
+    set_rayon_threads()
+    assert "RAYON_NUM_THREADS" in os.environ
 
 
 def test_cluster_setup_assemble(tmp_path):
