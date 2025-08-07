@@ -186,6 +186,17 @@ def ensure_deps(*, install_optional: bool = False) -> None:
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         extra_index = list(METAL_EXTRA_INDEX)
 
+    need_install = bool(req) or (install_optional and (opt or extra_index))
+    if need_install:
+        from scripts import startup
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            try:
+                startup.check_internet()
+            except SystemExit as exc:
+                raise SystemExit("Unable to establish an internet connection; aborting.") from exc
+
     if req:
         print("Installing required dependencies...")
         _pip_install(".[uvloop]", *extra_index)
