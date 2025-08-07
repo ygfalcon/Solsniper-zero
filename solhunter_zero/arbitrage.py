@@ -64,14 +64,22 @@ from typing import (
     Mapping,
 )
 
+logger = logging.getLogger(__name__)
+
 try:  # optional rust ffi
     from . import routeffi as _routeffi
 
-    _HAS_ROUTEFFI = _routeffi.available()
+    _HAS_ROUTEFFI = _routeffi.is_routeffi_available()
     _HAS_PARALLEL = _routeffi.parallel_enabled()
+    if not _HAS_ROUTEFFI:
+        logger.warning(
+            "Route FFI library not loaded; falling back to Python routing."
+            " Set ROUTE_FFI_LIB or place the library alongside the package to enable it."
+        )
 except Exception:  # pragma: no cover - ffi unavailable
     _HAS_ROUTEFFI = False
     _HAS_PARALLEL = False
+    logger.warning("Failed to import routeffi; using Python fallback.")
 
 import aiohttp
 from .scanner_common import JUPITER_WS_URL
@@ -93,8 +101,6 @@ from .flash_loans import borrow_flash, repay_flash
 from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.keypair import Keypair
-
-logger = logging.getLogger(__name__)
 
 # rate limit for depth streams (seconds between updates)
 DEPTH_RATE_LIMIT = 0.1
@@ -133,7 +139,7 @@ if _ffi_env is not None:
     USE_FFI_ROUTE = _ffi_env.strip().lower() not in {"0", "false", "no"}
 else:
     try:  # prefer the FFI path when available
-        USE_FFI_ROUTE = _routeffi.available()
+        USE_FFI_ROUTE = _routeffi.is_routeffi_available()
     except Exception:
         USE_FFI_ROUTE = False
 
@@ -220,7 +226,7 @@ async def measure_dex_latency_async(
     if cached is not None:
         return cached
 
-    if _routeffi.available():
+    if _routeffi.is_routeffi_available():
         func = getattr(_routeffi, "measure_latency", None)
         if callable(func):
             try:
@@ -1238,7 +1244,7 @@ def _best_route(
             mempool_rate=mempool_rate,
             **kwargs,
         )
-    if USE_FFI_ROUTE and _routeffi.available():
+    if USE_FFI_ROUTE and _routeffi.is_routeffi_available():
         fees = dict(kwargs.get("fees") or {})
         gas = dict(kwargs.get("gas") or {})
         latency = dict(kwargs.get("latency") or {})

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict, deque
 from typing import List, Dict, Any
+import logging
 
 from . import BaseAgent
 from .portfolio_optimizer import PortfolioOptimizer
@@ -20,6 +21,8 @@ from ..arbitrage import (
 from .. import routeffi as _routeffi
 from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
+
+logger = logging.getLogger(__name__)
 
 
 class CrossDEXRebalancer(BaseAgent):
@@ -65,13 +68,17 @@ class CrossDEXRebalancer(BaseAgent):
         if self.use_depth_feed:
             self._unsub = subscribe("depth_update", self._handle_depth)
         self._latency_unsub = subscribe("dex_latency_update", self._handle_latency)
+        if not _routeffi.is_routeffi_available():
+            logger.warning(
+                "Route FFI library not available; rebalancing will use a Python fallback."
+            )
 
     # ------------------------------------------------------------------
     def _best_order(
         self, side: str, amount: float, depth: Dict[str, Dict[str, float]]
     ) -> List[str] | None:
         """Return an ordered list of venues using the FFI if available."""
-        if not _routeffi.available():
+        if not _routeffi.is_routeffi_available():
             return None
         key = "asks" if side == "buy" else "bids"
         prices = {

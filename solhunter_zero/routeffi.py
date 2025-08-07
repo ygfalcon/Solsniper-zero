@@ -92,7 +92,8 @@ if os.path.exists(_libname):
             _free_buf.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
             _free_buf.restype = None
             LIB.free_buffer = _free_buf
-    except OSError:
+    except OSError as exc:
+        logger.warning("Failed to load route FFI library at %s: %s", _libname, exc)
         LIB = None
 
 
@@ -350,6 +351,11 @@ if LIB is not None:
 
 def available() -> bool:
     return LIB is not None
+
+
+def is_routeffi_available() -> bool:
+    """Return True if the Route FFI library loaded successfully."""
+    return available()
 
 
 def parallel_enabled() -> bool:
