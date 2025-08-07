@@ -328,6 +328,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
                 "https://download.pytorch.org/whl/metal",
             ]
         )
+        return {}
 
     results = [
         ([], ["torch"]),
@@ -335,7 +336,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     ]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
+    monkeypatch.setattr(startup.device, "initialize_gpu", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
     monkeypatch.setattr(
@@ -385,7 +386,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
-    monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
+    monkeypatch.setattr(startup.device, "initialize_gpu", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
