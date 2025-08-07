@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from pydantic import BaseModel, AnyUrl, ValidationError, root_validator, validator
+from pydantic import (
+    BaseModel,
+    AnyUrl,
+    ValidationError,
+    root_validator,
+    validator,
+    Field,
+)
 
 
 class ConfigModel(BaseModel):
@@ -12,6 +19,7 @@ class ConfigModel(BaseModel):
     dex_base_url: AnyUrl
     agents: List[str]
     agent_weights: Dict[str, float]
+    initial_tokens: List[str] = Field(default_factory=list)
 
     class Config:
         extra = "allow"
@@ -22,7 +30,13 @@ class ConfigModel(BaseModel):
             raise ValueError("agents must be a list of non-empty strings")
         return value
 
-    @root_validator
+    @validator("initial_tokens", each_item=True)
+    def _initial_tokens_non_empty(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("initial_tokens must be a list of non-empty strings")
+        return value
+
+    @root_validator(skip_on_failure=True)
     def _weights_for_agents(cls, values: Dict[str, object]) -> Dict[str, object]:
         agents = values.get("agents") or []
         weights = values.get("agent_weights") or {}

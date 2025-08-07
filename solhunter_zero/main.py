@@ -201,6 +201,7 @@ async def _run_iteration(
     arbitrage_amount: float | None = None,
     strategy_manager: StrategyManager | None = None,
     agent_manager: AgentManager | None = None,
+    initial_tokens: Sequence[str] | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
@@ -215,18 +216,24 @@ async def _run_iteration(
         "method": discovery_method,
     }
 
+    tokens: list[str] = list(initial_tokens or [])
+
     if agent_manager is not None:
         if hasattr(agent_manager, "discover_tokens"):
             try:
-                tokens = await agent_manager.discover_tokens(**scan_kwargs)
+                discovered = await agent_manager.discover_tokens(**scan_kwargs)
             except TypeError:
-                tokens = await agent_manager.discover_tokens(
+                discovered = await agent_manager.discover_tokens(
                     offline=offline, token_file=token_file
                 )
         else:
-            tokens = await scan_tokens_async(dynamic_concurrency=True, **scan_kwargs)
+            discovered = await scan_tokens_async(dynamic_concurrency=True, **scan_kwargs)
     else:
-        tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
+        discovered = await DiscoveryAgent().discover_tokens(**scan_kwargs)
+
+    for t in discovered:
+        if t not in tokens:
+            tokens.append(t)
 
     global _LAST_TOKENS
     _LAST_TOKENS = list(tokens)
@@ -775,6 +782,7 @@ def main(
             watch_task = asyncio.create_task(_depth_service_watchdog(cfg, proc_ref))
         prev_activity = 0.0
         iteration_idx = 0
+        pending_initial_tokens = list(cfg.get("initial_tokens", []))
 
         def adjust_delay(metrics: dict) -> None:
             nonlocal loop_delay, prev_activity, prev_count, prev_ts, depth_rate_limit
@@ -892,7 +900,9 @@ def main(
                     arbitrage_amount=arbitrage_amount,
                     strategy_manager=strategy_manager,
                     agent_manager=agent_manager,
+                    initial_tokens=pending_initial_tokens,
                 )
+                pending_initial_tokens = []
                 if _LAST_TOKENS:
                     metrics = await fetch_dex_metrics_async(
                         _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
@@ -934,7 +944,9 @@ def main(
                     arbitrage_amount=arbitrage_amount,
                     strategy_manager=strategy_manager,
                     agent_manager=agent_manager,
+                    initial_tokens=pending_initial_tokens,
                 )
+                pending_initial_tokens = []
                 if _LAST_TOKENS:
                     metrics = await fetch_dex_metrics_async(
                         _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
