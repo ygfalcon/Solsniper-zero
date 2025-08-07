@@ -501,6 +501,12 @@ def initialize_gpu() -> dict[str, str]:
     The mapping of environment variables is returned in all cases.
     """
 
+    try:
+        ensure_torch_with_metal()
+    except Exception as exc:  # pragma: no cover - defensive
+        raise RuntimeError(
+            "Failed to configure Metal-enabled PyTorch. Run scripts/mac_setup.py"
+        ) from exc
     verify_gpu()
     env = ensure_gpu_env()
     if env.get("SOLHUNTER_GPU_AVAILABLE") == "0":

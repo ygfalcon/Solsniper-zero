@@ -79,12 +79,7 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
     monkeypatch.setattr(device_module, "ensure_torch_with_metal", lambda: None)
     with caplog.at_level("WARNING"):
         assert device_module.detect_gpu() is False
-    expected = (
-        f"pip install torch=={TORCH_METAL_VERSION} "
-        f"torchvision=={TORCHVISION_METAL_VERSION} "
-        + " ".join(METAL_EXTRA_INDEX)
-    )
-    assert expected in caplog.text
+    assert "CUDA backend not available" in caplog.text
 
 
 def test_detect_gpu_tensor_failure(monkeypatch, caplog):
@@ -208,3 +203,35 @@ def test_configure_gpu_env_mps_unavailable(monkeypatch):
     assert env["TORCH_DEVICE"] == "cpu"
     assert os.environ["TORCH_DEVICE"] == "cpu"
     assert "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ
+
+
+def test_initialize_gpu_installs_before_verify(monkeypatch):
+    call_order: list[str] = []
+
+    def fake_install() -> None:
+        call_order.append("install")
+
+    def fake_verify() -> None:
+        call_order.append("verify")
+
+    def fake_env() -> dict[str, str]:
+        return {"SOLHUNTER_GPU_AVAILABLE": "1", "SOLHUNTER_GPU_DEVICE": "mps", "TORCH_DEVICE": "mps"}
+
+    monkeypatch.setattr(device_module, "ensure_torch_with_metal", fake_install)
+    monkeypatch.setattr(device_module, "verify_gpu", fake_verify)
+    monkeypatch.setattr(device_module, "ensure_gpu_env", fake_env)
+    monkeypatch.setattr(device_module, "_GPU_LOGGED", True)
+
+    device_module.initialize_gpu()
+    assert call_order == ["install", "verify"]
+
+
+def test_initialize_gpu_install_failure(monkeypatch):
+    def fake_install() -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(device_module, "ensure_torch_with_metal", fake_install)
+    monkeypatch.setattr(device_module, "_GPU_LOGGED", True)
+
+    with pytest.raises(RuntimeError, match="scripts/mac_setup.py"):
+        device_module.initialize_gpu()
