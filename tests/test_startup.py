@@ -461,10 +461,12 @@ def test_ensure_deps_requires_mps(monkeypatch):
 def test_ensure_endpoints_success(monkeypatch):
     from solhunter_zero.bootstrap_utils import ensure_endpoints
     import urllib.request
+    import websockets
 
     calls: list[tuple[str, str]] = []
+    ws_calls: list[tuple[str, dict | None]] = []
 
-    class Dummy:
+    class DummyHTTP:
         def __enter__(self):
             return self
 
@@ -473,11 +475,28 @@ def test_ensure_endpoints_success(monkeypatch):
 
     def fake_urlopen(req, timeout=5):
         calls.append((req.full_url, req.get_method()))
-        return Dummy()
+        return DummyHTTP()
+
+    class DummyWS:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_connect(url, **kwargs):
+        ws_calls.append((url, kwargs.get("extra_headers")))
+        return DummyWS()
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(websockets, "connect", fake_connect)
 
-    cfg = {"dex_base_url": "https://dex.example", "birdeye_api_key": "k"}
+    cfg = {
+        "dex_base_url": "https://dex.example",
+        "birdeye_api_key": "k",
+        "jito_ws_url": "wss://ws.example",
+        "jito_ws_auth": "T",
+    }
     ensure_endpoints(cfg)
 
     urls = {u for u, _ in calls}
@@ -486,6 +505,7 @@ def test_ensure_endpoints_success(monkeypatch):
         "https://public-api.birdeye.so/defi/tokenlist",
     }
     assert all(m == "HEAD" for _, m in calls)
+    assert ws_calls == [("wss://ws.example", {"Authorization": "T"})]
 
 
 def test_ensure_endpoints_failure(monkeypatch, capsys):
@@ -504,6 +524,36 @@ def test_ensure_endpoints_failure(monkeypatch, capsys):
 
     out = capsys.readouterr().out.lower()
     assert "dex_base_url" in out
+
+
+def test_ensure_endpoints_ws_failure(monkeypatch, capsys):
+    from solhunter_zero.bootstrap_utils import ensure_endpoints
+    import asyncio
+    import websockets
+
+    class Dummy:
+        async def __aenter__(self):
+            raise OSError("boom")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_connect(url, **kwargs):
+        return Dummy()
+
+    async def fake_sleep(_):
+        pass
+
+    monkeypatch.setattr(websockets, "connect", fake_connect)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    cfg = {"jito_ws_url": "ws://ws.example"}
+
+    with pytest.raises(SystemExit):
+        ensure_endpoints(cfg)
+
+    out = capsys.readouterr().out.lower()
+    assert "jito_ws_url" in out
 
 
 def test_ensure_cargo_requires_curl(monkeypatch, capsys, tmp_path):
