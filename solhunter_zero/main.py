@@ -218,6 +218,12 @@ from .data_pipeline import start_depth_snapshot_listener
 
 # track first trade latency
 _first_trade_recorded = False
+_first_trade_event = asyncio.Event()
+
+
+class FirstTradeTimeoutError(RuntimeError):
+    """Raised when no trade occurs before the configured timeout."""
+    pass
 
 async def place_order_async(*args, **kwargs):
     """Wrapper to emit time-to-first-trade metric on first successful order."""
@@ -225,6 +231,7 @@ async def place_order_async(*args, **kwargs):
     result = await _exchange_place_order_async(*args, **kwargs)
     if not _first_trade_recorded:
         _first_trade_recorded = True
+        _first_trade_event.set()
         try:
             metrics_aggregator.publish(
                 "time_to_first_trade", time.monotonic() - _APP_START_TIME
@@ -232,6 +239,16 @@ async def place_order_async(*args, **kwargs):
         except Exception:  # pragma: no cover - metric errors
             logging.exception("Failed to publish time_to_first_trade metric")
     return result
+
+
+async def _check_first_trade(timeout: float, retry: bool) -> None:
+    """Wait for first trade or timeout and optionally request retry."""
+    try:
+        await asyncio.wait_for(_first_trade_event.wait(), timeout)
+    except asyncio.TimeoutError:
+        logging.error("First trade not recorded within %s seconds", timeout)
+        if retry:
+            raise FirstTradeTimeoutError
 
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
@@ -911,6 +928,22 @@ def main(
         iteration_idx = 0
         startup_reported = False
 
+        timeout = float(os.getenv("FIRST_TRADE_TIMEOUT", "0") or 0)
+        retry_first_trade = os.getenv("FIRST_TRADE_RETRY", "false").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        first_trade_task = None
+        if timeout > 0:
+            first_trade_task = asyncio.create_task(
+                _check_first_trade(timeout, retry_first_trade)
+            )
+
+        def _check_timeout() -> None:
+            if first_trade_task and first_trade_task.done():
+                first_trade_task.result()
+
         def adjust_delay(metrics: dict) -> None:
             nonlocal loop_delay, prev_activity, prev_count, prev_ts, depth_rate_limit
             activity = metrics.get("liquidity", 0.0) + metrics.get("volume", 0.0)
@@ -1009,6 +1042,7 @@ def main(
 
         if iterations is None:
             while True:
+                _check_timeout()
                 if not startup_reported:
                     metrics_aggregator.emit_startup_complete(
                         (time.perf_counter() - _PROCESS_START_TIME) * 1000.0
@@ -1056,6 +1090,7 @@ def main(
                 await asyncio.sleep(loop_delay)
         else:
             for i in range(iterations):
+                _check_timeout()
                 if not startup_reported:
                     metrics_aggregator.emit_startup_complete(
                         (time.perf_counter() - _PROCESS_START_TIME) * 1000.0
@@ -1127,6 +1162,10 @@ def main(
             rl_task.cancel()
             with contextlib.suppress(Exception):
                 await rl_task
+        if first_trade_task:
+            first_trade_task.cancel()
+            with contextlib.suppress(Exception):
+                await first_trade_task
         if stop_collector:
             stop_collector()
         if bus_started:
@@ -1135,7 +1174,13 @@ def main(
         unsub_counter()
 
     try:
-        asyncio.run(loop())
+        while True:
+            try:
+                asyncio.run(loop())
+                break
+            except FirstTradeTimeoutError:
+                logging.error("Retrying trading loop after first trade timeout")
+                continue
     finally:
         if proc_ref[0]:
             with contextlib.suppress(Exception):
