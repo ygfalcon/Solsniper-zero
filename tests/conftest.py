@@ -307,3 +307,14 @@ def pytest_collection_modifyitems(config, items):
 def _close_http_session():
     yield
     asyncio.run(close_session())
+
+
+import solhunter_zero.event_bus as event_bus
+
+
+@pytest.fixture(autouse=True)
+def _reset_event_bus():
+    """Ensure a clean event bus for each test."""
+    event_bus.reset()
+    yield
+    event_bus.reset()
