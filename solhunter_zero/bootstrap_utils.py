@@ -101,12 +101,25 @@ def _pip_install(*args: str, retries: int = 3) -> None:
     """Run ``pip install`` with retries and exponential backoff."""
     errors: list[str] = []
     for attempt in range(1, retries + 1):
+        cmd = [sys.executable, "-m", "pip", "install", *args]
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", *args],
+            cmd,
             capture_output=True,
             text=True,
         )
+        with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+            fh.write(
+                f"{' '.join(cmd)} (attempt {attempt}/{retries})\n"
+            )
+            if result.stdout:
+                fh.write(result.stdout)
+            if result.stderr:
+                fh.write(result.stderr)
         if result.returncode == 0:
+            with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+                fh.write(
+                    f"pip install {' '.join(args)} succeeded on attempt {attempt}\n"
+                )
             return
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
@@ -115,10 +128,14 @@ def _pip_install(*args: str, retries: int = 3) -> None:
                 f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
             )
             time.sleep(wait)
-    print(f"Failed to install {' '.join(args)} after {retries} attempts:")
-    for err in errors:
-        if err:
-            print(err)
+    msg = f"Failed to install {' '.join(args)} after {retries} attempts:"
+    print(msg)
+    with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+        fh.write(msg + "\n")
+        for err in errors:
+            if err:
+                fh.write(err + "\n")
+                print(err)
     raise SystemExit(result.returncode)
 
 
