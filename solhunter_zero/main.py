@@ -36,6 +36,8 @@ from . import wallet
 from . import metrics_aggregator
 from .bootstrap import bootstrap
 
+_PROCESS_START_TIME = time.perf_counter()
+
 _SERVICE_MANIFEST = (
     Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
 )
@@ -775,6 +777,7 @@ def main(
             watch_task = asyncio.create_task(_depth_service_watchdog(cfg, proc_ref))
         prev_activity = 0.0
         iteration_idx = 0
+        startup_reported = False
 
         def adjust_delay(metrics: dict) -> None:
             nonlocal loop_delay, prev_activity, prev_count, prev_ts, depth_rate_limit
@@ -874,6 +877,11 @@ def main(
 
         if iterations is None:
             while True:
+                if not startup_reported:
+                    metrics_aggregator.emit_startup_complete(
+                        (time.perf_counter() - _PROCESS_START_TIME) * 1000.0
+                    )
+                    startup_reported = True
                 await _run_iteration(
                     memory,
                     portfolio,
@@ -916,6 +924,11 @@ def main(
                 await asyncio.sleep(loop_delay)
         else:
             for i in range(iterations):
+                if not startup_reported:
+                    metrics_aggregator.emit_startup_complete(
+                        (time.perf_counter() - _PROCESS_START_TIME) * 1000.0
+                    )
+                    startup_reported = True
                 await _run_iteration(
                     memory,
                     portfolio,

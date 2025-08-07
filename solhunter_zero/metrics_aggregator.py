@@ -54,6 +54,11 @@ def start() -> None:
             )
 
 
+def emit_startup_complete(startup_duration_ms: float) -> None:
+    """Publish metric indicating startup finished with given duration."""
+    publish("startup_complete", {"startup_duration_ms": float(startup_duration_ms)})
+
+
 async def _run_forever() -> None:
     start()
     while True:
