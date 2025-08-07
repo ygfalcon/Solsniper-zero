@@ -1,0 +1,92 @@
+import os
+import platform
+import runpy
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
+# Stub modules to avoid heavy side effects during import
+macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
+macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
+
+bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")
+bootstrap_utils_mod.ensure_venv = lambda arg: None
+bootstrap_utils_mod.ensure_deps = lambda install_optional=False: None
+bootstrap_utils_mod.ensure_endpoints = lambda cfg: None
+bootstrap_utils_mod.METAL_EXTRA_INDEX = []
+sys.modules["solhunter_zero.bootstrap_utils"] = bootstrap_utils_mod
+
+logging_utils_mod = types.ModuleType("solhunter_zero.logging_utils")
+logging_utils_mod.log_startup = lambda msg: None
+logging_utils_mod.setup_logging = lambda name: None
+sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
+
+env_config_mod = types.ModuleType("solhunter_zero.env_config")
+env_config_mod.configure_environment = lambda root: {}
+sys.modules["solhunter_zero.env_config"] = env_config_mod
+
+system_mod = types.ModuleType("solhunter_zero.system")
+system_mod.set_rayon_threads = lambda: None
+sys.modules["solhunter_zero.system"] = system_mod
+
+# Provide dummy implementations that emit messages when invoked so the test can
+# assert that the script attempted each action.
+
+def _fake_gpu_env():
+    env = {
+        "SOLHUNTER_GPU_AVAILABLE": "0",
+        "SOLHUNTER_GPU_DEVICE": "cpu",
+        "TORCH_DEVICE": "cpu",
+    }
+    for k, v in env.items():
+        print(f"{k}={v}")
+        os.environ[k] = v
+    return env
+
+# Dummy device module
+
+dummy_device = types.ModuleType("solhunter_zero.device")
+dummy_device.detect_gpu = lambda: True
+dummy_device.get_default_device = lambda: "cpu"
+dummy_device.ensure_gpu_env = _fake_gpu_env
+dummy_device.initialize_gpu = _fake_gpu_env
+dummy_device.METAL_EXTRA_INDEX = []
+sys.modules["solhunter_zero.device"] = dummy_device
+
+# Dummy config utils with automatic keypair selection
+
+def _fake_select_keypair(auto=True):
+    print("Selected keypair: default")
+    return types.SimpleNamespace(name="default", mnemonic_path=None)
+
+config_utils_mod = types.ModuleType("solhunter_zero.config_utils")
+config_utils_mod.select_active_keypair = _fake_select_keypair
+sys.modules["solhunter_zero.config_utils"] = config_utils_mod
+
+# Dummy bootstrap module to simulate service launches
+bootstrap_mod = types.ModuleType("solhunter_zero.bootstrap")
+bootstrap_mod.ensure_route_ffi = lambda: print("Launching route-ffi")
+bootstrap_mod.ensure_depth_service = lambda: print("Launching depth-service")
+bootstrap_mod.bootstrap = lambda one_click=False: None
+sys.modules["solhunter_zero.bootstrap"] = bootstrap_mod
+
+
+def test_setup_one_click_dry_run(monkeypatch, capsys):
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+
+    script = Path("scripts/setup_one_click.py")
+    monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
+
+    runpy.run_path(str(script))
+
+    out = capsys.readouterr().out
+    assert "SOLHUNTER_GPU_AVAILABLE=0" in out
+    assert "SOLHUNTER_GPU_DEVICE=cpu" in out
+    assert "TORCH_DEVICE=cpu" in out
+    assert "Selected keypair: default" in out
+    assert "Launching route-ffi" in out
+    assert "Launching depth-service" in out
