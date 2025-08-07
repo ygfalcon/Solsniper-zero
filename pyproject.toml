@@ -47,6 +47,7 @@ dev = [
     "pytest-asyncio",
     "flake8",
     "grpcio-tools",
+    "mypy",
 ]
 numba = ["numba"]
 fastjson = ["orjson"]

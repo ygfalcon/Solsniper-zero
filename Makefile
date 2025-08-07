@@ -20,6 +20,9 @@ run:
 test:
 >$(PYTHON) -m pytest $(ARGS)
 
+typecheck:
+>$(PYTHON) -m mypy solhunter_zero tests
+
 # Run the investor demo. Pass ARGS to override or extend defaults.
 # Examples:
 #   make demo ARGS="--preset multi"

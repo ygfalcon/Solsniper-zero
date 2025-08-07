@@ -4,7 +4,7 @@ import os
 import sys
 from .jsonutil import loads, dumps
 import ast
-from typing import Mapping, Any, Sequence
+from typing import Mapping, Any, Sequence, cast
 from pathlib import Path
 from .dex_config import DEXConfig
 from importlib import import_module
@@ -173,9 +173,9 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
     return cfg
 
 
-def apply_env_overrides(config: dict) -> dict:
+def apply_env_overrides(config: Mapping[str, Any] | None) -> dict[str, Any]:
     """Merge environment variable overrides into ``config``."""
-    cfg = dict(config)
+    cfg = dict(config or {})
     for key, env in ENV_VARS.items():
         env_val = os.getenv(env)
         if env_val is not None:
@@ -335,7 +335,7 @@ def load_selected_config() -> dict:
 def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
     """Return :class:`DEXConfig` populated from ``config`` and environment."""
 
-    cfg = apply_env_overrides(config or {})
+    cfg = apply_env_overrides(config)
 
     base = str(cfg.get("dex_base_url", "https://quote-api.jup.ag"))
     testnet = str(cfg.get("dex_testnet_url", base))
@@ -507,5 +507,9 @@ def get_depth_ws_addr(cfg: Mapping[str, Any] | None = None) -> tuple[str, int]:
     """Return address and port of the depth websocket server."""
     cfg = cfg or _ACTIVE_CONFIG
     addr = os.getenv("DEPTH_WS_ADDR") or str(cfg.get("depth_ws_addr", "127.0.0.1"))
-    port = int(os.getenv("DEPTH_WS_PORT") or cfg.get("depth_ws_port", 8765))
+    port_env = os.getenv("DEPTH_WS_PORT")
+    if port_env is not None and port_env != "":
+        port = int(port_env)
+    else:
+        port = int(cast(int, cfg.get("depth_ws_port", 8765)))
     return addr, port
