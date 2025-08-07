@@ -260,18 +260,6 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
         logging.getLogger(__name__).exception("Exception during GPU detection")
         return False
 
-def verify_gpu() -> tuple[bool, str]:
-    """Return a tuple describing GPU availability.
-
-    The check delegates to :func:`detect_gpu` without attempting any
-    installation.  A ``True`` result indicates a functional GPU backend
-    while ``False`` means no usable GPU was found.
-    """
-
-    ok = detect_gpu(_attempt_install=False)
-    return ok, "GPU available" if ok else "GPU unavailable"
-
-
 def get_gpu_backend() -> str | None:
     """Return the default GPU backend name if available."""
 
