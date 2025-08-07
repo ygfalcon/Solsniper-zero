@@ -252,19 +252,22 @@ def ensure_endpoints(cfg: dict) -> None:
         return await asyncio.gather(*tasks)
 
     results = asyncio.run(_run())
-    failed: list[str] = []
+    failures: list[tuple[str, str, Exception]] = []
     for name_exc in results:
         if name_exc is None:
             continue
         name, exc = name_exc
         url = urls[name]
-        print(
-            f"Failed to reach {name} at {url} after 3 attempts: {exc}."
-            " Check your network connection or configuration."
-        )
-        failed.append(name)
+        failures.append((name, url, exc))
 
-    if failed:
+    if failures:
+        details = "; ".join(
+            f"{name} at {url} ({exc})" for name, url, exc in failures
+        )
+        print(
+            "Failed to reach the following endpoints: "
+            f"{details}. Check your network connection or configuration."
+        )
         raise SystemExit(1)
 
 
