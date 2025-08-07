@@ -430,6 +430,9 @@ async def _run_iteration(
     else:
         if strategy_manager is None:
             strategy_manager = StrategyManager()
+            missing = strategy_manager.list_missing()
+            if missing:
+                logging.warning("Skipped strategies: %s", ", ".join(missing))
 
         for token in tokens:
             if arbitrage_amount > 0 and arbitrage_threshold > 0:
@@ -722,11 +725,17 @@ def main(
         agent_manager = AgentManager.from_config(cfg)
         if agent_manager is None:
             strategy_manager = StrategyManager(strategies)
+            missing = strategy_manager.list_missing()
+            if missing:
+                logging.warning("Skipped strategies: %s", ", ".join(missing))
         else:
             strategy_manager = None
 
     else:
         strategy_manager = StrategyManager(strategies)
+        missing = strategy_manager.list_missing()
+        if missing:
+            logging.warning("Skipped strategies: %s", ", ".join(missing))
 
     if keypair_path:
         keypair = load_keypair(keypair_path)

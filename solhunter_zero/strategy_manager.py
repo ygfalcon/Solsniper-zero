@@ -2,7 +2,11 @@ import importlib
 import asyncio
 import os
 import contextlib
+import logging
 from typing import Iterable, Any, List, Dict
+
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyManager:
@@ -37,13 +41,20 @@ class StrategyManager:
         self._weights: Dict[str, float] = weights or {}
 
         self._modules: list[tuple[Any, str]] = []
+        self._missing: list[str] = []
         for name in strategies:
             try:
                 mod = importlib.import_module(name)
-            except Exception:  # pragma: no cover - optional strategies
+            except Exception as exc:  # pragma: no cover - optional strategies
+                logger.warning("Failed to import strategy %s: %s", name, exc)
+                self._missing.append(name)
                 continue
             if hasattr(mod, "evaluate"):
                 self._modules.append((mod, name))
+
+    def list_missing(self) -> List[str]:
+        """Return strategies that failed to import."""
+        return list(self._missing)
 
     async def evaluate(
         self,
