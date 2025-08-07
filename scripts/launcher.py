@@ -13,24 +13,92 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import NoReturn
 
 
-if sys.version_info < (3, 11):
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def _check_python(exe: str) -> bool:
+    """Return ``True`` if ``exe`` is a Python >=3.11 interpreter."""
+    try:
+        out = subprocess.check_output(
+            [exe, "-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"],
+            text=True,
+        ).strip()
+        major, minor = map(int, out.split(".")[:2])
+        return (major, minor) >= (3, 11)
+    except Exception:  # pragma: no cover - defensive
+        return False
+
+
+def find_python() -> str:
+    """Locate a suitable Python 3.11 interpreter.
+
+    If the current interpreter is already adequate, it is returned. Otherwise
+    search common locations including ``.venv`` and system ``PATH``. On macOS
+    attempt to run ``scripts/mac_setup.py`` once to provision the interpreter.
+    """
+
+    if _check_python(sys.executable):
+        return sys.executable
+
+    candidates: list[str] = []
+
+    # Existing virtual environment interpreters
+    venv = ROOT / ".venv"
+    bin_dir = venv / ("Scripts" if os.name == "nt" else "bin")
+    for name in ("python3.11", "python3", "python"):
+        p = bin_dir / name
+        if p.exists():
+            candidates.append(str(p))
+
+    # Interpreters on PATH
+    for name in ("python3.11", "python3", "python"):
+        path = shutil.which(name)
+        if path:
+            candidates.append(path)
+
+    for candidate in candidates:
+        if _check_python(candidate):
+            return candidate
+
+    if platform.system() == "Darwin":
+        setup = ROOT / "scripts" / "mac_setup.py"
+        if setup.exists():
+            print(
+                "Python 3.11 not found; running macOS setup...",
+                file=sys.stderr,
+            )
+            subprocess.run(
+                [sys.executable, str(setup), "--non-interactive"],
+                check=False,
+            )
+            for name in ("python3.11", "python3", "python"):
+                path = shutil.which(name)
+                if path and _check_python(path):
+                    return path
+
     message = "Python 3.11 or higher is required."
     if platform.system() == "Darwin":
-        message += (
-            " Run 'scripts/mac_setup.py --non-interactive' "
-            "to install Python 3.11."
-        )
+        message += " Run 'scripts/mac_setup.py --non-interactive' to install Python 3.11."
     else:
         message += " Please install Python 3.11 and try again."
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
-ROOT = Path(__file__).resolve().parent.parent
+
+PYTHON_EXE = find_python()
+if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
+    launcher = Path(__file__).resolve()
+    os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *sys.argv[1:]])
+    raise SystemExit(1)
+
+
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
 
@@ -59,21 +127,14 @@ def main(argv: list[str] | None = None) -> NoReturn:
         argv.insert(idx, "--full-deps")
 
     python_exe = sys.executable
-    venv = ROOT / ".venv"
-    for candidate in (venv / "bin" / "python3", venv / "bin" / "python"):
-        if candidate.exists():
-            python_exe = str(candidate)
-            break
-
     startup = ROOT / "scripts" / "startup.py"
     cmd = [python_exe, str(startup), *argv]
 
     if platform.system() == "Darwin":
         cmd = ["arch", "-arm64", *cmd]
-        os.execvp(cmd[0], cmd)
-    else:
-        os.execvp(cmd[0], cmd)
+    os.execvp(cmd[0], cmd)
 
 
 if __name__ == "__main__":
     main()
+
