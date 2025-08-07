@@ -96,7 +96,7 @@ def test_mac_startup_prereqs(monkeypatch):
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    startup.ensure_deps()
+    startup.ensure_deps(ensure_wallet_cli=False)
 
     dummy_torch = types.SimpleNamespace(
         backends=types.SimpleNamespace(
@@ -267,10 +267,10 @@ def test_ensure_deps_installs_optional(monkeypatch):
         ([], []),
     ]
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
+    monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
 
-    startup.ensure_deps(install_optional=True)
+    startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
     assert calls[0] == [
         sys.executable,
@@ -293,10 +293,10 @@ def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
     results = [([], ["orjson", "faiss"])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", lambda *a, **k: None)
+    monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", lambda *a, **k: None)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
 
-    startup.ensure_deps()
+    startup.ensure_deps(ensure_wallet_cli=False)
     out = capsys.readouterr().out
 
     assert "Optional modules missing: orjson, faiss (features disabled)." in out
@@ -332,7 +332,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    startup.ensure_deps(install_optional=True)
+    startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
     assert calls == [
         [
@@ -375,14 +375,14 @@ def test_ensure_deps_requires_mps(monkeypatch):
     results = [(["req"], []), ([], [])]
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
-    monkeypatch.setattr(startup, "_pip_install", fake_pip_install)
+    monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", fake_pip_install)
     monkeypatch.setattr(startup.device, "ensure_torch_with_metal", fake_install)
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
 
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     with pytest.raises(SystemExit) as excinfo:
-        startup.ensure_deps(install_optional=True)
+        startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
     assert calls[-1] == [
         sys.executable,

@@ -17,7 +17,7 @@ def test_ensure_deps_calls_apply_brew_env(monkeypatch):
     monkeypatch.setattr("scripts.mac_setup.apply_brew_env", fake_apply_brew_env)
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
 
-    bootstrap_utils.ensure_deps()
+    bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
 
     assert called["prepare"] == 1
     assert called["apply"] == 1

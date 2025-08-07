@@ -11,6 +11,8 @@ import sys
 import time
 from pathlib import Path
 
+from typing import Sequence
+
 from scripts import deps
 from . import device
 from .device import METAL_EXTRA_INDEX
@@ -149,7 +151,26 @@ def _pip_install(*args: str, retries: int = 3) -> None:
     raise SystemExit(result.returncode)
 
 
-def ensure_deps(*, install_optional: bool = False) -> None:
+def ensure_deps(
+    *,
+    install_optional: bool = False,
+    extras: Sequence[str] | None = ("uvloop",),
+    ensure_wallet_cli: bool = True,
+) -> None:
+    """Ensure Python dependencies and optional extras are installed.
+
+    Parameters
+    ----------
+    install_optional:
+        Install optional modules defined in :mod:`scripts.deps` when True.
+    extras:
+        Iterable of ``pyproject.toml`` extras to install when the local package
+        itself must be installed.  Defaults to ``("uvloop",)``.
+    ensure_wallet_cli:
+        When ``True`` the ``solhunter-wallet`` command is ensured to be
+        available by installing the current package if necessary.
+    """
+
     if platform.system() == "Darwin":
         from . import mac_env
 
@@ -164,6 +185,7 @@ def ensure_deps(*, install_optional: bool = False) -> None:
                 "macOS environment preparation failed. Please address the issues above and re-run.",
             )
             raise SystemExit(1)
+
     req, opt = deps.check_deps()
     if req:
         print("Missing required modules: " + ", ".join(req))
@@ -171,7 +193,9 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         print(
             "Optional modules missing: " + ", ".join(opt) + " (features disabled).",
         )
-    if not req and not (install_optional and opt):
+
+    need_cli = ensure_wallet_cli and shutil.which("solhunter-wallet") is None
+    if not req and not (install_optional and opt) and not need_cli:
         return
 
     pip_check = subprocess.run(
@@ -193,30 +217,44 @@ def ensure_deps(*, install_optional: bool = False) -> None:
         else:  # pragma: no cover - unexpected failure
             print(f"Failed to invoke pip: {pip_check.stderr.strip()}")
             raise SystemExit(pip_check.returncode)
+
     extra_index: list[str] = []
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         extra_index = list(METAL_EXTRA_INDEX)
 
-    need_install = bool(req) or (install_optional and (opt or extra_index))
+    need_install = bool(req) or need_cli or (install_optional and (opt or extra_index))
     if need_install:
         from scripts import startup
         import contextlib
         import io
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             try:
                 startup.check_internet()
             except SystemExit as exc:
-                raise SystemExit("Unable to establish an internet connection; aborting.") from exc
+                raise SystemExit(
+                    "Unable to establish an internet connection; aborting."
+                ) from exc
 
-    if req:
+    if req or need_cli:
         print("Installing required dependencies...")
-        _pip_install(".[uvloop]", *extra_index)
+        extras_arg = ""
+        if extras:
+            extras_arg = f".[{','.join(extras)}]"
+        else:
+            extras_arg = "."
+        _pip_install(extras_arg, *extra_index)
         failed_req = [m for m in req if importlib.util.find_spec(m) is None]
         if failed_req:
             print(
                 "Missing required dependencies after installation: "
                 + ", ".join(failed_req)
             )
+            raise SystemExit(1)
+        if need_cli and shutil.which("solhunter-wallet") is None:
+            print("'solhunter-wallet' still not available after installation. Aborting.")
             raise SystemExit(1)
 
     if install_optional and extra_index:
@@ -241,15 +279,15 @@ def ensure_deps(*, install_optional: bool = False) -> None:
             "msgpack": "msgpack",
         }
         mods = set(opt)
-        extras: list[str] = []
+        extras_pkgs: list[str] = []
         if "orjson" in mods:
-            extras.append("fastjson")
+            extras_pkgs.append("fastjson")
         if {"lz4", "zstandard"} & mods:
-            extras.append("fastcompress")
+            extras_pkgs.append("fastcompress")
         if "msgpack" in mods:
-            extras.append("msgpack")
-        if extras:
-            _pip_install(f".[{','.join(extras)}]", *extra_index)
+            extras_pkgs.append("msgpack")
+        if extras_pkgs:
+            _pip_install(f".[{','.join(extras_pkgs)}]", *extra_index)
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
