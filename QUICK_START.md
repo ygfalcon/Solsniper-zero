@@ -47,6 +47,15 @@ Run the default strategies against a fixed price feed:
 pytest tests/staging/test_investor_showcase.py
 ```
 
+## One-Click Trading Demo
+
+Simulate the investor staging "double click" by running all default strategies
+with deterministic inputs:
+
+```bash
+pytest tests/test_one_click_trading_all_strategies.py::test_one_click_all_strategies
+```
+
 ## Troubleshooting Preflight Checks
 
 - **RPC unreachable** — ensure `SOLANA_RPC_URL` points to a healthy endpoint and that your network allows outbound requests.
