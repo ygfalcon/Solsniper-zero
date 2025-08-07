@@ -1,5 +1,4 @@
 import builtins
-import builtins
 import shutil
 import subprocess
 import sys
@@ -23,6 +22,12 @@ def test_collect_no_torch(monkeypatch, tmp_path):
     sys.modules.pop("torch", None)
     monkeypatch.setattr("solhunter_zero.device.get_gpu_backend", lambda: None)
     monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(
+        diagnostics,
+        "run_preflight",
+        lambda: {"successes": [{"name": "ok", "message": "ok"}], "failures": []},
+    )
 
     info = diagnostics.collect()
     assert info["torch"] == "not installed"
@@ -48,11 +53,20 @@ def test_collect_with_torch_and_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "solhunter_zero.device.get_gpu_backend", lambda: "torch"
     )
+    monkeypatch.setattr(
+        "solhunter_zero.device.get_default_device", lambda: "cuda"
+    )
     dummy_wallet = types.SimpleNamespace(
         list_keypairs=lambda: ["a"], get_active_keypair_name=lambda: "a"
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
     monkeypatch.setattr(sys.modules["solhunter_zero"], "wallet", dummy_wallet, raising=False)
+
+    monkeypatch.setattr(
+        diagnostics,
+        "run_preflight",
+        lambda: {"successes": [{"name": "ok", "message": "ok"}], "failures": []},
+    )
 
     def fake_check_output(cmd, text=True):
         if cmd[0] == "rustc":
@@ -67,7 +81,9 @@ def test_collect_with_torch_and_keypair(monkeypatch, tmp_path):
     info = diagnostics.collect()
     assert info["torch"] == "1.0"
     assert info["gpu_backend"] == "torch"
+    assert info["gpu_device"] == "cuda"
     assert info["config"] == "present"
+    assert info["preflight"]["successes"][0]["name"] == "ok"
     assert info["keypair"] == "a"
     assert info["rustc"].startswith("rustc")
 
@@ -167,3 +183,21 @@ def test_startup_no_diagnostics_flag(monkeypatch, tmp_path, capsys):
     assert "Diagnostics summary:" not in out
     assert not (tmp_path / "diagnostics.json").exists()
     assert "collect" not in called
+
+
+def test_run_preflight(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    from scripts import preflight
+
+    def ok():
+        return True, "ok"
+
+    def fail():
+        return False, "bad"
+
+    monkeypatch.setattr(preflight, "CHECKS", [("ok", ok), ("fail", fail)])
+
+    result = diagnostics.run_preflight()
+    assert result["successes"] == [{"name": "ok", "message": "ok"}]
+    assert result["failures"] == [{"name": "fail", "message": "bad"}]
