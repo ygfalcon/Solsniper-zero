@@ -2,12 +2,13 @@
 """Interactive helper to create or update config.toml for basic setup."""
 from __future__ import annotations
 
+import argparse
 import os
 import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
 import tomllib
-import argparse
+
 import tomli_w  # type: ignore
 
 from solhunter_zero.config_schema import validate_config
