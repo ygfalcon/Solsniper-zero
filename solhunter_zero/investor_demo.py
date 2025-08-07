@@ -19,8 +19,6 @@ from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
 import threading
 
-from .price_stream_manager import PriceStreamManager
-
 try:  # SQLAlchemy is optional; fall back to a simple in-memory implementation
     from .memory import Memory  # type: ignore
 except Exception:  # pragma: no cover - absence of SQLAlchemy
@@ -780,11 +778,24 @@ def main(argv: List[str] | None = None) -> None:
             if args.tokens
             else list(price_map.keys())
         )
-        stream_mgr = PriceStreamManager(streams, tokens)
-        _stream_loop = asyncio.new_event_loop()
-        _stream_thread = threading.Thread(target=_stream_loop.run_forever, daemon=True)
-        _stream_thread.start()
-        asyncio.run_coroutine_threadsafe(stream_mgr.start(), _stream_loop).result()
+        try:
+            from .price_stream_manager import PriceStreamManager  # type: ignore
+        except ImportError:
+            print(
+                "websockets package is required for --price-streams; skipping live price streams",
+                file=sys.stderr,
+            )
+            PriceStreamManager = None  # type: ignore[assignment]
+        if PriceStreamManager is not None:
+            stream_mgr = PriceStreamManager(streams, tokens)
+            _stream_loop = asyncio.new_event_loop()
+            _stream_thread = threading.Thread(
+                target=_stream_loop.run_forever, daemon=True
+            )
+            _stream_thread.start()
+            asyncio.run_coroutine_threadsafe(
+                stream_mgr.start(), _stream_loop
+            ).result()
 
     # Demonstrate Memory usage and portfolio hedging using the first token.
     # ``Memory`` relies on SQLAlchemy which may not be installed in minimal
