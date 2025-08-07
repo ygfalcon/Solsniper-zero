@@ -87,9 +87,18 @@ def rotate_preflight_log(
 def ensure_wallet_cli() -> None:
     """Ensure the ``solhunter-wallet`` CLI is available."""
 
-    if shutil.which("solhunter-wallet") is None:
+    if shutil.which("solhunter-wallet") is not None:
+        return
+
+    print("'solhunter-wallet' command not found. Attempting installation via pip...")
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
+        text=True,
+    )
+    if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
         print(
-            "'solhunter-wallet' command not found. Install the package providing it and re-run.",
+            "Failed to install 'solhunter-wallet'. Please install it manually with "
+            "'pip install solhunter-wallet' and re-run.",
         )
         raise SystemExit(1)
 
