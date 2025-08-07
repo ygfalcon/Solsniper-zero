@@ -22,14 +22,18 @@ from solhunter_zero.paths import ROOT
 os.chdir(ROOT)
 sys.path[0] = str(ROOT)
 
+from solhunter_zero.python_env import find_python
+
+find_python()
+
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
-import solhunter_zero.bootstrap_utils as bootstrap_utils
+import solhunter_zero.bootstrap_utils as bootstrap_utils  # noqa: E402
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
     ensure_venv,
     ensure_endpoints,
-)
+)  # noqa: E402
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import (
@@ -49,18 +53,6 @@ def ensure_depth_service() -> None:
     from solhunter_zero.build_utils import ensure_depth_service as _ensure_depth_service
 
     _ensure_depth_service()
-
-if platform.system() == "Darwin" and platform.machine() == "x86_64":
-    script = Path(__file__).resolve()
-    cmd = ["arch", "-arm64", sys.executable, str(script), *sys.argv[1:]]
-    try:
-        os.execvp(cmd[0], cmd)
-    except OSError as exc:  # pragma: no cover - hard failure
-        msg = (
-            f"Failed to re-exec {script.name} via 'arch -arm64': {exc}\n"
-            "Please use 'python start.py'."
-        )
-        raise SystemExit(msg)
 
 rotate_startup_log()
 rotate_preflight_log()

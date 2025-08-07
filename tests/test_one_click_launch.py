@@ -46,12 +46,15 @@ system_mod = types.ModuleType("solhunter_zero.system")
 system_mod.set_rayon_threads = lambda: None
 sys.modules["solhunter_zero.system"] = system_mod
 
+python_env_mod = types.ModuleType("solhunter_zero.python_env")
+python_env_mod.find_python = lambda: sys.executable
+sys.modules["solhunter_zero.python_env"] = python_env_mod
+
 
 def load_launcher():
     globals_dict = {
         "__name__": "scripts.launcher",
         "__file__": str(Path("scripts/launcher.py")),
-        "find_python": lambda: sys.executable,
     }
     module_dict = runpy.run_path("scripts/launcher.py", globals_dict)
     mod = types.ModuleType("scripts.launcher")
@@ -68,13 +71,9 @@ def test_one_click_launch(monkeypatch, capsys):
     sys.modules["solhunter_zero.device"] = dummy_device
 
     launcher = load_launcher()
-    monkeypatch.setattr(launcher, "device", dummy_device)
 
     def fake_execvp(prog, argv):
-        if argv[0] == "arch":
-            args = argv[4:]
-        else:
-            args = argv[2:]
+        args = argv[2:]
         code = fake_startup.run(args)
         raise SystemExit(code)
 
