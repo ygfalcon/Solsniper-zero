@@ -191,6 +191,7 @@ def ensure_deps(
     install_optional: bool = False,
     extras: Sequence[str] | None = ("uvloop",),
     ensure_wallet_cli: bool = True,
+    full: bool | None = None,
 ) -> None:
     """Ensure Python dependencies and optional extras are installed.
 
@@ -202,7 +203,13 @@ def ensure_deps(
     install_optional, extras, ensure_wallet_cli:
         Deprecated keyword arguments retained for backward compatibility when
         *cfg* is not provided.
+    full:
+        When ``True`` install optional dependencies. Deprecated alias for
+        ``install_optional``.
     """
+
+    if full is not None:
+        install_optional = full
 
     if cfg is None:
         cfg = DepsConfig(
@@ -210,6 +217,8 @@ def ensure_deps(
             extras=extras,
             ensure_wallet_cli=ensure_wallet_cli,
         )
+    elif full is not None:
+        cfg.install_optional = full
 
     if platform.system() == "Darwin":
         from . import macos_setup
