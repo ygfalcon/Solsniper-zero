@@ -13,11 +13,16 @@ import time
 from pathlib import Path
 from collections.abc import Callable
 
-from solhunter_zero.device import (
-    METAL_EXTRA_INDEX,
-    TORCH_METAL_VERSION,
-    TORCHVISION_METAL_VERSION,
-)
+try:
+    from solhunter_zero.device import (
+        METAL_EXTRA_INDEX,
+        TORCH_METAL_VERSION,
+        TORCHVISION_METAL_VERSION,
+    )
+except Exception:  # pragma: no cover - allow running standalone
+    METAL_EXTRA_INDEX: list[str] = []
+    TORCH_METAL_VERSION = "0"
+    TORCHVISION_METAL_VERSION = "0"
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
@@ -274,6 +279,17 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
                 if fix:
                     print(f"Manual fix for {step}: {fix}")
     return report
+
+
+def auto_prepare_macos(*, non_interactive: bool = True) -> dict[str, object]:
+    """Automatically provision essential macOS tooling.
+
+    This is a convenience wrapper that delegates to :func:`ensure_tools` and
+    returns its report dictionary.  Callers can inspect the ``success`` field
+    to determine if all required tools are available.
+    """
+
+    return ensure_tools(non_interactive=non_interactive)
 
 
 def main(argv: list[str] | None = None) -> None:

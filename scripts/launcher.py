@@ -41,7 +41,8 @@ def find_python() -> str:
 
     If the current interpreter is already adequate, it is returned. Otherwise
     search common locations including ``.venv`` and system ``PATH``. On macOS
-    attempt to run ``scripts/mac_setup.py`` once to provision the interpreter.
+    ``scripts.mac_setup.auto_prepare_macos`` is invoked once to provision the
+    interpreter if necessary.
     """
 
     if _check_python(sys.executable):
@@ -68,16 +69,16 @@ def find_python() -> str:
             return candidate
 
     if platform.system() == "Darwin":
-        setup = ROOT / "scripts" / "mac_setup.py"
-        if setup.exists():
+        try:
+            from . import mac_setup
+        except Exception:  # pragma: no cover - defensive
+            mac_setup = None
+        if mac_setup is not None:
             print(
                 "Python 3.11 not found; running macOS setup...",
                 file=sys.stderr,
             )
-            subprocess.run(
-                [sys.executable, str(setup), "--non-interactive"],
-                check=False,
-            )
+            mac_setup.auto_prepare_macos(non_interactive=True)
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
                 if path and _check_python(path):
