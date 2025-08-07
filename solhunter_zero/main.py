@@ -636,6 +636,39 @@ async def _init_rl_training(
     return task
 
 
+def perform_startup(
+    config_path: str | None,
+    *,
+    offline: bool = False,
+    dry_run: bool = False,
+) -> tuple[dict, subprocess.Popen | None]:
+    """Load config, verify connectivity, and start depth service with timing."""
+
+    start = time.perf_counter()
+    cfg = apply_env_overrides(load_config(config_path))
+    set_env_from_config(cfg)
+    metrics_aggregator.publish(
+        "startup_config_load_duration", time.perf_counter() - start
+    )
+
+    start = time.perf_counter()
+    ensure_connectivity(offline=offline or dry_run)
+    metrics_aggregator.publish(
+        "startup_connectivity_check_duration", time.perf_counter() - start
+    )
+
+    start = time.perf_counter()
+    proc: subprocess.Popen | None = None
+    try:
+        proc = _start_depth_service(cfg)
+    finally:
+        metrics_aggregator.publish(
+            "startup_depth_service_start_duration", time.perf_counter() - start
+        )
+
+    return cfg, proc
+
+
 def main(
     memory_path: str = "sqlite:///memory.db",
     loop_delay: int = 60,
@@ -713,11 +746,19 @@ def main(
 
     from .wallet import load_keypair
 
-    cfg = apply_env_overrides(load_config(config_path))
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
-    set_env_from_config(cfg)
-    ensure_connectivity(offline=offline or dry_run)
+    try:
+        cfg, proc = perform_startup(
+            config_path,
+            offline=offline,
+            dry_run=dry_run,
+        )
+    except Exception as exc:
+        logging.error("Failed to start depth_service: %s", exc)
+        cfg = {"depth_service": False}
+        proc = None
+        os.environ["DEPTH_SERVICE"] = "false"
     metrics_aggregator.start()
 
     use_bundles = str(
@@ -726,13 +767,6 @@ def main(
     if use_bundles and (not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")):
         logging.warning("MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing")
 
-    proc: subprocess.Popen | None = None
-    try:
-        proc = _start_depth_service(cfg)
-    except Exception as exc:
-        logging.error("Failed to start depth_service: %s", exc)
-        cfg["depth_service"] = False
-        os.environ["DEPTH_SERVICE"] = "false"
     proc_ref = [proc]
 
     if risk_tolerance is not None:
