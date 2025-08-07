@@ -183,7 +183,15 @@ def apply_env_overrides(config: Mapping[str, Any] | None) -> dict[str, Any]:
     for key, env in ENV_VARS.items():
         env_val = os.getenv(env)
         if env_val is not None:
-            cfg[key] = env_val
+            parsed: Any = env_val
+            try:
+                parsed = loads(env_val)
+            except Exception:
+                try:
+                    parsed = ast.literal_eval(env_val)
+                except Exception:
+                    parsed = env_val
+            cfg[key] = parsed
     return cfg
 
 
@@ -200,6 +208,10 @@ def validate_config(cfg: Mapping[str, Any]) -> dict:
     """
     try:
         model = ConfigModel(**cfg)
+        if hasattr(model, "model_dump_json"):
+            import json as _json
+
+            return _json.loads(model.model_dump_json())
         return model.model_dump() if hasattr(model, "model_dump") else model.dict()
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
@@ -410,20 +422,38 @@ def reload_active_config() -> dict:
     """Reload the currently selected configuration and broadcast an update."""
     cfg = load_selected_config()
     _update_active(cfg)
+    _init_event_bus()
     _publish("config_updated", cfg)
     return _ACTIVE_CONFIG
 
 
-from . import event_bus as _event_bus
+_event_bus = None  # type: ignore[assignment]
+_event_bus_sub = None
 
-_sub = _event_bus.subscription("config_updated", _update_active)
-_sub.__enter__()
-try:
-    _event_bus._reload_bus(None)
-    _event_bus._reload_broker(None)
-    _event_bus._reload_serialization(None)
-except Exception:
-    logger.exception("Failed to reload event bus settings")
+
+def _init_event_bus() -> None:
+    """Lazily import and initialize the event bus.
+
+    The event bus depends on the configuration module for helper functions
+    such as :func:`get_event_bus_peers`. Importing it at module import time
+    caused a circular import when the event bus in turn imported the
+    configuration. To avoid this we defer the import until runtime.
+    """
+
+    global _event_bus, _event_bus_sub
+    if _event_bus is not None:
+        return
+    from . import event_bus as eb
+
+    _event_bus = eb
+    _event_bus_sub = _event_bus.subscription("config_updated", _update_active)
+    _event_bus_sub.__enter__()
+    try:
+        _event_bus._reload_bus(None)
+        _event_bus._reload_broker(None)
+        _event_bus._reload_serialization(None)
+    except Exception:
+        logger.exception("Failed to reload event bus settings")
 
 
 def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
