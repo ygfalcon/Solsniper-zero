@@ -302,6 +302,28 @@ def main(argv: list[str] | None = None) -> int:
     )
     args, rest = parser.parse_known_args(argv)
 
+    # Run early environment checks before any heavy work
+    print("Checking disk space...")
+    try:
+        check_disk_space(1 << 30)
+    except SystemExit:
+        log_startup("Disk space check failed")
+        raise
+    else:
+        log_startup("Disk space check passed")
+
+    if args.offline or args.skip_rpc_check:
+        log_startup("Internet connectivity check skipped")
+    else:
+        print("Checking internet connectivity...")
+        try:
+            check_internet()
+        except SystemExit:
+            log_startup("Internet connectivity check failed")
+            raise
+        else:
+            log_startup("Internet connectivity check passed")
+
     from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
     from solhunter_zero.config import load_config, validate_config
     from solhunter_zero import wallet
@@ -452,11 +474,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.skip_rpc_check:
         rpc_status = "skipped"
     else:
-        check_internet()
         ensure_rpc(warn_only=args.one_click)
         rpc_status = "reachable"
-
-    check_disk_space(1 << 30)
     from solhunter_zero.bootstrap import bootstrap
 
     # ``bootstrap`` performs its own config and keypair setup.  These steps have
