@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import os
 import aiohttp
+import json as _json_std  # type: ignore
 
-try:
-    import orjson as _json  # type: ignore
-    USE_ORJSON = True
-except Exception:  # pragma: no cover - optional dependency
-    import json as _json  # type: ignore
-    USE_ORJSON = False
+from .optional_imports import try_import
+
+_json = try_import("orjson", stub=_json_std)  # type: ignore
+USE_ORJSON = _json is not _json_std
 
 
 def dumps(obj: object) -> bytes:

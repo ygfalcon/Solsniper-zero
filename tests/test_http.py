@@ -1,18 +1,18 @@
 import importlib
-import builtins
 import asyncio
 import pytest
 
 
 def test_json_fallback(monkeypatch):
-    orig_import = builtins.__import__
+    import solhunter_zero.optional_imports as oi
+    orig_try = oi.try_import
 
-    def fake_import(name, *args, **kwargs):
+    def fake_try(name, stub=oi._SENTINEL):
         if name == "orjson":
-            raise ModuleNotFoundError
-        return orig_import(name, *args, **kwargs)
+            return stub
+        return orig_try(name, stub)
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(oi, "try_import", fake_try)
 
     import solhunter_zero.http as http
     http = importlib.reload(http)

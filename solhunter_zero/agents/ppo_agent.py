@@ -6,28 +6,32 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import solhunter_zero.device as device_module
+from ..optional_imports import try_import
 
-try:
-    import torch
-    from torch import nn, optim
-    import torch.nn.functional as F
-except ImportError as exc:  # pragma: no cover - optional dependency
-    class _TorchStub:
-        class Tensor:
+
+class _TorchStub:
+    class Tensor:
+        pass
+
+    class device:
+        def __init__(self, *a, **k) -> None:
             pass
 
-        class device:
-            def __init__(self, *a, **k) -> None:
-                pass
-
-        class Module:
-            def __init__(self, *a, **k) -> None:
-                raise ImportError("torch is required for PPOAgent")
-
-        def __getattr__(self, name):
+    class Module:
+        def __init__(self, *a, **k) -> None:
             raise ImportError("torch is required for PPOAgent")
 
-    torch = nn = optim = F = _TorchStub()  # type: ignore
+    def __getattr__(self, name):
+        raise ImportError("torch is required for PPOAgent")
+
+
+_torch = try_import("torch", stub=_TorchStub())
+if isinstance(_torch, _TorchStub):  # pragma: no cover - optional dependency
+    torch = nn = optim = F = _torch  # type: ignore
+else:
+    torch = _torch  # type: ignore
+    from torch import nn, optim  # type: ignore
+    F = try_import("torch.nn.functional", stub=_TorchStub())  # type: ignore
 
 import asyncio
 import logging

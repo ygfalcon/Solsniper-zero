@@ -2,23 +2,28 @@ from __future__ import annotations
 
 from typing import Iterable, List, Dict, Any
 
-try:
-    from transformers import AutoTokenizer, AutoModelForCausalLM
-except ImportError as exc:  # pragma: no cover - optional dependency
-    class _Missing:
-        def __init__(self, *a, **k) -> None:
-            raise ImportError(
-                "transformers is required for LLMReasoner"
-            )
+from ..optional_imports import try_import
 
+
+class _TransformersStub:
+    class AutoTokenizer:
         @classmethod
         def from_pretrained(cls, *a, **k):  # type: ignore[return-value]
             raise ImportError(
-                "transformers is required for LLMReasoner"
+                "transformers is required for LLMReasoner",
             )
 
-    AutoTokenizer = AutoModelForCausalLM = _Missing  # type: ignore
+    class AutoModelForCausalLM:
+        @classmethod
+        def from_pretrained(cls, *a, **k):  # type: ignore[return-value]
+            raise ImportError(
+                "transformers is required for LLMReasoner",
+            )
 
+
+_transformers = try_import("transformers", stub=_TransformersStub())
+AutoTokenizer = _transformers.AutoTokenizer  # type: ignore[attr-defined]
+AutoModelForCausalLM = _transformers.AutoModelForCausalLM  # type: ignore[attr-defined]
 from . import BaseAgent
 from ..portfolio import Portfolio
 from ..news import fetch_headlines_async, compute_sentiment
