@@ -104,7 +104,7 @@ orca_ws_url: ""
 raydium_ws_url: ""
 orca_dex_url: https://dex.orca.so
 raydium_dex_url: https://dex.raydium.io
-metrics_base_url: https://api.example.com
+metrics_base_url: https://api.coingecko.com/api/v3
 risk_tolerance: 0.1
 max_allocation: 0.2
 max_risk_per_token: 0.05

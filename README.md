@@ -127,7 +127,7 @@ profit calculation so routes are ranked based on the borrowed size.
     Specify the base URL used by the simulator to fetch historical return
     metrics:
     ```bash
-    export METRICS_BASE_URL=https://api.example.com
+    export METRICS_BASE_URL=https://api.coingecko.com/api/v3
     ```
 7. **Export RL metrics**
     Provide a URL that receives ``rl_metrics`` events:
