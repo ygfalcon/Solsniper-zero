@@ -410,6 +410,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip HTTP endpoint availability check",
     )
     parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Skip internet and RPC connectivity checks",
+    )
+    parser.add_argument(
         "--skip-preflight",
         action="store_true",
         help="Skip environment preflight checks",
@@ -527,6 +532,15 @@ def main(argv: list[str] | None = None) -> int:
         if code:
             return code
 
+    if args.offline:
+        rpc_status = "offline"
+    elif args.skip_rpc_check:
+        rpc_status = "skipped"
+    else:
+        check_internet()
+        ensure_rpc(warn_only=args.one_click)
+        rpc_status = "reachable"
+
     from solhunter_zero.bootstrap import bootstrap
 
     bootstrap(one_click=args.one_click)
@@ -571,13 +585,6 @@ def main(argv: list[str] | None = None) -> int:
         from solhunter_zero import wallet
 
         active_keypair = wallet.get_active_keypair_name()
-
-    if not args.skip_rpc_check:
-        check_internet()
-        ensure_rpc(warn_only=args.one_click)
-        rpc_status = "reachable"
-    else:
-        rpc_status = "skipped"
 
     ensure_cargo()
     print("Startup summary:")
