@@ -39,11 +39,6 @@ use bincode::Options;
 use libc::c_char;
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use std::time::{Duration, Instant};
-use std::io::Read;
-use url::Url;
-use tungstenite::connect;
-use ureq;
 
 fn parse_map_bin(ptr: *const u8, len: usize) -> Option<HashMap<String, f64>> {
     if ptr.is_null() || len == 0 {
@@ -60,14 +55,6 @@ fn parse_map(ptr: *const c_char) -> Option<HashMap<String, f64>> {
     }
     let s = unsafe { CStr::from_ptr(ptr) }.to_str().ok()?;
     serde_json::from_str::<HashMap<String, f64>>(s).ok()
-}
-
-fn parse_str_map(ptr: *const c_char) -> Option<HashMap<String, String>> {
-    if ptr.is_null() {
-        return Some(HashMap::new());
-    }
-    let s = unsafe { CStr::from_ptr(ptr) }.to_str().ok()?;
-    serde_json::from_str::<HashMap<String, String>>(s).ok()
 }
 
 #[cfg(feature = "parallel")]
@@ -358,7 +345,7 @@ pub extern "C" fn free_cstring(ptr: *mut c_char) {
 
 #[no_mangle]
 pub extern "C" fn route_parallel_enabled() -> bool {
-    cfg!(feature = "parallel")
+    false
 }
 
 #[derive(Serialize, Deserialize)]
@@ -389,59 +376,6 @@ pub extern "C" fn decode_token_agg_json(data: *const u8, len: usize) -> *mut c_c
         Err(_) => return std::ptr::null_mut(),
     };
     let s = serde_json::to_string(&agg).unwrap_or_else(|_| "{}".to_string());
-    CString::new(s).unwrap().into_raw()
-}
-
-fn ping_url(url: &str) -> Option<f64> {
-    let start = Instant::now();
-    if url.starts_with("ws") {
-        let parsed = Url::parse(url).ok()?;
-        match connect(parsed) {
-            Ok((mut sock, _)) => {
-                let _ = sock.close(None);
-                Some(start.elapsed().as_secs_f64())
-            }
-            Err(_) => None,
-        }
-    } else {
-        let agent = ureq::AgentBuilder::new()
-            .timeout_read(Duration::from_secs(5))
-            .timeout_write(Duration::from_secs(5))
-            .build();
-        match agent.get(url).call() {
-            Ok(mut resp) => {
-                let _ = resp.into_reader().read_to_end(&mut Vec::new());
-                Some(start.elapsed().as_secs_f64())
-            }
-            Err(_) => None,
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn measure_latency_json(urls_json: *const c_char, attempts: u32) -> *mut c_char {
-    let urls = match parse_str_map(urls_json) {
-        Some(m) => m,
-        None => return std::ptr::null_mut(),
-    };
-    let attempts = if attempts == 0 { 1 } else { attempts } as usize;
-    let mut result: HashMap<String, f64> = HashMap::new();
-    for (name, url) in urls.iter() {
-        if url.is_empty() {
-            continue;
-        }
-        let mut total = 0.0;
-        let mut count = 0usize;
-        for _ in 0..attempts {
-            if let Some(t) = ping_url(url) {
-                total += t;
-                count += 1;
-            }
-        }
-        let avg = if count > 0 { total / count as f64 } else { 0.0 };
-        result.insert(name.clone(), avg);
-    }
-    let s = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
     CString::new(s).unwrap().into_raw()
 }
 
