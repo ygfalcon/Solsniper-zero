@@ -890,3 +890,65 @@ def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
 
     assert calls["cmd"][:4] == [sys.executable, "-m", "pip", "install"]
     assert "Please install it manually" in capsys.readouterr().out
+
+
+def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys):
+    from scripts import startup
+    from solhunter_zero.wallet import KeypairInfo
+    import subprocess
+
+    cfg_path = tmp_path / "config.toml"
+    cfg_path.write_text("")
+    calls = {}
+
+    def missing_config():
+        raise FileNotFoundError("missing")
+
+    import solhunter_zero.config_utils as cu
+    monkeypatch.setattr(cu, "ensure_default_config", missing_config)
+
+    def fake_quick_setup():
+        calls["quick_setup"] = True
+        return str(cfg_path)
+
+    monkeypatch.setattr(startup, "run_quick_setup", fake_quick_setup)
+
+    import types, sys
+    config_mod = types.SimpleNamespace(
+        load_config=lambda path: {}, validate_config=lambda cfg: cfg
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", config_mod)
+    monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
+
+    def fake_select(auto=False):
+        calls["auto"] = auto
+        return KeypairInfo("kp1", None)
+
+    monkeypatch.setattr(cu, "select_active_keypair", fake_select)
+    import solhunter_zero.wallet as wallet_mod
+    monkeypatch.setattr(wallet_mod, "KEYPAIR_DIR", tmp_path)
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
+    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    monkeypatch.setattr(startup, "check_disk_space", lambda min_bytes: None)
+    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
+    monkeypatch.setattr(startup, "log_startup", lambda msg: None)
+    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
+    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+    import scripts.healthcheck as healthcheck
+    monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
+
+    ret = startup.main([
+        "--skip-deps",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-preflight",
+        "--no-diagnostics",
+    ])
+
+    assert ret == 0
+    assert calls.get("quick_setup") is True
+    assert calls.get("auto") is True
+    out = capsys.readouterr().out
+    assert str(cfg_path) in out
+    assert "Active keypair: kp1" in out
