@@ -14,6 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib import request
 
+from .bootstrap_utils import ensure_deps
 from .cache_paths import MAC_SETUP_MARKER, TOOLS_OK_MARKER
 from .logging_utils import log_startup
 from .paths import ROOT
@@ -244,6 +245,17 @@ def verify_tools() -> None:
         raise SystemExit(1)
 
 
+def install_deps() -> None:
+    """Install Python dependencies using :func:`ensure_deps`."""
+    MAC_SETUP_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    MAC_SETUP_MARKER.write_text("ok")
+    try:
+        ensure_deps(full=True)
+    except BaseException:
+        MAC_SETUP_MARKER.unlink(missing_ok=True)
+        raise
+
+
 MANUAL_FIXES = {
     "xcode": "Install Xcode command line tools with 'xcode-select --install' and rerun the script.",
     "homebrew": "Install Homebrew from https://brew.sh and ensure it is on your PATH.",
@@ -254,6 +266,7 @@ MANUAL_FIXES = {
         f"'torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} {' '.join(METAL_EXTRA_INDEX)}'."
     ),
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
+    "deps": "Install Python dependencies with 'python -m scripts.deps --install-optional'.",
     "profile": (
         "Add 'eval $(brew shellenv)' and 'source \"$HOME/.cargo/env\"' to your shell profile"
         " so the tools are available in new shells."
@@ -280,6 +293,7 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
         ("rustup", ensure_rustup),
         ("pip_torch", upgrade_pip_and_torch),
         ("verify_tools", verify_tools),
+        ("deps", install_deps),
         ("profile", ensure_profile),
     ]
 
