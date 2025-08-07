@@ -58,3 +58,18 @@ def test_check_internet_failure(monkeypatch, capsys):
         preflight_utils.check_internet("https://example.com")
     out = capsys.readouterr().out
     assert "Failed to reach https://example.com after 3 attempts" in out
+
+
+def test_check_required_env_placeholder_birdeye(monkeypatch):
+    monkeypatch.setenv("SOLANA_RPC_URL", "https://example.com")
+    monkeypatch.setenv("BIRDEYE_API_KEY", "BD1234567890ABCDEFGHIJKL")
+    ok, msg = preflight_utils.check_required_env()
+    assert ok is False
+    assert "BIRDEYE_API_KEY" in msg
+
+
+def test_check_required_env_placeholder_jito(monkeypatch):
+    monkeypatch.setenv("JITO_AUTH", "YOUR_JITO_AUTH_TOKEN")
+    ok, msg = preflight_utils.check_required_env(["JITO_AUTH"])
+    assert ok is False
+    assert "JITO_AUTH" in msg

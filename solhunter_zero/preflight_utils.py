@@ -201,19 +201,40 @@ def check_internet(url: str | None = None) -> None:
             time.sleep(wait)
 
 
+def _is_placeholder(key: str, val: str) -> bool:
+    """Return ``True`` if ``val`` appears to be a placeholder value."""
+
+    placeholders = {
+        "BIRDEYE_API_KEY": {
+            "YOUR_BIRDEYE_KEY",
+            "YOUR_BIRDEYE_API_KEY",
+            "BD1234567890ABCDEFGHIJKL",
+            "be_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        },
+        "JITO_AUTH": {"YOUR_JITO_AUTH_TOKEN"},
+    }
+    if val in placeholders.get(key, set()):
+        return True
+    if key == "BIRDEYE_API_KEY" and val.startswith("BD123"):
+        return True
+    if key.startswith("JITO") and val.upper().startswith("YOUR_JITO"):
+        return True
+    return False
+
+
 def check_required_env(keys: List[str] | None = None) -> Check:
-    """Ensure critical environment variables are configured."""
+    """Ensure critical environment variables are configured and not defaults."""
 
     required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
     missing = []
     for key in required:
         val = os.getenv(key)
-        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+        if not val or _is_placeholder(key, val):
             missing.append(key)
     if missing:
         joined = ", ".join(missing)
         return False, (
-            f"Missing environment variables: {joined}. "
+            f"Missing or placeholder environment variables: {joined}. "
             "Set them and retry"
         )
     return True, "Required environment variables set"

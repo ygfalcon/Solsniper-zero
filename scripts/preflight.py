@@ -43,7 +43,10 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Xcode CLT", check_xcode_clt),
     ("Config", check_config_file),
     ("Keypair", check_keypair),
-    ("Environment", check_required_env),
+    (
+        "Environment",
+        lambda: check_required_env(["SOLANA_RPC_URL", "BIRDEYE_API_KEY", "JITO_AUTH"]),
+    ),
     (
         "Network",
         lambda: check_network(
