@@ -114,17 +114,25 @@ def ensure_rustup() -> None:
 def ensure_profile() -> None:
     shell = os.environ.get("SHELL", "")
     profile = Path.home() / (".zprofile" if shell.endswith("zsh") else ".bash_profile")
-    content = profile.read_text() if profile.exists() else ""
-    brew_env = subprocess.check_output(["brew", "shellenv"], text=True)
-    if "HOMEBREW_PREFIX" not in content:
-        with profile.open("a") as fh:
-            fh.write(brew_env)
-            fh.write("\n")
-        print(f"Updated {profile} with Homebrew environment.")
+    content = profile.read_text().splitlines() if profile.exists() else []
+    brew_env = subprocess.check_output(["brew", "shellenv"], text=True).splitlines()
+
+    for line in brew_env:
+        if line not in content:
+            with profile.open("a") as fh:
+                fh.write(line + "\n")
+            print(f"Success: added line to {profile}: {line}")
+            content.append(line)
+        else:
+            print(f"No change needed for {profile}: {line}")
+
     cargo_line = 'source "$HOME/.cargo/env"'
     if cargo_line not in content:
         with profile.open("a") as fh:
             fh.write(cargo_line + "\n")
+        print(f"Success: added line to {profile}: {cargo_line}")
+    else:
+        print(f"No change needed for {profile}: {cargo_line}")
 
 
 def upgrade_pip_and_torch() -> None:
