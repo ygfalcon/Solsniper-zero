@@ -187,7 +187,7 @@ def test_ensure_keypair_generates_default(tmp_path, monkeypatch):
     if hasattr(solhunter_zero, "wallet"):
         delattr(solhunter_zero, "wallet")
 
-    from scripts.startup import ensure_keypair
+    from solhunter_zero.bootstrap import ensure_keypair
 
     from solhunter_zero import wallet
 
@@ -225,7 +225,7 @@ def test_ensure_keypair_from_json(tmp_path, monkeypatch):
     import json
     monkeypatch.setenv("KEYPAIR_JSON", json.dumps([0] * 64))
 
-    from scripts.startup import ensure_keypair
+    from solhunter_zero.bootstrap import ensure_keypair
 
     from solhunter_zero import wallet
 
@@ -568,12 +568,11 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     called: dict[str, object] = {}
 
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
 
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
@@ -592,7 +591,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     monkeypatch.setattr(
         startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
@@ -615,16 +614,16 @@ def test_main_skips_endpoint_check(monkeypatch):
     called: dict[str, object] = {}
 
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
@@ -656,11 +655,11 @@ def test_main_preflight_success(monkeypatch):
 
     monkeypatch.setattr("scripts.preflight.main", fake_preflight)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
     import types as _types, sys
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
@@ -692,10 +691,11 @@ def test_main_preflight_failure(monkeypatch, capsys):
     import types
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
 
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
     if log_file.exists():
@@ -780,14 +780,14 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     from scripts import startup
 
     monkeypatch.setattr(startup, "ensure_deps", lambda: None)
-    monkeypatch.setattr(startup, "ensure_config", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_keypair", lambda: (_ for _ in ()).throw(Exception("should not run")))
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
