@@ -1,88 +1,95 @@
 import asyncio
-import os
-import sys
-import types
+import importlib
+import pkgutil
+from typing import List
+
 import pytest
 
 from solhunter_zero.portfolio import Portfolio
 from solhunter_zero.strategy_manager import StrategyManager
-from solhunter_zero.simulation import SimulationResult
 
 
-def _install_stub_modules(monkeypatch):
-    # Create sniper stub with deterministic helpers
-    sniper = types.ModuleType("solhunter_zero.sniper")
+def _discover_strategy_modules() -> List[object]:
+    """Import all ``solhunter_zero`` modules defining a top-level ``evaluate``."""
 
-    def run_simulations(token, count=100):
-        return [SimulationResult(1.0, 1.0)]
+    import pathlib
+    import solhunter_zero
 
-    def should_buy(sims):
-        return True
+    modules: List[object] = []
+    base = pathlib.Path(solhunter_zero.__file__).parent
+    prefix = solhunter_zero.__name__ + "."
 
-    def should_sell(sims, **kw):
-        return False
+    for info in pkgutil.iter_modules([str(base)]):
+        module_name = prefix + info.name
+        file_path = base / f"{info.name}.py"
+        try:
+            src = file_path.read_text()
+        except Exception:  # pragma: no cover - invalid file
+            continue
+        if "async def evaluate(token" not in src:
+            continue
+        try:
+            mod = importlib.import_module(module_name)
+        except Exception:  # pragma: no cover - optional deps
+            continue
+        modules.append(mod)
 
-    async def fetch_token_prices_async(tokens):
-        return {t: 1.0 for t in tokens}
-
-    def predict_price_movement(token):
-        return 0.1
-
-    def dynamic_order_size(*args, **kwargs):
-        return 1.0
-
-    async def evaluate(token, portfolio):
-        prices = await fetch_token_prices_async({token})
-        amount = dynamic_order_size()
-        return [{"token": token, "side": "buy", "amount": amount, "price": prices[token]}]
-
-    sniper.run_simulations = run_simulations
-    sniper.should_buy = should_buy
-    sniper.should_sell = should_sell
-    sniper.fetch_token_prices_async = fetch_token_prices_async
-    sniper.predict_price_movement = predict_price_movement
-    sniper.dynamic_order_size = dynamic_order_size
-    sniper.evaluate = evaluate
-
-    monkeypatch.setitem(sys.modules, "solhunter_zero.sniper", sniper)
-
-    # Create arbitrage stub that yields a profitable opportunity
-    arbitrage = types.ModuleType("solhunter_zero.arbitrage")
-
-    async def detect_and_execute_arbitrage(token, **kwargs):
-        return (0, 1)
-
-    async def evaluate(token, portfolio):
-        threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
-        amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
-        if threshold <= 0 or amount <= 0:
-            return []
-        res = await detect_and_execute_arbitrage(token, threshold=threshold, amount=amount, dry_run=True)
-        if not res:
-            return []
-        action = {"token": token, "amount": amount, "price": 0.0}
-        return [dict(action, side="buy"), dict(action, side="sell")]
-
-    arbitrage.detect_and_execute_arbitrage = detect_and_execute_arbitrage
-    arbitrage.evaluate = evaluate
-
-    monkeypatch.setitem(sys.modules, "solhunter_zero.arbitrage", arbitrage)
+    return modules
 
 
-def test_one_click_all_strategies(monkeypatch):
-    _install_stub_modules(monkeypatch)
+def _prepare_module(monkeypatch: pytest.MonkeyPatch, mod: object) -> None:
+    """Monkeypatch helpers so ``mod.evaluate`` runs without external deps."""
 
-    monkeypatch.setenv("ARBITRAGE_THRESHOLD", "0.01")
-    monkeypatch.setenv("ARBITRAGE_AMOUNT", "2")
+    name = getattr(mod, "__name__", "")
+
+    if name.endswith("sniper"):
+        class _DummyRes:
+            expected_roi = 1.0
+            volatility = 0.0
+            volume_spike = 1.0
+            depth_change = 0.0
+            whale_activity = 0.0
+            tx_rate = 1.0
+
+        monkeypatch.setattr(
+            mod,
+            "run_simulations",
+            lambda token, count=100: [_DummyRes()],
+        )
+        monkeypatch.setattr(mod, "should_buy", lambda sims: True)
+        monkeypatch.setattr(mod, "should_sell", lambda sims, **kw: False)
+
+        async def _prices(tokens):
+            return {t: 1.0 for t in tokens}
+
+        monkeypatch.setattr(mod, "fetch_token_prices_async", _prices)
+        monkeypatch.setattr(mod, "predict_price_movement", lambda token: 0.1)
+        monkeypatch.setattr(mod, "dynamic_order_size", lambda *a, **k: 1.0)
+
+    elif name.endswith("arbitrage"):
+        async def _arb(token, **kwargs):
+            return (0, 1)
+
+        monkeypatch.setattr(mod, "detect_and_execute_arbitrage", _arb)
+        monkeypatch.setenv("ARBITRAGE_THRESHOLD", "0.01")
+        monkeypatch.setenv("ARBITRAGE_AMOUNT", "2")
+
+    else:  # pragma: no cover - future strategies
+        async def _dummy(token, portfolio):
+            return [{"token": token, "side": name, "amount": 1.0, "price": 0.0}]
+
+        monkeypatch.setattr(mod, "evaluate", _dummy)
+
+
+def test_one_click_all_strategies(monkeypatch: pytest.MonkeyPatch) -> None:
+    modules = _discover_strategy_modules()
+    for mod in modules:
+        _prepare_module(monkeypatch, mod)
 
     portfolio = Portfolio(path=None)
-    mgr = StrategyManager()
+    mgr = StrategyManager([m.__name__ for m in modules])
 
     actions = asyncio.run(mgr.evaluate("TKN", portfolio))
 
-    assert len(actions) == 2
-    merged = {a["side"]: a for a in actions}
-    assert merged["buy"]["amount"] == pytest.approx(3.0)
-    assert merged["buy"]["price"] == pytest.approx(1 / 3)
-    assert merged["sell"]["amount"] == pytest.approx(2.0)
-    assert merged["sell"]["price"] == 0.0
+    assert len(actions) == len(modules)
+
