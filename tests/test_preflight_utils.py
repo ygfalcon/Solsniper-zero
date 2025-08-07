@@ -58,3 +58,58 @@ def test_check_internet_failure(monkeypatch, capsys):
         preflight_utils.check_internet("https://example.com")
     out = capsys.readouterr().out
     assert "Failed to reach https://example.com after 3 attempts" in out
+
+
+def test_check_wallet_balance_ok(monkeypatch, tmp_path):
+    import types
+    import solana.rpc.api as rpc_api
+    from solhunter_zero.gas import LAMPORTS_PER_SOL
+
+    kp_path = tmp_path / "dummy.json"
+    kp_path.write_text("[]")
+
+    monkeypatch.setattr(
+        preflight_utils.wallet,
+        "load_keypair",
+        lambda _p: types.SimpleNamespace(pubkey=lambda: "pk"),
+    )
+
+    class FakeClient:
+        def __init__(self, url):
+            pass
+
+        def get_balance(self, pubkey):
+            return {"result": {"value": int(2 * LAMPORTS_PER_SOL)}}
+
+    monkeypatch.setattr(rpc_api, "Client", FakeClient)
+
+    ok, msg = preflight_utils.check_wallet_balance(1, kp_path)
+    assert ok is True
+    assert "Wallet balance" in msg
+
+
+def test_check_wallet_balance_insufficient(monkeypatch, tmp_path):
+    import types
+    import solana.rpc.api as rpc_api
+
+    kp_path = tmp_path / "dummy.json"
+    kp_path.write_text("[]")
+
+    monkeypatch.setattr(
+        preflight_utils.wallet,
+        "load_keypair",
+        lambda _p: types.SimpleNamespace(pubkey=lambda: "pk"),
+    )
+
+    class FakeClient:
+        def __init__(self, url):
+            pass
+
+        def get_balance(self, pubkey):
+            return {"result": {"value": 0}}
+
+    monkeypatch.setattr(rpc_api, "Client", FakeClient)
+
+    ok, msg = preflight_utils.check_wallet_balance(1, kp_path)
+    assert ok is False
+    assert "below required" in msg

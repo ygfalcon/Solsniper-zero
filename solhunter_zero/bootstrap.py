@@ -13,6 +13,7 @@ from solhunter_zero.bootstrap_utils import (
 from .config_bootstrap import ensure_config as _ensure_config
 from . import wallet
 from . import env
+from . import preflight_utils
 
 import solhunter_zero.device as device
 from .diagnostics import write_diagnostics
@@ -119,32 +120,9 @@ def bootstrap(one_click: bool = False) -> None:
         _info, keypair_path = ensure_keypair()
         min_balance = float(os.getenv("MIN_STARTING_BALANCE", "0") or 0)
         if keypair_path and min_balance > 0:
-            from solana.rpc.api import Client
-            from .gas import LAMPORTS_PER_SOL
-
-            try:
-                kp = wallet.load_keypair(str(keypair_path))
-                client = Client(
-                    os.getenv(
-                        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-                    )
-                )
-                resp = client.get_balance(kp.pubkey())
-                try:
-                    lamports = int(resp["result"]["value"])  # type: ignore[index]
-                except Exception:
-                    lamports = int(getattr(resp, "value", 0))
-            except Exception as exc:
-                logging.getLogger(__name__).error(
-                    "Failed to fetch wallet balance: %s", exc
-                )
-                raise SystemExit(1)
-            if lamports < min_balance * LAMPORTS_PER_SOL:
-                logging.getLogger(__name__).error(
-                    "Wallet balance %.9f SOL below required %.9f SOL",
-                    lamports / LAMPORTS_PER_SOL,
-                    min_balance,
-                )
+            ok, msg = preflight_utils.check_wallet_balance(min_balance, keypair_path)
+            if not ok:
+                logging.getLogger(__name__).error(msg)
                 raise SystemExit(1)
 
     wallet.ensure_default_keypair()
