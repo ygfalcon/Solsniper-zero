@@ -12,18 +12,46 @@ import sys
 import time
 from pathlib import Path
 from collections.abc import Callable
+from urllib import request
 
-from solhunter_zero.device import (
-    METAL_EXTRA_INDEX,
-    TORCH_METAL_VERSION,
-    TORCHVISION_METAL_VERSION,
-)
+try:
+    from solhunter_zero.device import (
+        METAL_EXTRA_INDEX,
+        TORCH_METAL_VERSION,
+        TORCHVISION_METAL_VERSION,
+    )
+except Exception:  # pragma: no cover - optional import for CI
+    METAL_EXTRA_INDEX = []
+    TORCH_METAL_VERSION = ""
+    TORCHVISION_METAL_VERSION = ""
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
     print("Running:", " ".join(cmd))
     return subprocess.run(cmd, check=check, text=True, **kwargs)
+
+
+def ensure_network() -> None:
+    """Abort if no network connectivity is available."""
+    try:
+        subprocess.run(
+            ["ping", "-c", "1", "1.1.1.1"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        return
+    except Exception:
+        try:
+            with request.urlopen("https://example.com", timeout=5):
+                return
+        except Exception:
+            print(
+                "Network check failed. Please connect to the internet and re-run this script.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
 
 def ensure_xcode(non_interactive: bool) -> None:
@@ -139,6 +167,8 @@ def upgrade_pip_and_torch() -> None:
     if shutil.which("python3.11") is None:
         return
     _run(["python3.11", "-m", "pip", "install", "--upgrade", "pip"], check=False)
+    if not TORCH_METAL_VERSION or not TORCHVISION_METAL_VERSION:
+        return
     _run(
         [
             "python3.11",
@@ -190,6 +220,8 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     The returned mapping contains a ``steps`` dict with per-step ``status`` and
     an overall ``success`` boolean.
     """
+
+    ensure_network()
 
     report: dict[str, object] = {"steps": {}, "success": True}
 
