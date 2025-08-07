@@ -35,7 +35,7 @@ except Exception:  # pragma: no cover - optional dependency
     _ZSTD_DECOMPRESSOR = None
 from contextlib import contextmanager
 from collections import defaultdict
-from typing import Any, Awaitable, Callable, Dict, Generator, List, Set, Sequence
+from typing import Any, Awaitable, Callable, Dict, Generator, List, Set, Sequence, cast
 
 try:
     import msgpack
@@ -86,7 +86,9 @@ from asyncio import Queue
 
 
 from .schemas import validate_message, to_dict
-from . import event_pb2 as pb
+from . import event_pb2 as _pb
+
+pb = cast(Any, _pb)
 
 _PB_MAP = {
     "action_executed": getattr(pb, "ActionExecuted", None),
@@ -126,6 +128,7 @@ _USE_ZLIB_EVENTS = os.getenv("USE_ZLIB_EVENTS")
 EVENT_COMPRESSION_THRESHOLD = int(
     os.getenv("EVENT_COMPRESSION_THRESHOLD", "512") or 512
 )
+EVENT_COMPRESSION: str | None
 if _EVENT_COMPRESSION is None:
     if COMPRESS_EVENTS:
         if _USE_ZLIB_EVENTS:
@@ -449,9 +452,7 @@ _peer_clients: Dict[str, Any] = {}  # outbound connections to peers
 _peer_urls: Set[str] = set()
 _watch_tasks: Dict[str, Any] = {}
 _ws_server = None
-_flush_task = None
-_outgoing_queue: Queue | None = None
-_flush_task = None
+_flush_task: asyncio.Task | None = None
 _outgoing_queue: Queue | None = None
 
 # message broker globals
@@ -673,7 +674,7 @@ def _encode_event(topic: str, payload: Any) -> Any:
     data = event.SerializeToString()
     return _compress_event(data)
 
-def _decode_payload(ev: pb.Event) -> Any:
+def _decode_payload(ev: Any) -> Any:
     field = ev.WhichOneof("kind")
     if not field:
         return None
