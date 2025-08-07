@@ -298,6 +298,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     args, rest = parser.parse_known_args(argv)
 
+    # Ensure configuration exists and is valid before proceeding
+    from solhunter_zero.config_bootstrap import ensure_config as bootstrap_ensure_config
+    from solhunter_zero import config_schema
+    import tomllib
+
+    try:
+        cfg_file = bootstrap_ensure_config()
+        with cfg_file.open("rb") as fh:
+            cfg_data = tomllib.load(fh)
+        config_schema.validate_config(cfg_data)
+    except (Exception, SystemExit) as exc:
+        print(f"Invalid configuration: {exc}")
+        try:
+            resp = input(
+                "Run quick setup to regenerate configuration? [y/N]: "
+            )
+        except EOFError:
+            resp = ""
+        if resp.strip().lower() in {"y", "yes"}:
+            from scripts.quick_setup import run as quick_setup_run
+
+            quick_setup_run()
+        return 1
+
     if args.repair and platform.system() == "Darwin":
         from scripts import mac_setup
 

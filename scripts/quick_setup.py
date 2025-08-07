@@ -134,5 +134,10 @@ def main(argv: list[str] | None = None) -> None:
         print("Config already contains required values.")
 
 
+def run(argv: list[str] | None = None) -> None:
+    """Programmatic entry point mirroring :func:`main`."""
+    main(argv)
+
+
 if __name__ == "__main__":
     main()
