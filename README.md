@@ -372,6 +372,10 @@ Install the Rust toolchain if `cargo` isn't available:
     `run.sh` now verifies the aggregator stays alive and prints its log on
     failure. Pass `--no-metrics` to `run.sh` to skip starting the aggregator
     when debugging.
+  - During startup the following metrics are emitted:
+    - `startup_config_load_duration` – seconds spent loading configuration.
+    - `startup_connectivity_check_duration` – seconds spent verifying RPC and websocket connectivity.
+    - `startup_depth_service_start_duration` – seconds spent launching the depth service.
   - The token and mempool scanners along with components in
     `dynamic_limit` and the RL trainer subscribe to this topic and use the
     aggregated CPU value for concurrency and worker adjustments.
