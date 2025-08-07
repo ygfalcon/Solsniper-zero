@@ -353,14 +353,18 @@ def main(argv: list[str] | None = None) -> int:
         try:
             cfg_data = validate_config(load_config(config_path))
         except Exception:
-            cfg_new = run_quick_setup()
-            if cfg_new:
-                config_path = Path(cfg_new)
-            ran_quick_setup = True
-            if not config_path or not Path(config_path).exists():
-                print("Failed to create configuration via quick setup")
+            if args.one_click:
+                cfg_new = run_quick_setup()
+                if cfg_new:
+                    config_path = Path(cfg_new)
+                    ran_quick_setup = True
+                if not config_path or not Path(config_path).exists():
+                    print("Failed to create configuration via quick setup")
+                    return 1
+                cfg_data = validate_config(load_config(config_path))
+            else:
+                print("Invalid configuration. Run 'scripts/quick_setup.py' to fix it.")
                 return 1
-            cfg_data = validate_config(load_config(config_path))
         try:
             ensure_wallet_cli()
         except SystemExit as exc:
