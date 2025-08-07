@@ -18,6 +18,7 @@ from solhunter_zero.config_utils import (
     select_active_keypair,
 )
 from solhunter_zero import wallet
+from solhunter_zero.logging_utils import log_startup
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -226,6 +227,24 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
             json.dump(data, fh, indent=2)
     except OSError:
         pass
+
+    lines: List[str] = []
+    failures: List[Tuple[str, str]] = []
+    for name, ok, msg in results:
+        status = "OK" if ok else "FAIL"
+        line = f"{name}: {status} - {msg}"
+        lines.append(line)
+        log_startup(line)
+        if not ok:
+            failures.append((name, msg))
+    try:
+        with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
+            for line in lines:
+                log.write(line + "\n")
+    except OSError:
+        pass
+    for name, msg in failures:
+        log_startup(f"Preflight failure: {name} - {msg}")
 
     return results
 
