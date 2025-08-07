@@ -306,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg_file = bootstrap_ensure_config()
         with cfg_file.open("rb") as fh:
             cfg_data = tomllib.load(fh)
-        config_schema.validate_config(cfg_data)
+        cfg_data = config_schema.validate_config(cfg_data)
     except (Exception, SystemExit) as exc:
         print(f"Invalid configuration: {exc}")
         try:
@@ -320,6 +320,14 @@ def main(argv: list[str] | None = None) -> int:
 
             quick_setup_run()
         return 1
+
+    if args.offline:
+        endpoint_status = "offline"
+    elif args.skip_endpoint_check or args.skip_setup:
+        endpoint_status = "skipped"
+    else:
+        ensure_endpoints(cfg_data)
+        endpoint_status = "reachable"
 
     if args.repair and platform.system() == "Darwin":
         from scripts import mac_setup
@@ -466,7 +474,8 @@ def main(argv: list[str] | None = None) -> int:
             if mn.exists():
                 mnemonic_path = mn
 
-    device.initialize_gpu()
+    gpu_env = device.initialize_gpu()
+    gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:
@@ -487,8 +496,6 @@ def main(argv: list[str] | None = None) -> int:
             cfg = validate_config(cfg)
         else:
             cfg = {}
-        if not args.skip_endpoint_check:
-            ensure_endpoints(cfg)
         try:
             ensure_wallet_cli()
         except SystemExit as exc:
@@ -511,6 +518,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Active keypair: {active_keypair or 'none'}")
     print(f"  GPU device: {gpu_device}")
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
+    print(f"  HTTP endpoints: {endpoint_status}")
 
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
