@@ -4,6 +4,7 @@ import os
 import asyncio
 import json
 from contextlib import suppress
+import logging
 from sqlalchemy import (
     Column,
     Integer,
@@ -25,6 +26,8 @@ from .event_bus import publish
 from .schemas import TradeLogged
 
 Base = declarative_base()
+
+logger = logging.getLogger(__name__)
 
 def utcnow():
     return datetime.datetime.utcnow()
@@ -166,7 +169,7 @@ class Memory(BaseMemory):
                 try:
                     publish("trade_logged", TradeLogged(**kwargs))
                 except Exception:
-                    pass
+                    logger.warning("trade_logged publish failed", exc_info=True)
             return None
         async with self.Session() as session:
             trade = Trade(**kwargs)
@@ -176,7 +179,7 @@ class Memory(BaseMemory):
             try:
                 publish("trade_logged", TradeLogged(**kwargs))
             except Exception:
-                pass
+                logger.warning("trade_logged publish failed", exc_info=True)
         return trade.id
 
     async def latest_trade_time(self, token: str) -> datetime.datetime | None:
