@@ -48,7 +48,7 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 
     monkeypatch.setattr("scripts.mac_setup.prepare_macos_env", fake_prepare)
     monkeypatch.setattr("scripts.mac_setup.apply_brew_env", lambda: None)
-    monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.bootstrap", lambda one_click: {})
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup.device, "ensure_gpu_env", lambda: {})
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
@@ -755,6 +755,8 @@ def test_startup_sets_mps_device(monkeypatch):
 
     assert os.environ.get("TORCH_DEVICE") == "mps"
     assert os.environ.get("PYTORCH_ENABLE_MPS_FALLBACK") == "1"
+    assert os.environ.get("SOLHUNTER_GPU_AVAILABLE") == "1"
+    assert os.environ.get("SOLHUNTER_GPU_DEVICE") == "mps"
 
 
 def test_wallet_cli_failure_propagates(monkeypatch):

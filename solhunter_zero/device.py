@@ -396,21 +396,30 @@ def ensure_gpu_env() -> dict[str, str]:
     """
 
     env: dict[str, str] = {}
-    if torch is None:
-        return env
-    try:
-        system = platform.system()
-        if system == "Darwin" and torch.backends.mps.is_available():
-            env["TORCH_DEVICE"] = "mps"
-            env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-        elif torch.cuda.is_available():
-            env["TORCH_DEVICE"] = "cuda"
-        for key, value in env.items():
-            os.environ[key] = value
-        return env
-    except Exception:  # pragma: no cover - best effort only
-        logging.getLogger(__name__).exception("Exception during GPU env setup")
-        return env
+    gpu_device = "none"
+
+    if torch is not None:
+        try:
+            system = platform.system()
+            if system == "Darwin" and torch.backends.mps.is_available():
+                gpu_device = "mps"
+                env["TORCH_DEVICE"] = gpu_device
+                env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+            elif torch.cuda.is_available():
+                gpu_device = "cuda"
+                env["TORCH_DEVICE"] = gpu_device
+        except Exception:  # pragma: no cover - best effort only
+            logging.getLogger(__name__).exception(
+                "Exception during GPU env setup"
+            )
+
+    env["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_device != "none" else "0"
+    env["SOLHUNTER_GPU_DEVICE"] = gpu_device
+
+    for key, value in env.items():
+        os.environ[key] = value
+
+    return env
 
 
 def _main() -> int:  # pragma: no cover - CLI helper

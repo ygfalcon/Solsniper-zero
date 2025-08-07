@@ -15,14 +15,14 @@ from . import wallet
 import solhunter_zero.device as device
 
 
-def bootstrap(one_click: bool = False) -> None:
+def bootstrap(one_click: bool = False) -> dict[str, str]:
     """Initialize the runtime environment for SolHunter Zero.
 
     This helper mirrors the setup performed by ``scripts/startup.py`` and can
     be used by entry points that need to guarantee the project is ready to run
     programmatically.
     """
-    device.ensure_gpu_env()
+    env = device.ensure_gpu_env()
 
     if one_click:
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")
@@ -42,3 +42,4 @@ def bootstrap(one_click: bool = False) -> None:
     wallet.ensure_default_keypair()
     ensure_route_ffi()
     ensure_depth_service()
+    return env

@@ -142,11 +142,17 @@ def test_configure_gpu_env_mps(monkeypatch):
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     monkeypatch.delenv("TORCH_DEVICE", raising=False)
     monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+    monkeypatch.delenv("SOLHUNTER_GPU_AVAILABLE", raising=False)
+    monkeypatch.delenv("SOLHUNTER_GPU_DEVICE", raising=False)
     env = device_module.ensure_gpu_env()
     assert env["TORCH_DEVICE"] == "mps"
     assert env["PYTORCH_ENABLE_MPS_FALLBACK"] == "1"
+    assert env["SOLHUNTER_GPU_AVAILABLE"] == "1"
+    assert env["SOLHUNTER_GPU_DEVICE"] == "mps"
     assert os.environ["TORCH_DEVICE"] == "mps"
     assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "1"
+    assert os.environ["SOLHUNTER_GPU_AVAILABLE"] == "1"
+    assert os.environ["SOLHUNTER_GPU_DEVICE"] == "mps"
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="MPS is only available on macOS")
@@ -161,7 +167,12 @@ def test_configure_gpu_env_mps_unavailable(monkeypatch):
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     monkeypatch.delenv("TORCH_DEVICE", raising=False)
     monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+    monkeypatch.delenv("SOLHUNTER_GPU_AVAILABLE", raising=False)
+    monkeypatch.delenv("SOLHUNTER_GPU_DEVICE", raising=False)
     env = device_module.ensure_gpu_env()
-    assert env == {}
+    assert env["SOLHUNTER_GPU_AVAILABLE"] == "0"
+    assert env["SOLHUNTER_GPU_DEVICE"] == "none"
     assert "TORCH_DEVICE" not in os.environ
     assert "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ
+    assert os.environ["SOLHUNTER_GPU_AVAILABLE"] == "0"
+    assert os.environ["SOLHUNTER_GPU_DEVICE"] == "none"

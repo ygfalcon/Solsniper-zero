@@ -636,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
     check_disk_space(1 << 30)
     from solhunter_zero.bootstrap import bootstrap
 
-    bootstrap(one_click=args.one_click)
+    gpu_env = bootstrap(one_click=args.one_click)
 
     config_path: Path | None = None
     keypair_path: Path | None = None
@@ -650,9 +650,8 @@ def main(argv: list[str] | None = None) -> int:
         mnemonic_path = kp_info.mnemonic_path
         active_keypair = kp_info.name
 
-    gpu_env = device.ensure_gpu_env()
-    gpu_available = "TORCH_DEVICE" in gpu_env
-    gpu_device = str(device.get_default_device()) if gpu_available else "none"
+    gpu_available = gpu_env.get("SOLHUNTER_GPU_AVAILABLE") == "1"
+    gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "none")
     if gpu_env:
         print(
             "Configured GPU environment: "
@@ -663,8 +662,6 @@ def main(argv: list[str] | None = None) -> int:
             "No GPU backend detected. Install a Metal-enabled PyTorch build or run "
             "scripts/mac_setup.py to enable GPU support."
         )
-    os.environ["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_available else "0"
-    os.environ["SOLHUNTER_GPU_DEVICE"] = gpu_device
     rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
     if not args.skip_setup:

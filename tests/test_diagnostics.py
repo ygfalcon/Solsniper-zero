@@ -95,7 +95,11 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr(bootstrap.device, "ensure_gpu_env", lambda: None)
+    monkeypatch.setattr(
+        bootstrap.device,
+        "ensure_gpu_env",
+        lambda: {"SOLHUNTER_GPU_AVAILABLE": "0", "SOLHUNTER_GPU_DEVICE": "none"},
+    )
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
