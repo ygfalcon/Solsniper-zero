@@ -8,7 +8,7 @@ from solhunter_zero.bootstrap_utils import (
     ensure_route_ffi,
     ensure_venv,
 )
-from scripts.startup import ensure_keypair
+from solhunter_zero.wallet_utils import ensure_keypair
 from .config_bootstrap import ensure_config
 from . import wallet
 
