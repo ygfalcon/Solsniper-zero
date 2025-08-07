@@ -13,6 +13,7 @@ import csv
 import json
 import sys
 import types
+import warnings
 from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
@@ -37,6 +38,10 @@ except Exception:  # pragma: no cover - portfolio module optional
 
 # Track which trade types have been exercised by the demo
 used_trade_types: set[str] = set()
+
+# Flags indicating availability of optional trade modules
+ROUTE_FFI_AVAILABLE: bool = False
+JITO_STREAM_AVAILABLE: bool = False
 
 # Toggle for heavier demo features such as real RL training
 FULL_SYSTEM: bool = False
@@ -433,12 +438,13 @@ async def _demo_dex_scanner() -> List[str]:
 async def _demo_route_ffi() -> Dict[str, object]:
     """Exercise ``routeffi._best_route_json`` on deterministic data."""
 
+    global ROUTE_FFI_AVAILABLE
     try:
         from . import routeffi
     except Exception as exc:  # pragma: no cover - optional dependency
-        print(f"Route FFI demo skipped: {exc}")
-        used_trade_types.add("route_ffi")
+        warnings.warn(f"Route FFI demo skipped: {exc}")
         return {"path": [], "profit": 0.0}
+    ROUTE_FFI_AVAILABLE = True
 
     prices = {"dex1": 100.0, "dex2": 105.0}
     fees = {"dex1": 0.0, "dex2": 0.0}
@@ -452,7 +458,7 @@ async def _demo_route_ffi() -> Dict[str, object]:
             max_hops=2,
         )
     except Exception as exc:  # pragma: no cover - best effort
-        print(f"Route FFI demo skipped: {exc}")
+        warnings.warn(f"Route FFI demo skipped: {exc}")
         result = None
     if result is None:
         path = ["dex1", "dex2"]
@@ -466,12 +472,13 @@ async def _demo_route_ffi() -> Dict[str, object]:
 async def _demo_jito_stream() -> List[dict]:
     """Stream a deterministic pending swap via :mod:`jito_stream`."""
 
+    global JITO_STREAM_AVAILABLE
     try:
         from . import jito_stream
     except Exception as exc:  # pragma: no cover - optional dependency
-        print(f"Jito stream demo skipped: {exc}")
-        used_trade_types.add("jito_stream")
+        warnings.warn(f"Jito stream demo skipped: {exc}")
         return []
+    JITO_STREAM_AVAILABLE = True
 
     async def fake_stream(_url: str, *, auth: str | None = None):
         yield {
@@ -1183,11 +1190,33 @@ def main(argv: List[str] | None = None) -> None:
     trade_outputs = asyncio.run(_exercise_trade_types())
 
     required = {"arbitrage", "flash_loan", "sniper", "dex_scanner"}
+    optional_flags = {
+        "route_ffi": ROUTE_FFI_AVAILABLE,
+        "jito_stream": JITO_STREAM_AVAILABLE,
+    }
+    for name, available in optional_flags.items():
+        if available:
+            required.add(name)
     missing = required - used_trade_types
     if missing:
         raise RuntimeError(
             f"Demo did not exercise trade types: {', '.join(sorted(missing))}"
         )
+
+    executed_optional = sorted(
+        name for name, avail in optional_flags.items() if avail and name in used_trade_types
+    )
+    skipped_optional = sorted(
+        name for name, avail in optional_flags.items() if not avail
+    )
+    print(
+        "Executed optional trade types: "
+        + (", ".join(executed_optional) if executed_optional else "none")
+    )
+    print(
+        "Skipped optional trade types: "
+        + (", ".join(skipped_optional) if skipped_optional else "none")
+    )
 
     # Collect resource usage metrics if available
     cpu_usage = None

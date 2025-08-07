@@ -10,8 +10,12 @@ from solhunter_zero.event_bus import subscribe
 @pytest.fixture(autouse=True)
 def clear_used_trade_types():
     investor_demo.used_trade_types.clear()
+    investor_demo.ROUTE_FFI_AVAILABLE = False
+    investor_demo.JITO_STREAM_AVAILABLE = False
     yield
     investor_demo.used_trade_types.clear()
+    investor_demo.ROUTE_FFI_AVAILABLE = False
+    investor_demo.JITO_STREAM_AVAILABLE = False
 
 
 def test_demo_jito_stream_events():
