@@ -107,10 +107,23 @@ def check_xcode_clt() -> Check:
 
 
 def check_config_file(path: str = "config.toml") -> Check:
-    cfg = ensure_default_config()
+    """Ensure a configuration file exists at ``path``.
+
+    When ``path`` is the default ``"config.toml"`` the helper
+    :func:`ensure_default_config` is used which will create a config from the
+    bundled template if necessary.  For any other ``path`` the location is
+    resolved relative to the current working directory and simply checked for
+    existence.
+    """
+
+    if path == "config.toml":
+        cfg = ensure_default_config().resolve()
+    else:
+        cfg = Path(path).expanduser().resolve()
+
     if cfg.exists():
         return True, f"Found {cfg}"
-    return False, f"Missing {path}"
+    return False, f"Missing {cfg}"
 
 
 def check_keypair(dir_path: str = "keypairs") -> Check:
