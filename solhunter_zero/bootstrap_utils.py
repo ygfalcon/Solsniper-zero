@@ -406,11 +406,12 @@ def ensure_deps(
 
 
 def ensure_endpoints(cfg: dict) -> None:
-    """Ensure HTTP endpoints in ``cfg`` are reachable.
+    """Ensure HTTP and WebSocket endpoints in ``cfg`` are reachable.
 
     The configuration may specify several service URLs such as
     ``DEX_BASE_URL`` or custom metrics endpoints. This function attempts a
-    ``HEAD`` request to each HTTP(S) URL and aborts startup if any service is
+    ``HEAD`` request to each HTTP(S) URL and a WebSocket handshake for
+    ``ws://`` or ``wss://`` URLs, aborting startup if any service is
     unreachable. BirdEye is only checked when an API key is configured.
     """
 
@@ -418,24 +419,39 @@ def ensure_endpoints(cfg: dict) -> None:
     import urllib.error
     from solhunter_zero.http import check_endpoint
 
-    urls: dict[str, str] = {}
+    urls: dict[str, tuple[str, dict[str, str] | None]] = {}
     if cfg.get("birdeye_api_key"):
-        urls["BirdEye"] = "https://public-api.birdeye.so/defi/tokenlist"
+        urls["BirdEye"] = (
+            "https://public-api.birdeye.so/defi/tokenlist",
+            None,
+        )
     for key, val in cfg.items():
         if not isinstance(val, str):
             continue
-        if not val.startswith("http://") and not val.startswith("https://"):
+        if not val.startswith(("http://", "https://", "ws://", "wss://")):
             continue
-        urls[key] = val
+        headers: dict[str, str] | None = None
+        if key == "jito_ws_url" and cfg.get("jito_ws_auth"):
+            headers = {"Authorization": cfg["jito_ws_auth"]}
+        urls[key] = (val, headers)
 
-    async def _check(name: str, url: str) -> tuple[str, Exception] | None:
+    async def _check(
+        name: str, url: str, headers: dict[str, str] | None
+    ) -> tuple[str, Exception] | None:
         # Each URL is checked with its own exponential backoff.
         for attempt in range(3):
             try:
+                if url.startswith(("ws://", "wss://")):
+                    import websockets
+
+                    async with websockets.connect(
+                        url, extra_headers=headers, open_timeout=5
+                    ):
+                        return None
                 # ``check_endpoint`` is synchronous; run it in a thread to avoid blocking.
                 await asyncio.to_thread(check_endpoint, url, retries=1)
                 return None
-            except urllib.error.URLError as exc:  # pragma: no cover - network failure
+            except Exception as exc:  # pragma: no cover - network failure
                 if attempt == 2:
                     return name, exc
                 wait = 2**attempt
@@ -446,7 +462,9 @@ def ensure_endpoints(cfg: dict) -> None:
                 await asyncio.sleep(wait)
 
     async def _run() -> list[tuple[str, Exception] | None]:
-        tasks = [_check(name, url) for name, url in urls.items()]
+        tasks = [
+            _check(name, url, headers) for name, (url, headers) in urls.items()
+        ]
         return await asyncio.gather(*tasks)
 
     results = asyncio.run(_run())
@@ -455,7 +473,7 @@ def ensure_endpoints(cfg: dict) -> None:
         if name_exc is None:
             continue
         name, exc = name_exc
-        url = urls[name]
+        url = urls[name][0]
         failures.append((name, url, exc))
 
     if failures:
