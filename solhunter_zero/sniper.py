@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import List, Dict, Any
 
@@ -15,6 +16,8 @@ run_simulations = main_module.run_simulations
 should_buy = main_module.should_buy
 should_sell = main_module.should_sell
 fetch_token_prices_async = main_module.fetch_token_prices_async
+
+_limits_logged = False
 
 
 async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
@@ -65,6 +68,21 @@ async def evaluate(token: str, portfolio: Portfolio) -> List[Dict[str, Any]]:
             risk_multiplier=float(os.getenv("RISK_MULTIPLIER", "1.0")),
             min_portfolio_value=float(os.getenv("MIN_PORTFOLIO_VALUE", "20")),
         )
+
+        global _limits_logged
+        if not _limits_logged:
+            logging.getLogger(__name__).info(
+                "Risk limits: risk_tolerance=%s, max_allocation=%s, max_risk_per_token=%s, max_drawdown=%s, "
+                "volatility_factor=%s, risk_multiplier=%s, min_portfolio_value=%s",
+                rm.risk_tolerance,
+                rm.max_allocation,
+                rm.max_risk_per_token,
+                rm.max_drawdown,
+                rm.volatility_factor,
+                rm.risk_multiplier,
+                rm.min_portfolio_value,
+            )
+            _limits_logged = True
 
         balance = portfolio.total_value(prices)
         adj = rm.adjusted(
