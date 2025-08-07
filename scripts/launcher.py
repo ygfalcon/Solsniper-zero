@@ -30,6 +30,15 @@ if sys.version_info < (3, 11):
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
+if platform.system() == "Darwin" and platform.machine() == "x86_64":
+    message = (
+        "Detected x86_64 Python on macOS. "
+        "Please use the arm64 build of Python. "
+        "Run 'scripts/mac_setup.py --non-interactive' to install it."
+    )
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
