@@ -333,29 +333,37 @@ def main(argv: list[str] | None = None) -> int:
     keypair_path: Path | None = None
     mnemonic_path: Path | None = None
     active_keypair: str | None = None
+    ran_quick_setup = False
 
     if not args.skip_setup:
         try:
             config_path = ensure_default_config()
-            cfg_data = validate_config(load_config(config_path))
-        except (Exception, SystemExit) as exc:
-            print(f"Invalid configuration: {exc}")
-            try:
-                resp = input(
-                    "Run quick setup to regenerate configuration? [y/N]: "
-                )
-            except EOFError:
-                resp = ""
-            if resp.strip().lower() in {"y", "yes"}:
-                from scripts.quick_setup import run as quick_setup_run
-
-                quick_setup_run()
+        except (Exception, SystemExit):
+            config_path = None
+        if not config_path or not Path(config_path).exists():
+            cfg_new = run_quick_setup()
+            if cfg_new:
+                config_path = Path(cfg_new)
+            ran_quick_setup = True
+        if not config_path or not Path(config_path).exists():
+            print("Failed to create configuration via quick setup")
             return 1
+        try:
+            cfg_data = validate_config(load_config(config_path))
+        except Exception:
+            cfg_new = run_quick_setup()
+            if cfg_new:
+                config_path = Path(cfg_new)
+            ran_quick_setup = True
+            if not config_path or not Path(config_path).exists():
+                print("Failed to create configuration via quick setup")
+                return 1
+            cfg_data = validate_config(load_config(config_path))
         try:
             ensure_wallet_cli()
         except SystemExit as exc:
             return exc.code if isinstance(exc.code, int) else 1
-        info = select_active_keypair(auto=args.one_click)
+        info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
         active_keypair = info.name
         keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
         mnemonic_path = info.mnemonic_path
