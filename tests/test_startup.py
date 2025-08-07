@@ -729,6 +729,18 @@ def test_preflight_log_rotation(tmp_path):
     assert not log_path.exists()
 
 
+def test_startup_log_rotation(tmp_path):
+    from scripts import startup
+    log_path = tmp_path / "startup.log"
+    log_path.write_text("x" * (startup.MAX_STARTUP_LOG_SIZE + 1))
+    rotated = tmp_path / "startup.log.1"
+
+    startup.rotate_startup_log(log_path)
+
+    assert rotated.exists()
+    assert not log_path.exists()
+
+
 def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.delenv("TORCH_DEVICE", raising=False)
     monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
