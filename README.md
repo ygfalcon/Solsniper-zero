@@ -118,8 +118,8 @@ profit calculation so routes are ranked based on the borrowed size.
    Set the base URL of the DEX API for mainnet and (optionally) the testnet
    endpoint. You can also override URLs for individual venues:
    ```bash
-   export DEX_BASE_URL=https://dex.example/api
-   export DEX_TESTNET_URL=https://dex.testnet/api
+   export DEX_BASE_URL=https://quote-api.jup.ag
+   export DEX_TESTNET_URL=https://quote-api.jup.ag?cluster=devnet
    export ORCA_DEX_URL=https://dex.orca.so
    export RAYDIUM_DEX_URL=https://dex.raydium.io
    ```
@@ -127,7 +127,7 @@ profit calculation so routes are ranked based on the borrowed size.
     Specify the base URL used by the simulator to fetch historical return
     metrics:
     ```bash
-    export METRICS_BASE_URL=https://api.example.com
+    export METRICS_BASE_URL=https://api.coingecko.com/api/v3
     ```
 7. **Export RL metrics**
     Provide a URL that receives ``rl_metrics`` events:
@@ -137,9 +137,9 @@ profit calculation so routes are ranked based on the borrowed size.
 8. **Configure news feeds for sentiment**
    Sentiment scores influence RL training. Provide comma-separated RSS URLs via `NEWS_FEEDS` and optional social feeds:
    ```bash
-   export NEWS_FEEDS=https://news.example/rss
-   export TWITTER_FEEDS=https://example.com/twitter.json
-   export DISCORD_FEEDS=https://example.com/discord.json
+   export NEWS_FEEDS=https://hnrss.org/frontpage
+   export TWITTER_FEEDS=https://api.sampleapis.com/futurama/characters
+   export DISCORD_FEEDS=https://api.sampleapis.com/futurama/episodes
    ```
 9. **Provide a keypair for signing**
     Generate a keypair with `solana-keygen new` if you don't already have one and
@@ -179,7 +179,7 @@ profit calculation so routes are ranked based on the borrowed size.
 10. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
-    export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+    export PRIORITY_RPC=https://api.mainnet-beta.solana.com,https://solana-api.projectserum.com
     ```
 11. **Priority fee multipliers**
     Configure compute unit price multipliers used when the mempool is busy:
@@ -219,7 +219,7 @@ profit calculation so routes are ranked based on the borrowed size.
 16. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
    ```bash
-   export EVENT_BUS_URL=wss://bus.example.com
+   export EVENT_BUS_URL=wss://echo.websocket.events
    ```
    Alternatively specify `event_bus_url` in the configuration file.
 17. **Message broker**
@@ -353,7 +353,7 @@ endpoints using ``priority_rpc`` (or the ``PRIORITY_RPC`` environment
 variable):
 
 ```bash
-export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+export PRIORITY_RPC=https://api.mainnet-beta.solana.com,https://solana-api.projectserum.com
 ```
 ### Running in a Cluster
 
@@ -370,11 +370,11 @@ event_bus_url = "ws://0.0.0.0:8787"
 broker_url = "redis://localhost:6379"
 
 [[nodes]]
-solana_rpc_url = "https://rpc1.example.com"
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
 solana_keypair = "keypairs/node1.json"
 
 [[nodes]]
-solana_rpc_url = "https://rpc2.example.com"
+solana_rpc_url = "https://solana-api.projectserum.com"
 solana_keypair = "keypairs/node2.json"
 ```
 
@@ -525,7 +525,7 @@ To forward events to a remote bus use the `--event-bus` option when running
 `scripts/run_rl_daemon.py`:
 
 ```bash
-python scripts/run_rl_daemon.py --event-bus wss://bus.example.com
+python scripts/run_rl_daemon.py --event-bus wss://echo.websocket.events
 ```
 
 Hierarchical RL training now runs by default and stores its policy in
