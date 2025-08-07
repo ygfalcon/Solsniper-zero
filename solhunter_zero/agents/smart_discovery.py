@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 from typing import List, Dict, Any, Iterable
 
-from sklearn.ensemble import GradientBoostingRegressor
+try:  # optional dependency
+    from sklearn.ensemble import GradientBoostingRegressor
+except Exception:  # pragma: no cover - optional dependency
+    GradientBoostingRegressor = None  # type: ignore[assignment]
 
 from . import BaseAgent
 from ..mempool_scanner import stream_ranked_mempool_tokens
@@ -83,9 +86,12 @@ class SmartDiscoveryAgent(BaseAgent):
             return []
 
         y = [sum(f) for f in feats]
-        model = GradientBoostingRegressor()
-        model.fit(feats, y)
-        preds = model.predict(feats)
+        if GradientBoostingRegressor is not None:
+            model = GradientBoostingRegressor()
+            model.fit(feats, y)
+            preds = model.predict(feats)
+        else:  # simple fallback: use summed features as predictions
+            preds = y
 
         ranked = sorted(zip(kept_tokens, preds), key=lambda x: x[1], reverse=True)
         self.metrics = {tok: {"predicted_score": float(p)} for tok, p in ranked}
