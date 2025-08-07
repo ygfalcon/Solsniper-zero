@@ -7,7 +7,9 @@ import os
 import platform
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 METAL_EXTRA_INDEX = [
     "--extra-index-url",
@@ -16,6 +18,7 @@ METAL_EXTRA_INDEX = [
 
 DEFAULT_TORCH_METAL_VERSION = "2.1.0"
 DEFAULT_TORCHVISION_METAL_VERSION = "0.16.0"
+INSTALL_TIMEOUT = 600
 
 def _load_torch_versions() -> tuple[str, str]:
     torch_ver = os.getenv("TORCH_METAL_VERSION")
@@ -43,6 +46,36 @@ try:  # pragma: no cover - optional dependency
     import torch
 except Exception:  # pragma: no cover - torch is optional at runtime
     torch = None  # type: ignore
+
+
+@dataclass
+class InstallStatus:
+    """Result of a subprocess installation command."""
+
+    success: bool
+    message: str
+
+
+def _run_with_timeout(cmd: Sequence[str], timeout: int = 600) -> InstallStatus:
+    """Run *cmd* with a timeout returning :class:`InstallStatus`.
+
+    Parameters
+    ----------
+    cmd:
+        Command to execute.
+    timeout:
+        Maximum seconds to wait before aborting.
+    """
+
+    try:
+        subprocess.run(cmd, check=True, timeout=timeout)
+        return InstallStatus(True, "")
+    except subprocess.TimeoutExpired:
+        return InstallStatus(False, f"Command timed out after {timeout} seconds")
+    except subprocess.CalledProcessError as exc:
+        return InstallStatus(False, f"Command failed with exit code {exc.returncode}")
+    except Exception as exc:  # pragma: no cover - unexpected failure
+        return InstallStatus(False, str(exc))
 
 
 def ensure_torch_with_metal() -> None:
@@ -82,10 +115,13 @@ def ensure_torch_with_metal() -> None:
         f"torchvision=={TORCHVISION_METAL_VERSION}",
         *METAL_EXTRA_INDEX,
     ]
-    try:
-        subprocess.check_call(cmd)
-    except Exception:  # pragma: no cover - installation failure
-        logger.exception("PyTorch installation failed")
+    install_cmd = " ".join(cmd)
+    status = _run_with_timeout(cmd, timeout=INSTALL_TIMEOUT)
+    if not status.success:
+        logger.error("PyTorch installation failed: %s", status.message)
+        logger.error("Install manually with: %s", install_cmd)
+        MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+        MPS_SENTINEL.touch()
         raise RuntimeError("Failed to install MPS-enabled PyTorch")
 
     importlib.invalidate_caches()
@@ -93,25 +129,33 @@ def ensure_torch_with_metal() -> None:
 
     if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
         logger.warning("MPS backend not available; attempting to reinstall Metal wheel")
-        try:
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--force-reinstall",
-                    f"torch=={TORCH_METAL_VERSION}",
-                    f"torchvision=={TORCHVISION_METAL_VERSION}",
-                    *METAL_EXTRA_INDEX,
-                ]
-            )
-        except Exception:  # pragma: no cover - installation failure
-            logger.exception("PyTorch reinstallation failed")
+        reinstall_cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--force-reinstall",
+            f"torch=={TORCH_METAL_VERSION}",
+            f"torchvision=={TORCHVISION_METAL_VERSION}",
+            *METAL_EXTRA_INDEX,
+        ]
+        reinstall_cmd_str = " ".join(reinstall_cmd)
+        status = _run_with_timeout(reinstall_cmd, timeout=INSTALL_TIMEOUT)
+        if not status.success:
+            logger.error("PyTorch reinstallation failed: %s", status.message)
+            logger.error("Install manually with: %s", reinstall_cmd_str)
+            MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+            MPS_SENTINEL.touch()
             raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
         importlib.invalidate_caches()
         torch = importlib.reload(torch)
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
+            logger.error(
+                "MPS backend still not available after installation. Install manually with: %s",
+                reinstall_cmd_str,
+            )
+            MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+            MPS_SENTINEL.touch()
             raise RuntimeError(
                 "MPS backend still not available. Install manually with: pip install "
                 f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
