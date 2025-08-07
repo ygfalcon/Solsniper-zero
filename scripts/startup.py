@@ -30,6 +30,7 @@ from solhunter_zero.bootstrap_utils import (
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero import network  # noqa: E402
 
 
 def ensure_route_ffi() -> None:
@@ -315,16 +316,16 @@ def main(argv: list[str] | None = None) -> int:
         log_startup("Disk space check passed")
 
     if args.offline or args.skip_rpc_check:
-        log_startup("Internet connectivity check skipped")
+        log_startup("Network connectivity check skipped")
     else:
-        print("Checking internet connectivity...")
+        print("Checking network connectivity...")
         try:
-            check_internet()
+            network.verify_connectivity(warn_only=args.one_click)
         except SystemExit:
-            log_startup("Internet connectivity check failed")
+            log_startup("Network connectivity check failed")
             raise
         else:
-            log_startup("Internet connectivity check passed")
+            log_startup("Network connectivity check passed")
 
     from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
     from solhunter_zero.config import load_config, validate_config
@@ -474,7 +475,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.skip_rpc_check:
         rpc_status = "skipped"
     else:
-        ensure_rpc(warn_only=args.one_click)
         rpc_status = "reachable"
     from solhunter_zero.bootstrap import bootstrap
 

@@ -107,7 +107,7 @@ def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
 
 def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)

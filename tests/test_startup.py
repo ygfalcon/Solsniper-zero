@@ -75,9 +75,12 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
-    monkeypatch.setattr(startup, "check_internet", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
-    monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+    monkeypatch.setattr(
+        startup.network, "verify_connectivity", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0)
+    )
 
     code = startup.main([
         "--repair",
@@ -630,7 +633,7 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
 
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
@@ -693,7 +696,7 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
 
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
@@ -746,7 +749,7 @@ def test_main_preflight_success(monkeypatch):
     monkeypatch.setattr("scripts.preflight.main", fake_preflight)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
@@ -800,7 +803,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
 
@@ -978,7 +981,7 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     import solhunter_zero.wallet as wallet_mod
     monkeypatch.setattr(wallet_mod, "KEYPAIR_DIR", tmp_path)
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "check_disk_space", lambda min_bytes: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)

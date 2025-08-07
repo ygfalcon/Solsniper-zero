@@ -58,7 +58,7 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
-    monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+    monkeypatch.setattr(startup.network, "verify_connectivity", lambda *a, **k: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
