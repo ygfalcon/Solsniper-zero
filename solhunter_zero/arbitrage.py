@@ -9,7 +9,7 @@ import asyncio
 import logging
 import os
 
-from .system import set_rayon_threads
+from .system import detect_cpu_count, set_rayon_threads
 
 # Configure Rayon parallelism for the Rust FFI
 set_rayon_threads()
