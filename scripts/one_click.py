@@ -13,7 +13,7 @@ def main(argv: list[str] | None = None) -> None:
     """Execute preflight checks then launch the existing startup routine."""
     ensure_venv(None)
     if platform.system() == "Darwin":
-        from scripts import mac_env
+        from solhunter_zero import mac_env
         mac_env.prepare_macos_env()
     from scripts import self_test, launcher
     results = self_test.run_self_test()

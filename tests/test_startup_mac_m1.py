@@ -10,7 +10,9 @@ def test_startup_mac_m1(monkeypatch):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
 
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr(
+        "solhunter_zero.mac_env.ensure_tools", lambda: {"success": True}
+    )
 
     def fake_gpu_env():
         os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"

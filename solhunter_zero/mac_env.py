@@ -10,6 +10,15 @@ from scripts import mac_setup
 ROOT = Path(__file__).resolve().parent.parent
 
 MANUAL_FIXES = mac_setup.MANUAL_FIXES
+apply_brew_env = mac_setup.apply_brew_env
+ensure_tools = mac_setup.ensure_tools
+
+__all__ = [
+    "prepare_macos_env",
+    "apply_brew_env",
+    "ensure_tools",
+    "MANUAL_FIXES",
+]
 
 
 def prepare_macos_env(*, non_interactive: bool = True) -> dict[str, Any]:

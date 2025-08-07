@@ -13,8 +13,12 @@ def test_ensure_deps_calls_apply_brew_env(monkeypatch):
     def fake_apply_brew_env():
         called["apply"] += 1
 
-    monkeypatch.setattr("scripts.mac_setup.prepare_macos_env", fake_prepare_macos_env)
-    monkeypatch.setattr("scripts.mac_setup.apply_brew_env", fake_apply_brew_env)
+    monkeypatch.setattr(
+        "solhunter_zero.mac_env.prepare_macos_env", fake_prepare_macos_env
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.mac_env.apply_brew_env", fake_apply_brew_env
+    )
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
 
     bootstrap_utils.ensure_deps()

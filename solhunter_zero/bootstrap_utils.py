@@ -350,7 +350,7 @@ def ensure_cargo() -> None:
     installed = False
     cache_marker = ROOT / ".cache" / "cargo-installed"
     if platform.system() == "Darwin":
-        from scripts.mac_setup import apply_brew_env, ensure_tools
+        from .mac_env import apply_brew_env, ensure_tools
 
         ensure_tools()
         apply_brew_env()

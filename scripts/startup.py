@@ -330,10 +330,10 @@ def main(argv: list[str] | None = None) -> int:
         endpoint_status = "reachable"
 
     if args.repair and platform.system() == "Darwin":
-        from scripts import mac_setup
+        from solhunter_zero import mac_env
 
-        report = mac_setup.prepare_macos_env(non_interactive=True)
-        mac_setup.apply_brew_env()
+        report = mac_env.prepare_macos_env(non_interactive=True)
+        mac_env.apply_brew_env()
         for step, info in report.get("steps", {}).items():
             msg = info.get("message", "")
             if msg:
@@ -341,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"{step}: {info['status']}")
             if info.get("status") == "error":
-                fix = mac_setup.MANUAL_FIXES.get(step)
+                fix = mac_env.MANUAL_FIXES.get(step)
                 if fix:
                     print(f"Manual fix for {step}: {fix}")
         # Clear cache markers so subsequent steps rerun fully
