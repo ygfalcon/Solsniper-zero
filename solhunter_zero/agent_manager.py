@@ -287,13 +287,20 @@ class AgentManager:
         conf = dict(self.rl_policy)
         path = os.getenv("RL_POLICY_PATH", "rl_policy.json")
         if os.path.exists(path):
+            raw = None
             try:
                 with open(path, "r", encoding="utf-8") as fh:
-                    data = loads(fh.read())
+                    raw = fh.read()
+                data = loads(raw)
                 if isinstance(data, dict):
                     conf.update({str(k): float(v) for k, v in data.items()})
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load RL policy from %s: %s; payload=%r",
+                    path,
+                    exc,
+                    raw,
+                )
         return conf
 
     async def evaluate(self, token: str, portfolio) -> List[Dict[str, Any]]:
@@ -313,14 +320,19 @@ class AgentManager:
                 selected.append(ag)
             agents = selected
         if self.rl_daemon is not None and getattr(self.rl_daemon, "hier_weights", None):
+            pol_w = None
             try:
                 pol_w = self.rl_daemon.hier_weights
                 for ag in agents:
                     w = pol_w.get(ag.name)
                     if w is not None:
                         weights[ag.name] = weights.get(ag.name, 1.0) * float(w)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to merge RL daemon weights %r: %s; using existing weights",
+                    pol_w,
+                    exc,
+                )
         rl_action = None
         if self.rl_daemon is not None:
             prices = portfolio.price_history.get(token, [])

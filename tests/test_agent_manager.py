@@ -1,5 +1,6 @@
 import json
 import asyncio
+import logging
 import pytest
 
 pytest.importorskip("torch.nn.utils.rnn")
@@ -53,6 +54,18 @@ def test_rl_weights_event_updates_manager(tmp_path):
 
     assert mgr.weights.get("b") == 2.0
     assert path.exists()
+
+
+def test_malformed_rl_policy_logs_warning(tmp_path, monkeypatch, caplog):
+    bad = tmp_path / "rl_policy.json"
+    bad.write_text("{bad json")
+    monkeypatch.setenv("RL_POLICY_PATH", str(bad))
+    cfg = AgentManagerConfig()
+    mgr = AgentManager([], config=cfg)
+    with caplog.at_level(logging.WARNING, logger="solhunter_zero.agent_manager"):
+        conf = mgr._get_rl_policy_confidence()
+    assert conf == {}
+    assert any("rl policy" in r.message.lower() for r in caplog.records)
 
 
 def test_rotate_weight_configs_selects_best(tmp_path):
