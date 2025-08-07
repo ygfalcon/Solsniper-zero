@@ -7,10 +7,14 @@ import types
 import pytest
 
 dummy_config = types.SimpleNamespace(load_config=lambda: {})
-sys.modules.setdefault("solhunter_zero.config", dummy_config)
-
+orig_config = sys.modules.get("solhunter_zero.config")
+sys.modules["solhunter_zero.config"] = dummy_config
 from solhunter_zero import device as device_module
 from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
+if orig_config is not None:
+    sys.modules["solhunter_zero.config"] = orig_config
+else:
+    sys.modules.pop("solhunter_zero.config", None)
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 

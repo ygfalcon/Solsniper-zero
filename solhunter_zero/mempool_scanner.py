@@ -40,7 +40,13 @@ except Exception:  # pragma: no cover - minimal stub when solana is missing
     mod.PublicKey = PublicKey
     sys.modules.setdefault("solana.publickey", mod)
 
-from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
+try:
+    from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions, connect
+except Exception:  # pragma: no cover - optional dependency
+    RpcTransactionLogsFilterMentions = None  # type: ignore
+
+    async def connect(*args, **kwargs):  # type: ignore
+        raise RuntimeError("solana.rpc.websocket_api not available")
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
 from .dex_scanner import DEX_PROGRAM_ID
