@@ -442,30 +442,25 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_preflight:
         rotate_preflight_log()
-        stdout_buf = io.StringIO()
-        stderr_buf = io.StringIO()
-        with (
-            contextlib.redirect_stdout(stdout_buf),
-            contextlib.redirect_stderr(stderr_buf),
-        ):
-            try:
-                preflight.main()
-            except SystemExit as exc:
-                code = exc.code if isinstance(exc.code, int) else 1
-            else:
-                code = 0
-        out = stdout_buf.getvalue()
-        err = stderr_buf.getvalue()
-        sys.stdout.write(out)
-        sys.stderr.write(err)
+        results = preflight.run_preflight()
+        log_lines: list[str] = []
+        failures: list[tuple[str, str]] = []
+        for name, ok, msg in results:
+            status = "OK" if ok else "FAIL"
+            line = f"{name}: {status} - {msg}\n"
+            sys.stdout.write(line)
+            log_lines.append(line)
+            if not ok:
+                failures.append((name, msg))
         try:
             with open(ROOT / "preflight.log", "a", encoding="utf-8") as log:
-                log.write(out)
-                log.write(err)
+                log.writelines(log_lines)
         except OSError:
             pass
-        if code:
-            return code
+        for name, msg in failures:
+            log_startup(f"Preflight failure: {name} - {msg}")
+        if failures:
+            return 1
 
     if args.offline:
         rpc_status = "offline"
