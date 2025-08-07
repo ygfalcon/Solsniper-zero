@@ -1658,3 +1658,7 @@ which executes the main loop in dry-run mode and reports ROI statistics:
 ```bash
 python scripts/paper_test.py --config config.toml --iterations 100
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
