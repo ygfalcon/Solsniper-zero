@@ -244,25 +244,23 @@ def main(argv: list[str] | None = None) -> int:
 
     # Run early environment checks before any heavy work
     print("Checking disk space...")
-    try:
-        preflight_utils.check_disk_space(disk_required)
-    except SystemExit:
+    ok, msg = preflight_utils.check_disk_space(disk_required)
+    print(msg)
+    if not ok:
         log_startup("Disk space check failed")
-        raise
-    else:
-        log_startup("Disk space check passed")
+        raise SystemExit(1)
+    log_startup("Disk space check passed")
 
     if args.offline or args.skip_rpc_check:
         log_startup("Internet connectivity check skipped")
     else:
         print("Checking internet connectivity...")
-        try:
-            preflight_utils.check_internet()
-        except SystemExit:
+        ok, msg = preflight_utils.check_internet()
+        print(msg)
+        if not ok:
             log_startup("Internet connectivity check failed")
-            raise
-        else:
-            log_startup("Internet connectivity check passed")
+            raise SystemExit(1)
+        log_startup("Internet connectivity check passed")
 
     from solhunter_zero.config_bootstrap import ensure_config
     from solhunter_zero.config_utils import select_active_keypair
@@ -325,7 +323,10 @@ def main(argv: list[str] | None = None) -> int:
         from solhunter_zero.bootstrap import bootstrap
         import re
 
-        preflight_utils.check_disk_space(disk_required)
+        ok, msg = preflight_utils.check_disk_space(disk_required)
+        if not ok:
+            print(msg)
+            raise SystemExit(1)
         b_code = 0
         try:
             bootstrap(one_click=True)

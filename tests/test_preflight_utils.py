@@ -2,8 +2,6 @@ import time
 import urllib.request
 from urllib.error import URLError
 
-import pytest
-
 from solhunter_zero import preflight_utils
 
 
@@ -23,18 +21,19 @@ def test_check_disk_space_success(monkeypatch):
         return (100, 50, 20)
 
     monkeypatch.setattr(preflight_utils.shutil, "disk_usage", fake_disk_usage)
-    assert preflight_utils.check_disk_space(10) is None
+    ok, msg = preflight_utils.check_disk_space(10)
+    assert ok is True
+    assert "Sufficient disk space" in msg
 
 
-def test_check_disk_space_failure(monkeypatch, capsys):
+def test_check_disk_space_failure(monkeypatch):
     def fake_disk_usage(path):
         return (100, 50, 5)
 
     monkeypatch.setattr(preflight_utils.shutil, "disk_usage", fake_disk_usage)
-    with pytest.raises(SystemExit):
-        preflight_utils.check_disk_space(10)
-    out = capsys.readouterr().out
-    assert "Insufficient disk space" in out
+    ok, msg = preflight_utils.check_disk_space(10)
+    assert ok is False
+    assert "Insufficient disk space" in msg
 
 
 def test_check_internet_success(monkeypatch):
@@ -43,21 +42,20 @@ def test_check_internet_success(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(time, "sleep", lambda s: None)
+    ok, msg = preflight_utils.check_internet("https://example.com")
+    assert ok is True
+    assert "Reached" in msg
 
-    assert preflight_utils.check_internet("https://example.com") is None
 
-
-def test_check_internet_failure(monkeypatch, capsys):
+def test_check_internet_failure(monkeypatch):
     def fake_urlopen(url, timeout=5):
         raise URLError("boom")
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(time, "sleep", lambda s: None)
-
-    with pytest.raises(SystemExit):
-        preflight_utils.check_internet("https://example.com")
-    out = capsys.readouterr().out
-    assert "Failed to reach https://example.com after 3 attempts" in out
+    ok, msg = preflight_utils.check_internet("https://example.com")
+    assert ok is False
+    assert "Failed to reach https://example.com after 3 attempts" in msg
 
 
 def test_check_wallet_balance_ok(monkeypatch, tmp_path):

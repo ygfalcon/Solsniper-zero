@@ -179,7 +179,7 @@ def check_depth_service(path: str = "target/release/depth_service") -> Check:
     return False, f"Missing {path}"
 
 
-def check_disk_space(min_bytes: int | float) -> None:
+def check_disk_space(min_bytes: int | float) -> Check:
     """Ensure there is at least ``min_bytes`` free on the current filesystem.
 
     The ``min_bytes`` value is typically derived from the
@@ -193,21 +193,19 @@ def check_disk_space(min_bytes: int | float) -> None:
     try:
         _, _, free = shutil.disk_usage(ROOT)
     except OSError as exc:  # pragma: no cover - unexpected failure
-        print(f"Unable to determine free disk space: {exc}")
-        raise SystemExit(1)
+        return False, f"Unable to determine free disk space: {exc}"
 
+    required_gb = min_bytes / (1024 ** 3)
+    free_gb = free / (1024 ** 3)
     if free < min_bytes:
-        required_gb = min_bytes / (1024 ** 3)
-        free_gb = free / (1024 ** 3)
-        print(
+        return False, (
             f"Insufficient disk space: {free_gb:.2f} GB available,"
-            f" {required_gb:.2f} GB required."
+            f" {required_gb:.2f} GB required"
         )
-        print("Please free up disk space and try again.")
-        raise SystemExit(1)
+    return True, f"Sufficient disk space: {free_gb:.2f} GB available"
 
 
-def check_internet(url: str | None = None) -> None:
+def check_internet(url: str | None = None) -> Check:
     """Ensure basic internet connectivity by reaching a known Solana RPC host.
 
     Parameters
@@ -221,26 +219,23 @@ def check_internet(url: str | None = None) -> None:
     import urllib.request
     import time
 
-    target = url or os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+    target = url or os.environ.get(
+        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+    )
 
     for attempt in range(3):
         try:
             with urllib.request.urlopen(target, timeout=5) as resp:  # nosec B310
                 resp.read()
-                return
+                return True, f"Reached {target}"
         except Exception as exc:  # pragma: no cover - network failure
             if attempt == 2:
-                print(
-                    f"Failed to reach {target} after 3 attempts: {exc}. "
-                    "Check your internet connection."
+                return False, (
+                    f"Failed to reach {target} after 3 attempts: {exc}"
                 )
-                raise SystemExit(1)
-            wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to reach {target}: {exc}. "
-                f"Retrying in {wait} seconds..."
-            )
-            time.sleep(wait)
+            time.sleep(2**attempt)
+
+    return False, f"Failed to reach {target}"
 
 
 def check_required_env(keys: List[str] | None = None) -> Check:
@@ -306,6 +301,12 @@ def run_basic_checks(min_bytes: int = 1 << 30, url: str | None = None) -> None:
         endpoint when unset.
     """
 
-    check_disk_space(min_bytes)
-    check_internet(url)
+    ok, msg = check_disk_space(min_bytes)
+    print(msg)
+    if not ok:
+        raise SystemExit(1)
+    ok, msg = check_internet(url)
+    print(msg)
+    if not ok:
+        raise SystemExit(1)
 

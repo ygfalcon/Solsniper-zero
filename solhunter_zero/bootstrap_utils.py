@@ -319,12 +319,11 @@ def ensure_deps(
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
         ):
-            try:
-                preflight.check_internet()
-            except SystemExit as exc:
-                raise SystemExit(
-                    "Unable to establish an internet connection; aborting."
-                ) from exc
+            ok, _msg = preflight.check_internet()
+        if not ok:
+            raise SystemExit(
+                "Unable to establish an internet connection; aborting."
+            )
 
     if req or need_cli:
         print("Installing required dependencies...")
