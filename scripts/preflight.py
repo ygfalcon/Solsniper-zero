@@ -23,6 +23,7 @@ from solhunter_zero.preflight_utils import (
     check_network,
     check_python_version,
     check_required_env,
+    check_wallet_balance,
     check_rust_toolchain,
     check_rustup,
     check_xcode_clt,
@@ -54,6 +55,10 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ),
     ("GPU", check_gpu),
 ]
+
+_MIN_BAL = float(os.getenv("MIN_STARTING_BALANCE", "0") or 0)
+if _MIN_BAL > 0:
+    CHECKS.append(("Balance", lambda: check_wallet_balance(_MIN_BAL)))
 
 
 def run_preflight() -> List[Tuple[str, bool, str]]:

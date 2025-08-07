@@ -1071,7 +1071,7 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
     assert calls.get("auto") is True
 
 def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
-    from solhunter_zero import bootstrap
+    from solhunter_zero import bootstrap, preflight_utils
     from solhunter_zero.wallet import KeypairInfo
     import types
     import solana.rpc.api as rpc_api
@@ -1098,7 +1098,9 @@ def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(bootstrap.wallet, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(
-        bootstrap.wallet, "load_keypair", lambda _p: types.SimpleNamespace(pubkey=lambda: "pk")
+        preflight_utils.wallet,
+        "load_keypair",
+        lambda _p: types.SimpleNamespace(pubkey=lambda: "pk"),
     )
 
     class FakeClient:

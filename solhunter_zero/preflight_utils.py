@@ -124,6 +124,40 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
     return False, f"Keypair {keyfile} not found"
 
 
+def check_wallet_balance(min_sol: float, keypair_path: str | Path | None = None) -> Check:
+    """Ensure the active keypair has at least ``min_sol`` SOL."""
+
+    try:
+        if keypair_path is None:
+            info = select_active_keypair(auto=True)
+            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{info.name}.json"
+        kp = wallet.load_keypair(str(keypair_path))
+    except Exception as exc:
+        return False, f"Failed to load keypair: {exc}"
+
+    try:
+        from solana.rpc.api import Client
+        from .gas import LAMPORTS_PER_SOL
+
+        client = Client(
+            os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+        )
+        resp = client.get_balance(kp.pubkey())
+        try:
+            lamports = int(resp["result"]["value"])
+        except Exception:  # pragma: no cover - defensive
+            lamports = int(getattr(resp, "value", 0))
+    except Exception as exc:
+        return False, f"Failed to fetch wallet balance: {exc}"
+
+    sol = lamports / LAMPORTS_PER_SOL
+    if sol < min_sol:
+        return False, (
+            f"Wallet balance {sol:.9f} SOL below required {min_sol:.9f} SOL"
+        )
+    return True, f"Wallet balance {sol:.9f} SOL OK"
+
+
 def check_libroute_ffi(pattern: str = "solhunter_zero/libroute_ffi.*") -> Check:
     """Ensure the compiled route FFI library is present."""
 
