@@ -259,6 +259,9 @@ syntax. Lines starting with `#` or blank lines are ignored. Values already
 defined in the environment take precedence over entries in the file, allowing
 you to override them when invoking commands or in container settings.
 
+An [`.env.example`](.env.example) file documents common variables and provides
+sample values to copy or adapt.
+
 ## Paper Trading
 
 Before committing real SOL, you can evaluate strategies using the paper
