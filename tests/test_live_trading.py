@@ -175,6 +175,8 @@ def setup_live_trading_env(mp):
 
     pydantic_mod.root_validator = _decorator
     pydantic_mod.validator = _decorator
+    pydantic_mod.field_validator = _decorator
+    pydantic_mod.model_validator = _decorator
     mp.setitem(sys.modules, "pydantic", pydantic_mod)
     from solhunter_zero import main as main_module
     from solhunter_zero.simulation import SimulationResult

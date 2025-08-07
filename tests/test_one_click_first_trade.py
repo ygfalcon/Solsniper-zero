@@ -58,6 +58,8 @@ pydantic_mod = types.SimpleNamespace(
     ValidationError=Exception,
     root_validator=lambda *a, **k: (lambda f: f),
     validator=lambda *a, **k: (lambda f: f),
+    field_validator=lambda *a, **k: (lambda f: f),
+    model_validator=lambda *a, **k: (lambda f: f),
 )
 sys.modules.setdefault("pydantic", pydantic_mod)
 
