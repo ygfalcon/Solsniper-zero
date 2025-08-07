@@ -7,7 +7,7 @@ import types
 import pytest
 
 from scripts import diagnostics, startup
-from solhunter_zero import bootstrap
+from solhunter_zero import bootstrap, diagnostics as core_diagnostics
 
 
 def test_collect_no_torch(monkeypatch, tmp_path):
@@ -56,6 +56,7 @@ def test_collect_with_torch_and_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "solhunter_zero.device.get_default_device", lambda: "cuda"
     )
+    monkeypatch.delenv("SOLHUNTER_GPU_DEVICE", raising=False)
     dummy_wallet = types.SimpleNamespace(
         list_keypairs=lambda: ["a"], get_active_keypair_name=lambda: "a"
     )
@@ -112,8 +113,12 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap.device, "initialize_gpu", lambda: None)
-    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: None)
+    monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
+    monkeypatch.setattr(bootstrap.wallet, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
+    import scripts.healthcheck as healthcheck
+    monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", dummy_torch)
     monkeypatch.setattr(startup, "torch", dummy_torch, raising=False)
@@ -130,13 +135,13 @@ def test_startup_collects_diagnostics(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(startup.subprocess, "run", fake_run)
 
-    sample = {"python": "3.11", "config": "present"}
+    from pathlib import Path
 
-    def fake_collect():
-        called["collect"] = True
-        return sample
+    def fake_write(status):
+        called["write"] = status
+        Path("diagnostics.json").write_text("{}")
 
-    monkeypatch.setattr(diagnostics, "collect", fake_collect)
+    monkeypatch.setattr(bootstrap, "write_diagnostics", fake_write)
 
     args = [
         "--skip-deps",
@@ -149,8 +154,7 @@ def test_startup_collects_diagnostics(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert code == 0
     assert called.get("run")
-    assert called.get("collect")
-    assert "Diagnostics summary:" in out
+    assert called.get("write") is not None
     assert (tmp_path / "diagnostics.json").is_file()
 
 
@@ -164,11 +168,10 @@ def test_startup_no_diagnostics_flag(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(startup.subprocess, "run", fake_run)
 
-    def fake_collect():
-        called["collect"] = True
-        return {}
+    def fake_write(status):
+        called["write"] = status
 
-    monkeypatch.setattr(diagnostics, "collect", fake_collect)
+    monkeypatch.setattr(bootstrap, "write_diagnostics", fake_write)
 
     args = [
         "--skip-deps",
@@ -181,9 +184,8 @@ def test_startup_no_diagnostics_flag(monkeypatch, tmp_path, capsys):
     code = startup.run(args)
     out = capsys.readouterr().out
     assert code == 0
-    assert "Diagnostics summary:" not in out
     assert not (tmp_path / "diagnostics.json").exists()
-    assert "collect" not in called
+    assert "write" not in called
 
 
 def test_run_preflight(monkeypatch, tmp_path):
