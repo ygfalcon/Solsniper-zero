@@ -259,3 +259,56 @@ python scripts/paper_test.py --capital 100 --iterations 100
 ```
 
 ## Rust Depth Service
+
+The project includes a small Rust daemon that aggregates order‑book depth and
+exposes it over a Unix socket for the Python components.  It is optional when
+working entirely with simulated data, but must be running for live trading.
+
+### Build
+
+1. Install the Rust toolchain if it is not already available.  The service is
+   built with [`cargo`](https://doc.rust-lang.org/cargo/).
+2. From the project root run:
+   ```bash
+   cargo build --release --manifest-path depth_service/Cargo.toml
+   ```
+   The compiled binary is written to `target/release/depth_service`.
+
+### Run
+
+Execute the binary directly after building:
+
+```bash
+./target/release/depth_service --config config.toml
+```
+
+The service reads optional environment variables to customise behaviour.  The
+Unix socket used for IPC defaults to `/tmp/depth_service.sock` and can be
+overridden with `DEPTH_SERVICE_SOCKET`.
+
+### Integrate with Python
+
+Most users should start the service from Python so that it is rebuilt
+automatically when missing.  The helper `start_depth_service` from
+`solhunter_zero.service_launcher` launches the binary and returns the subprocess
+handle:
+
+```python
+from solhunter_zero.service_launcher import start_depth_service
+
+proc = start_depth_service("config.toml")
+```
+
+The process is monitored and restarted if it exits unexpectedly.
+
+### Troubleshooting
+
+* **`cargo` not found** – Install Rust via
+  [rustup](https://rustup.rs/) and ensure `cargo` is on your `PATH`.
+* **Socket path errors** – If the service fails to bind
+  `DEPTH_SERVICE_SOCKET`, remove any stale socket file and verify the directory
+  exists and is writable.
+* **Restart limits** – The Python watchdog only restarts the service a limited
+  number of times.  Adjust `DEPTH_MAX_RESTARTS` or fix the underlying issue if
+  the service keeps exiting.
+
