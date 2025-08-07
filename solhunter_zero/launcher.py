@@ -125,6 +125,10 @@ from solhunter_zero.system import set_rayon_threads  # noqa: E402
 def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
 
+    from scripts.startup import ensure_config_present  # type: ignore
+
+    ensure_config_present()
+
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
     device.initialize_gpu()

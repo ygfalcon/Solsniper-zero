@@ -118,6 +118,27 @@ def run_quick_setup() -> str | None:
         return None
 
 
+def ensure_config_present() -> tuple[Path | None, bool]:
+    """Ensure a configuration file exists.
+
+    Returns a tuple of the config path (``None`` if creation failed) and a
+    flag indicating whether the quick setup was executed.  The quick setup is
+    run in non-interactive mode when no ``config.toml`` or ``config.yaml``
+    file is present.
+    """
+
+    try:
+        from solhunter_zero.config import find_config_file  # type: ignore
+    except Exception:  # pragma: no cover - very defensive
+        find_config_file = lambda: None  # type: ignore
+
+    cfg = find_config_file()
+    if cfg and Path(cfg).exists():
+        return Path(cfg), False
+    cfg_new = run_quick_setup()
+    return (Path(cfg_new) if cfg_new else None), True
+
+
 def check_disk_space(min_bytes: int) -> None:
     """Ensure there is at least ``min_bytes`` free on the current filesystem.
 
@@ -325,22 +346,16 @@ def main(argv: list[str] | None = None) -> int:
         except (Exception, SystemExit):
             config_path = None
         if not config_path or not Path(config_path).exists():
-            cfg_new = run_quick_setup()
-            if cfg_new:
-                config_path = Path(cfg_new)
-            ran_quick_setup = True
-        if not config_path or not Path(config_path).exists():
-            print("Failed to create configuration via quick setup")
-            return 1
+            config_path, ran_quick_setup = ensure_config_present()
+            if not config_path or not config_path.exists():
+                print("Failed to create configuration via quick setup")
+                return 1
         try:
             cfg_data = validate_config(load_config(config_path))
         except Exception:
             if args.one_click:
-                cfg_new = run_quick_setup()
-                if cfg_new:
-                    config_path = Path(cfg_new)
-                    ran_quick_setup = True
-                if not config_path or not Path(config_path).exists():
+                config_path, ran_quick_setup = ensure_config_present()
+                if not config_path or not config_path.exists():
                     print("Failed to create configuration via quick setup")
                     return 1
                 cfg_data = validate_config(load_config(config_path))
