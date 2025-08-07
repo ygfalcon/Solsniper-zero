@@ -19,6 +19,7 @@ from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
 
 ROOT = Path(__file__).resolve().parent.parent
+DEPS_MARKER = ROOT / ".cache" / "deps-installed"
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -205,6 +206,15 @@ def ensure_deps(
             )
             raise SystemExit(1)
 
+    force_reinstall = os.getenv("SOLHUNTER_FORCE_DEPS") == "1"
+    if DEPS_MARKER.exists() and not force_reinstall:
+        log_startup("Dependency marker present; skipping installation")
+        from . import bootstrap as bootstrap_mod
+
+        bootstrap_mod.ensure_route_ffi()
+        bootstrap_mod.ensure_depth_service()
+        return
+
     req, opt = deps.check_deps()
     if req:
         print("Missing required modules: " + ", ".join(req))
@@ -269,6 +279,8 @@ def ensure_deps(
                     "Unable to establish an internet connection; aborting."
                 ) from exc
 
+    installed_any = False
+
     if req or need_cli:
         print("Installing required dependencies...")
         extras_arg = ""
@@ -277,6 +289,7 @@ def ensure_deps(
         else:
             extras_arg = "."
         _pip_install(extras_arg, *extra_index)
+        installed_any = True
         failed_req = [m for m in req if importlib.util.find_spec(m) is None]
         if failed_req:
             print(
@@ -318,11 +331,13 @@ def ensure_deps(
             extras_pkgs.append("msgpack")
         if extras_pkgs:
             _pip_install(f".[{','.join(extras_pkgs)}]", *extra_index)
+            installed_any = True
         remaining = mods - {"orjson", "lz4", "zstandard", "msgpack"}
         for name in remaining:
             pkg = mapping.get(name, name.replace("_", "-"))
             if _package_missing(pkg):
                 _pip_install(pkg, *extra_index)
+                installed_any = True
 
         missing_opt = [m for m in opt if importlib.util.find_spec(m) is None]
         if missing_opt:
@@ -335,6 +350,10 @@ def ensure_deps(
     from . import bootstrap as bootstrap_mod
     bootstrap_mod.ensure_route_ffi()
     bootstrap_mod.ensure_depth_service()
+
+    if installed_any:
+        DEPS_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        DEPS_MARKER.touch()
 
 
 def ensure_endpoints(cfg: dict) -> None:
