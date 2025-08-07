@@ -9,8 +9,12 @@ from solhunter_zero import investor_demo
 def clear_used_trade_types():
     '''Ensure used_trade_types is reset for each test.'''
     investor_demo.used_trade_types.clear()
+    investor_demo.ROUTE_FFI_AVAILABLE = False
+    investor_demo.JITO_STREAM_AVAILABLE = False
     yield
     investor_demo.used_trade_types.clear()
+    investor_demo.ROUTE_FFI_AVAILABLE = False
+    investor_demo.JITO_STREAM_AVAILABLE = False
 
 
 def test_demo_arbitrage(monkeypatch):
