@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Utilities for bootstrapping the Solhunter Zero environment.
+
+This module provides helper functions for dependency management, virtual
+environment creation, and other setup tasks required before running the
+application.
+"""
+
 import json
 import importlib.util
 import logging
