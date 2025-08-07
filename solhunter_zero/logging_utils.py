@@ -9,19 +9,47 @@ MAX_STARTUP_LOG_SIZE = 1_000_000  # 1 MB
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
 
+def setup_logging(
+    log_name: str,
+    *,
+    path: Path | None = None,
+    max_bytes: int | None = None,
+) -> Path:
+    """Prepare a log file for writing.
+
+    ``log_name`` identifies the log (e.g. ``"startup"`` or ``"preflight"``). The
+    corresponding ``<log_name>.log`` file is rotated if it exceeds ``max_bytes``;
+    otherwise it is truncated. The resolved log ``Path`` is returned.
+    """
+
+    if path is None:
+        path = ROOT / f"{log_name}.log"
+
+    if max_bytes is None:
+        if log_name == "startup":
+            max_bytes = MAX_STARTUP_LOG_SIZE
+        elif log_name == "preflight":
+            max_bytes = MAX_PREFLIGHT_LOG_SIZE
+        else:  # pragma: no cover - defensive branch
+            max_bytes = MAX_STARTUP_LOG_SIZE
+
+    if path.exists():
+        try:
+            if path.stat().st_size > max_bytes:
+                backup = path.with_suffix(path.suffix + ".1")
+                path.replace(backup)
+            else:
+                path.write_text("")
+        except OSError:
+            pass
+
+    return path
+
+
 def rotate_startup_log(path: Path = ROOT / "startup.log") -> None:
     """Rotate or truncate the startup log before writing new output."""
 
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > MAX_STARTUP_LOG_SIZE:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
+    setup_logging("startup", path=path)
 
 
 def rotate_preflight_log(
@@ -29,16 +57,7 @@ def rotate_preflight_log(
 ) -> None:
     """Rotate or truncate the preflight log before writing new output."""
 
-    if not path.exists():
-        return
-    try:
-        if path.stat().st_size > max_bytes:
-            backup = path.with_suffix(path.suffix + ".1")
-            path.replace(backup)
-        else:
-            path.write_text("")
-    except OSError:
-        pass
+    setup_logging("preflight", path=path, max_bytes=max_bytes)
 
 
 def log_startup(message: str) -> None:
