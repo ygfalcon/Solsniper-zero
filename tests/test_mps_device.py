@@ -18,7 +18,10 @@ def test_cli_detects_mps(tmp_path):
     stubs = tmp_path / "stubs"
     stubs.mkdir()
 
-    (stubs / "platform.py").write_text("def system():\n    return 'Darwin'\n")
+    (stubs / "platform.py").write_text(
+        "def system():\n    return 'Darwin'\n"
+        "def machine():\n    return 'arm64'\n"
+    )
     (stubs / "torch.py").write_text(
         """
 class _Cuda:
@@ -30,17 +33,29 @@ class _Mps:
     @staticmethod
     def is_available():
         return True
+    @staticmethod
+    def is_built():
+        return True
 
 class _Backends:
     mps = _Mps()
 
 cuda = _Cuda()
 backends = _Backends()
+
+def ones(*a, **k):
+    class _T:
+        def cpu(self):
+            return None
+    return _T()
 """
     )
 
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{stubs}:{Path.cwd()}:{env.get('PYTHONPATH', '')}"
+    env["PYTEST_CURRENT_TEST"] = "cli"
+    sentinel = Path.cwd() / ".cache" / "torch_mps_ready"
+    sentinel.unlink(missing_ok=True)
 
     result = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.device", "--check-gpu"],

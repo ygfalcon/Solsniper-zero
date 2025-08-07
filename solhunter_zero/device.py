@@ -78,6 +78,30 @@ def _run_with_timeout(cmd: Sequence[str], timeout: int = 600) -> InstallStatus:
         return InstallStatus(False, str(exc))
 
 
+def _maybe_run_mac_setup() -> None:
+    """Best-effort invocation of ``scripts.mac_setup.ensure_tools``.
+
+    The helper silently ensures required macOS tooling is present before
+    attempting an MPS installation.  Any errors are ignored as this is an
+    optional step.
+    """
+
+    if (
+        "PYTEST_CURRENT_TEST" not in os.environ
+        and platform.system() == "Darwin"
+        and platform.machine() == "arm64"
+        and not MPS_SENTINEL.exists()
+    ):
+        try:  # pragma: no cover - optional setup
+            from scripts.mac_setup import ensure_tools as _ensure_tools
+
+            _ensure_tools(non_interactive=True)
+        except Exception:
+            logging.getLogger(__name__).debug(
+                "mac_setup.ensure_tools failed", exc_info=True
+            )
+
+
 def ensure_torch_with_metal() -> None:
     """Ensure PyTorch with Metal backend is installed on macOS arm64.
 
@@ -106,6 +130,8 @@ def ensure_torch_with_metal() -> None:
     except Exception:
         pass
 
+    _maybe_run_mac_setup()
+
     cmd = [
         sys.executable,
         "-m",
@@ -119,10 +145,15 @@ def ensure_torch_with_metal() -> None:
     status = _run_with_timeout(cmd, timeout=INSTALL_TIMEOUT)
     if not status.success:
         logger.error("PyTorch installation failed: %s", status.message)
-        logger.error("Install manually with: %s", install_cmd)
+        logger.error(
+            "Install manually with: %s or run scripts/mac_setup.py",
+            install_cmd,
+        )
         MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
         MPS_SENTINEL.touch()
-        raise RuntimeError("Failed to install MPS-enabled PyTorch")
+        raise RuntimeError(
+            "Failed to install MPS-enabled PyTorch; run scripts/mac_setup.py"
+        )
 
     importlib.invalidate_caches()
     torch = importlib.import_module("torch")
@@ -143,15 +174,20 @@ def ensure_torch_with_metal() -> None:
         status = _run_with_timeout(reinstall_cmd, timeout=INSTALL_TIMEOUT)
         if not status.success:
             logger.error("PyTorch reinstallation failed: %s", status.message)
-            logger.error("Install manually with: %s", reinstall_cmd_str)
+            logger.error(
+                "Install manually with: %s or run scripts/mac_setup.py",
+                reinstall_cmd_str,
+            )
             MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
             MPS_SENTINEL.touch()
-            raise RuntimeError("Failed to reinstall MPS-enabled PyTorch")
+            raise RuntimeError(
+                "Failed to reinstall MPS-enabled PyTorch; run scripts/mac_setup.py"
+            )
         importlib.invalidate_caches()
         torch = importlib.reload(torch)
         if not getattr(torch.backends, "mps", None) or not torch.backends.mps.is_available():
             logger.error(
-                "MPS backend still not available after installation. Install manually with: %s",
+                "MPS backend still not available after installation. Install manually with: %s or run scripts/mac_setup.py",
                 reinstall_cmd_str,
             )
             MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
@@ -159,7 +195,8 @@ def ensure_torch_with_metal() -> None:
             raise RuntimeError(
                 "MPS backend still not available. Install manually with: pip install "
                 f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
-                + " ".join(METAL_EXTRA_INDEX),
+                + " ".join(METAL_EXTRA_INDEX)
+                + " or run scripts/mac_setup.py",
             )
 
     MPS_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
@@ -187,8 +224,12 @@ if platform.system() == "Darwin" and platform.machine() == "arm64":
                 MPS_SENTINEL,
             )
     except Exception as exc:  # pragma: no cover - fail fast if setup fails
-        logging.getLogger(__name__).exception("Automatic PyTorch Metal setup failed")
-        raise RuntimeError("Failed to configure MPS-enabled PyTorch") from exc
+        logging.getLogger(__name__).exception(
+            "Automatic PyTorch Metal setup failed; run scripts/mac_setup.py"
+        )
+        raise RuntimeError(
+            "Failed to configure MPS-enabled PyTorch; run scripts/mac_setup.py"
+        ) from exc
 
 
 def detect_gpu(_attempt_install: bool = True) -> bool:
@@ -211,15 +252,16 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                 )
                 return detect_gpu(_attempt_install=False)
             try:
+                _maybe_run_mac_setup()
                 ensure_torch_with_metal()
             except Exception:
                 logging.getLogger(__name__).exception(
-                    "PyTorch installation failed; GPU unavailable",
+                    "PyTorch installation failed; GPU unavailable. Run scripts/mac_setup.py",
                 )
                 return False
             return detect_gpu(_attempt_install=False)
         logging.getLogger(__name__).warning(
-            "PyTorch is not installed; GPU unavailable",
+            "PyTorch is not installed; GPU unavailable. Run scripts/mac_setup.py",
         )
         return False
     try:
@@ -234,7 +276,8 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
             install_hint = (
                 "Install with: pip install "
                 f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} "
-                "--extra-index-url https://download.pytorch.org/whl/metal"
+                "--extra-index-url https://download.pytorch.org/whl/metal "
+                "or run scripts/mac_setup.py"
             )
 
             def _install_and_retry(reason: str) -> bool:
@@ -250,18 +293,21 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
                     "%s; attempting to install MPS-enabled PyTorch", reason
                 )
                 try:
+                    _maybe_run_mac_setup()
                     ensure_torch_with_metal()
                 except Exception:
-                    logger.exception("PyTorch installation failed")
+                    logger.exception(
+                        "PyTorch installation failed; run scripts/mac_setup.py"
+                    )
                     raise RuntimeError(
-                        "Failed to install MPS-enabled PyTorch",
+                        "Failed to install MPS-enabled PyTorch; run scripts/mac_setup.py",
                     )
                 if detect_gpu(_attempt_install=False):
                     logger.info("MPS backend detected after installation")
                     return True
                 logger.error("MPS backend unavailable after installation")
                 raise RuntimeError(
-                    "MPS backend unavailable even after installing PyTorch",
+                    "MPS backend unavailable even after installing PyTorch; run scripts/mac_setup.py",
                 )
             if not getattr(torch.backends, "mps", None):
                 if _attempt_install:
@@ -315,7 +361,9 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
             return False
         return True
     except Exception:
-        logging.getLogger(__name__).exception("Exception during GPU detection")
+        logging.getLogger(__name__).exception(
+            "Exception during GPU detection; run scripts/mac_setup.py"
+        )
         return False
 
 

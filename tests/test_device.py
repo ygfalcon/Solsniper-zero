@@ -3,6 +3,7 @@ import platform
 import subprocess
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -66,7 +67,7 @@ def test_detect_gpu_rosetta(monkeypatch, caplog):
     assert "Rosetta" in caplog.text
 
 
-def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
+def test_detect_gpu_mps_install_hint(monkeypatch, caplog, tmp_path):
     monkeypatch.setattr(device_module.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(device_module.platform, "machine", lambda: "arm64")
     torch_stub = types.SimpleNamespace(
@@ -77,6 +78,7 @@ def test_detect_gpu_mps_install_hint(monkeypatch, caplog):
     )
     monkeypatch.setattr(device_module, "torch", torch_stub, raising=False)
     monkeypatch.setattr(device_module, "ensure_torch_with_metal", lambda: None)
+    monkeypatch.setattr(device_module, "MPS_SENTINEL", tmp_path / "sentinel", raising=False)
     with caplog.at_level("WARNING"):
         assert device_module.detect_gpu() is False
     expected = (
