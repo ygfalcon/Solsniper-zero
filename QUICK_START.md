@@ -15,6 +15,10 @@
 
 ## Investor Demo
 
+For an instant teaser covering all strategies, double-click `demo.command` (or
+run `python demo.py`). This executes the demo with the full preset and writes
+summary files to the default `reports/` directory.
+
 Run a small rolling backtest and produce reports:
 
 ```bash
