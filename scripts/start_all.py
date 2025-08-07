@@ -15,10 +15,9 @@ from typing import IO
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.logging_utils import log_startup  # noqa: E402
 from solhunter_zero import env  # noqa: E402
 
-rotate_startup_log()
 env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
 log_startup("start_all launched")

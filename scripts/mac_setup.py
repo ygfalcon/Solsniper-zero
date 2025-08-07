@@ -18,18 +18,19 @@ from solhunter_zero.device import (
     TORCH_METAL_VERSION,
     TORCHVISION_METAL_VERSION,
 )
+from solhunter_zero.logging_utils import log_startup
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
-    print("Running:", " ".join(cmd))
+    log_startup("Running: " + " ".join(cmd))
     return subprocess.run(cmd, check=check, text=True, **kwargs)
 
 
 def ensure_xcode(non_interactive: bool) -> None:
     if subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
         return
-    print("Installing Xcode command line tools...")
+    log_startup("Installing Xcode command line tools...")
     subprocess.run(["xcode-select", "--install"], check=False)
     elapsed = 0
     timeout = 300
@@ -37,7 +38,7 @@ def ensure_xcode(non_interactive: bool) -> None:
     while subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
         if non_interactive:
             if elapsed >= timeout:
-                print(f"Command line tools installation timed out after {timeout}s.", file=sys.stderr)
+                log_startup(f"Command line tools installation timed out after {timeout}s.")
                 raise SystemExit(1)
             time.sleep(interval)
             elapsed += interval
@@ -46,7 +47,7 @@ def ensure_xcode(non_interactive: bool) -> None:
                 "Command line tools not yet installed. Press Enter to re-check or type 'c' to cancel: "
             )
             if ans.lower() == "c":
-                print("Please re-run this script after the tools are installed.")
+                log_startup("Please re-run this script after the tools are installed.")
                 raise SystemExit(1)
 
 def apply_brew_env() -> None:
@@ -72,7 +73,7 @@ _apply_brew_env = apply_brew_env
 
 def ensure_homebrew() -> None:
     if shutil.which("brew") is None:
-        print("Homebrew not found. Installing...")
+        log_startup("Homebrew not found. Installing...")
         _run([
             "/bin/bash",
             "-c",
@@ -121,18 +122,18 @@ def ensure_profile() -> None:
         if line not in content:
             with profile.open("a") as fh:
                 fh.write(line + "\n")
-            print(f"Success: added line to {profile}: {line}")
+            log_startup(f"Success: added line to {profile}: {line}")
             content.append(line)
         else:
-            print(f"No change needed for {profile}: {line}")
+            log_startup(f"No change needed for {profile}: {line}")
 
     cargo_line = 'source "$HOME/.cargo/env"'
     if cargo_line not in content:
         with profile.open("a") as fh:
             fh.write(cargo_line + "\n")
-        print(f"Success: added line to {profile}: {cargo_line}")
+        log_startup(f"Success: added line to {profile}: {cargo_line}")
     else:
-        print(f"No change needed for {profile}: {cargo_line}")
+        log_startup(f"No change needed for {profile}: {cargo_line}")
 
 
 def upgrade_pip_and_torch() -> None:
@@ -160,7 +161,7 @@ def verify_tools() -> None:
             missing.append(tool)
     if missing:
         brew_prefix = subprocess.check_output(["brew", "--prefix"], text=True).strip()
-        print(
+        log_startup(
             f"Missing {' '.join(missing)} on PATH. Ensure {brew_prefix}/bin is in your PATH and re-run this script."
         )
         raise SystemExit(1)
@@ -260,7 +261,7 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     if not missing_tools:
         return {"steps": {}, "success": True}
 
-    print(
+    log_startup(
         "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
     )
     report = prepare_macos_env(non_interactive=non_interactive)
@@ -268,19 +269,18 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     for step, info in report["steps"].items():
         msg = info.get("message", "")
         if msg:
-            print(f"{step}: {info['status']} - {msg}")
+            log_startup(f"{step}: {info['status']} - {msg}")
         else:
-            print(f"{step}: {info['status']}")
+            log_startup(f"{step}: {info['status']}")
     if not report.get("success"):
-        print(
-            "macOS environment preparation failed; continuing without required tools",
-            file=sys.stderr,
+        log_startup(
+            "macOS environment preparation failed; continuing without required tools"
         )
         for step, info in report["steps"].items():
             if info.get("status") == "error":
                 fix = MANUAL_FIXES.get(step)
                 if fix:
-                    print(f"Manual fix for {step}: {fix}")
+                    log_startup(f"Manual fix for {step}: {fix}")
     return report
 
 
@@ -292,9 +292,9 @@ def main(argv: list[str] | None = None) -> None:
     for step, info in report["steps"].items():
         msg = info.get("message", "")
         if msg:
-            print(f"{step}: {info['status']} - {msg}")
+            log_startup(f"{step}: {info['status']} - {msg}")
         else:
-            print(f"{step}: {info['status']}")
+            log_startup(f"{step}: {info['status']}")
     if not report.get("success"):
         raise SystemExit(1)
 
