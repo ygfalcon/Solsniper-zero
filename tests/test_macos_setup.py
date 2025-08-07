@@ -5,7 +5,7 @@ import solhunter_zero.macos_setup as ms
 
 
 def test_ensure_tools_skips_when_marker_exists(monkeypatch, tmp_path):
-    marker = tmp_path / ".cache" / "macos_tools_ok"
+    marker = tmp_path / ".cache" / "macos-tools-ok"
     marker.parent.mkdir(parents=True)
     marker.write_text("ok")
     monkeypatch.setattr(ms, "TOOLS_OK_MARKER", marker)
@@ -34,7 +34,7 @@ def test_ensure_tools_skips_when_marker_exists(monkeypatch, tmp_path):
 
 
 def test_ensure_tools_runs_setup_and_marks(monkeypatch, tmp_path):
-    marker = tmp_path / ".cache" / "macos_tools_ok"
+    marker = tmp_path / ".cache" / "macos-tools-ok"
     monkeypatch.setattr(ms, "TOOLS_OK_MARKER", marker)
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")

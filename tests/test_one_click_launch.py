@@ -19,6 +19,7 @@ sys.modules["scripts.startup"] = fake_startup
 
 macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
 macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+macos_setup_mod.TOOLS_OK_MARKER = Path(".cache/macos-tools-ok")
 sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
 
 bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")
@@ -63,12 +64,8 @@ def test_one_click_launch(monkeypatch, capsys):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
 
-    dummy_device = types.ModuleType("device")
-    dummy_device.initialize_gpu = lambda: None
-    sys.modules["solhunter_zero.device"] = dummy_device
-
     launcher = load_launcher()
-    monkeypatch.setattr(launcher, "device", dummy_device)
+    monkeypatch.setattr(launcher.device, "initialize_gpu", lambda: None)
 
     def fake_execvp(prog, argv):
         if argv[0] == "arch":
@@ -85,3 +82,39 @@ def test_one_click_launch(monkeypatch, capsys):
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "SolHunter Zero launch complete – system ready." in out
+
+
+def test_launcher_skips_ensure_tools_when_marker(monkeypatch, tmp_path):
+    called = {"value": False}
+
+    def fake_ensure(**kwargs):
+        called["value"] = True
+
+    marker = tmp_path / ".cache" / "macos-tools-ok"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("ok")
+    monkeypatch.setattr(macos_setup_mod, "ensure_tools", fake_ensure)
+    monkeypatch.setattr(macos_setup_mod, "TOOLS_OK_MARKER", marker)
+    monkeypatch.setattr(sys, "argv", ["scripts/launcher.py"])
+
+    load_launcher()
+
+    assert called["value"] is False
+
+
+def test_launcher_runs_ensure_tools_with_repair(monkeypatch, tmp_path):
+    called = {"value": False}
+
+    def fake_ensure(**kwargs):
+        called["value"] = True
+
+    marker = tmp_path / ".cache" / "macos-tools-ok"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("ok")
+    monkeypatch.setattr(macos_setup_mod, "ensure_tools", fake_ensure)
+    monkeypatch.setattr(macos_setup_mod, "TOOLS_OK_MARKER", marker)
+    monkeypatch.setattr(sys, "argv", ["scripts/launcher.py", "--repair"])
+
+    load_launcher()
+
+    assert called["value"] is True

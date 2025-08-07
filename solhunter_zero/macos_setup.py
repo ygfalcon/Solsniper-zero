@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - optional import for CI
 
 ROOT = Path(__file__).resolve().parent.parent
 MAC_SETUP_MARKER = ROOT / ".cache" / "mac_setup_complete"
-TOOLS_OK_MARKER = ROOT / ".cache" / "macos_tools_ok"
+TOOLS_OK_MARKER = ROOT / ".cache" / "macos-tools-ok"
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
