@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Entry point that delegates to ``solhunter_zero.launcher.main``."""
+"""Canonical entry point for SolHunter Zero.
 
-from scripts.launcher import main
+This script simply delegates to :func:`solhunter_zero.launcher.main`.
+"""
+
+from solhunter_zero.launcher import main
 
 
 if __name__ == "__main__":
