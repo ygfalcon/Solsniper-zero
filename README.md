@@ -32,6 +32,8 @@ The default workflow is intentionally simple:
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
    remains available.
+   Preflight also verifies that the compiled artifacts `solhunter_zero/libroute_ffi.*`
+   and `target/release/depth_service` are present before startup.
    A machine-readable diagnostics summary is written to `diagnostics.json` after the bot exits
    unless `--no-diagnostics` is supplied.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
