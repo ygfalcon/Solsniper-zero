@@ -695,6 +695,36 @@ python scripts/investor_demo.py --full-system --reports reports
 
 All modes emit the same report files along with console summaries.
 
+### One-Click Investor Demo
+
+1. **Download the repo**
+
+   ```bash
+   git clone https://github.com/your-org/Solsniper-zero.git
+   cd Solsniper-zero
+   ```
+
+2. **Launch the demo**
+
+   On macOS, double-click `one_click_trading_demo.command`. On Linux or Windows run it from the terminal:
+
+   ```bash
+   ./one_click_trading_demo.command
+   ```
+
+   The script verifies Python 3.11+ and a handful of lightweight dependencies. Missing packages are installed automatically; if installation fails, a warning highlights what to install manually.
+
+3. **Review the reports**
+
+   After the demo finishes, inspect the generated files in `reports`:
+
+   ```text
+   reports/summary.json
+   reports/trade_history.csv
+   ```
+
+   `summary.json` captures overall metrics, while `trade_history.csv` lists each trade. These can be imported into spreadsheets or dashboards for further analysis.
+
 ## MEV Bundles
 
 When `use_mev_bundles` is enabled (the default), swaps are submitted
