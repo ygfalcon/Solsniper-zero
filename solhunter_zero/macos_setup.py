@@ -29,6 +29,7 @@ except Exception:  # pragma: no cover - optional import for CI
 
 ROOT = Path(__file__).resolve().parent.parent
 MAC_SETUP_MARKER = ROOT / ".cache" / "mac_setup_complete"
+TOOLS_OK_MARKER = ROOT / ".cache" / "macos_tools_ok"
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
@@ -288,30 +289,38 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     On Apple Silicon Macs this checks for Homebrew, Xcode command line tools,
     Python 3.11 and rustup.  If any are missing ``prepare_macos_env`` is
     invoked to install them.  A report dictionary is returned mirroring
-    ``prepare_macos_env``'s output.
+    ``prepare_macos_env``'s output and listing any missing components.
     """
 
     if platform.system() != "Darwin" or platform.machine() != "arm64":
-        return {"steps": {}, "success": True}
+        return {"steps": {}, "success": True, "missing": []}
 
-    missing_tools: list[str] = []
-    try:
-        if (
-            subprocess.run(
-                ["xcode-select", "-p"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            ).returncode
-            != 0
-        ):
-            missing_tools.append("xcode-select")
-    except FileNotFoundError:
-        missing_tools.append("xcode-select")
-    for cmd in ("brew", "python3.11", "rustup"):
-        if shutil.which(cmd) is None:
-            missing_tools.append(cmd)
+    def missing() -> list[str]:
+        found: list[str] = []
+        try:
+            if (
+                subprocess.run(
+                    ["xcode-select", "-p"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ).returncode
+                != 0
+            ):
+                found.append("xcode-select")
+        except FileNotFoundError:
+            found.append("xcode-select")
+        for cmd in ("brew", "python3.11", "rustup"):
+            if shutil.which(cmd) is None:
+                found.append(cmd)
+        return found
+
+    missing_tools = missing()
+    if TOOLS_OK_MARKER.exists() and not missing_tools:
+        return {"steps": {}, "success": True, "missing": []}
     if not missing_tools:
-        return {"steps": {}, "success": True}
+        TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        TOOLS_OK_MARKER.write_text("ok")
+        return {"steps": {}, "success": True, "missing": []}
 
     print(
         "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
@@ -323,7 +332,12 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
             print(f"{step}: {info['status']} - {msg}")
         else:
             print(f"{step}: {info['status']}")
-    if not report.get("success"):
+    missing_after = missing()
+    report["missing"] = missing_after
+    if report.get("success") and not missing_after:
+        TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        TOOLS_OK_MARKER.write_text("ok")
+    else:
         print(
             "macOS environment preparation failed; continuing without required tools",
             file=sys.stderr,
