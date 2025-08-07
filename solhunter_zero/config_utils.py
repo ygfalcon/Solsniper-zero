@@ -29,7 +29,8 @@ from . import wallet
 def ensure_default_config() -> Path:
     """Ensure a usable configuration file exists and return its path."""
 
-    return _ensure_config()
+    cfg_file, _ = _ensure_config()
+    return cfg_file
 
 
 def select_active_keypair(auto: bool = True) -> wallet.KeypairInfo:

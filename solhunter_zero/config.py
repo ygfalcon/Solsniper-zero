@@ -171,7 +171,10 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
     cfg = _read_config_file(Path(path))
     try:
         model = ConfigModel(**cfg)
-        cfg = model.model_dump() if hasattr(model, "model_dump") else model.dict()
+        if hasattr(model, "model_dump"):
+            cfg = model.model_dump(mode="json")
+        else:
+            cfg = model.dict()
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
     return cfg
@@ -200,7 +203,9 @@ def validate_config(cfg: Mapping[str, Any]) -> dict:
     """
     try:
         model = ConfigModel(**cfg)
-        return model.model_dump() if hasattr(model, "model_dump") else model.dict()
+        if hasattr(model, "model_dump"):
+            return model.model_dump(mode="json")
+        return model.dict()
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
 
