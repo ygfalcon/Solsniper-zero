@@ -42,6 +42,9 @@ _SERVICE_MANIFEST = (
 
 install_uvloop()
 
+# record program start time for latency metrics
+_APP_START_TIME = time.monotonic()
+
 
 def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     """Launch the Rust depth_service if enabled."""
@@ -160,7 +163,7 @@ from . import order_book_ws
 
 from .memory import Memory
 from .portfolio import Portfolio
-from .exchange import place_order_async
+from .exchange import place_order_async as _exchange_place_order_async
 from .strategy_manager import StrategyManager
 from .agent_manager import AgentManager
 from .agents.discovery import DiscoveryAgent
@@ -172,6 +175,23 @@ from . import arbitrage
 from . import depth_client
 from . import event_bus
 from .data_pipeline import start_depth_snapshot_listener
+
+# track first trade latency
+_first_trade_recorded = False
+
+async def place_order_async(*args, **kwargs):
+    """Wrapper to emit time-to-first-trade metric on first successful order."""
+    global _first_trade_recorded
+    result = await _exchange_place_order_async(*args, **kwargs)
+    if not _first_trade_recorded:
+        _first_trade_recorded = True
+        try:
+            metrics_aggregator.publish(
+                "time_to_first_trade", time.monotonic() - _APP_START_TIME
+            )
+        except Exception:  # pragma: no cover - metric errors
+            logging.exception("Failed to publish time_to_first_trade metric")
+    return result
 
 # keep track of recently traded tokens for scheduling
 _LAST_TOKENS: list[str] = []
