@@ -17,6 +17,7 @@ from scripts import deps
 from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
+from .network import check_internet
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -224,7 +225,6 @@ def ensure_deps(
 
     need_install = bool(req) or need_cli or (install_optional and (opt or extra_index))
     if need_install:
-        from scripts import startup
         import contextlib
         import io
 
@@ -232,7 +232,7 @@ def ensure_deps(
             io.StringIO()
         ):
             try:
-                startup.check_internet()
+                check_internet("https://example.com")
             except SystemExit as exc:
                 raise SystemExit(
                     "Unable to establish an internet connection; aborting."
@@ -396,6 +396,12 @@ def ensure_cargo() -> None:
     cargo_bin = Path.home() / ".cargo" / "bin"
     os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
 
+    if (
+        shutil.which("cargo") is None
+        or any(shutil.which(t) is None for t in ("pkg-config", "cmake"))
+    ):
+        check_internet("https://example.com")
+
     if shutil.which("cargo") is None:
         if cache_marker.exists():
             print(
@@ -473,6 +479,7 @@ def ensure_cargo() -> None:
 def build_rust_component(
     name: str, cargo_path: Path, output: Path, *, target: str | None = None
 ) -> None:
+    check_internet("https://example.com")
     cmd = ["cargo", "build", "--manifest-path", str(cargo_path), "--release"]
     if target is not None:
         try:

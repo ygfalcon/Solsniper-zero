@@ -13,6 +13,7 @@ from urllib import error
 import json
 
 from scripts.deps import check_deps
+from solhunter_zero.network import check_internet
 
 
 
@@ -140,11 +141,9 @@ def check_required_env(keys: List[str] | None = None) -> Check:
 def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> Check:
     url = os.environ.get("SOLANA_RPC_URL", default_url)
     try:
-        from solhunter_zero.http import check_endpoint
-
-        check_endpoint(url)
-    except error.URLError as exc:
-        return False, f"Network error: {exc}"
+        check_internet(url)
+    except SystemExit as exc:
+        return False, str(exc)
     return True, f"Network access to {url} OK"
 
 

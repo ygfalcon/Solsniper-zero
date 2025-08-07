@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Install macOS dependencies for SolHunter Zero."""
-
 from __future__ import annotations
 
 import argparse
@@ -12,7 +11,6 @@ import sys
 import time
 from pathlib import Path
 from collections.abc import Callable
-from urllib import request
 
 try:
     from solhunter_zero.device import (
@@ -29,6 +27,8 @@ except Exception:  # pragma: no cover - optional import for CI
 ROOT = Path(__file__).resolve().parent.parent
 MAC_SETUP_MARKER = ROOT / ".cache" / "mac_setup_complete"
 
+from solhunter_zero.network import check_internet
+
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
     """Run command printing it."""
@@ -38,24 +38,7 @@ def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedPr
 
 def ensure_network() -> None:
     """Abort if no network connectivity is available."""
-    try:
-        subprocess.run(
-            ["ping", "-c", "1", "1.1.1.1"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )
-        return
-    except Exception:
-        try:
-            with request.urlopen("https://example.com", timeout=5):
-                return
-        except Exception:
-            print(
-                "Network check failed. Please connect to the internet and re-run this script.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
+    check_internet("https://example.com")
 
 
 def ensure_xcode(non_interactive: bool) -> None:

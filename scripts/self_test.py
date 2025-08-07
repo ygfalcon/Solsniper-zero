@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts import preflight  # noqa: E402
 from solhunter_zero import device  # noqa: E402
+from solhunter_zero.network import check_internet  # noqa: E402
 
 
 def run_self_test() -> Dict[str, Any]:
@@ -21,7 +22,12 @@ def run_self_test() -> Dict[str, Any]:
     pf_results = preflight.run_preflight()
     filtered = [r for r in pf_results if r[0] not in {"Network", "GPU"}]
     gpu_ok, gpu_msg = device.verify_gpu()
-    net_ok, net_msg = preflight.check_network()
+    try:
+        check_internet("https://api.mainnet-beta.solana.com")
+    except SystemExit as exc:
+        net_ok, net_msg = False, str(exc)
+    else:
+        net_ok, net_msg = True, "Network access OK"
     return {
         "preflight": [
             {"name": name, "ok": ok, "message": msg}
