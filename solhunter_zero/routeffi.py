@@ -5,10 +5,10 @@ import struct
 import logging
 import time
 
-from .system import detect_cpu_count
+from .system import set_rayon_threads
 
-if not os.getenv("RAYON_NUM_THREADS"):
-    os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
+# Ensure Rayon thread count is configured for FFI
+set_rayon_threads()
 
 logger = logging.getLogger(__name__)
 

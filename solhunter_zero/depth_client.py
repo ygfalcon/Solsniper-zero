@@ -1,11 +1,11 @@
 import os
 import mmap
 
-from .system import detect_cpu_count
+from .system import set_rayon_threads
 
-# Set a default Rayon thread count for the FFI
-if not os.getenv("RAYON_NUM_THREADS"):
-    os.environ["RAYON_NUM_THREADS"] = str(detect_cpu_count())
+# Ensure Rayon thread pool is configured for the Rust FFI
+set_rayon_threads()
+
 import asyncio
 import time
 import atexit
