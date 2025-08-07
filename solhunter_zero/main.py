@@ -1,3 +1,5 @@
+"""Runtime entry points and trading loop orchestration for SolHunter Zero."""
+
 import logging
 import os
 import asyncio
@@ -51,7 +53,6 @@ _APP_START_TIME = time.monotonic()
 
 def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     """Launch the Rust depth_service if enabled."""
-
     if not cfg.get("depth_service"):
         return None
 
@@ -124,7 +125,6 @@ async def _depth_service_watchdog(
     cfg: dict, proc_ref: list[subprocess.Popen | None]
 ) -> None:
     """Monitor the depth_service process and attempt limited restarts."""
-
     proc = proc_ref[0]
     if not proc:
         return
@@ -168,7 +168,6 @@ async def _depth_service_watchdog(
 
 def ensure_connectivity(*, offline: bool = False) -> None:
     """Verify Solana RPC and DEX websocket connectivity."""
-
     if offline:
         return
 
@@ -240,10 +239,11 @@ _first_trade_event = asyncio.Event()
 
 class FirstTradeTimeoutError(RuntimeError):
     """Raised when no trade occurs before the configured timeout."""
+
     pass
 
 async def place_order_async(*args, **kwargs):
-    """Wrapper to emit time-to-first-trade metric on first successful order."""
+    """Emit time-to-first-trade metric on first successful order."""
     global _first_trade_recorded
     result = await _exchange_place_order_async(*args, **kwargs)
     if not _first_trade_recorded:
@@ -299,7 +299,6 @@ async def _run_iteration(
     agent_manager: AgentManager | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
-
     await memory.wait_ready()
     metrics_aggregator.start()
 
@@ -576,7 +575,6 @@ async def _init_rl_training(
     rl_interval: float = 3600.0,
 ) -> asyncio.Task | None:
     """Set up RL background training if enabled."""
-
     auto_train_cfg = bool(cfg.get("rl_auto_train", False))
     if not rl_daemon and not auto_train_cfg:
         return None
@@ -634,7 +632,6 @@ def perform_startup(
     dry_run: bool = False,
 ) -> tuple[dict, subprocess.Popen | None]:
     """Load config, verify connectivity, and start depth service with timing."""
-
     start = time.perf_counter()
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
@@ -734,7 +731,6 @@ def main(
 
 
     """
-
     from .wallet import load_keypair
 
     prev_agents = os.environ.get("AGENTS")
