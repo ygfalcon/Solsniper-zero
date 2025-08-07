@@ -257,6 +257,9 @@ async def _run_iteration(
 ) -> None:
     """Execute a single trading iteration asynchronously."""
 
+    await memory.wait_ready()
+    metrics_aggregator.start()
+
     if arbitrage_threshold is None:
         arbitrage_threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
     if arbitrage_amount is None:

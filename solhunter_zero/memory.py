@@ -56,6 +56,7 @@ class Memory(BaseMemory):
         self.Session = async_sessionmaker(bind=self.engine, expire_on_commit=False)
         self._queue: asyncio.Queue[dict] | None = None
         self._writer_task: asyncio.Task | None = None
+        self._writer_started: asyncio.Event | None = None
         self._batch_size = 100
         self._interval = 1.0
 
@@ -86,10 +87,13 @@ class Memory(BaseMemory):
         self._interval = interval
         self._queue = asyncio.Queue()
         loop = asyncio.get_event_loop()
+        self._writer_started = asyncio.Event()
         self._writer_task = loop.create_task(self._writer())
 
     async def _writer(self) -> None:
         assert self._queue is not None
+        if self._writer_started and not self._writer_started.is_set():
+            self._writer_started.set()
         pending: list[dict] = []
         try:
             while True:
@@ -117,6 +121,11 @@ class Memory(BaseMemory):
                 self._queue.task_done()
             if pending:
                 await self._flush(pending)
+
+    async def wait_ready(self) -> None:
+        await self._init_task
+        if self._writer_started is not None:
+            await self._writer_started.wait()
 
     async def _flush(self, items: list[dict]) -> None:
         async with self.Session() as session:
@@ -212,6 +221,7 @@ class Memory(BaseMemory):
             with suppress(asyncio.CancelledError):
                 await self._writer_task
             self._writer_task = None
+            self._writer_started = None
         if self._queue and not self._queue.empty():
             await self._flush([self._queue.get_nowait() for _ in range(self._queue.qsize())])
         await self.engine.dispose()
