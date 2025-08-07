@@ -20,7 +20,7 @@ from solhunter_zero.agents.swarm import AgentSwarm
 from solhunter_zero.memory import Memory
 from solhunter_zero.advanced_memory import AdvancedMemory
 
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.portfolio import Portfolio, Position
 
 
@@ -179,7 +179,6 @@ def test_agent_manager_execute(monkeypatch):
     mgr = AgentManager(
         [types.SimpleNamespace(propose_trade=buy_agent, name='b'), DummyAgent()],
         executor=exec_agent,
-        memory_agent=None,
     )
 
     pf = DummyPortfolio()
@@ -238,11 +237,11 @@ def test_agent_manager_event_executor(monkeypatch):
     async def buy(token, pf, *, depth=None, imbalance=None):
         return [{"token": token, "side": "buy", "amount": 1.0, "price": 1.0}]
 
+    cfg = AgentManagerConfig(depth_service=True)
     mgr = AgentManager(
         [types.SimpleNamespace(propose_trade=buy, name="b")],
         executor=ExecutionAgent(rate_limit=0, depth_service=True, keypair=None),
-        memory_agent=None,
-        depth_service=True,
+        config=cfg,
     )
 
     pf = DummyPortfolio()
@@ -295,7 +294,8 @@ def test_memory_agent(monkeypatch):
 def test_agent_manager_update_weights():
     mem = Memory('sqlite:///:memory:')
     mem_agent = MemoryAgent(mem)
-    mgr = AgentManager([], memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
+    cfg = AgentManagerConfig(memory_agent=mem_agent, weights={'a1': 1.0, 'a2': 1.0})
+    mgr = AgentManager([], config=cfg)
 
     mem.log_trade(token='tok', direction='buy', amount=1, price=1, reason='a1')
     mem.log_trade(token='tok', direction='sell', amount=1, price=2, reason='a1')
@@ -313,7 +313,8 @@ def test_agent_manager_update_weights_success_rate(tmp_path):
     idx = tmp_path / "idx.faiss"
     mem = AdvancedMemory(url=f"sqlite:///{db}", index_path=str(idx))
     mem_agent = MemoryAgent(mem)
-    mgr = AgentManager([], memory_agent=mem_agent, weights={"a1": 1.0, "a2": 1.0})
+    cfg = AgentManagerConfig(memory_agent=mem_agent, weights={"a1": 1.0, "a2": 1.0})
+    mgr = AgentManager([], config=cfg)
 
     mem.log_simulation("a1", expected_roi=1.0, success_prob=0.8)
     mem.log_simulation("a2", expected_roi=1.0, success_prob=0.2)
@@ -331,19 +332,21 @@ def test_agent_manager_update_weights_success_rate(tmp_path):
 
 def test_agent_manager_weights_persistence_json(tmp_path):
     path = tmp_path / "w.json"
-    mgr = AgentManager([], weights={"a": 2.0}, weights_path=str(path))
+    cfg = AgentManagerConfig(weights={"a": 2.0}, weights_path=str(path))
+    mgr = AgentManager([], config=cfg)
     mgr.save_weights()
 
-    mgr2 = AgentManager([], weights_path=str(path))
+    mgr2 = AgentManager([], config=AgentManagerConfig(weights_path=str(path)))
     assert mgr2.weights == {"a": 2.0}
 
 
 def test_agent_manager_weights_persistence_toml(tmp_path):
     path = tmp_path / "w.toml"
-    mgr = AgentManager([], weights={"a": 1.5}, weights_path=str(path))
+    cfg = AgentManagerConfig(weights={"a": 1.5}, weights_path=str(path))
+    mgr = AgentManager([], config=cfg)
     mgr.save_weights()
 
-    mgr2 = AgentManager([], weights_path=str(path))
+    mgr2 = AgentManager([], config=AgentManagerConfig(weights_path=str(path)))
     assert mgr2.weights == {"a": 1.5}
 
 

@@ -157,7 +157,7 @@ from solhunter_zero.event_bus import (
     _unpack_batch,
     _maybe_decompress,
 )
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.portfolio import Portfolio
@@ -196,7 +196,8 @@ async def test_agent_manager_emits_events(monkeypatch):
         async def execute(self, action):
             return {"ok": True}
 
-    mgr = AgentManager([], executor=DummyExec(), memory_agent=mem_agent)
+    cfg = AgentManagerConfig(memory_agent=mem_agent)
+    mgr = AgentManager([], executor=DummyExec(), config=cfg)
 
     async def fake_evaluate(self, token, pf):
         return [{"token": token, "side": "buy", "amount": 1.0, "price": 1.0}]

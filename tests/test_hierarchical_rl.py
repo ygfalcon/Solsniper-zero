@@ -155,7 +155,7 @@ def test_train_policy_updates_weights():
     assert w["a1"] > w["a2"]
 
 from solhunter_zero.hierarchical_rl import SupervisorAgent
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.portfolio import Portfolio
 
 
@@ -180,12 +180,12 @@ def test_agent_manager_supervisor_integration(tmp_path):
             return []
 
     agents = [Dummy("a1"), Dummy("a2")]
-    mgr = AgentManager(
-        agents,
+    cfg = AgentManagerConfig(
         weights={"a1": 1.0, "a2": 1.0},
         use_supervisor=True,
         supervisor_checkpoint=str(policy),
     )
+    mgr = AgentManager(agents, config=cfg)
     pf = Portfolio(path=None)
     asyncio.run(mgr.evaluate("tok", pf))
     assert calls == ["a2"]
@@ -204,11 +204,11 @@ def test_agent_manager_hierarchical_policy(tmp_path):
             return [{"agent": self.name, "token": token, "side": "buy", "amount": 1.0, "price": 1.0}]
 
     agents = [Dummy("a1"), Dummy("a2")]
-    mgr = AgentManager(
-        agents,
+    cfg = AgentManagerConfig(
         weights={"a1": 1.0, "a2": 1.0},
         rl_daemon=DummyDaemon(),
     )
+    mgr = AgentManager(agents, config=cfg)
     pf = Portfolio(path=None)
     actions = asyncio.run(mgr.evaluate("tok", pf))
     assert actions and actions[0]["amount"] == 2.0

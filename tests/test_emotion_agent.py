@@ -6,7 +6,7 @@ trans = pytest.importorskip("transformers")
 if not hasattr(trans, "pipeline"):
     trans.pipeline = lambda *a, **k: lambda x: []
 
-from solhunter_zero.agent_manager import AgentManager
+from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.agents.execution import ExecutionAgent
 from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.emotion_agent import EmotionAgent
@@ -49,11 +49,11 @@ def test_emotion_logged(tmp_path, monkeypatch):
         ]
 
     dummy = types.SimpleNamespace(propose_trade=proposer, name="dummy")
+    cfg = AgentManagerConfig(memory_agent=mem_agent, emotion_agent=emo_agent)
     mgr = AgentManager(
         [dummy, emo_agent, mem_agent],
         executor=exec_agent,
-        memory_agent=mem_agent,
-        emotion_agent=emo_agent,
+        config=cfg,
     )
 
     pf = DummyPortfolio()

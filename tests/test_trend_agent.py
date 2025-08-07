@@ -82,7 +82,7 @@ def test_agent_manager_trend_integration(monkeypatch):
 
     exec_agent = ExecutionAgent(rate_limit=0)
     agent = TrendAgent(volume_threshold=100.0, sentiment_threshold=0.1, feeds=["f"])
-    mgr = AgentManager([agent], executor=exec_agent, memory_agent=None)
+    mgr = AgentManager([agent], executor=exec_agent)
 
     pf = DummyPortfolio()
     asyncio.run(mgr.execute("tok", pf))
