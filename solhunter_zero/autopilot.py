@@ -20,8 +20,7 @@ from .service_launcher import (
     start_rl_daemon,
     wait_for_depth_ws,
 )
-
-ROOT = Path(__file__).resolve().parent.parent
+from .paths import ROOT
 PROCS: list[subprocess.Popen] = []
 
 

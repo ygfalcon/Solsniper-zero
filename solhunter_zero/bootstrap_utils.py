@@ -17,8 +17,8 @@ from scripts import deps
 from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
+from .paths import ROOT
 
-ROOT = Path(__file__).resolve().parent.parent
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
 
 

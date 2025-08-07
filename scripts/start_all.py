@@ -13,8 +13,9 @@ import logging
 from pathlib import Path
 from typing import IO
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from solhunter_zero.paths import ROOT
 from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
 from solhunter_zero import env  # noqa: E402
 

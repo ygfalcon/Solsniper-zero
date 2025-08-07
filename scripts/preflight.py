@@ -12,6 +12,10 @@ from typing import Callable, List, Tuple
 from urllib import error
 import json
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from solhunter_zero.paths import ROOT
+
 from scripts.deps import check_deps
 from solhunter_zero.config_utils import (
     ensure_default_config,
@@ -19,9 +23,6 @@ from solhunter_zero.config_utils import (
 )
 from solhunter_zero import wallet
 from solhunter_zero.logging_utils import log_startup
-
-
-ROOT = Path(__file__).resolve().parent.parent
 
 Check = Tuple[bool, str]
 

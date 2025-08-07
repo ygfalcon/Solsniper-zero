@@ -11,8 +11,7 @@ from . import env, device
 from .logging_utils import log_startup
 from .config import ENV_VARS
 from .env_defaults import DEFAULTS
-
-ROOT = Path(__file__).resolve().parent.parent
+from .paths import ROOT
 
 __all__ = ["configure_environment"]
 

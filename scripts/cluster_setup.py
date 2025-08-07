@@ -10,8 +10,9 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from solhunter_zero.paths import ROOT
 from solhunter_zero import env  # noqa: E402
 
 env.load_env_file(ROOT / ".env")

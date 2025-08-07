@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from .paths import ROOT
+
 CACHE_DIR = ROOT / ".cache"
 MPS_SENTINEL = CACHE_DIR / "torch_mps_ready"
 MAC_SETUP_MARKER = CACHE_DIR / "mac_setup_complete"

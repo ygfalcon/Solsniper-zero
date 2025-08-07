@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Entry point that delegates to ``solhunter_zero.launcher.main``."""
 
-from solhunter_zero.launcher import main
+from scripts.launcher import main
 
 
 if __name__ == "__main__":
