@@ -747,6 +747,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
