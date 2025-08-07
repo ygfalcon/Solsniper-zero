@@ -745,10 +745,15 @@ def test_startup_sets_mps_device(monkeypatch):
 
     monkeypatch.setattr(bootstrap, "ensure_venv", lambda *a, **k: None)
     monkeypatch.setattr(bootstrap, "ensure_deps", lambda install_optional=False: None)
-    monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
+    from pathlib import Path
+    kp_info = types.SimpleNamespace(name="default", mnemonic_path=None)
+    monkeypatch.setattr(
+        bootstrap, "ensure_keypair", lambda: (kp_info, Path("keypair.json"))
+    )
+    monkeypatch.setattr(bootstrap, "ensure_config", lambda: Path("config.toml"))
     monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap.wallet, "ensure_default_keypair", lambda: kp_info)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
 
     bootstrap.bootstrap(one_click=True)
