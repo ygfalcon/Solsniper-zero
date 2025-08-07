@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import shutil
 
 import tomllib
 
@@ -36,6 +37,17 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
 
     root = root or ROOT
     env_file = Path(root) / ".env"
+    if not env_file.exists():
+        example_file = Path(root) / ".env.example"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        if example_file.exists():
+            shutil.copy(example_file, env_file)
+            log_startup(
+                f"Created environment file {env_file} from {example_file}"
+            )
+        else:
+            env_file.touch()
+            log_startup(f"Created environment file {env_file}")
     env.load_env_file(env_file)
 
     applied: dict[str, str] = {}
@@ -51,7 +63,9 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         for key, env_name in ENV_VARS.items():
             val = cfg.get(key)
             if val is not None and env_name not in os.environ:
-                value_str = str(val).lower() if isinstance(val, bool) else str(val)
+                value_str = (
+                    str(val).lower() if isinstance(val, bool) else str(val)
+                )
                 os.environ[env_name] = value_str
                 applied[env_name] = value_str
                 missing_lines.append(f"{env_name}={value_str}\n")
@@ -66,7 +80,8 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             name, _, value = line.partition("=")
             added_vars[name] = value.strip()
         log_startup(
-            f"Updated environment file {env_file} with: {', '.join(added_vars)}"
+            f"Updated environment file {env_file} with: "
+            f"{', '.join(added_vars)}"
         )
         report_env_changes(added_vars, env_file)
 
@@ -86,7 +101,9 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
     return applied
 
 
-def report_env_changes(changes: dict[str, str], env_file: Path | None = None) -> None:
+def report_env_changes(
+    changes: dict[str, str], env_file: Path | None = None
+) -> None:
     """Print environment variable *changes* for command-line feedback."""
 
     if not changes:
@@ -97,4 +114,3 @@ def report_env_changes(changes: dict[str, str], env_file: Path | None = None) ->
         print("Environment variables applied:")
     for key, value in changes.items():
         print(f"{key}={value}")
-
