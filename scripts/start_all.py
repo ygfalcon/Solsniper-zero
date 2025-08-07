@@ -23,6 +23,12 @@ env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
 log_startup("start_all launched")
 
+from solhunter_zero import device  # noqa: E402
+from solhunter_zero.system import set_rayon_threads  # noqa: E402
+
+device.ensure_gpu_env()
+set_rayon_threads()
+
 from solhunter_zero.config import (  # noqa: E402
     set_env_from_config,
     ensure_config_file,
