@@ -1,6 +1,7 @@
 import sys
 import types
 import asyncio
+import logging
 import pytest
 from solhunter_zero.strategy_manager import StrategyManager
 
@@ -122,4 +123,16 @@ def test_strategy_manager_timeout(monkeypatch):
     assert actions == [
         {"token": "tok", "side": "buy", "amount": 1.0, "price": 1.0}
     ]
+
+
+def test_strategy_manager_warns_on_missing_evaluate(monkeypatch, caplog):
+    mod = types.SimpleNamespace()  # missing evaluate
+    monkeypatch.setitem(sys.modules, "mod_no_eval", mod)
+    with caplog.at_level(logging.WARNING):
+        StrategyManager(["mod_no_eval"])
+    assert any(
+        "mod_no_eval" in record.getMessage()
+        and "no evaluate" in record.getMessage()
+        for record in caplog.records
+    )
 

@@ -51,6 +51,10 @@ class StrategyManager:
                 continue
             if hasattr(mod, "evaluate"):
                 self._modules.append((mod, name))
+            else:
+                logger.warning(
+                    "Strategy %s imported but has no evaluate attribute", name
+                )
 
     def list_missing(self) -> List[str]:
         """Return strategies that failed to import."""
