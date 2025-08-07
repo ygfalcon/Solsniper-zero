@@ -34,7 +34,8 @@ def test_investor_demo_metrics(tmp_path, monkeypatch, dummy_mem, capital):
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: 0.0)
     monkeypatch.setattr(investor_demo, "Memory", dummy_mem)
 
-    prices, _ = investor_demo.load_prices(preset="short")
+    price_map = investor_demo.load_prices(preset="full")
+    first_token, (prices, _) = next(iter(price_map.items()))
     strat_configs = {
         "buy_hold": {"buy_hold": 1.0},
         "momentum": {"momentum": 1.0},
@@ -72,12 +73,14 @@ def test_investor_demo_metrics(tmp_path, monkeypatch, dummy_mem, capital):
         str(reports),
         "--capital",
         str(capital),
+        "--preset",
+        "full",
     ])
 
     summary = json.loads((reports / "summary.json").read_text())
-    metrics = {row["config"]: row for row in summary}
+    metrics = {(row["token"], row["config"]): row for row in summary}
     for name, exp in expected.items():
-        row = metrics[name]
+        row = metrics[(first_token, name)]
         assert row["roi"] == pytest.approx(exp["roi"], rel=1e-6)
         assert row["sharpe"] == pytest.approx(exp["sharpe"], rel=1e-6)
         assert row["drawdown"] == pytest.approx(exp["drawdown"], rel=1e-6)
@@ -110,7 +113,7 @@ def test_resource_usage_logging(tmp_path, monkeypatch, dummy_mem, capsys):
     )
     monkeypatch.setitem(sys.modules, "psutil", psutil_stub)
 
-    investor_demo.main(["--reports", str(tmp_path)])
+    investor_demo.main(["--reports", str(tmp_path), "--preset", "full"])
     captured = capsys.readouterr()
     assert (
         "Resource usage - CPU: 11.00% Memory: 22.00%" in captured.out

@@ -109,6 +109,7 @@ DATA_FILE = resources.files(__package__) / "data" / "investor_demo_prices.json"
 PRESET_DATA_FILES: Dict[str, Path] = {
     "short": resources.files(__package__) / "data" / "investor_demo_prices_short.json",
     "multi": resources.files(__package__) / "data" / "investor_demo_prices_multi.json",
+    "full": resources.files(__package__) / "data" / "investor_demo_prices_full.json",
 }
 
 
