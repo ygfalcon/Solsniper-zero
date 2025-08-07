@@ -189,7 +189,7 @@ def test_startup_no_diagnostics_flag(monkeypatch, tmp_path, capsys):
 def test_run_preflight(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 
-    from scripts import preflight
+    from solhunter_zero import preflight
 
     def ok():
         return True, "ok"

@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""Environment preflight checks for Solsniper-zero."""
+"""Environment preflight checks for Solsniper-zero.
+
+This module consolidates the previous ``scripts.preflight`` and
+``scripts.self_test`` utilities into a single location inside the
+:mod:`solhunter_zero` package.
+"""
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 from urllib import error
-import json
 
 from scripts.deps import check_deps
-
-
+from solhunter_zero import device
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,9 +29,7 @@ def check_python_version(min_version: tuple[int, int] = (3, 11)) -> Check:
     """Ensure the running Python interpreter meets the minimum version."""
     if sys.version_info < min_version:
         return False, f"Python {min_version[0]}.{min_version[1]}+ required"
-    return True, (
-        f"Python {sys.version_info.major}.{sys.version_info.minor} detected"
-    )
+    return True, f"Python {sys.version_info.major}.{sys.version_info.minor} detected"
 
 
 def check_dependencies() -> Check:
@@ -36,13 +38,9 @@ def check_dependencies() -> Check:
     if missing_required or missing_optional:
         parts: List[str] = []
         if missing_required:
-            parts.append(
-                "missing required: " + ", ".join(sorted(missing_required))
-            )
+            parts.append("missing required: " + ", ".join(sorted(missing_required)))
         if missing_optional:
-            parts.append(
-                "missing optional: " + ", ".join(sorted(missing_optional))
-            )
+            parts.append("missing optional: " + ", ".join(sorted(missing_optional)))
         return False, "; ".join(parts)
     return True, "All dependencies available"
 
@@ -116,15 +114,7 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
 
 
 def check_required_env(keys: List[str] | None = None) -> Check:
-    """Ensure critical environment variables are configured.
-
-    Parameters
-    ----------
-    keys:
-        Optional list of variable names to verify. Defaults to
-        ``["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]``.
-    """
-
+    """Ensure critical environment variables are configured."""
     required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
     missing = []
     for key in required:
@@ -151,8 +141,6 @@ def check_network(default_url: str = "https://api.mainnet-beta.solana.com") -> C
 def check_gpu() -> Check:
     """Report GPU availability and the selected default device."""
     try:
-        from solhunter_zero import device
-
         return device.verify_gpu()
     except Exception as exc:  # pragma: no cover - defensive
         return False, str(exc)
@@ -168,25 +156,13 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Config", check_config_file),
     ("Keypair", check_keypair),
     ("Environment", check_required_env),
-    (
-        "Network",
-        lambda: check_network(
-            os.environ.get(
-                "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-            )
-        ),
-    ),
+    ("Network", check_network),
     ("GPU", check_gpu),
 ]
 
 
 def run_preflight() -> List[Tuple[str, bool, str]]:
-    """Run all preflight checks and return their results.
-
-    The return value is a list of tuples containing the check name, a boolean
-    indicating success, and a descriptive message.
-    """
-
+    """Run all preflight checks and return their results."""
     results: List[Tuple[str, bool, str]] = []
     for name, func in CHECKS:
         ok, msg = func()
@@ -209,7 +185,26 @@ def run_preflight() -> List[Tuple[str, bool, str]]:
     return results
 
 
-def main() -> None:
+def summary() -> Dict[str, Any]:
+    """Return a user friendly summary of environment checks.
+
+    The result matches the structure previously produced by
+    ``scripts.self_test``.
+    """
+    pf_results = run_preflight()
+    filtered = [r for r in pf_results if r[0] not in {"Network", "GPU"}]
+    gpu_ok, gpu_msg = device.verify_gpu()
+    net_ok, net_msg = check_network()
+    return {
+        "preflight": [
+            {"name": name, "ok": ok, "message": msg} for name, ok, msg in filtered
+        ],
+        "gpu": {"ok": gpu_ok, "message": gpu_msg},
+        "network": {"ok": net_ok, "message": net_msg},
+    }
+
+
+def main() -> None:  # pragma: no cover - CLI entry point
     failures: List[Tuple[str, str]] = []
     results = run_preflight()
     for name, ok, msg in results:
@@ -222,8 +217,8 @@ def main() -> None:
         print("\nSummary of failures:")
         for name, msg in failures:
             print(f"- {name}: {msg}")
-        sys.exit(1)
-    sys.exit(0)
+        raise SystemExit(1)
+    raise SystemExit(0)
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
-from scripts import preflight  # noqa: E402
+from solhunter_zero import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero.bootstrap_utils import (
@@ -336,7 +336,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.self_test:
         from solhunter_zero.bootstrap import bootstrap
-        import re
 
         check_disk_space(1 << 30)
         b_code = 0
@@ -347,22 +346,28 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             b_code = 1
 
-        stdout_buf = io.StringIO()
-        with contextlib.redirect_stdout(stdout_buf):
-            try:
-                preflight.main()
-            except SystemExit as exc:
-                p_code = exc.code if isinstance(exc.code, int) else 1
+        data = preflight.summary()
+        passes = 0
+        fails = 0
+        for item in data["preflight"]:
+            status = "OK" if item["ok"] else "FAIL"
+            print(f"{item['name']}: {status} - {item['message']}")
+            if item["ok"]:
+                passes += 1
             else:
-                p_code = 0
-        out = stdout_buf.getvalue()
-        sys.stdout.write(out)
-        passes = len(re.findall(r": OK\b", out))
-        fails = len(re.findall(r": FAIL\b", out))
+                fails += 1
+        for name, info in (("GPU", data["gpu"]), ("Network", data["network"])):
+            status = "OK" if info["ok"] else "FAIL"
+            print(f"{name}: {status} - {info['message']}")
+            if info["ok"]:
+                passes += 1
+            else:
+                fails += 1
         print(
             f"Self-test summary: bootstrap {'PASS' if b_code == 0 else 'FAIL'}, "
             f"preflight: {passes} passed, {fails} failed."
         )
+        p_code = 0 if fails == 0 else 1
         return b_code or p_code
 
     if args.diagnostics:

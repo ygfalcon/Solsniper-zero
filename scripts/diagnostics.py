@@ -20,13 +20,13 @@ def _rust_version(cmd: str) -> str:
 def run_preflight() -> dict[str, list[dict[str, str]]]:
     """Execute preflight checks returning their results.
 
-    Each entry from :mod:`scripts.preflight`'s ``CHECKS`` list is executed and
-    the outcome is collected.  Successes and failures are returned in a
-    dictionary matching the structure of ``preflight.json`` produced by the
-    standalone preflight script.
+    Each entry from :mod:`solhunter_zero.preflight`'s ``CHECKS`` list is
+    executed and the outcome is collected.  Successes and failures are
+    returned in a dictionary matching the structure of ``preflight.json``
+    produced by the standalone preflight script.
     """
 
-    from scripts import preflight
+    from solhunter_zero import preflight
 
     successes: list[dict[str, str]] = []
     failures: list[dict[str, str]] = []

@@ -1,4 +1,4 @@
-from scripts import preflight
+from solhunter_zero import preflight
 
 
 def test_check_gpu_no_backend(monkeypatch):

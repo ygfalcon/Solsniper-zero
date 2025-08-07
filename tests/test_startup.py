@@ -585,13 +585,13 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
+    monkeypatch.setattr("solhunter_zero.preflight.run_preflight", lambda: [])
 
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
+    monkeypatch.setattr("solhunter_zero.preflight.run_preflight", lambda: [])
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
@@ -671,7 +671,7 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     assert ret == 0
 
 
-def test_main_preflight_success(monkeypatch):
+def test_main_preflight_success(monkeypatch, tmp_path):
     from scripts import startup
     import types, sys
 
@@ -679,9 +679,17 @@ def test_main_preflight_success(monkeypatch):
 
     def fake_preflight():
         called["preflight"] = True
-        raise SystemExit(0)
+        return [("ok", True, "ok")]
 
-    monkeypatch.setattr("scripts.preflight.main", fake_preflight)
+    monkeypatch.setattr("solhunter_zero.preflight.run_preflight", fake_preflight)
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("dex_base_url = 'https://dex.example'\n")
+    monkeypatch.setattr(
+        "solhunter_zero.config_bootstrap.ensure_config", lambda: cfg_file
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.config_schema.validate_config", lambda cfg: cfg
+    )
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -701,28 +709,40 @@ def test_main_preflight_success(monkeypatch):
         ),
     )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.subprocess,
+        "run",
+        lambda *a, **k: types.SimpleNamespace(returncode=0),
+    )
 
-    with pytest.raises(SystemExit) as exc:
-        startup.main([
-            "--one-click",
-            "--skip-setup",
-            "--skip-deps",
-        ])
+    ret = startup.main([
+        "--one-click",
+        "--skip-setup",
+        "--skip-deps",
+    ])
 
     assert called.get("preflight") is True
-    assert exc.value.code == 0
+    assert ret == 0
 
 
-def test_main_preflight_failure(monkeypatch, capsys):
+def test_main_preflight_failure(monkeypatch, capsys, tmp_path):
     from scripts import startup
     from pathlib import Path
 
     def fake_preflight():
         print("out")
         print("err", file=sys.stderr)
-        raise SystemExit(2)
+        return [("fail", False, "bad")]
 
-    monkeypatch.setattr("scripts.preflight.main", fake_preflight)
+    monkeypatch.setattr("solhunter_zero.preflight.run_preflight", fake_preflight)
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("dex_base_url = 'https://dex.example'\n")
+    monkeypatch.setattr(
+        "solhunter_zero.config_bootstrap.ensure_config", lambda: cfg_file
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.config_schema.validate_config", lambda cfg: cfg
+    )
 
     import types
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
@@ -752,14 +772,13 @@ def test_main_preflight_failure(monkeypatch, capsys):
         "--skip-setup",
     ])
 
-    assert ret == 2
+    assert ret == 1
     captured = capsys.readouterr()
     assert "out" in captured.out
     assert "err" in captured.err
     assert log_file.exists()
     log_contents = log_file.read_text()
-    assert "out" in log_contents
-    assert "err" in log_contents
+    assert "fail: FAIL - bad" in log_contents
 
 
 def test_preflight_log_rotation(tmp_path):

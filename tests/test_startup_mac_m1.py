@@ -6,7 +6,7 @@ import sys
 from scripts import startup
 
 
-def test_startup_mac_m1(monkeypatch):
+def test_startup_mac_m1(monkeypatch, tmp_path):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
 
@@ -44,6 +44,14 @@ def test_startup_mac_m1(monkeypatch):
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", dummy_config)
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("dex_base_url = 'https://dex.example'\n")
+    monkeypatch.setattr(
+        "solhunter_zero.config_bootstrap.ensure_config", lambda: cfg_file
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.config_schema.validate_config", lambda cfg: cfg
+    )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
@@ -60,7 +68,10 @@ def test_startup_mac_m1(monkeypatch):
     monkeypatch.setattr(wallet, "get_active_keypair_name", lambda: "default")
     monkeypatch.setattr(wallet, "list_keypairs", lambda: ["default"])
 
-    monkeypatch.setattr("scripts.preflight.main", lambda: None)
+    monkeypatch.setattr(
+        "solhunter_zero.preflight.summary",
+        lambda: {"preflight": [], "gpu": {"ok": True, "message": ""}, "network": {"ok": True, "message": ""}},
+    )
     monkeypatch.setattr(startup.subprocess, "run", lambda cmd: types.SimpleNamespace(returncode=0))
 
     code = startup.run(["--one-click", "--self-test"])

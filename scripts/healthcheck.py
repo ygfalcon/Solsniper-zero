@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Runtime health check wrapper around :mod:`scripts.preflight`.
+"""Runtime health check wrapper around :mod:`solhunter_zero.preflight`.
 
-This utility reuses the individual checks from :mod:`scripts.preflight` but
-formats the output as a concise pass/fail table.  It exits with a non-zero
-status if any *critical* check fails.  ``main`` accepts an optional iterable of
-checks allowing callers to run a filtered subset of the default checks.
+This utility reuses the individual checks from :mod:`solhunter_zero.preflight`
+but formats the output as a concise pass/fail table.  It exits with a
+non-zero status if any *critical* check fails.  ``main`` accepts an optional
+iterable of checks allowing callers to run a filtered subset of the default
+checks.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from scripts import preflight
+from solhunter_zero import preflight
 
 CheckFunc = Tuple[str, Callable[[], preflight.Check]]
 
@@ -50,7 +51,7 @@ def main(
     ----------
     checks:
         Iterable of ``(name, callable)`` pairs.  When ``None`` the default
-        checks from :mod:`scripts.preflight` are used.
+        checks from :mod:`solhunter_zero.preflight` are used.
     critical:
         Iterable of check names considered critical.  When ``None`` all provided
         checks are treated as critical.

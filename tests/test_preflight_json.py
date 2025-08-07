@@ -1,6 +1,6 @@
 import json
 import pytest
-from scripts import preflight
+from solhunter_zero import preflight
 
 
 def test_preflight_writes_json(tmp_path, monkeypatch):
