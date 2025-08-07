@@ -3,6 +3,7 @@ import asyncio
 import os
 import contextlib
 import logging
+import pkgutil
 from typing import Iterable, Any, List, Dict
 
 
@@ -149,4 +150,23 @@ class StrategyManager:
                 m["price"] = (m["price"] * old_amt + price * amt) / (old_amt + amt)
             m["amount"] += amt
         return list(merged.values())
+
+
+def discover_strategy_modules() -> List[str]:
+    """Return all non-private strategy modules in ``solhunter_zero.agents``.
+
+    The function scans the :mod:`solhunter_zero.agents` package for modules
+    that do not start with an underscore and returns their fully-qualified
+    import paths.  Packages are ignored so only direct strategy modules are
+    included.
+    """
+
+    import solhunter_zero.agents as agents_pkg
+
+    modules = [
+        f"{agents_pkg.__name__}.{name}"
+        for _, name, ispkg in pkgutil.iter_modules(agents_pkg.__path__)
+        if not ispkg and not name.startswith("_")
+    ]
+    return modules
 
