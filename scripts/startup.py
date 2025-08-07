@@ -25,6 +25,7 @@ sys.path[0] = str(ROOT)
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
+from solhunter_zero import preflight_utils  # noqa: E402
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
     ensure_venv,
@@ -230,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     # Run early environment checks before any heavy work
     print("Checking disk space...")
     try:
-        preflight.check_disk_space(1 << 30)
+        preflight_utils.check_disk_space(1 << 30)
     except SystemExit:
         log_startup("Disk space check failed")
         raise
@@ -242,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("Checking internet connectivity...")
         try:
-            preflight.check_internet()
+            preflight_utils.check_internet()
         except SystemExit:
             log_startup("Internet connectivity check failed")
             raise
@@ -310,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
         from solhunter_zero.bootstrap import bootstrap
         import re
 
-        preflight.check_disk_space(1 << 30)
+        preflight_utils.check_disk_space(1 << 30)
         b_code = 0
         try:
             bootstrap(one_click=True)
