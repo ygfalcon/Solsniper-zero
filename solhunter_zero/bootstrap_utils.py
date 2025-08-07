@@ -125,29 +125,42 @@ def _pip_install(*args: str, retries: int = 3) -> None:
             text=True,
         )
         log_startup(f"{' '.join(cmd)} (attempt {attempt}/{retries})")
-        if result.stdout:
-            log_startup(result.stdout.rstrip())
-        if result.stderr:
-            log_startup(result.stderr.rstrip())
         if result.returncode == 0:
+            if result.stdout:
+                log_startup(result.stdout.rstrip())
             log_startup(
                 f"pip install {' '.join(args)} succeeded on attempt {attempt}"
             )
             return
+
+        if result.stdout:
+            log_startup(result.stdout.rstrip())
+        if result.stderr:
+            log_startup(result.stderr.rstrip())
         errors.append(result.stderr.strip() or result.stdout.strip())
+
         if attempt < retries:
             wait = 2 ** (attempt - 1)
-            print(
-                f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
+            msg = (
+                f"pip install {' '.join(args)} failed (attempt {attempt}/{retries})."
+                f" Retrying in {wait} seconds..."
             )
+            print(msg)
+            log_startup(msg)
             time.sleep(wait)
-    msg = f"Failed to install {' '.join(args)} after {retries} attempts:"
+
+    msg = f"Failed to install {' '.join(args)} after {retries} attempts."
     print(msg)
     log_startup(msg)
+    summary = (
+        "Please install the requirements manually. "
+        "See QUICK_START.md for manual installation instructions."
+    )
+    print(summary)
+    log_startup(summary)
     for err in errors:
         if err:
             log_startup(err)
-            print(err)
     raise SystemExit(result.returncode)
 
 
@@ -503,5 +516,3 @@ def ensure_cargo() -> None:
                 f"Install {'them' if len(missing) > 1 else 'it'} (e.g., with Homebrew: 'brew install {brew}') and re-run this script.",
             )
             raise SystemExit(1)
-
-
