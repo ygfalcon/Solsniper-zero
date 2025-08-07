@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import tomllib
+import json as _json
 
 __all__ = ["ensure_config"]
 
@@ -75,12 +76,39 @@ def ensure_config(cfg_path: str | Path | None = None) -> tuple[Path, dict]:
     else:
         cfg = {}
 
+    # Some legacy configuration files nest the actual settings under a top
+    # level "torch" table.  To remain compatible we flatten that structure
+    # by merging the nested values back into the root dictionary.  Any other
+    # top-level tables (e.g. ``agent_weights``) are preserved.
+    if isinstance(cfg.get("torch"), dict):
+        base = cfg["torch"].copy()
+        for key, value in cfg.items():
+            if key != "torch":
+                base[key] = value
+        cfg = base
+
     cfg = apply_env_overrides(cfg)
     try:
         cfg = validate_config(cfg)
+        cfg = _json.loads(_json.dumps(cfg))
     except ValueError as exc:  # pragma: no cover - config validation
         print(f"Invalid configuration: {exc}")
-        raise SystemExit(1)
+        if not created and _copy_template(cfg_file):
+            # If a malformed config exists, fall back to the bundled default
+            # template to allow tools like ``preflight`` to proceed.
+            with cfg_file.open("rb") as fh:
+                cfg = tomllib.load(fh)
+            cfg = apply_env_overrides(cfg)
+            try:
+                cfg = validate_config(cfg)
+                cfg = _json.loads(_json.dumps(cfg))
+            except ValueError as exc2:  # still invalid
+                print(f"Invalid configuration: {exc2}")
+                raise SystemExit(1) from exc2
+            else:
+                print(f"Default configuration written to {cfg_file}")
+        else:
+            raise SystemExit(1) from exc
 
     with cfg_file.open("wb") as fh:
         fh.write(tomli_w.dumps(cfg).encode("utf-8"))

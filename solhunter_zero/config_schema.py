@@ -63,8 +63,13 @@ def validate_config(data: Dict[str, object]) -> Dict[str, object]:
     """
     try:
         model = ConfigModel(**data)
-        if hasattr(model, "model_dump"):
-            return model.model_dump()
+        if hasattr(model, "model_dump_json"):
+            # ``model_dump_json`` guarantees that all values are converted to
+            # standard JSON serialisable types (e.g. ``AnyUrl`` -> ``str``),
+            # which allows the configuration to be written back to TOML.
+            import json as _json
+
+            return _json.loads(model.model_dump_json())
         return model.dict()  # type: ignore[return-value]
     except ValidationError as exc:  # pragma: no cover - pass through as ValueError
         raise ValueError(str(exc)) from exc
