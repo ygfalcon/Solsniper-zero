@@ -1,4 +1,7 @@
 import os
+import logging
+import types
+import sys
 
 os.environ.setdefault("SOLANA_RPC_URL", "http://localhost")
 os.environ.setdefault("DEX_BASE_URL", "http://localhost")
@@ -10,6 +13,25 @@ with open(_cfg_path, "w", encoding="utf-8") as _f:
     _f.write("agents=['dummy']\n")
     _f.write("agent_weights={dummy=1.0}\n")
 os.environ["SOLHUNTER_CONFIG"] = _cfg_path
+
+try:
+    import pydantic  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=type(
+            "DummyBaseModel",
+            (),
+            {
+                "__init__": lambda self, **data: self.__dict__.update(data),
+                "dict": lambda self, *a, **k: self.__dict__,
+            },
+        ),
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+    )
+    sys.modules["pydantic"] = dummy_pydantic
 
 import pytest
 pytest.importorskip("torch.nn.utils.rnn")
@@ -913,4 +935,45 @@ def test_agent_manager_evolves(monkeypatch, tmp_path):
     )
 
     assert len(calls) == 2
+
+
+def _make_failing_stream():
+    async def _gen():
+        raise asyncio.TimeoutError()
+        yield  # pragma: no cover
+
+    return _gen()
+
+
+def test_ensure_connectivity_warns_on_ws_failure(monkeypatch, caplog):
+    monkeypatch.setenv("DEX_LISTING_WS_URL", "ws://dex")
+
+    import scripts.startup as startup
+
+    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+
+    import solhunter_zero.dex_ws as dex_ws
+
+    monkeypatch.setattr(dex_ws, "stream_listed_tokens", lambda *_a, **_k: _make_failing_stream())
+
+    caplog.set_level(logging.WARNING)
+    main_module.ensure_connectivity()
+
+    assert "DEX listing websocket" in caplog.text
+
+
+def test_ensure_connectivity_raises_on_ws_failure(monkeypatch):
+    monkeypatch.setenv("DEX_LISTING_WS_URL", "ws://dex")
+    monkeypatch.setenv("RAISE_ON_WS_FAIL", "1")
+
+    import scripts.startup as startup
+
+    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+
+    import solhunter_zero.dex_ws as dex_ws
+
+    monkeypatch.setattr(dex_ws, "stream_listed_tokens", lambda *_a, **_k: _make_failing_stream())
+
+    with pytest.raises(RuntimeError):
+        main_module.ensure_connectivity()
 

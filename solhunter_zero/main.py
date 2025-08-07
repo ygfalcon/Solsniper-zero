@@ -164,12 +164,21 @@ def ensure_connectivity(*, offline: bool = False) -> None:
     if not url:
         return
 
+    raise_on_ws_fail = os.getenv("RAISE_ON_WS_FAIL", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
     async def _check_ws() -> None:
         gen = stream_listed_tokens(url)
         try:
             await asyncio.wait_for(gen.__anext__(), timeout=1)
         except asyncio.TimeoutError:
-            pass
+            msg = "No data received from DEX listing websocket"
+            logging.getLogger(__name__).warning(msg)
+            if raise_on_ws_fail:
+                raise RuntimeError(msg)
         finally:
             with contextlib.suppress(Exception):
                 await gen.aclose()
