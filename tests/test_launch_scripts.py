@@ -1,6 +1,9 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,3 +35,32 @@ def test_start_py_invokes_launcher(tmp_path):
     subprocess.run([sys.executable, str(tmp_start), "EXTRA"], check=True)
 
     assert called.read_text().split() == ["EXTRA"]
+
+
+@pytest.mark.timeout(60)
+def test_demo_script_generates_reports(tmp_path: Path) -> None:
+    """demo.py runs end-to-end and produces report artifacts."""
+    snippet = (
+        "import runpy, sys, pathlib;"
+        f"repo=pathlib.Path(r'{REPO_ROOT}');"
+        "sys.path.insert(0, str(repo));"
+        "import tests.stubs as s; s.stub_torch();"
+        "path=repo / 'demo.py';"
+        "sys.argv=[str(path)];"
+        "runpy.run_path(str(path), run_name='__main__')"
+    )
+
+    subprocess.run([sys.executable, "-c", snippet], cwd=tmp_path, check=True)
+
+    reports = tmp_path / "reports"
+    highlights = json.loads((reports / "highlights.json").read_text())
+    for key in [
+        "arbitrage_path",
+        "flash_loan_signature",
+        "sniper_tokens",
+        "dex_new_pools",
+    ]:
+        assert key in highlights
+
+    summary = json.loads((reports / "summary.json").read_text())
+    assert summary
