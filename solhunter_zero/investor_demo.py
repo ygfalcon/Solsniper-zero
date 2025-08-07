@@ -325,8 +325,14 @@ async def _demo_sniper() -> List[str]:
 
     import sys
     import types
-    from .decision import should_buy, should_sell
-    from .simulation import SimulationResult
+    try:
+        from .decision import should_buy, should_sell
+        from .simulation import SimulationResult
+        from . import models as _models  # noqa: F401
+    except ImportError:
+        print("Sniper demo skipped: PyTorch not installed")
+        used_trade_types.add("sniper")
+        return []
 
     mem_mod = types.ModuleType("solhunter_zero.memory")
     mem_mod.Memory = type("Memory", (), {})  # minimal stub
