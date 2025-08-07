@@ -443,7 +443,9 @@ def main(argv: list[str] | None = None) -> int:
             print("Use '--allow-rosetta' to continue anyway.")
             return 1
 
-    if not args.skip_preflight:
+    if args.skip_preflight:
+        os.environ["SOLHUNTER_SKIP_PREFLIGHT"] = "1"
+    else:
         results = preflight.run_preflight()
         failures: list[tuple[str, str]] = []
         for name, ok, msg in results:
@@ -468,6 +470,9 @@ def main(argv: list[str] | None = None) -> int:
     # already been handled above, so instruct it to skip them to avoid duplicate
     # work and simplify testing.
     os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
+    if args.no_diagnostics:
+        os.environ["SOLHUNTER_NO_DIAGNOSTICS"] = "1"
+
     try:
         bootstrap(one_click=args.one_click)
     finally:
@@ -504,19 +509,7 @@ def main(argv: list[str] | None = None) -> int:
         print(msg)
         log_startup(msg)
 
-    if not args.no_diagnostics:
-        from scripts import diagnostics
-
-        info = diagnostics.collect()
-        summary = ", ".join(f"{k}={v}" for k, v in info.items())
-        print(f"Diagnostics summary: {summary}")
-        out_path = Path("diagnostics.json")
-        try:
-            out_path.write_text(json.dumps(info, indent=2))
-        except Exception:
-            pass
-        else:
-            print(f"Full diagnostics written to {out_path}")
+    # Diagnostics are handled by :func:`solhunter_zero.bootstrap.bootstrap`.
 
     # Run a post-execution health check and append the results to startup.log.
     from scripts import healthcheck

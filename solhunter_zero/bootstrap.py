@@ -14,6 +14,7 @@ from . import wallet
 from . import env
 
 import solhunter_zero.device as device
+from .diagnostics import write_diagnostics
 
 
 def ensure_route_ffi() -> None:
@@ -104,9 +105,21 @@ def bootstrap(one_click: bool = False) -> None:
             install_optional=os.getenv("SOLHUNTER_INSTALL_OPTIONAL") == "1"
         )
 
+    config_path: Path | None = None
+    keypair_path: Path | None = None
+
     if os.getenv("SOLHUNTER_SKIP_SETUP") != "1":
-        ensure_config()
-        ensure_keypair()
+        config_path = ensure_config()
+        _info, keypair_path = ensure_keypair()
 
     wallet.ensure_default_keypair()
     ensure_cargo()
+
+    status = {
+        "gpu_backend": device.get_gpu_backend(),
+        "config_path": config_path,
+        "keypair_path": keypair_path,
+    }
+
+    if os.getenv("SOLHUNTER_NO_DIAGNOSTICS") != "1":
+        write_diagnostics(status)
