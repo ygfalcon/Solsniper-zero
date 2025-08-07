@@ -97,6 +97,19 @@ def test_generate_default_keypair(tmp_path, monkeypatch):
     assert os.environ["MNEMONIC"] == mnemonic
 
 
+def test_generate_default_keypair_encrypted(tmp_path, monkeypatch):
+    setup_wallet(tmp_path, monkeypatch)
+    monkeypatch.setenv("ENCRYPT_MNEMONIC", "1")
+    monkeypatch.setenv("MNEMONIC_ENCRYPTION_KEY", "pw")
+    mnemonic, mnemonic_path = wallet.generate_default_keypair()
+    stored = mnemonic_path.read_text().strip()
+    assert stored != mnemonic
+    assert (
+        wallet._decrypt_mnemonic(stored, "pw") == mnemonic
+    )
+    assert (mnemonic_path.stat().st_mode & 0o777) == 0o600
+
+
 def test_setup_default_keypair(tmp_path, monkeypatch):
     setup_wallet(tmp_path, monkeypatch)
 

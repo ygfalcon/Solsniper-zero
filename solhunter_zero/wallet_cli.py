@@ -27,6 +27,15 @@ def main(argv: list[str] | None = None) -> int:
     select_p = subparsers.add_parser("select", help="Select active keypair")
     select_p.add_argument("name")
 
+    init_p = subparsers.add_parser(
+        "generate-default", help="Generate default keypair"
+    )
+    init_p.add_argument(
+        "--encrypt-mnemonic",
+        action="store_true",
+        help="Encrypt stored mnemonic using MNEMONIC_ENCRYPTION_KEY",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "list":
@@ -40,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
         wallet.save_keypair(args.name, list(kp.to_bytes()))
     elif args.command == "select":
         wallet.select_keypair(args.name)
+    elif args.command == "generate-default":
+        wallet.generate_default_keypair(encrypt=args.encrypt_mnemonic)
 
     return 0
 

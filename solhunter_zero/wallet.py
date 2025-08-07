@@ -7,6 +7,8 @@ from pathlib import Path
 import aiofiles
 from solders.keypair import Keypair
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
+import base64
+import hashlib
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
@@ -168,14 +170,34 @@ def load_keypair_from_mnemonic(mnemonic: str, passphrase: str = "") -> Keypair:
     return Keypair.from_seed(secret)
 
 
-def generate_default_keypair() -> tuple[str, Path]:
+def _xor_cipher(data: bytes, key: bytes) -> bytes:
+    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+
+
+def _encrypt_mnemonic(text: str, password: str) -> str:
+    key = hashlib.sha256(password.encode()).digest()
+    enc = _xor_cipher(text.encode("utf-8"), key)
+    return base64.b64encode(enc).decode("utf-8")
+
+
+def _decrypt_mnemonic(token: str, password: str) -> str:
+    key = hashlib.sha256(password.encode()).digest()
+    data = base64.b64decode(token.encode("utf-8"))
+    dec = _xor_cipher(data, key)
+    return dec.decode("utf-8")
+
+
+def generate_default_keypair(*, encrypt: bool | None = None) -> tuple[str, Path]:
     """Generate and persist a default keypair derived from a mnemonic.
 
     The mnemonic is either taken from the ``MNEMONIC`` environment variable or
     a new 24-word phrase is generated.  The derived keypair is saved as
     ``default.json`` within :data:`KEYPAIR_DIR` and selected as the active
     keypair.  The mnemonic is written to ``default.mnemonic`` with permissions
-    ``600`` so only the current user can read it.
+    ``600`` so only the current user can read it. When ``encrypt`` is enabled
+    the mnemonic is stored in an encrypted form using
+    ``MNEMONIC_ENCRYPTION_KEY`` as the passphrase or ``ENCRYPT_MNEMONIC``
+    environment variable.
 
     Returns
     -------
@@ -201,11 +223,22 @@ def generate_default_keypair() -> tuple[str, Path]:
     select_keypair("default")
     os.environ.setdefault("MNEMONIC", mnemonic)
 
+    if encrypt is None:
+        encrypt = os.getenv("ENCRYPT_MNEMONIC") == "1"
+    enc_pass = os.getenv("MNEMONIC_ENCRYPTION_KEY", "")
+
     mnemonic_path = Path(KEYPAIR_DIR) / "default.mnemonic"
     mnemonic_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(mnemonic_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(mnemonic + "\n")
+        if encrypt:
+            if not enc_pass:
+                raise ValueError(
+                    "MNEMONIC_ENCRYPTION_KEY must be set when ENCRYPT_MNEMONIC=1"
+                )
+            f.write(_encrypt_mnemonic(mnemonic, enc_pass) + "\n")
+        else:
+            f.write(mnemonic + "\n")
 
     return mnemonic, mnemonic_path
 
