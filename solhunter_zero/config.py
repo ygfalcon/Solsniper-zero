@@ -91,6 +91,7 @@ ENV_VARS = {
     "event_mmap_batch_size": "EVENT_MMAP_BATCH_SIZE",
     "order_book_ws_url": "ORDER_BOOK_WS_URL",
     "depth_service": "DEPTH_SERVICE",
+    "depth_max_restarts": "DEPTH_MAX_RESTARTS",
     "use_depth_stream": "USE_DEPTH_STREAM",
     "use_depth_feed": "USE_DEPTH_FEED",
     "use_rust_exec": "USE_RUST_EXEC",

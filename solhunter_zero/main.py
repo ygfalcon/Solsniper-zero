@@ -120,21 +120,39 @@ def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
     return proc
 
 
-async def _depth_service_watchdog(cfg: dict, proc_ref: list[subprocess.Popen | None]) -> None:
-    """Monitor the depth_service process and attempt a single restart."""
+async def _depth_service_watchdog(
+    cfg: dict, proc_ref: list[subprocess.Popen | None]
+) -> None:
+    """Monitor the depth_service process and attempt limited restarts."""
+
     proc = proc_ref[0]
     if not proc:
         return
-    restarted = False
+
+    max_restarts = int(
+        os.getenv("DEPTH_MAX_RESTARTS") or cfg.get("depth_max_restarts", 1)
+    )
+    restart_count = 0
+
     try:
         while True:
             await asyncio.sleep(1.0)
             if proc.poll() is None:
                 continue
-            if restarted:
-                logging.error("depth_service exited after restart; aborting")
+            if restart_count >= max_restarts:
+                logging.error(
+                    "depth_service exited after %d restarts; aborting",
+                    restart_count,
+                )
                 raise RuntimeError("depth_service terminated")
-            logging.warning("depth_service exited; attempting restart")
+
+            restart_count += 1
+            logging.warning(
+                "depth_service exited; attempting restart (%d/%d)",
+                restart_count,
+                max_restarts,
+            )
+
             try:
                 proc = await asyncio.to_thread(_start_depth_service, cfg)
             except Exception as exc:
@@ -143,8 +161,7 @@ async def _depth_service_watchdog(cfg: dict, proc_ref: list[subprocess.Popen | N
             if not proc:
                 logging.error("depth_service restart returned None; aborting")
                 raise RuntimeError("depth_service restart failed")
-        proc_ref[0] = proc
-        restarted = True
+            proc_ref[0] = proc
     except asyncio.CancelledError:
         pass
 
