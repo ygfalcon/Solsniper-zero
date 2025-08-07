@@ -16,7 +16,9 @@ RUN pip install --no-cache-dir .
 # Build Rust crates
 RUN cargo build --manifest-path route_ffi/Cargo.toml --release --features=parallel \
     && cp route_ffi/target/release/libroute_ffi.so solhunter_zero/ \
-    && cargo build --manifest-path depth_service/Cargo.toml --release
+    && cargo build --manifest-path depth_service/Cargo.toml --release \
+    && mkdir -p target/release \
+    && cp depth_service/target/release/depth_service target/release/depth_service
 
 # Use the Python entry point directly
 ENTRYPOINT ["python", "start.py"]
