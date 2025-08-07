@@ -204,3 +204,18 @@ def test_run_preflight(monkeypatch, tmp_path):
     result = diagnostics.run_preflight()
     assert result["successes"] == [{"name": "ok", "message": "ok"}]
     assert result["failures"] == [{"name": "fail", "message": "bad"}]
+
+
+def test_write_diagnostics_tuple_warning(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(core_diagnostics, "ROOT", tmp_path)
+    monkeypatch.setattr(core_diagnostics, "log_startup", lambda msg: None)
+    status = {"preflight_warnings": [("foo", True, "bar"), ("baz", "qux")]}
+    core_diagnostics.write_diagnostics(status)
+    import json
+
+    data = json.loads((tmp_path / "diagnostics.json").read_text())
+    assert data["preflight_warnings"] == [
+        {"name": "foo", "message": "bar"},
+        {"name": "baz", "message": "qux"},
+    ]

@@ -89,7 +89,7 @@ def write_diagnostics(status: dict) -> None:
             msg = str(item.get("message", ""))
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
             name = str(item[0])
-            msg = str(item[1] if len(item) > 2 else item[1])
+            msg = str(item[2] if len(item) > 2 else item[1])
         else:
             name = ""
             msg = str(item)
