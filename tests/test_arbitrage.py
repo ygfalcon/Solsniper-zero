@@ -1,5 +1,9 @@
 import asyncio
 import time
+import contextlib
+import gc
+import warnings
+
 import pytest
 pytest.importorskip("solders")
 from solders.keypair import Keypair
@@ -575,3 +579,26 @@ def test_latency_measurement_parallel(monkeypatch):
     multi = time.perf_counter() - start
 
     assert multi <= single * 1.5
+
+
+@pytest.mark.asyncio
+async def test_latency_refresh_loop_start_stop_no_warning(monkeypatch):
+    if arb._LATENCY_TASK is not None:
+        arb.stop_latency_refresh()
+
+    async def fake_measure(urls, dynamic_concurrency=True):
+        await asyncio.sleep(0)
+        return {}
+
+    monkeypatch.setattr(arb, "measure_dex_latency_async", fake_measure)
+    monkeypatch.setattr(arb, "publish", lambda *a, **kw: None)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        task = arb.start_latency_refresh(interval=0.01)
+        await asyncio.sleep(0.02)
+        arb.stop_latency_refresh()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        gc.collect()
+        assert task.cancelled() or task.done()
