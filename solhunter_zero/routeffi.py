@@ -4,6 +4,7 @@ import ctypes
 import struct
 import logging
 import time
+import platform
 
 from .system import set_rayon_threads
 
@@ -16,7 +17,10 @@ LIB = None
 
 _libname = os.environ.get("ROUTE_FFI_LIB")
 if _libname is None:
-    _libname = os.path.join(os.path.dirname(__file__), "libroute_ffi.so")
+    libfile = (
+        "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    )
+    _libname = os.path.join(os.path.dirname(__file__), libfile)
 if os.path.exists(_libname):
     try:
         LIB = ctypes.CDLL(_libname)
