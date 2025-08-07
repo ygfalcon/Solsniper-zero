@@ -256,6 +256,31 @@ def ensure_endpoints(cfg: dict) -> None:
         raise SystemExit(1)
 
 
+def check_disk_space(min_bytes: int) -> None:
+    """Ensure there is at least ``min_bytes`` free on the current filesystem.
+
+    The check uses the repository root path to determine available free space.
+    If the requirement is not met, an instructive message is printed and the
+    process exits.
+    """
+
+    try:
+        _, _, free = shutil.disk_usage(ROOT)
+    except OSError as exc:  # pragma: no cover - unexpected failure
+        print(f"Unable to determine free disk space: {exc}")
+        raise SystemExit(1)
+
+    if free < min_bytes:
+        required_gb = min_bytes / (1024 ** 3)
+        free_gb = free / (1024 ** 3)
+        print(
+            f"Insufficient disk space: {free_gb:.2f} GB available,"
+            f" {required_gb:.2f} GB required."
+        )
+        print("Please free up disk space and try again.")
+        raise SystemExit(1)
+
+
 def check_internet(url: str = "https://example.com") -> None:
     """Ensure basic internet connectivity by reaching a known host.
 
@@ -502,6 +527,7 @@ def main(argv: list[str] | None = None) -> int:
         from scripts import preflight
         import re
 
+        check_disk_space(1 << 30)
         b_code = 0
         try:
             bootstrap(one_click=True)
@@ -592,6 +618,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_rpc(warn_only=args.one_click)
         rpc_status = "reachable"
 
+    check_disk_space(1 << 30)
     from solhunter_zero.bootstrap import bootstrap
 
     bootstrap(one_click=args.one_click)
