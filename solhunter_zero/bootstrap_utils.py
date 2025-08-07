@@ -15,6 +15,7 @@ from scripts import deps
 from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
+from .python_env import find_python
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -24,6 +25,7 @@ def ensure_venv(argv: list[str] | None) -> None:
     if argv is not None:
         return
 
+    py311 = find_python(reexec=True)
     venv_dir = ROOT / ".venv"
     python = (
         venv_dir
@@ -39,7 +41,7 @@ def ensure_venv(argv: list[str] | None) -> None:
     if not venv_dir.exists():
         print("Creating virtual environment in .venv...")
         try:
-            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+            subprocess.check_call([py311, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
             print(f"Failed to create .venv: {exc}")
             raise SystemExit(1)
@@ -65,20 +67,13 @@ def ensure_venv(argv: list[str] | None) -> None:
 
     machine, version = _inspect(python)
 
-    if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
-        brew_python = shutil.which("python3.11")
-        if not brew_python:
-            print(
-                "python3.11 from Homebrew not found. "
-                "Install it with 'brew install python@3.11'."
-            )
-            raise SystemExit(1)
-        print("Recreating .venv using Homebrew python3.11...")
+    if (platform.system() == "Darwin" and machine != "arm64") or version < (3, 11):
+        print("Recreating .venv using Python 3.11 interpreter...")
         shutil.rmtree(venv_dir, ignore_errors=True)
         try:
-            subprocess.check_call([brew_python, "-m", "venv", str(venv_dir)])
+            subprocess.check_call([py311, "-m", "venv", str(venv_dir)])
         except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv with Homebrew python3.11: {exc}")
+            print(f"Failed to create .venv with Python 3.11: {exc}")
             raise SystemExit(1)
         python = (
             venv_dir
@@ -86,20 +81,6 @@ def ensure_venv(argv: list[str] | None) -> None:
             / ("python.exe" if os.name == "nt" else "python")
         )
         machine, version = _inspect(python)
-
-    if version < (3, 11):
-        print("Recreating .venv using current interpreter...")
-        shutil.rmtree(venv_dir, ignore_errors=True)
-        try:
-            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
-        except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv with current interpreter: {exc}")
-            raise SystemExit(1)
-        python = (
-            venv_dir
-            / ("Scripts" if os.name == "nt" else "bin")
-            / ("python.exe" if os.name == "nt" else "python")
-        )
 
     if Path(sys.prefix) != venv_dir:
         try:
@@ -110,8 +91,6 @@ def ensure_venv(argv: list[str] | None) -> None:
             logging.exception(msg)
             log_startup(msg)
             raise
-
-
 def _pip_install(*args: str, retries: int = 3) -> None:
     """Run ``pip install`` with retries and exponential backoff."""
     errors: list[str] = []
