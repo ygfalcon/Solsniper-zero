@@ -7,7 +7,7 @@ from itertools import product
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from solhunter_zero.device import get_default_device
+import solhunter_zero.device as device
 
 from solhunter_zero.offline_data import OfflineData
 from solhunter_zero import models
@@ -163,7 +163,7 @@ async def main() -> None:
     p.add_argument("--search", action="store_true", help="perform simple hyperparameter search")
     args = p.parse_args()
 
-    device = get_default_device(args.device)
+    dev = device.get_default_device(args.device)
 
     if args.log_progress:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -171,7 +171,7 @@ async def main() -> None:
     await train_loop(
         args.db,
         Path(args.model),
-        device,
+        dev,
         args.seq_len,
         args.batch_size,
         args.interval,

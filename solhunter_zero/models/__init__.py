@@ -4,6 +4,8 @@ import os
 from typing import Iterable, Sequence, Tuple, Any
 from pathlib import Path
 
+import solhunter_zero.device as device_module
+
 try:
     import torch
     import torch.nn as nn
@@ -310,10 +312,12 @@ def export_onnx(model: nn.Module, path: str, example_input: torch.Tensor) -> str
     return out
 
 
-def load_compiled_model(path: str, device: str | torch.device | None = None) -> nn.Module | None:
+def load_compiled_model(
+    path: str, device: str | torch.device | None = device_module.get_default_device()
+) -> nn.Module | None:
     """Load compiled TorchScript or ONNX model next to ``path`` if available."""
 
-    dev = torch.device(device or "cpu")
+    dev = device_module.get_default_device(device)
     base = Path(path)
     script_path = base.with_suffix(".ptc")
     if script_path.exists():

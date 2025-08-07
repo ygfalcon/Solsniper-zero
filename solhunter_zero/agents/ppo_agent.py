@@ -5,6 +5,8 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List
 
+import solhunter_zero.device as device_module
+
 try:
     import torch
     from torch import nn, optim
@@ -65,7 +67,7 @@ class PPOAgent(BaseAgent):
         model_path: str | Path = "ppo_model.pt",
         replay_url: str = "sqlite:///replay.db",
         price_model_path: str | None = None,
-        device: str = "cpu",
+        device: str | torch.device | None = device_module.get_default_device(),
     ) -> None:
         self.memory_agent = memory_agent or MemoryAgent()
         self.offline_data = OfflineData(data_url)
@@ -76,7 +78,7 @@ class PPOAgent(BaseAgent):
         self.replay = ReplayBuffer(replay_url)
         self.regime_weight = float(regime_weight)
         self.price_model_path = price_model_path or os.getenv("PRICE_MODEL_PATH")
-        self.device = torch.device(device)
+        self.device = device_module.get_default_device(device)
         self._last_mtime = 0.0
         self._seen_ids: set[int] = set()
         self._last_id: int = 0

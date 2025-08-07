@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from solhunter_zero.offline_data import OfflineData
 from solhunter_zero.rl_daemon import _PPO, _TradeDataset, _metrics
-from solhunter_zero.device import get_default_device
+import solhunter_zero.device as device
 
 
 def _train(model: _PPO, data: _TradeDataset, device: torch.device, lr: float) -> None:
@@ -92,12 +92,12 @@ def main() -> None:
     p.add_argument("--device", default="auto")
     args = p.parse_args()
 
-    device = get_default_device(args.device)
+    dev = device.get_default_device(args.device)
 
     model_path = Path(args.model)
     while True:
         try:
-            tune(args.db, model_path, device)
+            tune(args.db, model_path, dev)
         except Exception as exc:  # pragma: no cover - logging
             print(f"tuning failed: {exc}")
         time.sleep(args.interval)
