@@ -75,7 +75,7 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
-    monkeypatch.setattr(startup, "check_internet", lambda: None)
+    monkeypatch.setattr(startup, "check_internet", lambda: [])
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
 

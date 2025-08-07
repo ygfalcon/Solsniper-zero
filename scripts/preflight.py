@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Sequence
 from urllib import error
 import json
 
@@ -144,6 +144,78 @@ def check_required_env(keys: List[str] | None = None) -> Check:
             "Set them and retry"
         )
     return True, "Required environment variables set"
+
+
+def check_internet(hosts: Sequence[str] | None = None) -> list[dict[str, str]]:
+    """Verify basic internet connectivity by trying multiple hosts.
+
+    Parameters
+    ----------
+    hosts:
+        Optional sequence of URLs to test. Defaults to
+        ``["https://example.com", "https://github.com", "https://pytorch.org"]``.
+
+    Returns
+    -------
+    list[dict[str, str]]
+        An empty list if any host is reachable. Otherwise, a list of
+        dictionaries describing failures with ``host``, ``reason`` and
+        ``error`` keys. Reasons are categorized as ``dns``, ``timeout``,
+        ``ssl`` or ``network``.
+    """
+
+    import socket
+    import ssl
+    import time
+    import urllib.error
+    import urllib.request
+
+    hosts = hosts or [
+        "https://example.com",
+        "https://github.com",
+        "https://pytorch.org",
+    ]
+
+    failures: list[dict[str, str]] = []
+    for host in hosts:
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(host, timeout=5) as resp:  # nosec B310
+                    resp.read()
+                    return []
+            except Exception as exc:  # pragma: no cover - network failure
+                if isinstance(exc, urllib.error.URLError):
+                    if isinstance(exc.reason, socket.gaierror):
+                        reason = "dns"
+                    elif isinstance(exc.reason, socket.timeout):
+                        reason = "timeout"
+                    else:
+                        reason = "network"
+                elif isinstance(exc, socket.timeout):
+                    reason = "timeout"
+                elif isinstance(exc, ssl.SSLError):
+                    reason = "ssl"
+                else:
+                    reason = exc.__class__.__name__
+                if attempt == 2:
+                    failures.append(
+                        {"host": host, "reason": reason, "error": str(exc)}
+                    )
+                else:
+                    wait = 2 ** attempt
+                    print(
+                        f"Attempt {attempt + 1} failed to reach {host}: {reason} ({exc}). "
+                        f"Retrying in {wait} seconds..."
+                    )
+                    time.sleep(wait)
+        # continue to next host after three failed attempts
+    if failures:
+        print("Failed to reach any test hosts. Detailed errors:")
+        for failure in failures:
+            print(
+                f" - {failure['host']}: {failure['reason']} ({failure['error']})"
+            )
+    return failures
 
 
 def check_network(

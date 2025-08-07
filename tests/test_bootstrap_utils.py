@@ -66,7 +66,7 @@ def test_deps_marker_skips_install(monkeypatch):
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
     import types, sys
-    dummy_startup = types.SimpleNamespace(check_internet=lambda: None)
+    dummy_startup = types.SimpleNamespace(check_internet=lambda: [])
     monkeypatch.setitem(sys.modules, "scripts.startup", dummy_startup)
     import importlib
     orig_find_spec = importlib.util.find_spec
@@ -110,7 +110,7 @@ def test_force_env_var_reinstalls(monkeypatch):
     monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
     monkeypatch.setenv("SOLHUNTER_FORCE_DEPS", "1")
     import types, sys
-    dummy_startup = types.SimpleNamespace(check_internet=lambda: None)
+    dummy_startup = types.SimpleNamespace(check_internet=lambda: [])
     monkeypatch.setitem(sys.modules, "scripts.startup", dummy_startup)
     import importlib
     orig_find_spec = importlib.util.find_spec

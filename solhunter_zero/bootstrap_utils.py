@@ -273,12 +273,9 @@ def ensure_deps(
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
         ):
-            try:
-                startup.check_internet()
-            except SystemExit as exc:
-                raise SystemExit(
-                    "Unable to establish an internet connection; aborting."
-                ) from exc
+            failures = startup.check_internet()
+        if failures:
+            raise SystemExit("Unable to establish an internet connection; aborting.")
 
     installed_any = False
 

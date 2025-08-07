@@ -23,6 +23,7 @@ os.chdir(ROOT)
 sys.path[0] = str(ROOT)
 
 from scripts import preflight  # noqa: E402
+from scripts.preflight import check_internet  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero.bootstrap_utils import (
@@ -141,38 +142,6 @@ def check_disk_space(min_bytes: int) -> None:
         )
         print("Please free up disk space and try again.")
         raise SystemExit(1)
-
-
-def check_internet(url: str = "https://example.com") -> None:
-    """Ensure basic internet connectivity by reaching a known host.
-
-    The function performs a simple ``GET`` request to ``url`` with
-    exponential backoff.  If all attempts fail, startup is aborted with a
-    clear error message.
-    """
-
-    import urllib.request
-    import urllib.error
-    import time
-
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(url, timeout=5) as resp:  # nosec B310
-                resp.read()
-                return
-        except Exception as exc:  # pragma: no cover - network failure
-            if attempt == 2:
-                print(
-                    f"Failed to reach {url} after 3 attempts: {exc}. "
-                    "Check your internet connection."
-                )
-                raise SystemExit(1)
-            wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
-                f"Retrying in {wait} seconds..."
-            )
-            time.sleep(wait)
 
 
 def ensure_rpc(*, warn_only: bool = False) -> None:
@@ -300,11 +269,10 @@ def main(argv: list[str] | None = None) -> int:
         log_startup("Internet connectivity check skipped")
     else:
         print("Checking internet connectivity...")
-        try:
-            check_internet()
-        except SystemExit:
+        failures = check_internet()
+        if failures:
             log_startup("Internet connectivity check failed")
-            raise
+            raise SystemExit(1)
         else:
             log_startup("Internet connectivity check passed")
 
