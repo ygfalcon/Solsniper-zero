@@ -40,7 +40,10 @@ def test_profile_flag_creates_file(tmp_path, monkeypatch):
         "solhunter_zero.decision",
         {"should_buy": lambda *_a, **_k: False, "should_sell": lambda *_a, **_k: False},
     )
-    _stub("solhunter_zero.prices", {"fetch_token_prices_async": _async})
+    _stub(
+        "solhunter_zero.prices",
+        {"fetch_token_prices_async": _async, "warm_cache": lambda *_a, **_k: None},
+    )
     _stub("solhunter_zero.order_book_ws", {})
     _stub(
         "solhunter_zero.memory",

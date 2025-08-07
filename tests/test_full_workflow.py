@@ -4,6 +4,15 @@ import types
 import numpy as np
 import importlib.machinery
 import pytest
+import os
+from pathlib import Path
+
+_cfg_path = Path(__file__).resolve().parent / "tmp_config.toml"
+_cfg_path.write_text(
+    "solana_rpc_url='http://localhost'\ndex_base_url='http://localhost'\nagents=['dummy']\nagent_weights={dummy=1.0}\n"
+)
+os.environ["SOLHUNTER_CONFIG"] = str(_cfg_path)
+
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 
@@ -89,6 +98,15 @@ def test_full_workflow(monkeypatch):
         return 0.0
 
     monkeypatch.setattr(gas_mod, "get_current_fee_async", _no_fee_async)
+
+    import solhunter_zero.prices as price_mod
+
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr(price_mod, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr(price_mod, "warm_cache", lambda *_a, **_k: None)
 
     asyncio.run(main_module._run_iteration(mem, pf, dry_run=False))
 

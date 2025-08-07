@@ -166,7 +166,16 @@ def _load_main(monkeypatch):
     discovery_mod.DiscoveryAgent = StubDiscoveryAgent
     monkeypatch.setitem(sys.modules, "solhunter_zero.agents.discovery", discovery_mod)
 
-    return importlib.import_module("solhunter_zero.main")
+    mod = importlib.import_module("solhunter_zero.main")
+    import solhunter_zero.prices as price_mod
+
+    async def fake_prices(tokens):
+        return {t: 1.0 for t in tokens}
+
+    monkeypatch.setattr(price_mod, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr(mod, "fetch_token_prices_async", fake_prices)
+    monkeypatch.setattr(price_mod, "warm_cache", lambda *_a, **_k: None)
+    return mod
 
 
 def test_paper(monkeypatch):

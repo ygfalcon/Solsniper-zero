@@ -133,6 +133,15 @@ def test_live_trading(monkeypatch):
         monkeypatch.setattr(main_module, "should_buy", lambda sims: True)
         monkeypatch.setattr(main_module, "should_sell", lambda sims, **k: False)
 
+        import solhunter_zero.prices as price_mod
+
+        async def fake_prices(tokens):
+            return {t: 1.0 for t in tokens}
+
+        monkeypatch.setattr(main_module, "fetch_token_prices_async", fake_prices)
+        monkeypatch.setattr(price_mod, "fetch_token_prices_async", fake_prices)
+        monkeypatch.setattr(price_mod, "warm_cache", lambda *_a, **_k: None)
+
         async def fake_fetch(*_a, **_k):
             return {"liquidity": 0.0, "volume": 0.0}
 

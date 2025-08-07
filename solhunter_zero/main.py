@@ -289,6 +289,7 @@ async def _run_iteration(
 
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
+    await asyncio.to_thread(warm_cache, tokens)
 
     recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
     if recent_window > 0:
@@ -794,8 +795,6 @@ def main(
         asyncio.run(_seed(memory, snapshot_trades))
     memory.start_writer()
     portfolio = Portfolio(path=portfolio_path)
-    warm_cache(portfolio.balances.keys())
-
     recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
     if recent_window > 0:
         async def _load_recent_trades() -> None:
