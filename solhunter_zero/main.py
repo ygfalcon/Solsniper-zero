@@ -7,6 +7,7 @@ import subprocess
 import time
 from argparse import ArgumentParser
 import cProfile
+import inspect
 from typing import Sequence
 
 try:  # pragma: no cover - optional dependency
@@ -182,6 +183,35 @@ _level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
 logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
 
 
+async def verify_services_ready() -> None:
+    """Ensure core services respond before trading begins."""
+
+    try:
+        eb_ready = event_bus.is_connected()
+        if inspect.isawaitable(eb_ready):
+            eb_ready = await eb_ready
+        if not eb_ready:
+            raise RuntimeError("event bus not connected")
+    except Exception as exc:  # pragma: no cover - network errors
+        raise RuntimeError("event bus connectivity check failed") from exc
+
+    try:
+        dc_ready = depth_client.ping()
+        if inspect.isawaitable(dc_ready):
+            dc_ready = await dc_ready
+        if dc_ready is False:
+            raise RuntimeError("depth client ping failed")
+    except Exception as exc:  # pragma: no cover - network errors
+        raise RuntimeError("depth client ping failed") from exc
+
+    try:
+        bal = wallet.get_balance()
+        if inspect.isawaitable(bal):
+            await bal
+    except Exception as exc:  # pragma: no cover - network errors
+        raise RuntimeError("wallet balance check failed") from exc
+
+
 async def _run_iteration(
     memory: Memory,
     portfolio: Portfolio,
@@ -203,6 +233,8 @@ async def _run_iteration(
     agent_manager: AgentManager | None = None,
 ) -> None:
     """Execute a single trading iteration asynchronously."""
+
+    await verify_services_ready()
 
     if arbitrage_threshold is None:
         arbitrage_threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
