@@ -1,174 +1,125 @@
 #!/usr/bin/env python
-"""Demonstrate AgentManager weight updates with dummy strategy data."""
+"""Run bundled strategies on dummy price data.
 
-"""Lightweight showcase of dynamic strategy weighting."""
+This script demonstrates the
+:class:`solhunter_zero.strategy_manager.StrategyManager` by loading a small
+multi-token price dataset and executing several trading strategies. Results
+from all strategies are merged and the cumulative return for each demo
+strategy is printed.
+
+The default strategies (:mod:`solhunter_zero.sniper` and
+``solhunter_zero.arbitrage``) are included along with lightweight wrappers for
+the investor demo strategies.  The wrappers expose an ``evaluate`` function so
+they can be managed by :class:`StrategyManager`.
+"""
+
+from __future__ import annotations
 
 import asyncio
-import types
 import sys
-from typing import List, Dict
+import types
+from pathlib import Path
+from typing import Dict, List, Tuple
 
-# ``AgentManager`` pulls in heavy dependencies such as network clients and
-# Solana libraries.  For this standalone demo we stub out the modules the
-# manager imports so that only the weight-management logic is exercised.
-
-
-class _StubExec:
-    name = "execution"
-
-    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - demo stub
-        pass
-
-    async def propose_trade(self, *args, **kwargs):  # pragma: no cover - demo
-        return []
-
-    def add_executor(self, *args, **kwargs) -> None:  # pragma: no cover - demo
-        return None
-
-    def close(self) -> None:  # pragma: no cover - demo
-        return None
-
-
-sys.modules.setdefault(
-    "solhunter_zero.agents.execution", types.SimpleNamespace(ExecutionAgent=_StubExec)
-)
-sys.modules.setdefault(
-    "solhunter_zero.agents.discovery", types.SimpleNamespace(DiscoveryAgent=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.agents.swarm", types.SimpleNamespace(AgentSwarm=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.agents.emotion_agent", types.SimpleNamespace(EmotionAgent=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.agents.rl_weight_agent", types.SimpleNamespace(RLWeightAgent=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.agents.hierarchical_rl_agent", types.SimpleNamespace(HierarchicalRLAgent=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.agents.attention_swarm",
-    types.SimpleNamespace(AttentionSwarm=object, load_model=lambda *a, **k: None),
-)
-sys.modules.setdefault(
-    "solhunter_zero.rl_training", types.SimpleNamespace(MultiAgentRL=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.multi_rl", types.SimpleNamespace(PopulationRL=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.swarm_coordinator",
-    types.SimpleNamespace(
-        SwarmCoordinator=lambda mem, weights, regime_weights=None: types.SimpleNamespace(
-            base_weights=weights
-        ),
-    ),
-)
-sys.modules.setdefault(
-    "solhunter_zero.device",
-    types.SimpleNamespace(
-        get_default_device=lambda: "cpu",
-        detect_gpu=lambda: False,
-        get_gpu_backend=lambda: "none",
-    ),
-)
-sys.modules.setdefault(
-    "solhunter_zero.hierarchical_rl", types.SimpleNamespace(SupervisorAgent=object)
-)
-sys.modules.setdefault(
-    "solhunter_zero.regime", types.SimpleNamespace(detect_regime=lambda *a, **k: None)
-)
-sys.modules.setdefault(
-    "solhunter_zero.datasets.sample_ticks",
-    types.SimpleNamespace(load_sample_ticks=lambda *a, **k: [], DEFAULT_PATH=""),
-)
-sys.modules.setdefault(
-    "solhunter_zero.backtest_cli", types.SimpleNamespace(bayesian_optimize_weights=lambda *a, **k: {})
-)
-sys.modules.setdefault(
-    "solhunter_zero.price_stream_manager", types.SimpleNamespace(PriceStreamManager=object)
+from solhunter_zero.strategy_manager import StrategyManager
+from solhunter_zero.investor_demo import (
+    DEFAULT_STRATEGIES as DEMO_STRATS,
+    load_prices,
 )
 
-from solhunter_zero.agent_manager import AgentManager, StrategySelector
-from solhunter_zero.agents import BaseAgent
-from solhunter_zero.agents.memory import MemoryAgent
-from solhunter_zero.simple_memory import SimpleMemory
-from solhunter_zero.investor_demo import DEFAULT_STRATEGIES
+
+# Global mapping used by demo strategy modules.
+PRICE_DATA: Dict[str, Tuple[List[float], List[str]]] = {}
 
 
-class DummyStrategy(BaseAgent):
-    """Minimal agent representing a trading strategy."""
+def _create_demo_module(name: str, func) -> str:
+    """Expose ``func`` as a StrategyManager-compatible module.
 
-    def __init__(self, name: str) -> None:
-        self.name = name
+    Parameters
+    ----------
+    name:
+        Name of the strategy as defined in
+        ``investor_demo.DEFAULT_STRATEGIES``.
+    func:
+        Function returning a list of returns for a sequence of prices.
 
-    async def propose_trade(
-        self, token: str, portfolio, *, depth=None, imbalance=None
-    ) -> List[Dict[str, float]]:
-        return []
+    Returns
+    -------
+    str
+        Fully-qualified module name registered with :mod:`sys.modules`.
+    """
+
+    module_name = "solhunter_zero._demo_" + name
+    mod = types.ModuleType(module_name)
+
+    def evaluate(token: str, _portfolio) -> List[Dict[str, float]]:
+        prices, _dates = PRICE_DATA.get(token, ([], []))
+        if not prices:
+            return []
+        returns = func(prices)
+        total = sum(float(r) for r in returns)
+        side = "buy" if total >= 0 else "sell"
+        return [
+            {
+                "token": token,
+                "side": side,
+                "amount": abs(total),
+                "price": prices[-1],
+            }
+        ]
+
+    mod.evaluate = evaluate  # type: ignore[attr-defined]
+    sys.modules[module_name] = mod
+    return module_name
 
 
-def compute_roi(prices: List[float], strat) -> float:
-    """Return cumulative ROI for ``strat`` over ``prices``."""
-    returns = strat(prices)
-    total = 1.0
-    for r in returns:
-        total *= 1.0 + float(r)
-    return total - 1.0
+async def run_demo() -> None:
+    """Load price data and execute all strategies."""
 
-
-async def log_roi(mem: SimpleMemory, name: str, roi: float) -> None:
-    """Record synthetic trades yielding ``roi`` for strategy ``name``."""
-    await mem.log_trade(
-        token="demo", direction="buy", amount=1.0, price=1.0, reason=name
+    data_path = (
+        Path(__file__).resolve().parent.parent
+        / "tests"
+        / "data"
+        / "prices_multitoken.json"
     )
-    await mem.log_trade(
-        token="demo", direction="sell", amount=1.0, price=1.0 + roi, reason=name
+    prices = load_prices(path=data_path)
+
+    global PRICE_DATA
+    PRICE_DATA = prices  # store for demo modules
+
+    extra_modules = [
+        _create_demo_module(name, func) for name, func in DEMO_STRATS
+    ]
+
+    manager = StrategyManager(
+        StrategyManager.DEFAULT_STRATEGIES + extra_modules
     )
+
+    from solhunter_zero.portfolio import Portfolio
+
+    portfolio = Portfolio(path=None)
+    merged_actions: List[Dict[str, float]] = []
+    returns: Dict[str, float] = {name: 0.0 for name, _ in DEMO_STRATS}
+
+    for token in prices.keys():
+        actions = await manager.evaluate(token, portfolio)
+        merged_actions.extend(actions)
+
+        for name, func in DEMO_STRATS:
+            rets = func(prices[token][0])
+            returns[name] += sum(float(r) for r in rets)
+
+    print("Merged actions:")
+    for action in merged_actions:
+        print(f"  {action}")
+
+    print("\nPer-strategy returns:")
+    for name, value in returns.items():
+        print(f"  {name}: {value:.4f}")
 
 
 def main() -> None:
-    """Run a simple backtest loop adjusting weights after each iteration."""
-    mem = SimpleMemory()
-    mem_agent = MemoryAgent(mem)
-
-    # Wrap ``list_trades`` so that StrategySelector receives objects with
-    # attribute access, mirroring the SQLAlchemy model used in production.
-    orig_list_trades = mem.list_trades
-
-    async def _list_trades(*args, **kwargs):
-        trades = await orig_list_trades(*args, **kwargs)
-        return [types.SimpleNamespace(**t) for t in trades]
-
-    mem.list_trades = _list_trades  # type: ignore[assignment]
-
-    agents = [DummyStrategy(name) for name, _ in DEFAULT_STRATEGIES]
-    weights = {agent.name: 1.0 for agent in agents}
-    manager = AgentManager(agents, memory_agent=mem_agent, weights=weights)
-    selector = StrategySelector(mem_agent)
-
-    price_windows = [
-        [100, 105, 102, 108, 110],
-        [110, 115, 117, 120, 125],
-        [125, 123, 128, 130, 135],
-    ]
-
-    for i, prices in enumerate(price_windows, 1):
-        rois: Dict[str, float] = {}
-        for name, strat in DEFAULT_STRATEGIES:
-            roi = compute_roi(prices, strat)
-            rois[name] = roi
-            asyncio.run(log_roi(mem, name, roi))
-
-        _, new_weights = selector.weight_agents(manager.agents, manager.weights)
-        manager.weights = new_weights
-
-        print(f"Iteration {i}:")
-        for name, roi in rois.items():
-            weight = manager.weights.get(name, 0.0)
-            print(f"  {name:15s} ROI={roi: .4f}  weight={weight: .3f}")
-        print()
+    asyncio.run(run_demo())
 
 
 if __name__ == "__main__":
