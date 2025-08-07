@@ -5,8 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 import os
 
+import tomllib
+
 from . import env, device
 from .logging_utils import log_startup
+from .config import ENV_VARS
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -33,9 +36,33 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
     """
 
     root = root or ROOT
-    env.load_env_file(Path(root) / ".env")
+    env_file = Path(root) / ".env"
+    env.load_env_file(env_file)
 
     applied: dict[str, str] = {}
+    missing_lines: list[str] = []
+
+    cfg_path = Path(root) / "config.toml"
+    if cfg_path.exists():
+        try:
+            with cfg_path.open("rb") as fh:
+                cfg = tomllib.load(fh)
+        except Exception:
+            cfg = {}
+        for key, env_name in ENV_VARS.items():
+            val = cfg.get(key)
+            if val is not None and env_name not in os.environ:
+                value_str = str(val).lower() if isinstance(val, bool) else str(val)
+                os.environ[env_name] = value_str
+                applied[env_name] = value_str
+                missing_lines.append(f"{env_name}={value_str}\n")
+
+    if missing_lines:
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_file.touch(exist_ok=True)
+        with env_file.open("a", encoding="utf-8") as fh:
+            fh.writelines(missing_lines)
+
     for key, value in _DEFAULTS.items():
         if key not in os.environ:
             os.environ[key] = value
