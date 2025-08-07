@@ -9,12 +9,8 @@ import logging
 from pathlib import Path
 
 from . import wallet, data_sync, main as main_module
-from .config import (
-    CONFIG_DIR,
-    get_active_config_name,
-    load_config,
-    apply_env_overrides,
-)
+from .config import CONFIG_DIR, get_active_config_name, load_config
+from .config_model import Config
 from .service_launcher import (
     start_depth_service,
     start_rl_daemon,
@@ -55,7 +51,7 @@ def _ensure_keypair() -> None:
         raise SystemExit(1)
 
 
-def _get_config() -> tuple[str | None, dict]:
+def _get_config() -> tuple[str | None, Config]:
     name = get_active_config_name()
     cfg_path: str | None = None
     if name:
@@ -66,9 +62,9 @@ def _get_config() -> tuple[str | None, dict]:
         preset = Path(ROOT / "config" / "default.toml")
         if preset.is_file():
             cfg_path = str(preset)
-    cfg: dict = {}
+    cfg = Config()
     if cfg_path:
-        cfg = apply_env_overrides(load_config(cfg_path))
+        cfg = load_config(cfg_path)
     return cfg_path, cfg
 
 
@@ -86,12 +82,13 @@ def main() -> None:
 
     cfg_path, cfg = _get_config()
     interval = float(
-        cfg.get(
+        getattr(
+            cfg,
             "offline_data_interval",
             os.getenv("OFFLINE_DATA_INTERVAL", "3600"),
         )
     )
-    db_path = cfg.get("rl_db_path", "offline_data.db")
+    db_path = getattr(cfg, "rl_db_path", "offline_data.db")
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(db_path, "a"):

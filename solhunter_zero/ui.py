@@ -29,10 +29,10 @@ _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 import sqlalchemy as sa
 from .config import (
     load_config,
-    apply_env_overrides,
     set_env_from_config,
     get_event_bus_url,
     get_depth_ws_addr,
+    apply_env_overrides,  # for backward compatibility with tests
 )
 from pathlib import Path
 import numpy as np
@@ -69,7 +69,6 @@ if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
         dest.write_bytes(_DEFAULT_PRESET.read_bytes())
     select_config(dest.name)
 
-cfg = apply_env_overrides(cfg)
 set_env_from_config(cfg)
 
 # auto-select single keypair and configuration on startup
@@ -319,7 +318,7 @@ def _missing_required() -> list[str]:
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
-    cfg = apply_env_overrides(load_config("config.toml"))
+    cfg = load_config("config.toml")
     set_env_from_config(cfg)
 
     memory = memory or Memory("sqlite:///memory.db")
@@ -373,7 +372,7 @@ def start() -> dict:
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
 
-    cfg = apply_env_overrides(load_config("config.toml"))
+    cfg = load_config("config.toml")
     set_env_from_config(cfg)
 
     try:

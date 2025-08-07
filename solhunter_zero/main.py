@@ -25,7 +25,6 @@ from pathlib import Path
 
 from .config import (
     load_config,
-    apply_env_overrides,
     set_env_from_config,
     load_selected_config,
     get_active_config_name,
@@ -205,7 +204,7 @@ def ensure_connectivity(*, offline: bool = False) -> None:
 
 # Load configuration at startup so modules relying on environment variables
 # pick up the values from config files or environment.
-_cfg = apply_env_overrides(load_config())
+_cfg = load_config()
 set_env_from_config(_cfg)
 
 
@@ -274,7 +273,7 @@ _LAST_TRADE_TIMES: dict[str, datetime.datetime] = {}
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
-_level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
+_level_name = os.getenv("LOG_LEVEL") or str(getattr(_cfg, "log_level", "INFO"))
 logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
 
 
@@ -636,7 +635,7 @@ def perform_startup(
     """Load config, verify connectivity, and start depth service with timing."""
 
     start = time.perf_counter()
-    cfg = apply_env_overrides(load_config(config_path))
+    cfg = load_config(config_path)
     set_env_from_config(cfg)
     metrics_aggregator.publish(
         "startup_config_load_duration", time.perf_counter() - start
@@ -1243,7 +1242,6 @@ def run_auto(**kwargs) -> None:
     elif _DEFAULT_PRESET.is_file():
         cfg_path = str(_DEFAULT_PRESET)
         cfg = load_config(cfg_path)
-    cfg = apply_env_overrides(cfg)
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     set_env_from_config(cfg)

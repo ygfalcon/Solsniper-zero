@@ -13,124 +13,14 @@ import tomllib
 from pydantic import ValidationError
 
 from .config_schema import ConfigModel
+from .config_model import Config, ENV_VARS
+from dataclasses import fields
 
 try:
     import yaml  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     yaml = None
 
-
-ENV_VARS = {
-    "birdeye_api_key": "BIRDEYE_API_KEY",
-    "solana_rpc_url": "SOLANA_RPC_URL",
-    "solana_keypair": "SOLANA_KEYPAIR",
-    "dex_base_url": "DEX_BASE_URL",
-    "dex_testnet_url": "DEX_TESTNET_URL",
-    "orca_api_url": "ORCA_API_URL",
-    "raydium_api_url": "RAYDIUM_API_URL",
-    "phoenix_api_url": "PHOENIX_API_URL",
-    "meteora_api_url": "METEORA_API_URL",
-    "orca_ws_url": "ORCA_WS_URL",
-    "raydium_ws_url": "RAYDIUM_WS_URL",
-    "phoenix_ws_url": "PHOENIX_WS_URL",
-    "meteora_ws_url": "METEORA_WS_URL",
-    "jupiter_ws_url": "JUPITER_WS_URL",
-    "orca_dex_url": "ORCA_DEX_URL",
-    "raydium_dex_url": "RAYDIUM_DEX_URL",
-    "phoenix_dex_url": "PHOENIX_DEX_URL",
-    "meteora_dex_url": "METEORA_DEX_URL",
-    "metrics_base_url": "METRICS_BASE_URL",
-    "metrics_url": "METRICS_URL",
-    "news_feeds": "NEWS_FEEDS",
-    "twitter_feeds": "TWITTER_FEEDS",
-    "discord_feeds": "DISCORD_FEEDS",
-    "discovery_method": "DISCOVERY_METHOD",
-    "risk_tolerance": "RISK_TOLERANCE",
-    "max_allocation": "MAX_ALLOCATION",
-    "max_risk_per_token": "MAX_RISK_PER_TOKEN",
-    "risk_multiplier": "RISK_MULTIPLIER",
-    "trailing_stop": "TRAILING_STOP",
-    "max_drawdown": "MAX_DRAWDOWN",
-    "volatility_factor": "VOLATILITY_FACTOR",
-    "arbitrage_threshold": "ARBITRAGE_THRESHOLD",
-    "arbitrage_amount": "ARBITRAGE_AMOUNT",
-    "min_portfolio_value": "MIN_PORTFOLIO_VALUE",
-    "min_delay": "MIN_DELAY",
-    "max_delay": "MAX_DELAY",
-    "offline_data_limit_gb": "OFFLINE_DATA_LIMIT_GB",
-    "strategies": "STRATEGIES",
-    "token_suffix": "TOKEN_SUFFIX",
-    "token_keywords": "TOKEN_KEYWORDS",
-    "volume_threshold": "VOLUME_THRESHOLD",
-    "llm_model": "LLM_MODEL",
-    "llm_context_length": "LLM_CONTEXT_LENGTH",
-    "agents": "AGENTS",
-    "agent_weights": "AGENT_WEIGHTS",
-    "weights_path": "WEIGHTS_PATH",
-    "dex_priorities": "DEX_PRIORITIES",
-    "dex_fees": "DEX_FEES",
-    "dex_gas": "DEX_GAS",
-    "dex_latency": "DEX_LATENCY",
-    "dex_latency_refresh_interval": "DEX_LATENCY_REFRESH_INTERVAL",
-    "priority_fees": "PRIORITY_FEES",
-    "priority_rpc": "PRIORITY_RPC",
-    "jito_rpc_url": "JITO_RPC_URL",
-    "jito_auth": "JITO_AUTH",
-    "jito_ws_url": "JITO_WS_URL",
-    "jito_ws_auth": "JITO_WS_AUTH",
-    "event_bus_url": "EVENT_BUS_URL",
-    "event_bus_peers": "EVENT_BUS_PEERS",
-    "broker_url": "BROKER_URL",
-    "broker_urls": "BROKER_URLS",
-    "broker_heartbeat_interval": "BROKER_HEARTBEAT_INTERVAL",
-    "broker_retry_limit": "BROKER_RETRY_LIMIT",
-    "compress_events": "COMPRESS_EVENTS",
-    "event_serialization": "EVENT_SERIALIZATION",
-    "event_batch_ms": "EVENT_BATCH_MS",
-    "event_mmap_batch_ms": "EVENT_MMAP_BATCH_MS",
-    "event_mmap_batch_size": "EVENT_MMAP_BATCH_SIZE",
-    "order_book_ws_url": "ORDER_BOOK_WS_URL",
-    "depth_service": "DEPTH_SERVICE",
-    "depth_max_restarts": "DEPTH_MAX_RESTARTS",
-    "use_depth_stream": "USE_DEPTH_STREAM",
-    "use_depth_feed": "USE_DEPTH_FEED",
-    "use_rust_exec": "USE_RUST_EXEC",
-    "use_service_exec": "USE_SERVICE_EXEC",
-    "use_service_route": "USE_SERVICE_ROUTE",
-    "mempool_score_threshold": "MEMPOOL_SCORE_THRESHOLD",
-    "mempool_stats_window": "MEMPOOL_STATS_WINDOW",
-    "use_flash_loans": "USE_FLASH_LOANS",
-    "max_flash_amount": "MAX_FLASH_AMOUNT",
-    "flash_loan_ratio": "FLASH_LOAN_RATIO",
-    "use_mev_bundles": "USE_MEV_BUNDLES",
-    "mempool_threshold": "MEMPOOL_THRESHOLD",
-    "bundle_size": "BUNDLE_SIZE",
-    "depth_threshold": "DEPTH_THRESHOLD",
-    "depth_update_threshold": "DEPTH_UPDATE_THRESHOLD",
-    "depth_min_send_interval": "DEPTH_MIN_SEND_INTERVAL",
-    "cpu_low_threshold": "CPU_LOW_THRESHOLD",
-    "cpu_high_threshold": "CPU_HIGH_THRESHOLD",
-    "max_concurrency": "MAX_CONCURRENCY",
-    "cpu_usage_threshold": "CPU_USAGE_THRESHOLD",
-    "concurrency_smoothing": "CONCURRENCY_SMOOTHING",
-    "concurrency_kp": "CONCURRENCY_KP",
-    "concurrency_ki": "CONCURRENCY_KI",
-    "min_rate": "MIN_RATE",
-    "max_rate": "MAX_RATE",
-    "depth_freq_low": "DEPTH_FREQ_LOW",
-    "depth_freq_high": "DEPTH_FREQ_HIGH",
-    "max_hops": "MAX_HOPS",
-    "path_algorithm": "PATH_ALGORITHM",
-    "use_gnn_routing": "USE_GNN_ROUTING",
-    "gnn_model_path": "GNN_MODEL_PATH",
-    "offline_data_interval": "OFFLINE_DATA_INTERVAL",
-    "gpu_memory_index": "GPU_MEMORY_INDEX",
-    "memory_sync_interval": "MEMORY_SYNC_INTERVAL",
-    "memory_snapshot_path": "MEMORY_SNAPSHOT_PATH",
-    "use_gpu_sim": "USE_GPU_SIM",
-    "rl_build_mmap_dataset": "RL_BUILD_MMAP_DATASET",
-    "rl_prefetch_buffer": "RL_PREFETCH_BUFFER",
-}
 
 # Commonly required environment variables
 REQUIRED_ENV_VARS = (
@@ -159,43 +49,53 @@ def _read_config_file(path: Path) -> dict:
     raise ValueError(f"Unsupported config format: {path}")
 
 
-def load_config(path: str | os.PathLike | None = None) -> dict:
+def load_config(path: str | os.PathLike | None = None) -> Config:
     """Load configuration from ``path`` or default locations."""
     if path is None:
         path = find_config_file()
-    if path is None:
-        return {}
-    cfg = _read_config_file(Path(path))
+    data: dict[str, Any] = {}
+    if path and Path(path).is_file():
+        data = _read_config_file(Path(path))
+    cfg = Config.from_dict(data)
     try:
-        cfg = ConfigModel(**cfg).dict()
+        ConfigModel(**cfg.to_dict())
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
     return cfg
 
 
-def apply_env_overrides(config: dict) -> dict:
+def apply_env_overrides(config: Mapping[str, Any] | Config) -> Config:
     """Merge environment variable overrides into ``config``."""
-    cfg = dict(config)
-    for key, env in ENV_VARS.items():
-        env_val = os.getenv(env)
-        if env_val is not None:
-            cfg[key] = env_val
+    if isinstance(config, Config):
+        cfg = Config.from_dict(config.to_dict())
+    else:
+        cfg = Config.from_dict(dict(config))
     return cfg
 
 
-def set_env_from_config(config: dict) -> None:
+def set_env_from_config(config: Mapping[str, Any] | Config) -> None:
     """Set environment variables for values present in ``config``."""
-    for key, env in ENV_VARS.items():
-        val = config.get(key)
+    if not isinstance(config, Config):
+        config = Config.from_dict(dict(config))
+    for f in fields(Config):
+        if f.name == "extra":
+            continue
+        env = f.metadata.get("env")
+        if not env:
+            continue
+        val = getattr(config, f.name, None)
         if val is not None and os.getenv(env) is None:
             os.environ[env] = str(val)
-def validate_config(cfg: Mapping[str, Any]) -> dict:
+
+
+def validate_config(cfg: Mapping[str, Any] | Config) -> dict:
     """Validate configuration against :class:`ConfigModel` schema.
 
     Returns the normalized configuration dictionary.
     """
+    data = cfg.to_dict() if isinstance(cfg, Config) else dict(cfg)
     try:
-        return ConfigModel(**cfg).dict()
+        return ConfigModel(**data).dict()
     except ValidationError as exc:
         raise ValueError(f"Invalid configuration: {exc}") from exc
 
@@ -240,17 +140,17 @@ def ensure_config_file() -> str | None:
     return find_config_file()
 
 
-def validate_env(required: Sequence[str], cfg_path: str | None = None) -> dict:
+def validate_env(required: Sequence[str], cfg_path: str | None = None) -> Config:
     """Ensure required environment variables are set.
 
     Missing values are filled from the configuration file when possible.
-    Returns the loaded configuration dictionary.
+    Returns the loaded configuration dataclass.
     """
-    cfg_data: dict[str, Any] = {}
+    cfg_data: Config = Config()
     if cfg_path is None:
         cfg_path = ensure_config_file()
     if cfg_path:
-        cfg_data = apply_env_overrides(load_config(cfg_path))
+        cfg_data = load_config(cfg_path)
     env_to_key = {v: k for k, v in ENV_VARS.items()}
     missing: list[str] = []
     for name in required:
@@ -258,9 +158,9 @@ def validate_env(required: Sequence[str], cfg_path: str | None = None) -> dict:
             val = None
             key = env_to_key.get(name)
             if key:
-                val = cfg_data.get(key)
+                val = getattr(cfg_data, key, None)
             if val is None:
-                val = cfg_data.get(name)
+                val = getattr(cfg_data, name, None)
             if val is not None:
                 os.environ[name] = str(val)
             if not os.getenv(name):
@@ -321,21 +221,21 @@ def get_active_config_name() -> str | None:
         return None
 
 
-def load_selected_config() -> dict:
+def load_selected_config() -> Config:
     """Load the currently selected configuration file."""
     name = get_active_config_name()
     if not name:
-        return {}
+        return Config()
     path = os.path.join(CONFIG_DIR, name)
     if not os.path.exists(path):
-        return {}
+        return Config()
     return load_config(path)
 
 
-def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
+def load_dex_config(config: Mapping[str, Any] | Config | None = None) -> DEXConfig:
     """Return :class:`DEXConfig` populated from ``config`` and environment."""
 
-    cfg = apply_env_overrides(config or {})
+    cfg = apply_env_overrides(config if config is not None else {})
 
     base = str(cfg.get("dex_base_url", "https://quote-api.jup.ag"))
     testnet = str(cfg.get("dex_testnet_url", base))
@@ -386,23 +286,25 @@ def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
 #  Active configuration helpers
 # ---------------------------------------------------------------------------
 
-_ACTIVE_CONFIG: dict[str, Any] = apply_env_overrides(load_selected_config())
+_ACTIVE_CONFIG: Config = load_selected_config()
 set_env_from_config(_ACTIVE_CONFIG)
 
 
-def _update_active(cfg: Mapping[str, Any] | None) -> None:
+def _update_active(cfg: Mapping[str, Any] | Config | None) -> None:
     global _ACTIVE_CONFIG
     if cfg is None:
-        cfg = {}
-    _ACTIVE_CONFIG = apply_env_overrides(dict(cfg))
+        cfg = Config()
+    elif not isinstance(cfg, Config):
+        cfg = Config.from_dict(dict(cfg))
+    _ACTIVE_CONFIG = cfg
     set_env_from_config(_ACTIVE_CONFIG)
 
 
-def reload_active_config() -> dict:
+def reload_active_config() -> Config:
     """Reload the currently selected configuration and broadcast an update."""
     cfg = load_selected_config()
     _update_active(cfg)
-    _publish("config_updated", cfg)
+    _publish("config_updated", cfg.to_dict())
     return _ACTIVE_CONFIG
 
 
