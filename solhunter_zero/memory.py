@@ -37,6 +37,7 @@ class Trade(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=utcnow)
     reason = Column(Text)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
 
 class VaRLog(Base):
@@ -126,6 +127,7 @@ class Memory(BaseMemory):
 
     async def log_trade(self, *, _broadcast: bool = True, **kwargs) -> int | None:
         await self._init_task
+        kwargs.setdefault("created_at", utcnow())
         if self._queue is not None:
             await self._queue.put(kwargs)
             if _broadcast:
@@ -144,6 +146,19 @@ class Memory(BaseMemory):
             except Exception:
                 pass
         return trade.id
+
+    async def latest_trade_time(self, token: str) -> datetime.datetime | None:
+        """Return the most recent ``created_at`` for ``token`` if available."""
+        await self._init_task
+        async with self.Session() as session:
+            q = (
+                select(Trade.created_at)
+                .filter(Trade.token == token)
+                .order_by(Trade.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(q)
+            return result.scalar_one_or_none()
     async def _log_var_async(self, value: float) -> None:
         await self._init_task
         async with self.Session() as session:
