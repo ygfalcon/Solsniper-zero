@@ -14,8 +14,13 @@ def test_startup_mac_m1(monkeypatch):
 
     def fake_gpu_env():
         os.environ["SOLHUNTER_GPU_AVAILABLE"] = "0"
-        os.environ["SOLHUNTER_GPU_DEVICE"] = "none"
-        return {"SOLHUNTER_GPU_AVAILABLE": "0", "SOLHUNTER_GPU_DEVICE": "none"}
+        os.environ["SOLHUNTER_GPU_DEVICE"] = "cpu"
+        os.environ["TORCH_DEVICE"] = "cpu"
+        return {
+            "SOLHUNTER_GPU_AVAILABLE": "0",
+            "SOLHUNTER_GPU_DEVICE": "cpu",
+            "TORCH_DEVICE": "cpu",
+        }
 
     dummy_device = types.SimpleNamespace(
         detect_gpu=lambda: True,

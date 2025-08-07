@@ -171,7 +171,7 @@ def test_configure_gpu_env_mps_unavailable(monkeypatch):
     monkeypatch.delenv("SOLHUNTER_GPU_DEVICE", raising=False)
     env = device_module.ensure_gpu_env()
     assert env["SOLHUNTER_GPU_AVAILABLE"] == "0"
-    assert env["SOLHUNTER_GPU_DEVICE"] == "none"
-    assert "TORCH_DEVICE" not in env
-    assert "TORCH_DEVICE" not in os.environ
+    assert env["SOLHUNTER_GPU_DEVICE"] == "cpu"
+    assert env["TORCH_DEVICE"] == "cpu"
+    assert os.environ["TORCH_DEVICE"] == "cpu"
     assert "PYTORCH_ENABLE_MPS_FALLBACK" not in os.environ

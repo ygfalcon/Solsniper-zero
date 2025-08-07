@@ -422,8 +422,11 @@ def ensure_gpu_env() -> dict[str, str]:
         except Exception:  # pragma: no cover - best effort only
             logging.getLogger(__name__).exception("Exception during GPU env setup")
 
-    gpu_device = env.get("TORCH_DEVICE", "none")
-    env["SOLHUNTER_GPU_AVAILABLE"] = "1" if "TORCH_DEVICE" in env else "0"
+    # Default to CPU when no GPU backend is available
+    env.setdefault("TORCH_DEVICE", "cpu")
+
+    gpu_device = env["TORCH_DEVICE"]
+    env["SOLHUNTER_GPU_AVAILABLE"] = "1" if gpu_device in ("mps", "cuda") else "0"
     env["SOLHUNTER_GPU_DEVICE"] = gpu_device
     for key, value in env.items():
         os.environ[key] = value
@@ -482,6 +485,8 @@ def initialize_gpu() -> dict[str, str]:
 
     verify_gpu()
     env = ensure_gpu_env()
+    if env.get("SOLHUNTER_GPU_AVAILABLE") == "0":
+        logging.getLogger(__name__).info("GPU not detected; using CPU")
     global _GPU_LOGGED
     if not _GPU_LOGGED:
         from .logging_utils import log_startup
