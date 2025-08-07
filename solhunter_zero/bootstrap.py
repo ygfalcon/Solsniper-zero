@@ -4,8 +4,7 @@ import os
 
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
-    ensure_depth_service,
-    ensure_route_ffi,
+    ensure_rust_components,
     ensure_venv,
 )
 from scripts.startup import ensure_keypair
@@ -40,5 +39,4 @@ def bootstrap(one_click: bool = False) -> None:
         ensure_keypair()
 
     wallet.ensure_default_keypair()
-    ensure_route_ffi()
-    ensure_depth_service()
+    ensure_rust_components()

@@ -361,3 +361,16 @@ def ensure_depth_service() -> None:
             hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
         print(f"Failed to build depth_service: {exc}.{hint}")
         raise SystemExit(1)
+
+
+def ensure_rust_components() -> None:
+    """Ensure bundled Rust components are built.
+
+    This helper sequentially invokes :func:`ensure_route_ffi` and
+    :func:`ensure_depth_service`. Contributors adding new Rust binaries or
+    libraries should extend this function rather than calling individual
+    ``ensure_*`` helpers from the bootstrap routine.
+    """
+
+    ensure_route_ffi()
+    ensure_depth_service()

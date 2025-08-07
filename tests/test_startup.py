@@ -571,15 +571,8 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
 
     from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_rust_components", lambda: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
-
-    from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
@@ -747,8 +740,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_rust_components", lambda: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
 
     bootstrap.bootstrap(one_click=True)

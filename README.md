@@ -291,6 +291,11 @@ direct transaction submission to the Solana RPC. It is required for trading
 and starts automatically when using `make start` or
 `python -m solhunter_zero.main --auto` (or `./start.py` on Unix).
 
+All bundled Rust code is built during startup by
+`ensure_rust_components()` in `solhunter_zero/bootstrap_utils.py`. When
+adding new Rust binaries or libraries, extend that helper so the bootstrap
+process compiles them automatically.
+
 Install the Rust toolchain if `cargo` isn't available:
 `curl https://sh.rustup.rs -sSf | sh`. More details at
 <https://www.rust-lang.org/tools/install>.
