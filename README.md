@@ -10,11 +10,11 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `./run.sh` for a fully automated launch. This script executes `python scripts/launcher.py` and forwards any additional options.
-   On macOS, double-click `start.command` to invoke the same Python launcher from the Finder.
+2. Run `./start.py` for a fully automated launch. This script forwards to `python scripts/launcher.py` and is the canonical entry point.
+   For convenience, `run.sh` and `start.command` are symlinks to this Python shim.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
-   `run.sh`, `start.command`, and `make start` all forward to this Python entry point for consistent behaviour across platforms.
+   `start.py`, `run.sh`, `start.command`, and `make start` all forward to this Python entry point for consistent behaviour across platforms.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
@@ -58,10 +58,10 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running
-  `./run.sh` (which invokes `python scripts/launcher.py`) or
-  `python -m solhunter_zero.main --auto` performs the same installation
+  `./start.py` (or the `run.sh` wrapper) performs the same installation
   when dependencies are missing. On Apple Silicon machines the script
   also installs the Metal PyTorch wheel if it isn't already present.
+  `python -m solhunter_zero.main --auto` offers identical behaviour.
 
   The `uvloop` dependency is optional but recommended for reduced event
   loop latency on Unix-like systems. When installed it lowers asyncio
@@ -289,7 +289,7 @@ python scripts/paper_test.py --capital 100 --iterations 100
 The `depth_service` crate provides low‑latency order book snapshots and
 direct transaction submission to the Solana RPC. It is required for trading
 and starts automatically when using `make start` or
-`python -m solhunter_zero.main --auto` (or `./run.sh` on Unix).
+`python -m solhunter_zero.main --auto` (or `./start.py` on Unix).
 
 Install the Rust toolchain if `cargo` isn't available:
 `curl https://sh.rustup.rs -sSf | sh`. More details at
@@ -629,13 +629,13 @@ profit calculation so routes are ranked based on the borrowed size.
    The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
 Running `scripts/startup.py` handles these steps interactively and forwards any options to the cross-platform entry point
-`./run.sh` (or `python -m solhunter_zero.main --auto`), which performs a fully automated launch using the bundled defaults.
+`./start.py` (or `python -m solhunter_zero.main --auto`), which performs a fully automated launch using the bundled defaults.
 
    The script ensures the `solhunter-wallet` command-line tool is available, loads the active configuration (falling back to `config/default.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
 
    You can still run the bot manually with explicit options:
    ```bash
-   ./run.sh --dry-run
+   ./start.py --dry-run
    # or
    python -m solhunter_zero.main
 
