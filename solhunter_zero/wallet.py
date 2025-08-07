@@ -9,6 +9,7 @@ from solders.keypair import Keypair
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 import base64
 import hashlib
+from cryptography.fernet import Fernet, InvalidToken
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
@@ -170,20 +171,44 @@ def load_keypair_from_mnemonic(mnemonic: str, passphrase: str = "") -> Keypair:
     return Keypair.from_seed(secret)
 
 
-def _xor_cipher(data: bytes, key: bytes) -> bytes:
-    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+def _derive_key(password: str, salt: bytes) -> bytes:
+    """Derive a Fernet-compatible key from ``password`` and ``salt``."""
+
+    kdf = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, 390000, dklen=32
+    )
+    return base64.urlsafe_b64encode(kdf)
 
 
 def _encrypt_mnemonic(text: str, password: str) -> str:
-    key = hashlib.sha256(password.encode()).digest()
-    enc = _xor_cipher(text.encode("utf-8"), key)
-    return base64.b64encode(enc).decode("utf-8")
+    """Encrypt ``text`` using a password.
+
+    A random salt is generated and prepended to the token so that the decrypt
+    function can derive the correct key.  The final value is a base64 encoded
+    string suitable for storage.
+    """
+
+    salt = os.urandom(16)
+    key = _derive_key(password, salt)
+    token = Fernet(key).encrypt(text.encode("utf-8"))
+    return base64.urlsafe_b64encode(salt + token).decode("utf-8")
 
 
 def _decrypt_mnemonic(token: str, password: str) -> str:
-    key = hashlib.sha256(password.encode()).digest()
-    data = base64.b64decode(token.encode("utf-8"))
-    dec = _xor_cipher(data, key)
+    """Decrypt a token previously returned by :func:`_encrypt_mnemonic`."""
+
+    try:
+        data = base64.urlsafe_b64decode(token.encode("utf-8"))
+    except Exception as exc:  # pragma: no cover - invalid base64
+        raise ValueError("invalid token") from exc
+    if len(data) < 17:  # 16 byte salt + at least 1 byte of data
+        raise ValueError("invalid token")
+    salt, ftoken = data[:16], data[16:]
+    key = _derive_key(password, salt)
+    try:
+        dec = Fernet(key).decrypt(ftoken)
+    except InvalidToken as exc:
+        raise ValueError("invalid token") from exc
     return dec.decode("utf-8")
 
 
