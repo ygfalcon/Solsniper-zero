@@ -978,7 +978,9 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr("scripts.preflight.check_disk_space", lambda min_bytes: None)
+    monkeypatch.setattr(
+        "solhunter_zero.preflight_utils.check_disk_space", lambda min_bytes: None
+    )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
     monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
@@ -1043,7 +1045,9 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr("scripts.preflight.check_disk_space", lambda min_bytes: None)
+    monkeypatch.setattr(
+        "solhunter_zero.preflight_utils.check_disk_space", lambda min_bytes: None
+    )
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
     monkeypatch.setattr(startup.device, "initialize_gpu", lambda: {"SOLHUNTER_GPU_DEVICE": "cpu"})
