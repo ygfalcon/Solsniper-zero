@@ -459,7 +459,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.self_test:
         from solhunter_zero.bootstrap import bootstrap
-        from scripts import preflight
         import re
 
         check_disk_space(1 << 30)
@@ -556,7 +555,18 @@ def main(argv: list[str] | None = None) -> int:
     check_disk_space(1 << 30)
     from solhunter_zero.bootstrap import bootstrap
 
-    bootstrap(one_click=args.one_click)
+    # ``bootstrap`` performs its own config and keypair setup.  These steps have
+    # already been handled above, so instruct it to skip them to avoid duplicate
+    # work and simplify testing.
+    os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
+    if args.skip_deps:
+        os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
+    try:
+        bootstrap(one_click=args.one_click)
+    finally:
+        os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
+        if args.skip_deps:
+            os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
 
     config_path: Path | None = None
     keypair_path: Path | None = None
@@ -646,7 +656,43 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"Full diagnostics written to {out_path}")
 
-    return proc.returncode
+    # Run a post-execution health check and append the results to startup.log.
+    from scripts import healthcheck
+
+    selected = list(preflight.CHECKS)
+    critical = {name for name, _ in selected}
+    non_critical = {"Homebrew", "Rustup", "Rust", "Xcode CLT", "GPU"}
+    critical -= non_critical
+    if args.skip_deps:
+        selected = [c for c in selected if c[0] != "Dependencies"]
+        critical.discard("Dependencies")
+    if args.skip_setup:
+        selected = [c for c in selected if c[0] not in {"Config", "Keypair"}]
+        critical.difference_update({"Config", "Keypair"})
+    if args.skip_rpc_check or args.offline:
+        selected = [c for c in selected if c[0] != "Network"]
+        critical.discard("Network")
+    if args.skip_preflight:
+        selected = []
+        critical = set()
+
+    hc_out = io.StringIO()
+    hc_err = io.StringIO()
+    with contextlib.redirect_stdout(hc_out), contextlib.redirect_stderr(hc_err):
+        try:
+            hc_code = healthcheck.main(selected, critical=critical)
+        except SystemExit as exc:  # pragma: no cover - defensive
+            hc_code = exc.code if isinstance(exc.code, int) else 1
+
+    out = hc_out.getvalue()
+    err = hc_err.getvalue()
+    sys.stdout.write(out)
+    sys.stderr.write(err)
+    for line in (out + err).splitlines():
+        if line:
+            log_startup(line)
+
+    return proc.returncode or hc_code
 
 
 def run(argv: list[str] | None = None) -> int:
