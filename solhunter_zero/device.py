@@ -223,7 +223,9 @@ if platform.system() == "Darwin" and platform.machine() == "arm64":
         raise RuntimeError("Failed to configure MPS-enabled PyTorch") from exc
 
 
-def detect_gpu(_attempt_install: bool = True) -> bool:
+def detect_gpu(
+    _attempt_install: bool = True, _reinstall_attempted: bool = False
+) -> bool:
     """Return ``True`` when a supported GPU backend is available.
 
     The check prefers Apple's Metal backend (MPS) on macOS machines with
@@ -319,6 +321,23 @@ def detect_gpu(_attempt_install: bool = True) -> bool:
             if not torch.backends.mps.is_available():
                 if _attempt_install:
                     return _install_and_retry("MPS backend not available")
+                if MPS_SENTINEL.exists() and not _reinstall_attempted:
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        "MPS backend unavailable; reinstalling PyTorch and retrying detection",
+                    )
+                    try:
+                        MPS_SENTINEL.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    try:
+                        ensure_torch_with_metal()
+                    except Exception:
+                        logger.exception("PyTorch reinstallation failed")
+                        return False
+                    return detect_gpu(
+                        _attempt_install=False, _reinstall_attempted=True
+                    )
                 logging.getLogger(__name__).warning(
                     "MPS backend not available; GPU unavailable. %s", install_hint
                 )
