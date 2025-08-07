@@ -35,6 +35,14 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
         investor_demo.used_trade_types.add("arbitrage")
         return {"path": ["dex1", "dex2"], "profit": 4.795}
     monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arb)
+    async def fake_flash() -> str:
+        investor_demo.used_trade_types.add("flash_loan")
+        return "demo_sig"
+    monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
+    async def fake_sniper() -> list[str]:
+        investor_demo.used_trade_types.add("sniper")
+        return ["TKN"]
+    monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
     from solhunter_zero import routeffi as rffi
     monkeypatch.setattr(rffi, "_best_route_json", lambda *a, **k: (["r1", "r2"], 1.23))
 
@@ -47,6 +55,8 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
                 str(tmp_path),
                 "--capital",
                 "100",
+                "--preset",
+                "full",
             ]
         )
     finally:
@@ -56,11 +66,15 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
 
     captured = capsys.readouterr()
     out = captured.out
+    price_map = investor_demo.load_prices(preset="full")
+    tokens = set(price_map.keys())
     strategies = {"buy_hold", "momentum", "mean_reversion", "mixed"}
-    for name in strategies:
-        assert re.search(
-            rf"{name}: .*ROI .*Sharpe .*Drawdown .*Win rate", out
-        ), f"Missing metrics for {name}"
+    for token in tokens:
+        for name in strategies:
+            prefix = f"{token} {name}"
+            assert re.search(
+                rf"{prefix}: .*ROI .*Sharpe .*Drawdown .*Win rate", out
+            ), f"Missing metrics for {prefix}"
 
     match = re.search(r"Trade type results: (\{.*\})", out)
     assert match, "Trade type results not printed"
@@ -86,9 +100,10 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     # JSON and CSV summaries should contain the same number of entries
     assert len(content) == len(csv_rows)
 
-    # Expect results for all configured strategies
-    configs = {entry.get("config") for entry in content}
-    assert {"buy_hold", "momentum", "mean_reversion", "mixed"} <= configs
+    # Expect results for all configured strategies per token
+    configs = {(row.get("token"), row.get("config")) for row in content}
+    expected_pairs = {(t, s) for t in tokens for s in strategies}
+    assert expected_pairs <= configs
 
     # Each summary entry must include core metrics
     required = [
@@ -109,8 +124,7 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
         for key in required:
             assert key in row
 
-    # Compute expected metrics for the built-in price dataset
-    prices, dates = investor_demo.load_prices(preset="short")
+    # Compute expected metrics for the full preset dataset
     start_capital = 100.0
     strat_configs = {
         "buy_hold": {"buy_hold": 1.0},
@@ -122,44 +136,50 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
             "mean_reversion": 1 / 3,
         },
     }
-    expected: dict[str, dict[str, float | int]] = {}
-    for name, weights in strat_configs.items():
-        returns = investor_demo.compute_weighted_returns(prices, weights)
-        if returns:
-            total = 1.0
-            cum: list[float] = []
-            for r in returns:
-                total *= 1 + r
-                cum.append(total)
-            roi = cum[-1] - 1
-            mean = sum(returns) / len(returns)
-            variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-            vol = variance ** 0.5
-            sharpe = mean / vol if vol else 0.0
-            trades = sum(1 for r in returns if r != 0)
-            wins = sum(1 for r in returns if r > 0)
-            losses = sum(1 for r in returns if r < 0)
-            win_rate = wins / trades if trades else 0.0
-        else:
-            roi = 0.0
-            sharpe = 0.0
-            vol = 0.0
-            trades = wins = losses = 0
-            win_rate = 0.0
-        dd = investor_demo.max_drawdown(returns)
-        final_capital = start_capital * (1 + roi)
-        expected[name] = {
-            "roi": roi,
-            "sharpe": sharpe,
-            "drawdown": dd,
-            "volatility": vol,
-            "trades": trades,
-            "wins": wins,
-            "losses": losses,
-            "win_rate": win_rate,
-            "final_capital": final_capital,
-        }
-    csv_map: dict[str, dict[str, float | int | str]] = {}
+    expected: dict[str, dict[str, dict[str, float | int]]] = {}
+    for token, (prices, dates) in price_map.items():
+        exp_token: dict[str, dict[str, float | int]] = {}
+        for name, weights in strat_configs.items():
+            returns = investor_demo.compute_weighted_returns(prices, weights)
+            if returns:
+                total = 1.0
+                cum: list[float] = []
+                for r in returns:
+                    total *= 1 + r
+                    cum.append(total)
+                roi = cum[-1] - 1
+                mean = sum(returns) / len(returns)
+                variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+                vol = variance ** 0.5
+                sharpe = mean / vol if vol else 0.0
+                trades = sum(1 for r in returns if r != 0)
+                wins = sum(1 for r in returns if r > 0)
+                losses = sum(1 for r in returns if r < 0)
+                win_rate = wins / trades if trades else 0.0
+            else:
+                roi = 0.0
+                sharpe = 0.0
+                vol = 0.0
+                trades = wins = losses = 0
+                win_rate = 0.0
+            dd = investor_demo.max_drawdown(returns)
+            final_capital = start_capital * (1 + roi)
+            exp_token[name] = {
+                "roi": roi,
+                "sharpe": sharpe,
+                "drawdown": dd,
+                "volatility": vol,
+                "trades": trades,
+                "wins": wins,
+                "losses": losses,
+                "win_rate": win_rate,
+                "final_capital": final_capital,
+            }
+        expected[token] = exp_token
+    csv_map: dict[tuple[str, str], dict[str, float | int | str]] = {}
+    json_map: dict[tuple[str, str], dict[str, float | int | str]] = {}
+    for entry in content:
+        json_map[(entry["token"], entry["config"])] = entry
     for row in csv_rows:
         parsed: dict[str, float | int | str] = {}
         for key, val in row.items():
@@ -169,17 +189,18 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
                 parsed[key] = int(val)
             else:
                 parsed[key] = float(val)
-        csv_map[row["config"]] = parsed
+        csv_map[(row["token"], row["config"])] = parsed
 
-    for entry in content:
-        exp = expected[entry["config"]]
-        csv_entry = csv_map[entry["config"]]
-        for key in ["roi", "sharpe", "drawdown", "volatility", "win_rate", "final_capital"]:
-            assert entry[key] == pytest.approx(exp[key], rel=1e-6)
-            assert csv_entry[key] == pytest.approx(exp[key], rel=1e-6)
-        for key in ["trades", "wins", "losses"]:
-            assert entry[key] == exp[key]
-            assert csv_entry[key] == exp[key]
+    for token, strat_map in expected.items():
+        for name, exp in strat_map.items():
+            entry = json_map[(token, name)]
+            csv_entry = csv_map[(token, name)]
+            for key in ["roi", "sharpe", "drawdown", "volatility", "win_rate", "final_capital"]:
+                assert entry[key] == pytest.approx(exp[key], rel=1e-6)
+                assert csv_entry[key] == pytest.approx(exp[key], rel=1e-6)
+            for key in ["trades", "wins", "losses"]:
+                assert entry[key] == exp[key]
+                assert csv_entry[key] == exp[key]
 
     # Trade history and highlight files should be generated
     trade_csv = tmp_path / "trade_history.csv"
@@ -190,14 +211,20 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
     trade_rows = list(csv.DictReader(trade_csv.open()))
     assert trade_rows, "Trade history CSV empty"
     assert all({"capital", "action", "price", "date"} <= set(r.keys()) for r in trade_rows)
-    first = trade_rows[0]
-    assert first["action"] == "buy"
-    assert float(first["price"]) == prices[0]
-    assert first["date"] == dates[0]
+    first_token = next(iter(price_map))
+    prices0, dates0 = price_map[first_token]
+    start_row = next(
+        r
+        for r in trade_rows
+        if r["token"] == first_token and r["strategy"] == "buy_hold" and int(r["period"]) == 0
+    )
+    assert start_row["action"] == "buy"
+    assert float(start_row["price"]) == prices0[0]
+    assert start_row["date"] == dates0[0]
     # Should record capital for periods beyond the starting point
     assert any(int(r["period"]) > 0 for r in trade_rows)
     # Expect at least one sell action in the history
-    assert any(r["action"] == "sell" for r in trade_rows)
+    assert any(r["token"] == first_token and r["action"] == "sell" for r in trade_rows)
     # Each configured strategy should appear in trade history
     assert any(r["strategy"] == "mean_reversion" for r in trade_rows)
 
@@ -207,12 +234,16 @@ def test_investor_demo(tmp_path, monkeypatch, capsys, dummy_mem):
         "capital" in r and "action" in r and "price" in r and "date" in r
         for r in trade_data
     )
-    first = trade_data[0]
-    assert first["action"] == "buy"
-    assert first["price"] == prices[0]
-    assert first["date"] == dates[0]
+    start_row_json = next(
+        r
+        for r in trade_data
+        if r["token"] == first_token and r["strategy"] == "buy_hold" and r["period"] == 0
+    )
+    assert start_row_json["action"] == "buy"
+    assert start_row_json["price"] == prices0[0]
+    assert start_row_json["date"] == dates0[0]
     assert any(r["period"] > 0 for r in trade_data)
-    assert any(r["action"] == "sell" for r in trade_data)
+    assert any(r["token"] == first_token and r["action"] == "sell" for r in trade_data)
     assert any(r["strategy"] == "mean_reversion" for r in trade_data)
 
     highlights_path = tmp_path / "highlights.json"
@@ -320,7 +351,7 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
     monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
     monkeypatch.setattr(investor_demo, "_demo_route_ffi", fake_route)
 
-    investor_demo.main(["--reports", str(tmp_path)])
+    investor_demo.main(["--reports", str(tmp_path), "--preset", "full"])
 
     assert seen_before == [set()]
     assert investor_demo.used_trade_types == {
@@ -329,6 +360,7 @@ def test_used_trade_types_reset(tmp_path, monkeypatch):
         "sniper",
         "dex_scanner",
         "route_ffi",
+        "jito_stream",
     }
 
 
@@ -346,6 +378,38 @@ def test_investor_demo_custom_data_length(tmp_path, monkeypatch):
         return orig_load(path=path, preset=None)
 
     monkeypatch.setattr(investor_demo, "load_prices", _load)
+
+    async def fake_arb() -> dict:
+        investor_demo.used_trade_types.add("arbitrage")
+        return {"path": [], "profit": 0.0}
+
+    async def fake_flash() -> str:
+        investor_demo.used_trade_types.add("flash_loan")
+        return "sig"
+
+    async def fake_sniper() -> list[str]:
+        investor_demo.used_trade_types.add("sniper")
+        return ["TKN"]
+
+    async def fake_dex() -> list[str]:
+        investor_demo.used_trade_types.add("dex_scanner")
+        return ["pool"]
+
+    async def fake_route() -> dict:
+        investor_demo.used_trade_types.add("route_ffi")
+        return {"path": [], "profit": 0.0}
+
+    async def fake_jito() -> list[dict]:
+        investor_demo.used_trade_types.add("jito_stream")
+        return []
+
+    monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arb)
+    monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
+    monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
+    monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
+    monkeypatch.setattr(investor_demo, "_demo_route_ffi", fake_route)
+    monkeypatch.setattr(investor_demo, "_demo_jito_stream", fake_jito)
+    monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: 0.0)
 
     investor_demo.main(["--data", str(data_path), "--reports", str(tmp_path)])
 

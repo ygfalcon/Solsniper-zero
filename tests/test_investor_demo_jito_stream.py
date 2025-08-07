@@ -27,8 +27,34 @@ def test_demo_jito_stream_events():
     assert investor_demo.used_trade_types == {"jito_stream"}
 
 
-def test_jito_stream_in_highlights(tmp_path):
-    investor_demo.main(["--reports", str(tmp_path), "--preset", "short"])
+def test_jito_stream_in_highlights(tmp_path, monkeypatch):
+    async def fake_arb():
+        investor_demo.used_trade_types.add("arbitrage")
+        return {"path": [], "profit": 0.0}
+
+    async def fake_flash():
+        investor_demo.used_trade_types.add("flash_loan")
+        return "sig"
+
+    async def fake_sniper():
+        investor_demo.used_trade_types.add("sniper")
+        return ["TKN"]
+
+    async def fake_dex():
+        investor_demo.used_trade_types.add("dex_scanner")
+        return ["pool"]
+
+    async def fake_route():
+        investor_demo.used_trade_types.add("route_ffi")
+        return {"path": [], "profit": 0.0}
+
+    monkeypatch.setattr(investor_demo, "_demo_arbitrage", fake_arb)
+    monkeypatch.setattr(investor_demo, "_demo_flash_loan", fake_flash)
+    monkeypatch.setattr(investor_demo, "_demo_sniper", fake_sniper)
+    monkeypatch.setattr(investor_demo, "_demo_dex_scanner", fake_dex)
+    monkeypatch.setattr(investor_demo, "_demo_route_ffi", fake_route)
+
+    investor_demo.main(["--reports", str(tmp_path), "--preset", "full"])
     highlights = json.loads((tmp_path / "highlights.json").read_text())
     swaps = highlights.get("jito_swaps")
     assert swaps and swaps[0]["token"] == "tok"
