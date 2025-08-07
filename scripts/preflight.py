@@ -121,6 +121,52 @@ def check_keypair(dir_path: str = "keypairs") -> Check:
     return False, f"Keypair {keyfile} not found"
 
 
+def check_disk_space(min_bytes: int) -> None:
+    """Ensure there is at least ``min_bytes`` free on the current filesystem."""
+
+    try:
+        _, _, free = shutil.disk_usage(ROOT)
+    except OSError as exc:  # pragma: no cover - unexpected failure
+        print(f"Unable to determine free disk space: {exc}")
+        raise SystemExit(1)
+
+    if free < min_bytes:
+        required_gb = min_bytes / (1024 ** 3)
+        free_gb = free / (1024 ** 3)
+        print(
+            f"Insufficient disk space: {free_gb:.2f} GB available,"
+            f" {required_gb:.2f} GB required."
+        )
+        print("Please free up disk space and try again.")
+        raise SystemExit(1)
+
+
+def check_internet(url: str = "https://example.com") -> None:
+    """Ensure basic internet connectivity by reaching a known host."""
+
+    import urllib.request
+    import time
+
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:  # nosec B310
+                resp.read()
+                return
+        except Exception as exc:  # pragma: no cover - network failure
+            if attempt == 2:
+                print(
+                    f"Failed to reach {url} after 3 attempts: {exc}. "
+                    "Check your internet connection."
+                )
+                raise SystemExit(1)
+            wait = 2**attempt
+            print(
+                f"Attempt {attempt + 1} failed to reach {url}: {exc}. "
+                f"Retrying in {wait} seconds..."
+            )
+            time.sleep(wait)
+
+
 def check_required_env(keys: List[str] | None = None) -> Check:
     """Ensure critical environment variables are configured.
 
@@ -199,6 +245,15 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ),
     ("GPU", check_gpu),
 ]
+
+
+def run_basic_checks(
+    min_bytes: int = 1 << 30, url: str = "https://example.com"
+) -> None:
+    """Run minimal startup checks for disk space and internet connectivity."""
+
+    check_disk_space(min_bytes)
+    check_internet(url)
 
 
 def run_preflight() -> List[Tuple[str, bool, str]]:
