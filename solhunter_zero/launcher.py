@@ -106,9 +106,9 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
 sys.path.insert(0, str(ROOT))
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup, rotate_startup_log  # noqa: E402
+from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
 
-rotate_startup_log()
+setup_logging("startup")
 ensure_tools(non_interactive=True)
 ensure_venv(None)
 log_startup(f"Virtual environment: {sys.prefix}")

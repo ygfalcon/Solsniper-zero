@@ -30,7 +30,7 @@ sys.modules["solhunter_zero.bootstrap_utils"] = bootstrap_utils_mod
 
 logging_utils_mod = types.ModuleType("solhunter_zero.logging_utils")
 logging_utils_mod.log_startup = lambda msg: None
-logging_utils_mod.rotate_startup_log = lambda: None
+logging_utils_mod.setup_logging = lambda name: None
 sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
 
 env_config_mod = types.ModuleType("solhunter_zero.env_config")
@@ -53,10 +53,8 @@ def load_launcher():
         "__file__": str(Path("scripts/launcher.py")),
         "find_python": lambda: sys.executable,
     }
-    module_dict = runpy.run_path("scripts/launcher.py", globals_dict)
-    mod = types.ModuleType("scripts.launcher")
-    mod.__dict__.update(module_dict)
-    return mod
+    runpy.run_path("scripts/launcher.py", globals_dict)
+    return sys.modules["solhunter_zero.launcher"]
 
 
 def test_one_click_launch(monkeypatch, capsys):
