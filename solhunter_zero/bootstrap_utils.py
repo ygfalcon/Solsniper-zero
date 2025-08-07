@@ -461,3 +461,48 @@ def ensure_depth_service() -> None:
             hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
         print(f"Failed to build depth_service: {exc}.{hint}")
         raise SystemExit(1)
+
+
+def _redirect_stderr(path: Path):
+    """Context manager to append stderr output to *path*.
+
+    Subprocesses inherit the redirected file descriptor ensuring that build
+    errors are captured in ``startup.log``.
+    """
+    import contextlib
+
+    @contextlib.contextmanager
+    def _cm():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as log:
+            old_fd = os.dup(2)
+            old_stderr = sys.stderr
+            try:
+                os.dup2(log.fileno(), 2)
+                sys.stderr = log
+                yield
+            finally:
+                sys.stderr = old_stderr
+                os.dup2(old_fd, 2)
+                os.close(old_fd)
+
+    return _cm()
+
+
+def ensure_rust_components() -> None:
+    """Build required Rust components and capture errors to ``startup.log``."""
+
+    log_path = ROOT / "startup.log"
+    for name, func in (
+        ("depth_service", ensure_depth_service),
+        ("route_ffi", ensure_route_ffi),
+    ):
+        try:
+            with _redirect_stderr(log_path):
+                func()
+        except SystemExit:
+            print(f"Failed to build {name}. See {log_path}")
+            raise
+        except Exception:
+            print(f"Failed to build {name}. See {log_path}")
+            raise SystemExit(1)

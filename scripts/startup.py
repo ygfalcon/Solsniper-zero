@@ -44,8 +44,6 @@ import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero.bootstrap_utils import (
     _pip_install,
     ensure_deps,
-    ensure_depth_service,
-    ensure_route_ffi,
     ensure_venv,
 )
 

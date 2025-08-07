@@ -573,26 +573,29 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-
     from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
-
-    from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
-    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
-    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     import types, sys
+    dummy_torch = types.SimpleNamespace()
+    monkeypatch.setattr(bootstrap_mod, "ensure_rust_components", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_config", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_keypair", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.wallet, "ensure_default_keypair", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
+    monkeypatch.setattr(bootstrap_mod.device, "ensure_gpu_env", lambda: {})
+    monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
+    monkeypatch.setattr("scripts.preflight.main", lambda: 0)
+    monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(
+        startup,
+        "device",
+        types.SimpleNamespace(
+            get_default_device=lambda: "cpu",
+            detect_gpu=lambda: False,
+            ensure_gpu_env=lambda: {},
+        ),
+    )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     monkeypatch.setattr(
         startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
@@ -694,8 +697,10 @@ def test_main_preflight_failure(monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
     monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
+
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_rust_components", lambda: None)
 
     log_file = Path(__file__).resolve().parent.parent / "preflight.log"
     if log_file.exists():
@@ -765,8 +770,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_rust_components", lambda: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
 
     bootstrap.bootstrap(one_click=True)

@@ -93,8 +93,9 @@ def _prep_startup(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    from solhunter_zero import bootstrap as bootstrap_mod
+    monkeypatch.setattr(bootstrap_mod, "ensure_rust_components", lambda: None)
+    monkeypatch.setattr(bootstrap_mod.wallet, "ensure_default_keypair", lambda: None)
     monkeypatch.setattr(bootstrap.device, "ensure_gpu_env", lambda: None)
     monkeypatch.setattr(startup.device, "detect_gpu", lambda: False)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)

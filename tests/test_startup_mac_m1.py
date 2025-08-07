@@ -42,13 +42,10 @@ def test_startup_mac_m1(monkeypatch):
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(startup, "ensure_keypair", lambda: None)
 
     from solhunter_zero import bootstrap, wallet
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_rust_components", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: None)
     monkeypatch.setattr(wallet, "get_active_keypair_name", lambda: "default")
