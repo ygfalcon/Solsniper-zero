@@ -74,6 +74,9 @@ def test_main_invokes_place_order(monkeypatch):
         async def evaluate(self, token, portfolio):
             return [{"token": token, "side": "buy", "amount": 1, "price": 0}]
 
+        def list_missing(self):
+            return []
+
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
 
@@ -149,6 +152,9 @@ def test_main_offline(monkeypatch):
         async def evaluate(self, token, portfolio):
             return [{"token": token, "side": "buy", "amount": 1, "price": 0}]
 
+        def list_missing(self):
+            return []
+
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     async def fake_place_order_async(*a, **k):
@@ -192,6 +198,9 @@ def test_run_iteration_sells(monkeypatch):
 
         async def evaluate(self, token, portfolio):
             return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+
+        def list_missing(self):
+            return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
@@ -253,6 +262,9 @@ def test_run_iteration_stop_loss(monkeypatch):
         async def evaluate(self, token, portfolio):
             return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
 
+        def list_missing(self):
+            return []
+
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
     called = {}
@@ -312,6 +324,9 @@ def test_run_iteration_take_profit(monkeypatch):
 
         async def evaluate(self, token, portfolio):
             return [{"token": token, "side": "sell", "amount": portfolio.balances[token].amount, "price": 0}]
+
+        def list_missing(self):
+            return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
@@ -417,6 +432,9 @@ def test_discovery_methods(monkeypatch, method, target):
         async def evaluate(self, token, portfolio):
             return []
 
+        def list_missing(self):
+            return []
+
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
     async def _fake_place_order(*a, **k):
         return None
@@ -451,27 +469,34 @@ def test_run_iteration_arbitrage(monkeypatch):
     monkeypatch.setattr(
         main_module.DiscoveryAgent, "discover_tokens", fake_discover_tokens
     )
+
+    orders: list[tuple[str, str, float, float]] = []
+
+    async def fake_place_order(token, side, amount, price, **_k):
+        orders.append((token, side, amount, price))
+
+    monkeypatch.setattr(main_module, "place_order_async", fake_place_order)
+
     async def fake_log_trade(*a, **k):
         pass
 
     monkeypatch.setattr(main_module.Memory, "log_trade", fake_log_trade)
     monkeypatch.setattr(main_module.Portfolio, "update", lambda *a, **k: None)
 
-    called = {}
-
-    async def fake_arbitrage(token, threshold, amount, testnet=False, dry_run=False, keypair=None):
-        called["args"] = (token, threshold, amount, dry_run)
-        return None
-
     class DummySM:
         def __init__(self, *a, **k):
             pass
 
         async def evaluate(self, token, portfolio):
+            return [
+                {"token": token, "side": "buy", "amount": 1.0, "price": 0.0},
+                {"token": token, "side": "sell", "amount": 1.0, "price": 0.0},
+            ]
+
+        def list_missing(self):
             return []
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
-    monkeypatch.setattr(main_module.arbitrage, "detect_and_execute_arbitrage", fake_arbitrage)
 
     asyncio.run(
         main_module._run_iteration(
@@ -483,7 +508,7 @@ def test_run_iteration_arbitrage(monkeypatch):
         )
     )
 
-    assert called["args"] == ("tok", 0.1, 2.0, True)
+    assert orders == [("tok", "buy", 1.0, 0.0), ("tok", "sell", 1.0, 0.0)]
 
 
 def test_trade_size_scales_with_portfolio_value(monkeypatch):

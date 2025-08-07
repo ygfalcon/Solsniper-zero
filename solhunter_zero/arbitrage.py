@@ -1891,6 +1891,39 @@ async def detect_and_execute_arbitrage(
     )
 
 
+async def evaluate(token: str, portfolio) -> List[dict]:
+    """Return arbitrage buy/sell actions for ``token``.
+
+    This function performs a dry-run arbitrage detection and, when an
+    opportunity is found, returns corresponding buy and sell actions. The
+    amount and threshold are controlled via the ``ARBITRAGE_AMOUNT`` and
+    ``ARBITRAGE_THRESHOLD`` environment variables. If either is not set or
+    non-positive, no action is taken.
+    """
+
+    threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
+    amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
+    if threshold <= 0 or amount <= 0:
+        return []
+
+    try:
+        res = await detect_and_execute_arbitrage(
+            token, threshold=threshold, amount=amount, dry_run=True
+        )
+    except Exception as exc:  # pragma: no cover - network issues
+        logger.warning("Arbitrage evaluation failed for %s: %s", token, exc)
+        return []
+
+    if not res:
+        return []
+
+    action = {"token": token, "amount": float(amount), "price": 0.0}
+    return [
+        dict(action, side="buy"),
+        dict(action, side="sell"),
+    ]
+
+
 try:  # pragma: no cover - best effort
     loop = asyncio.get_running_loop()
 except RuntimeError:

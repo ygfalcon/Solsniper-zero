@@ -384,20 +384,6 @@ async def _run_iteration(
     if use_old:
         for token in tokens:
             sims = run_simulations(token, count=100)
-
-            if arbitrage_amount > 0 and arbitrage_threshold > 0:
-                try:
-                    await arbitrage.detect_and_execute_arbitrage(
-                        token,
-                        threshold=arbitrage_threshold,
-                        amount=arbitrage_amount,
-                        testnet=testnet,
-                        dry_run=dry_run,
-                        keypair=keypair,
-                    )
-                except Exception as exc:  # pragma: no cover - network errors
-                    logging.warning("Arbitrage check failed: %s", exc)
-
             if should_buy(sims):
                 logging.info("Buying %s", token)
                 avg_roi = sum(r.expected_roi for r in sims) / len(sims)
@@ -546,18 +532,6 @@ async def _run_iteration(
                 logging.warning("Skipped strategies: %s", ", ".join(missing))
 
         for token in tokens:
-            if arbitrage_amount > 0 and arbitrage_threshold > 0:
-                try:
-                    await arbitrage.detect_and_execute_arbitrage(
-                        token,
-                        threshold=arbitrage_threshold,
-                        amount=arbitrage_amount,
-                        testnet=testnet,
-                        dry_run=dry_run,
-                        keypair=keypair,
-                    )
-                except Exception as exc:  # pragma: no cover - network errors
-                    logging.warning("Arbitrage check failed: %s", exc)
             try:
                 actions = await strategy_manager.evaluate(token, portfolio)
             except Exception as exc:  # pragma: no cover - strategy errors
