@@ -10,11 +10,11 @@ This project is targeted towards being the greatest Solana bot ever created and 
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `./run.sh` for a fully automated launch. This script executes `python start.py --one-click --full-deps` and forwards any additional options.
-   On macOS, double-click `start.command` to invoke `start.py` from the Finder.
+2. Run `./run.sh` for a fully automated launch. This script executes `python scripts/launcher.py` and forwards any additional options.
+   On macOS, double-click `start.command` to invoke the same Python launcher from the Finder.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
-   `run.sh`, `start.command`, and `make start` all forward to this script for consistent behaviour across platforms.
+   `run.sh`, `start.command`, and `make start` all forward to this Python entry point for consistent behaviour across platforms.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
@@ -58,7 +58,7 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running
-  `./run.sh` (which invokes `python start.py --one-click --full-deps`) or
+  `./run.sh` (which invokes `python scripts/launcher.py`) or
   `python -m solhunter_zero.main --auto` performs the same installation
   when dependencies are missing. On Apple Silicon machines the script
   also installs the Metal PyTorch wheel if it isn't already present.
@@ -108,7 +108,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
 
 ### One-Click macOS M1 Setup
 
-1. **Launch** — In Finder, double-click `start.command` (a wrapper for `start.py`) to begin the automated setup.
+1. **Launch** — In Finder, double-click `start.command` (a wrapper for `scripts/launcher.py`) to begin the automated setup.
    If the file isn't executable, run `chmod +x start.command` from Terminal and try again.
 2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  
    Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.

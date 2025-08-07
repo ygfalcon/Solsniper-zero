@@ -1,11 +1,7 @@
 import os
-import platform
 import subprocess
 import sys
 from pathlib import Path
-
-import pytest
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,13 +16,14 @@ def _run_script(script: str, tmp_path: Path, monkeypatch) -> list[str]:
     """
 
     called = tmp_path / "called.txt"
-    stub = tmp_path / "python"
+    stub = tmp_path / "python3"
     stub.write_text(
         f"#!{sys.executable}\n"
         "import sys, pathlib\n"
         f"pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
     )
     stub.chmod(0o755)
+    os.symlink(stub, tmp_path / "python")
 
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
 
@@ -36,15 +33,13 @@ def _run_script(script: str, tmp_path: Path, monkeypatch) -> list[str]:
 
 
 def test_start_command_invokes_launcher(monkeypatch, tmp_path):
-    if platform.machine() != "arm64":
-        pytest.skip("start.command requires arm64")
     args = _run_script("start.command", tmp_path, monkeypatch)
-    assert args[:3] == ["start.py", "--one-click", "--full-deps"]
+    assert args[0] == "scripts/launcher.py"
     assert args[-1] == "EXTRA"
 
 
 def test_run_sh_invokes_launcher(monkeypatch, tmp_path):
     args = _run_script("run.sh", tmp_path, monkeypatch)
-    assert args[:3] == ["start.py", "--one-click", "--full-deps"]
+    assert args[0] == "scripts/launcher.py"
     assert args[-1] == "EXTRA"
 
