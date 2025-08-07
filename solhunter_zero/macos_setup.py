@@ -281,13 +281,21 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     return report
 
 
-def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
+def ensure_tools(
+    *,
+    non_interactive: bool = True,
+    setup_report: dict[str, object] | None = None,
+) -> dict[str, object]:
     """Ensure essential macOS development tools are present.
 
     On Apple Silicon Macs this checks for Homebrew, Xcode command line tools,
     Python 3.11 and rustup.  If any are missing ``prepare_macos_env`` is
     invoked to install them.  A report dictionary is returned mirroring
     ``prepare_macos_env``'s output and listing any missing components.
+
+    When ``setup_report`` is provided the results from a prior invocation of
+    :func:`prepare_macos_env` are used, avoiding a second run of the setup
+    procedure and ensuring the completion marker is written.
     """
 
     if platform.system() != "Darwin" or platform.machine() != "arm64":
@@ -311,6 +319,25 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
             if shutil.which(cmd) is None:
                 found.append(cmd)
         return found
+
+    if setup_report is not None:
+        report = setup_report
+        missing_after = missing()
+        report["missing"] = missing_after
+        if report.get("success") and not missing_after:
+            TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+            TOOLS_OK_MARKER.write_text("ok")
+        else:
+            print(
+                "macOS environment preparation failed; continuing without required tools",
+                file=sys.stderr,
+            )
+            for step, info in report["steps"].items():
+                if info.get("status") == "error":
+                    fix = MANUAL_FIXES.get(step)
+                    if fix:
+                        print(f"Manual fix for {step}: {fix}")
+        return report
 
     missing_tools = missing()
     if TOOLS_OK_MARKER.exists() and not missing_tools:

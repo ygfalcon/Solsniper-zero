@@ -18,7 +18,9 @@ fake_startup.run = _fake_run
 sys.modules["scripts.startup"] = fake_startup
 
 macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
-macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+macos_setup_mod.ensure_tools = (
+    lambda non_interactive=True, setup_report=None: None
+)
 sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
 
 bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")

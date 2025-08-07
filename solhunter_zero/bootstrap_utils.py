@@ -194,17 +194,20 @@ def ensure_deps(
     if platform.system() == "Darwin":
         from . import macos_setup
 
-        report = macos_setup.prepare_macos_env(non_interactive=True)
-        if not report.get("success"):
-            for step, info in report.get("steps", {}).items():
-                if info.get("status") == "error":
-                    fix = macos_setup.MANUAL_FIXES.get(step)
-                    if fix:
-                        print(f"Manual fix for {step}: {fix}")
-            print(
-                "macOS environment preparation failed. Please address the issues above and re-run.",
-            )
-            raise SystemExit(1)
+        report: dict[str, object] | None = None
+        if not macos_setup.MAC_SETUP_MARKER.exists():
+            report = macos_setup.prepare_macos_env(non_interactive=True)
+            if not report.get("success"):
+                for step, info in report.get("steps", {}).items():
+                    if info.get("status") == "error":
+                        fix = macos_setup.MANUAL_FIXES.get(step)
+                        if fix:
+                            print(f"Manual fix for {step}: {fix}")
+                print(
+                    "macOS environment preparation failed. Please address the issues above and re-run.",
+                )
+                raise SystemExit(1)
+        macos_setup.ensure_tools(non_interactive=True, setup_report=report)
 
     force_reinstall = os.getenv("SOLHUNTER_FORCE_DEPS") == "1"
     if DEPS_MARKER.exists() and not force_reinstall:

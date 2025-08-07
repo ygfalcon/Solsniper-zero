@@ -12,7 +12,8 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
 
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+        "solhunter_zero.macos_setup.ensure_tools",
+        lambda non_interactive=True, setup_report=None: {"success": True},
     )
 
     def fake_gpu_env():

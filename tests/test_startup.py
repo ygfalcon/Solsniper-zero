@@ -115,7 +115,8 @@ def test_mac_startup_prereqs(monkeypatch):
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+        "solhunter_zero.macos_setup.ensure_tools",
+        lambda non_interactive=True, setup_report=None: {"success": True},
     )
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
@@ -365,7 +366,8 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+        "solhunter_zero.macos_setup.ensure_tools",
+        lambda non_interactive=True, setup_report=None: {"success": True},
     )
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
@@ -424,7 +426,8 @@ def test_ensure_deps_requires_mps(monkeypatch):
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(startup.platform, "machine", lambda: "arm64")
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+        "solhunter_zero.macos_setup.ensure_tools",
+        lambda non_interactive=True, setup_report=None: {"success": True},
     )
     monkeypatch.setattr(startup.bootstrap_utils, "_package_missing", lambda pkg: True)
     monkeypatch.setattr(
@@ -641,7 +644,8 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+        "solhunter_zero.macos_setup.ensure_tools",
+        lambda non_interactive=True, setup_report=None: {"success": True},
     )
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
 
@@ -649,7 +653,8 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
     monkeypatch.setattr(
-        "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
+        "solhunter_zero.macos_setup.ensure_tools",
+        lambda non_interactive=True, setup_report=None: {"success": True},
     )
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
