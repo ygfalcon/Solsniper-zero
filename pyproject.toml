@@ -74,5 +74,6 @@ include = ["solhunter_zero*", "scripts*"]
 [tool.setuptools.package-data]
 "solhunter_zero" = [
     "libroute_ffi.so",
+    "libroute_ffi.dylib",
     "data/*.json",
 ]
