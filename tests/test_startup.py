@@ -562,7 +562,7 @@ def test_ensure_cargo_skips_install_when_cached(monkeypatch, tmp_path, capsys):
     assert "previously installed" in out
 
 
-def test_main_calls_ensure_endpoints(monkeypatch):
+def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     from scripts import startup
 
     called: dict[str, object] = {}
@@ -577,6 +577,7 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
     monkeypatch.setattr("scripts.mac_setup.ensure_tools", lambda: {"success": True})
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
@@ -591,7 +592,16 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
+    monkeypatch.setattr(
+        startup,
+        "device",
+        types.SimpleNamespace(
+            initialize_gpu=lambda: {},
+            get_default_device=lambda: "cpu",
+            detect_gpu=lambda: False,
+            ensure_gpu_env=lambda: {},
+        ),
+    )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     monkeypatch.setattr(
         startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
@@ -604,11 +614,13 @@ def test_main_calls_ensure_endpoints(monkeypatch):
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
     ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
+    out = capsys.readouterr().out
     assert "endpoints" in called
+    assert "HTTP endpoints: reachable" in out
     assert ret == 0
 
 
-def test_main_skips_endpoint_check(monkeypatch):
+def test_main_skips_endpoint_check(monkeypatch, capsys):
     from scripts import startup
 
     called: dict[str, object] = {}
@@ -623,7 +635,16 @@ def test_main_skips_endpoint_check(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
+    monkeypatch.setattr(
+        startup,
+        "device",
+        types.SimpleNamespace(
+            initialize_gpu=lambda: {},
+            get_default_device=lambda: "cpu",
+            detect_gpu=lambda: False,
+            ensure_gpu_env=lambda: {},
+        ),
+    )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
@@ -639,7 +660,9 @@ def test_main_skips_endpoint_check(monkeypatch):
         "--skip-preflight",
     ])
 
+    out = capsys.readouterr().out
     assert "endpoints" not in called
+    assert "HTTP endpoints: skipped" in out
     assert ret == 0
 
 
@@ -663,7 +686,15 @@ def test_main_preflight_success(monkeypatch):
     import types as _types, sys
     stub_torch = _types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", _types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False))
+    monkeypatch.setattr(
+        startup,
+        "device",
+        _types.SimpleNamespace(
+            initialize_gpu=lambda: {},
+            get_default_device=lambda: "cpu",
+            detect_gpu=lambda: False,
+        ),
+    )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
 
     with pytest.raises(SystemExit) as exc:
@@ -691,7 +722,16 @@ def test_main_preflight_failure(monkeypatch, capsys):
     import types
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
+    monkeypatch.setattr(
+        startup,
+        "device",
+        types.SimpleNamespace(
+            initialize_gpu=lambda: {},
+            get_default_device=lambda: "cpu",
+            detect_gpu=lambda: False,
+            ensure_gpu_env=lambda: {},
+        ),
+    )
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     from solhunter_zero import bootstrap as bootstrap_mod
@@ -787,7 +827,16 @@ def test_wallet_cli_failure_propagates(monkeypatch):
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
-    monkeypatch.setattr(startup, "device", types.SimpleNamespace(get_default_device=lambda: "cpu", detect_gpu=lambda: False, ensure_gpu_env=lambda: {}))
+    monkeypatch.setattr(
+        startup,
+        "device",
+        types.SimpleNamespace(
+            initialize_gpu=lambda: {},
+            get_default_device=lambda: "cpu",
+            detect_gpu=lambda: False,
+            ensure_gpu_env=lambda: {},
+        ),
+    )
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://dex.example"},
         validate_config=lambda cfg: cfg,
