@@ -1112,3 +1112,22 @@ def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit):
         bootstrap.bootstrap(one_click=True)
+
+
+def test_disk_space_threshold_uses_config(monkeypatch):
+    from scripts import startup
+
+    cfg = {"offline_data_limit_gb": 2}
+    monkeypatch.setattr(startup, "load_config", lambda path=None: cfg)
+    monkeypatch.setattr(startup, "apply_env_overrides", lambda c: c)
+
+    one_gb = 1024 ** 3
+
+    def fake_disk_usage(path):
+        return (0, 0, one_gb)
+
+    monkeypatch.setattr(startup.preflight_utils.shutil, "disk_usage", fake_disk_usage)
+    monkeypatch.setattr(startup, "log_startup", lambda msg: None)
+
+    with pytest.raises(SystemExit):
+        startup.main([])

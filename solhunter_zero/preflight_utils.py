@@ -145,8 +145,16 @@ def check_depth_service(path: str = "target/release/depth_service") -> Check:
     return False, f"Missing {path}"
 
 
-def check_disk_space(min_bytes: int) -> None:
-    """Ensure there is at least ``min_bytes`` free on the current filesystem."""
+def check_disk_space(min_bytes: int | float) -> None:
+    """Ensure there is at least ``min_bytes`` free on the current filesystem.
+
+    The ``min_bytes`` value is typically derived from the
+    ``offline_data_limit_gb`` configuration in ``scripts/startup.py``.  Both
+    integer and floating point values are accepted and coerced to integers
+    internally.
+    """
+
+    min_bytes = int(min_bytes)
 
     try:
         _, _, free = shutil.disk_usage(ROOT)
