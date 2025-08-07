@@ -38,7 +38,10 @@ def test_one_click_trading_full_preset(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(investor_demo, "_demo_rl_agent", lambda: 0.0)
     investor_demo.used_trade_types.clear()
 
-    investor_demo.main(["--preset", "full", "--reports", str(tmp_path)])
+    try:
+        investor_demo.main(["--preset", "full", "--reports", str(tmp_path)])
+    finally:
+        investor_demo.used_trade_types.clear()
 
     assert (tmp_path / "aggregated_summary.json").exists()
     assert (tmp_path / "aggregate_summary.json").exists()
@@ -52,4 +55,3 @@ def test_one_click_trading_full_preset(tmp_path: Path, monkeypatch) -> None:
     }
 
     assert strategy_modules <= configs
-
