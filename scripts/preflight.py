@@ -13,6 +13,11 @@ from urllib import error
 import json
 
 from scripts.deps import check_deps
+from solhunter_zero.config_utils import (
+    ensure_default_config,
+    select_active_keypair,
+)
+from solhunter_zero import wallet
 
 
 
@@ -98,21 +103,21 @@ def check_xcode_clt() -> Check:
 
 
 def check_config_file(path: str = "config.toml") -> Check:
-    if Path(path).exists():
-        return True, f"Found {path}"
+    cfg = ensure_default_config()
+    if cfg.exists():
+        return True, f"Found {cfg}"
     return False, f"Missing {path}"
 
 
 def check_keypair(dir_path: str = "keypairs") -> Check:
-    base = Path(dir_path)
-    active = base / "active"
-    if not active.exists():
+    try:
+        info = select_active_keypair(auto=True)
+    except Exception:
         return False, "keypairs/active not found"
-    name = active.read_text().strip()
-    keyfile = base / f"{name}.json"
-    if not keyfile.exists():
-        return False, f"Keypair {keyfile} not found"
-    return True, f"Active keypair {name} present"
+    keyfile = Path(wallet.KEYPAIR_DIR) / f"{info.name}.json"
+    if keyfile.exists():
+        return True, f"Active keypair {info.name} present"
+    return False, f"Keypair {keyfile} not found"
 
 
 def check_required_env(keys: List[str] | None = None) -> Check:
