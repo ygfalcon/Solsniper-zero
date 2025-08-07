@@ -23,6 +23,15 @@ def test_startup_help():
 
 def test_startup_repair_clears_markers(monkeypatch, capsys):
     import platform
+    import types, sys
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
     from scripts import startup
 
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
@@ -31,6 +40,10 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     cargo_marker = startup.ROOT / ".cache" / "cargo-installed"
     cargo_marker.parent.mkdir(parents=True, exist_ok=True)
     cargo_marker.write_text("ok")
+
+    deps_marker = startup.ROOT / ".cache" / "deps-installed"
+    deps_marker.parent.mkdir(parents=True, exist_ok=True)
+    deps_marker.write_text("ok")
 
     from solhunter_zero import device
 
@@ -80,6 +93,7 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
     assert "Manual fix for xcode" in out
     assert called["called"]
     assert not cargo_marker.exists()
+    assert not deps_marker.exists()
     assert not device.MPS_SENTINEL.exists()
 
 
