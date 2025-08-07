@@ -970,6 +970,47 @@ def main(argv: List[str] | None = None) -> None:
         for row in summary:
             writer.writerow(row)
 
+    # Compute aggregated metrics across strategies
+    strat_groups: Dict[str, Dict[str, object]] = {}
+    total_roi = 0.0
+    total_sharpes: List[float] = []
+    for row in summary:
+        name = str(row["config"])
+        grp = strat_groups.setdefault(name, {"roi": 0.0, "sharpes": []})
+        roi = float(row["roi"])
+        sharpe = float(row["sharpe"])
+        grp["roi"] = float(grp["roi"]) + roi
+        grp.setdefault("sharpes", []).append(sharpe)  # type: ignore[call-arg]
+        total_roi += roi
+        total_sharpes.append(sharpe)
+
+    avg_sharpe = sum(total_sharpes) / len(total_sharpes) if total_sharpes else 0.0
+    best_strategy = (
+        max(strat_groups.items(), key=lambda kv: kv[1]["roi"])[0]
+        if strat_groups
+        else None
+    )
+    worst_strategy = (
+        min(strat_groups.items(), key=lambda kv: kv[1]["roi"])[0]
+        if strat_groups
+        else None
+    )
+
+    aggregated: Dict[str, object] = {
+        "total_roi": total_roi,
+        "average_sharpe": avg_sharpe,
+        "best_strategy": best_strategy,
+        "worst_strategy": worst_strategy,
+    }
+    with open(args.reports / "aggregated_summary.json", "w", encoding="utf-8") as agf:
+        json.dump(aggregated, agf, indent=2)
+
+    strat_table: List[Tuple[str, float, float]] = []
+    for name, metrics in strat_groups.items():
+        vals: List[float] = metrics.get("sharpes", [])  # type: ignore[assignment]
+        avg = sum(vals) / len(vals) if vals else 0.0
+        strat_table.append((name, float(metrics["roi"]), avg))
+
     # Derive an aggregate view across tokens using the best strategy for each
     # token.  ``summary`` holds a row for every (token, strategy) pair so we
     # select the strategy with the highest final capital per token and compute
@@ -1142,6 +1183,20 @@ def main(argv: List[str] | None = None) -> None:
             f"Win rate {row['win_rate']:.4f}"
         )
         print(line)
+
+    if strat_table:
+        try:  # Optional dependency
+            from tabulate import tabulate  # type: ignore[import-untyped]
+
+            table = [
+                (name, f"{roi:.4f}", f"{sharpe:.4f}") for name, roi, sharpe in strat_table
+            ]
+            print("\nAggregated Strategy Performance:")
+            print(tabulate(table, headers=["Strategy", "Total ROI", "Avg Sharpe"]))
+        except Exception:
+            print("\nAggregated Strategy Performance:")
+            for name, roi, sharpe in strat_table:
+                print(f"{name}: ROI {roi:.4f} Avg Sharpe {sharpe:.4f}")
     if top:
         top_prefix = (
             f"{top['token']} {top['config']}" if multi_token else top["config"]
