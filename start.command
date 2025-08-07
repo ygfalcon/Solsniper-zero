@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/scripts/launcher.py" "$@"
+exec solhunter-start "$@"
 

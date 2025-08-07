@@ -1,4 +1,3 @@
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -6,16 +5,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_run_sh_is_symlink_to_start_py():
+def test_run_sh_invokes_cli():
     script = REPO_ROOT / "run.sh"
-    assert script.is_symlink()
-    assert os.readlink(script) == "start.py"
+    assert script.is_file()
+    assert "solhunter-start" in script.read_text()
 
 
-def test_start_command_is_symlink_to_start_py():
+def test_start_command_invokes_cli():
     script = REPO_ROOT / "start.command"
-    assert script.is_symlink()
-    assert os.readlink(script) == "start.py"
+    assert script.is_file()
+    assert "solhunter-start" in script.read_text()
 
 
 def test_start_py_invokes_launcher(tmp_path):
@@ -35,3 +34,4 @@ def test_start_py_invokes_launcher(tmp_path):
     subprocess.run([sys.executable, str(tmp_start), "EXTRA"], check=True)
 
     assert called.read_text().split() == ["EXTRA"]
+
