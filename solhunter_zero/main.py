@@ -154,7 +154,7 @@ from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics_async
 from .market_ws import listen_and_trade
 from .simulation import run_simulations
 from .decision import should_buy, should_sell
-from .prices import fetch_token_prices_async
+from .prices import fetch_token_prices_async, warm_cache
 
 from . import order_book_ws
 
@@ -711,6 +711,7 @@ def main(
 
     memory = Memory(memory_path)
     portfolio = Portfolio(path=portfolio_path)
+    warm_cache(portfolio.balances.keys())
 
     agent_manager: AgentManager | None = None
 

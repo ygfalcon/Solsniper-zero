@@ -1,10 +1,22 @@
+import os
+
+os.environ.setdefault("SOLANA_RPC_URL", "http://localhost")
+os.environ.setdefault("DEX_BASE_URL", "http://localhost")
+os.environ.setdefault("AGENTS", "[\"dummy\"]")
+_cfg_path = os.path.join(os.path.dirname(__file__), "tmp_config.toml")
+with open(_cfg_path, "w", encoding="utf-8") as _f:
+    _f.write("solana_rpc_url='http://localhost'\n")
+    _f.write("dex_base_url='http://localhost'\n")
+    _f.write("agents=['dummy']\n")
+    _f.write("agent_weights={dummy=1.0}\n")
+os.environ["SOLHUNTER_CONFIG"] = _cfg_path
+
 import pytest
 pytest.importorskip("torch.nn.utils.rnn")
 pytest.importorskip("transformers")
 from solhunter_zero import main as main_module
 from solhunter_zero.simulation import SimulationResult
 import asyncio
-import os
 import json
 pytest.importorskip("solders")
 from solders.keypair import Keypair
@@ -18,6 +30,11 @@ def _stub_arbitrage(monkeypatch):
     monkeypatch.setattr(
         main_module.arbitrage, "detect_and_execute_arbitrage", _fake
     )
+    monkeypatch.setattr(main_module, "warm_cache", lambda *_a, **_k: None)
+    monkeypatch.setattr(main_module.AgentManager, "from_config", lambda _cfg: None)
+    async def _fake_start_ws_server(*a, **k):
+        return None
+    monkeypatch.setattr(main_module.event_bus, "start_ws_server", _fake_start_ws_server)
 
 
 def test_main_invokes_place_order(monkeypatch):
