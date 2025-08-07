@@ -100,6 +100,8 @@ This document lists environment variables recognized by the project.
 | `MIN_PORTFOLIO_VALUE` | `20` | Minimum portfolio value |
 | `MIN_STARTING_BALANCE` | `0` | Minimum starting balance |
 | `MNEMONIC` | `` | Configures mnemonic |
+| `ENCRYPT_MNEMONIC` | `0` | Store mnemonic file encrypted when set to `1` |
+| `MNEMONIC_ENCRYPTION_KEY` | `` | Passphrase used for mnemonic encryption |
 | `NEWS_FEEDS` | `` | Configures news feeds |
 | `OFFLINE_BATCH_SIZE` | `` | Configures offline batch size |
 | `OFFLINE_DATA_INTERVAL` | `3600` | Interval for offline data |

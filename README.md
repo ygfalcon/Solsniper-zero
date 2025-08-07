@@ -171,6 +171,8 @@ profit calculation so routes are ranked based on the borrowed size.
     ```bash
     scripts/setup_default_keypair.sh
     ```
+    Set `ENCRYPT_MNEMONIC=1` and provide `MNEMONIC_ENCRYPTION_KEY` to store
+    `default.mnemonic` in encrypted form.
 10. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
