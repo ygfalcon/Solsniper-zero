@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from scripts import deps
+from scripts.launcher import ensure_python  # re-export
 from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup

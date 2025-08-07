@@ -92,30 +92,34 @@ def find_python() -> str:
     raise SystemExit(1)
 
 
-PYTHON_EXE = find_python()
-if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
-    launcher = Path(__file__).resolve()
-    os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *sys.argv[1:]])
-    raise SystemExit(1)
-
-
-sys.path.insert(0, str(ROOT))
-from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup  # noqa: E402
-
-ensure_venv(None)
-log_startup(f"Virtual environment: {sys.prefix}")
-
-from solhunter_zero import env  # noqa: E402
-
-env.load_env_file(ROOT / ".env")
-from solhunter_zero import device  # noqa: E402
-os.chdir(ROOT)
-
-from solhunter_zero.system import set_rayon_threads  # noqa: E402
+def ensure_python() -> None:
+    """Ensure a Python 3.11+ interpreter and native arm64 on macOS."""
+    python_exe = find_python()
+    if Path(python_exe).resolve() != Path(sys.executable).resolve():
+        os.execv(python_exe, [python_exe, *sys.argv])
+    if platform.system() == "Darwin" and platform.machine() == "x86_64":
+        cmd = ["arch", "-arm64", sys.executable, *sys.argv]
+        os.execvp(cmd[0], cmd)
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
+    ensure_python()
+
+    sys.path.insert(0, str(ROOT))
+    from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
+    from solhunter_zero.logging_utils import log_startup  # noqa: E402
+
+    ensure_venv(None)
+    log_startup(f"Virtual environment: {sys.prefix}")
+
+    from solhunter_zero import env  # noqa: E402
+
+    env.load_env_file(ROOT / ".env")
+    from solhunter_zero import device  # noqa: E402
+    os.chdir(ROOT)
+
+    from solhunter_zero.system import set_rayon_threads  # noqa: E402
+
     argv = sys.argv[1:] if argv is None else argv
 
     # Configure Rayon thread count once for all downstream imports
@@ -130,12 +134,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         idx = 1 if argv and argv[0] == "--one-click" else 0
         argv.insert(idx, "--full-deps")
 
-    python_exe = sys.executable
     startup = ROOT / "scripts" / "startup.py"
-    cmd = [python_exe, str(startup), *argv]
-
-    if platform.system() == "Darwin":
-        cmd = ["arch", "-arm64", *cmd]
+    cmd = [sys.executable, str(startup), *argv]
     os.execvp(cmd[0], cmd)
 
 

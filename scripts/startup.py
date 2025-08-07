@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
+from solhunter_zero.bootstrap_utils import ensure_python
+ensure_python()
+
 MAX_STARTUP_LOG_SIZE = 1_000_000  # 1 MB
 
 
@@ -55,18 +58,6 @@ from solhunter_zero.logging_utils import log_startup  # noqa: E402
 env.load_env_file(ROOT / ".env")
 os.environ.setdefault("DEPTH_SERVICE", "true")
 from solhunter_zero import device  # noqa: E402
-
-if platform.system() == "Darwin" and platform.machine() == "x86_64":
-    script = Path(__file__).resolve()
-    cmd = ["arch", "-arm64", sys.executable, str(script), *sys.argv[1:]]
-    try:
-        os.execvp(cmd[0], cmd)
-    except OSError as exc:  # pragma: no cover - hard failure
-        msg = (
-            f"Failed to re-exec {script.name} via 'arch -arm64': {exc}\n"
-            "Please use the unified entry point (scripts/launcher.py or start.command)."
-        )
-        raise SystemExit(msg)
 
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
@@ -503,13 +494,6 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["SOLHUNTER_INSTALL_OPTIONAL"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
-
-    if sys.version_info < (3, 11):
-        print(
-            "Python 3.11 or higher is required. "
-            "Please install Python 3.11 following the instructions in README.md."
-        )
-        return 1
 
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
         print("Warning: running under Rosetta; Metal acceleration unavailable.")
