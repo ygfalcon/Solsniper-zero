@@ -2,11 +2,12 @@ import os
 import platform
 import types
 import sys
+from pathlib import Path
 
 from scripts import startup
 
 
-def test_startup_mac_m1(monkeypatch):
+def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
 
@@ -44,6 +45,15 @@ def test_startup_mac_m1(monkeypatch):
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", dummy_config)
+    dummy_keypair_info = types.SimpleNamespace(name="default", mnemonic_path=None)
+    monkeypatch.setattr(
+        "solhunter_zero.config_utils.ensure_default_config",
+        lambda: Path("config.toml"),
+    )
+    monkeypatch.setattr(
+        "solhunter_zero.config_utils.select_active_keypair",
+        lambda auto=True: dummy_keypair_info,
+    )
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: None)
@@ -62,9 +72,22 @@ def test_startup_mac_m1(monkeypatch):
     monkeypatch.setattr(wallet, "get_active_keypair_name", lambda: "default")
     monkeypatch.setattr(wallet, "list_keypairs", lambda: ["default"])
 
-    monkeypatch.setattr("scripts.preflight.main", lambda: None)
     monkeypatch.setattr(startup.subprocess, "run", lambda cmd: types.SimpleNamespace(returncode=0))
+    logs: list[str] = []
+    monkeypatch.setattr(startup, "log_startup", lambda msg: logs.append(msg))
 
-    code = startup.run(["--one-click", "--self-test"])
+    args = [
+        "--skip-deps",
+        "--skip-setup",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--skip-preflight",
+        "--no-diagnostics",
+    ]
+    code = startup.run(args)
+    out = capsys.readouterr().out
+    msg = "SolHunter Zero launch complete – system ready."
+    assert msg in out
+    assert msg in logs
     assert code == 0
 
