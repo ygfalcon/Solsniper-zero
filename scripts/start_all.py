@@ -46,12 +46,6 @@ from solhunter_zero.service_launcher import (  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
 
-if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
-    from solhunter_zero import autopilot
-
-    autopilot.main()
-    raise SystemExit
-
 PROCS: list[subprocess.Popen] = []
 
 
@@ -104,36 +98,59 @@ signal.signal(signal.SIGINT, stop_all)
 signal.signal(signal.SIGTERM, stop_all)
 logging.basicConfig(level=logging.INFO)
 
-cfg = ensure_config_file()
-cfg_data = validate_env(ENV_VARS, cfg)
-set_env_from_config(cfg_data)
 
-# Launch depth service and RL daemon first
-interval = float(
-    cfg_data.get(
-        "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
+def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
+    """Wait briefly to ensure the RL daemon is running."""
+    deadline = time.monotonic() + timeout
+    ready_after = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"rl_daemon exited with code {proc.returncode}"
+            )
+        if time.monotonic() >= ready_after:
+            return
+        time.sleep(0.1)
+    raise TimeoutError("rl_daemon startup timed out")
+
+
+def launch_services() -> None:
+    cfg = ensure_config_file()
+    cfg_data = validate_env(ENV_VARS, cfg)
+    set_env_from_config(cfg_data)
+    interval = float(
+        cfg_data.get(
+            "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
+        )
     )
-)
-db_path = cfg_data.get("rl_db_path", "offline_data.db")
-Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-try:
-    with open(db_path, "a"):
-        pass
-except OSError as exc:
-    print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
-    sys.exit(1)
-data_sync.start_scheduler(interval=interval, db_path=db_path)
+    db_path = cfg_data.get("rl_db_path", "offline_data.db")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(db_path, "a"):
+            pass
+    except OSError as exc:
+        print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    data_sync.start_scheduler(interval=interval, db_path=db_path)
 
-ensure_cargo()
-try:
+    ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)
     PROCS.append(depth_proc)
-    PROCS.append(start_rl_daemon())
+    rl_proc = start_rl_daemon()
+    PROCS.append(rl_proc)
     addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
     port = int(os.getenv("DEPTH_WS_PORT", "8765"))
     deadline = time.monotonic() + 30.0
     wait_for_depth_ws(addr, port, deadline, depth_proc)
+    _wait_for_rl_daemon(rl_proc)
 
+    main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
+    if cfg:
+        main_cmd += ["--config", cfg]
+    start(main_cmd)
+
+
+def launch_ui() -> None:
     def _run_ui() -> None:
         app = ui.create_app()
         if ui.websockets is not None:
@@ -170,17 +187,27 @@ try:
         app.run()
 
     threading.Thread(target=_run_ui, daemon=True).start()
-except Exception as exc:
-    logging.error(str(exc))
-    stop_all()
 
-main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
-if cfg:
-    main_cmd += ["--config", cfg]
-start(main_cmd)
 
-try:
-    while any(p.poll() is None for p in PROCS):
-        time.sleep(1)
-finally:
-    stop_all()
+def monitor_processes() -> None:
+    try:
+        while any(p.poll() is None for p in PROCS):
+            time.sleep(1)
+    finally:
+        stop_all()
+
+
+def main() -> None:
+    launch_services()
+    launch_ui()
+    monitor_processes()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
+        from solhunter_zero import autopilot
+
+        autopilot.main()
+        sys.exit(0)
+    else:
+        main()
