@@ -879,67 +879,72 @@ HTML_PAGE = """
     <p>Active Keypair: <span id='active_keypair'></span></p>
     <p>Active Config: <span id='active_config'></span></p>
     <div class="section">
-        <h3>Strategies</h3>
+        <h3><i class="fa-solid fa-bullseye"></i> Strategies</h3>
         <div id='strategy_controls'></div>
         <button id='save_strategies'>Save Strategies</button>
     </div>
 
     <div class="section">
-        <h3>ROI: <span id='roi_value'>0</span></h3>
-        <canvas id='roi_chart' width='400' height='100'></canvas>
-        <p id='roi_legend' title='Green indicates positive ROI, red indicates negative ROI.'>
-            ROI color legend: green ≥ 0, red &lt; 0
-        </p>
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="roi_tab"><i class="fa-solid fa-chart-line"></i> ROI</button>
+            <button class="tab-btn" data-tab="trades_tab"><i class="fa-solid fa-right-left"></i> Trades</button>
+            <button class="tab-btn" data-tab="weights_tab"><i class="fa-solid fa-dumbbell"></i> Weights</button>
+        </div>
+        <div id="roi_tab" class="tab-panel active">
+            <h3><i class="fa-solid fa-chart-line"></i> ROI: <span id='roi_value'>0</span></h3>
+            <canvas id='roi_chart' width='400' height='100'></canvas>
+            <p id='roi_legend' title='Green indicates positive ROI, red indicates negative ROI.'>
+                ROI color legend: green ≥ 0, red &lt; 0
+            </p>
+        </div>
+        <div id="trades_tab" class="tab-panel">
+            <h3><i class="fa-solid fa-right-left"></i> Recent Trades</h3>
+            <pre id='trades_list'></pre>
+            <canvas id='trade_chart' width='400' height='100'></canvas>
+        </div>
+        <div id="weights_tab" class="tab-panel">
+            <h3><i class="fa-solid fa-dumbbell"></i> Agent Weights</h3>
+            <div id='weights_controls'></div>
+            <button id='save_weights'>Save Weights</button>
+            <canvas id='weights_chart' width='400' height='100'></canvas>
+        </div>
     </div>
 
     <div class="section">
-        <h3>Positions</h3>
+        <h3><i class="fa-solid fa-coins"></i> Positions</h3>
         <pre id='positions'></pre>
     </div>
 
     <div class="section">
-        <h3>Recent Trades</h3>
-        <pre id='trades'></pre>
-        <canvas id='trade_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>Agent Weights</h3>
-        <div id='weights_controls'></div>
-        <button id='save_weights'>Save Weights</button>
-        <canvas id='weights_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>Token PnL</h3>
+        <h3><i class="fa-solid fa-sack-dollar"></i> Token PnL</h3>
         <canvas id='pnl_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>Token Allocation</h3>
+        <h3><i class="fa-solid fa-chart-pie"></i> Token Allocation</h3>
         <canvas id='allocation_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>VaR History</h3>
+        <h3><i class="fa-solid fa-chart-area"></i> VaR History</h3>
         <pre id='var_values'></pre>
         <canvas id='var_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>Exposure</h3>
+        <h3><i class="fa-solid fa-bolt"></i> Exposure</h3>
         <pre id='exposure'></pre>
     </div>
 
     <div class="section">
-        <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
+        <h3><i class="fa-solid fa-gauge-high"></i> Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
 
-        <h3>RL Status</h3>
+        <h3><i class="fa-solid fa-robot"></i> RL Status</h3>
         <pre id='rl_status'></pre>
     </div>
 
     <div class="section">
-        <h3>Risk Parameters</h3>
+        <h3><i class="fa-solid fa-shield-halved"></i> Risk Parameters</h3>
         <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
         <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
         <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
@@ -954,6 +959,15 @@ HTML_PAGE = """
     document.getElementById('stop').onclick = function() {
         fetch('/stop_all', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+        });
+    });
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
         type: 'line',
@@ -1107,7 +1121,7 @@ HTML_PAGE = """
             document.getElementById('positions').textContent = JSON.stringify(data, null, 2);
         });
         fetch('/trades').then(r => r.json()).then(data => {
-            document.getElementById('trades').textContent = JSON.stringify(data.slice(-10), null, 2);
+            document.getElementById('trades_list').textContent = JSON.stringify(data.slice(-10), null, 2);
             const buy = data.filter(t=>t.direction==='buy').length;
             const sell = data.filter(t=>t.direction==='sell').length;
             tradeChart.data.datasets[0].data = [buy, sell];

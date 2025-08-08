@@ -13,19 +13,25 @@ body {
     padding: 0;
 }
 
+
 .container {
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: var(--space-md);
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: var(--space-md);
 }
 
 .section {
-    flex: 1 1 300px;
     background-color: #1e1e1e;
     padding: var(--space-md);
+    border-radius: 4px;
+    transition: transform 0.3s;
+}
+
+.section:hover {
+    transform: scale(1.02);
 }
 
 button {
@@ -65,4 +71,48 @@ pre {
 canvas {
     background-color: #1e1e1e;
     margin-bottom: var(--space-md);
+}
+
+.tabs {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.tab-btn {
+    flex: 1 1 auto;
+    background-color: #1e1e1e;
+    border: 1px solid #555;
+    padding: var(--space-sm);
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+.tab-btn:hover {
+    background-color: #444;
+}
+
+.tab-btn.active {
+    background-color: #333;
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (max-width: 600px) {
+    .container {
+        grid-template-columns: 1fr;
+    }
 }
