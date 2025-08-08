@@ -230,6 +230,20 @@ def _sub_handler(topic: str):
     return handler
 
 
+def _emit_startup_status(component: str, status: str) -> None:
+    """Broadcast startup status for a component."""
+    _emit_ws_event("startup_status", {"component": component, "status": status})
+    try:
+        threading.Thread(
+            target=lambda: publish(
+                "startup_status", {"component": component, "status": status}
+            ),
+            daemon=True,
+        ).start()
+    except Exception:
+        pass
+
+
 _action_sub = subscription("action_executed", _sub_handler("action_executed"))
 _weights_ws_sub = subscription("weights_updated", _sub_handler("weights_updated"))
 _rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
@@ -250,6 +264,7 @@ depth_service_connected = False
 last_heartbeat = 0.0
 rl_daemon_heartbeat = 0.0
 depth_service_heartbeat = 0.0
+_startup_sent: set[str] = set()
 
 def _heartbeat(_payload: Any) -> None:
     global last_heartbeat, rl_daemon_heartbeat, depth_service_heartbeat
@@ -257,8 +272,14 @@ def _heartbeat(_payload: Any) -> None:
     last_heartbeat = time.time()
     if service == "rl_daemon":
         rl_daemon_heartbeat = last_heartbeat
+        if "rl_daemon" not in _startup_sent:
+            _emit_startup_status("rl_daemon", "running")
+            _startup_sent.add("rl_daemon")
     elif service == "depth_service":
         depth_service_heartbeat = last_heartbeat
+        if "depth_service" not in _startup_sent and depth_service_connected:
+            _emit_startup_status("depth_service", "running")
+            _startup_sent.add("depth_service")
 
 _heartbeat_sub = subscription("heartbeat", _heartbeat)
 _heartbeat_sub.__enter__()
@@ -267,9 +288,20 @@ def _depth_status(payload: Any) -> None:
     global depth_service_connected
     status = str(getattr(payload, "status", payload.get("status")))
     depth_service_connected = status in {"connected", "reconnected"}
+    if depth_service_connected and "depth_service" not in _startup_sent:
+        _emit_startup_status("depth_service", "running")
+        _startup_sent.add("depth_service")
 
 _depth_status_sub = subscription("depth_service_status", _depth_status)
 _depth_status_sub.__enter__()
+
+def _startup_complete(_payload: Any) -> None:
+    if "strategy_manager" not in _startup_sent:
+        _emit_startup_status("strategy_manager", "running")
+        _startup_sent.add("strategy_manager")
+
+_startup_complete_sub = subscription("startup_complete", _startup_complete)
+_startup_complete_sub.__enter__()
 
 trading_thread = None
 stop_event = threading.Event()
@@ -278,6 +310,7 @@ loop_delay = 60
 # background thread/process for running scripts/start_all.py
 start_all_thread = None
 start_all_proc = None
+auto_start_enabled = True
 
 # currently active portfolio and keypair used by the trading loop
 current_portfolio: Portfolio | None = None
@@ -445,6 +478,8 @@ def _run_start_all() -> None:
         "autopilot",
     ]
     start_all_proc = subprocess.Popen(cmd)
+    for comp in ("depth_service", "rl_daemon", "strategy_manager"):
+        _emit_startup_status(comp, "starting")
     start_all_proc.wait()
 
 
@@ -469,6 +504,26 @@ def stop_all_route() -> dict:
     if start_all_thread:
         start_all_thread.join(timeout=5)
     return jsonify({"status": "stopped"})
+
+
+@app.route("/auto_start", methods=["GET", "POST"])
+def auto_start_route() -> dict:
+    global auto_start_enabled
+    if request.method == "POST":
+        data = request.get_json() or {}
+        auto_start_enabled = bool(data.get("enabled"))
+        return jsonify({"enabled": auto_start_enabled})
+    return jsonify({"enabled": auto_start_enabled})
+
+
+def maybe_start_all() -> None:
+    global start_all_thread
+    if not auto_start_enabled:
+        return
+    if start_all_thread and start_all_thread.is_alive():
+        return
+    start_all_thread = threading.Thread(target=_run_start_all, daemon=True)
+    start_all_thread.start()
 
 
 @app.route("/risk", methods=["GET", "POST"])
@@ -874,6 +929,8 @@ HTML_PAGE = """
     <button id='stop' class='action-btn'>
         <i class="fa-solid fa-stop"></i> Stop
     </button>
+    <label><input type='checkbox' id='auto_start_toggle'> Auto-start</label>
+    <pre id='startup_progress'></pre>
     <select id='keypair_select'></select>
     <pre id='status_info'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
@@ -953,6 +1010,15 @@ HTML_PAGE = """
     };
     document.getElementById('stop').onclick = function() {
         fetch('/stop_all', {method: 'POST'}).then(r => r.json()).then(console.log);
+    };
+
+    function loadAutoStart() {
+        fetch('/auto_start').then(r => r.json()).then(data => {
+            document.getElementById('auto_start_toggle').checked = data.enabled;
+        });
+    }
+    document.getElementById('auto_start_toggle').onchange = function() {
+        fetch('/auto_start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:this.checked})});
     };
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
@@ -1168,6 +1234,7 @@ HTML_PAGE = """
     loadRisk();
     loadWeights();
     loadStrategies();
+    loadAutoStart();
     refreshData();
     setInterval(function(){
         refreshData();
@@ -1175,6 +1242,18 @@ HTML_PAGE = """
         loadKeypairs();
         loadStrategies();
     }, 5000);
+    try {
+        const eventSock = new WebSocket('ws://' + window.location.hostname + ':8766/ws');
+        eventSock.onmessage = function(ev) {
+            try {
+                const data = JSON.parse(ev.data);
+                if(data.topic === 'startup_status') {
+                    const pre = document.getElementById('startup_progress');
+                    pre.textContent += data.payload.component + ': ' + data.payload.status + "\n";
+                }
+            } catch(e) {}
+        };
+    } catch(e) {}
     try {
         const rlSock = new WebSocket('ws://' + window.location.hostname + ':8767');
         rlSock.onmessage = function(ev) {
@@ -1194,6 +1273,7 @@ HTML_PAGE = """
 
 @app.route("/")
 def index() -> str:
+    maybe_start_all()
     return render_template_string(HTML_PAGE)
 
 
