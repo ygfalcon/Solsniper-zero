@@ -7,12 +7,88 @@ import contextlib
 import importlib.machinery
 import sys
 import pytest
+
+# Ensure lightweight stubs for optional dependencies are available when the real
+# packages are missing.  The stubs mimic the minimal interfaces used by the UI
+# module so that tests can run without the heavy dependencies installed.
+if 'flask' in sys.modules and not hasattr(sys.modules['flask'], 'Blueprint'):
+    flask_mod = sys.modules['flask']
+
+    class _Blueprint:
+        def __init__(self, name, import_name):
+            self.name = name
+            self.import_name = import_name
+            self.routes = {}
+
+        def route(self, path, methods=None):  # pragma: no cover - trivial
+            if methods is None:
+                methods = ['GET']
+            methods = tuple(m.upper() for m in methods)
+
+            def decorator(func):
+                self.routes[(path, methods)] = func
+                return func
+
+            return decorator
+
+    flask_mod.Blueprint = _Blueprint
+
+    if hasattr(flask_mod, 'Flask'):
+        _Flask = flask_mod.Flask
+
+        class Flask(_Flask):
+            def register_blueprint(self, bp):  # pragma: no cover - simple
+                self.routes.update(getattr(bp, 'routes', {}))
+
+        flask_mod.Flask = Flask
+
+if 'cryptography' not in sys.modules:
+    crypto = types.ModuleType('cryptography')
+    fernet = types.ModuleType('cryptography.fernet')
+
+    class _Fernet:
+        def __init__(self, key: bytes | str):
+            pass
+
+        def encrypt(self, data: bytes) -> bytes:  # pragma: no cover - simple stub
+            return data
+
+        def decrypt(self, token: bytes) -> bytes:  # pragma: no cover - simple stub
+            return token
+
+    class _InvalidToken(Exception):
+        pass
+
+    fernet.Fernet = _Fernet
+    fernet.InvalidToken = _InvalidToken
+    crypto.fernet = fernet
+    sys.modules['cryptography'] = crypto
+    sys.modules['cryptography.fernet'] = fernet
+
+if 'solders.keypair' not in sys.modules:
+    solders = types.ModuleType('solders')
+    kp_mod = types.ModuleType('solders.keypair')
+
+    class Keypair:  # type: ignore[override]
+        @staticmethod
+        def new():  # pragma: no cover - simple stub
+            return object()
+
+    kp_mod.Keypair = Keypair
+    solders.keypair = kp_mod
+    sys.modules['solders'] = solders
+    sys.modules['solders.keypair'] = kp_mod
+
 from solders.keypair import Keypair
 from solhunter_zero import ui, config
 from collections import deque
 from solhunter_zero.portfolio import Position
 import logging
 import threading
+
+# Initialize the Flask application so that ``ui.app`` and logging handlers are
+# ready for the tests.
+ui.app = ui.create_app()
 
 pytest.importorskip("google.protobuf")
 
@@ -556,3 +632,64 @@ def test_autostart(monkeypatch):
     assert "run" in events
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "already running"
+
+
+@pytest.fixture
+def log_capture(monkeypatch):
+    """Reset the in-memory log buffer and use simple formatting."""
+    buf = deque(maxlen=20)
+    monkeypatch.setattr(ui, "log_buffer", buf)
+    if ui.buffer_handler:
+        ui.buffer_handler.setFormatter(logging.Formatter("%(message)s"))
+    logging.getLogger().setLevel(logging.INFO)
+    return buf
+
+
+@pytest.fixture
+def missing_services(monkeypatch):
+    """Simulate all background services being unavailable."""
+
+    class DeadThread:
+        def is_alive(self):
+            return False
+
+    ui.trading_thread = DeadThread()
+    ui.rl_daemon = None
+    ui.depth_service_connected = False
+    ui.last_heartbeat = 0
+    ui.rl_daemon_heartbeat = 0
+    ui.depth_service_heartbeat = 0
+
+    def fail_ws(*a, **k):
+        raise OSError("cannot connect")
+
+    if ui.websockets is not None:
+        monkeypatch.setattr(ui.websockets, "connect", fail_ws)
+    monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: "ws://bus")
+
+
+def test_status_reports_failures(missing_services):
+    client = ui.app.test_client()
+    resp = client.get("/status")
+    data = resp.get_json()
+    assert data == {
+        "trading_loop": False,
+        "rl_daemon": False,
+        "depth_service": False,
+        "event_bus": False,
+        "heartbeat": False,
+        "system_metrics": {"cpu": 0.0, "memory": 0.0},
+    }
+
+
+def test_verify_services_error_logs(log_capture, monkeypatch):
+    def fake_verify_services():
+        logging.getLogger().info("Startup summary: verification failed")
+        raise RuntimeError("failure")
+
+    monkeypatch.setattr(ui, "verify_services", fake_verify_services, raising=False)
+
+    with pytest.raises(RuntimeError):
+        ui.verify_services()
+
+    assert any("Startup summary" in line for line in log_capture)
