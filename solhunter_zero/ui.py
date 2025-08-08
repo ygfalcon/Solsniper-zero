@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 
 from flask import Flask, Blueprint, jsonify, request, render_template_string
+from rich.console import Console
+from rich.progress import Progress
 
 from .http import close_session
 from .util import install_uvloop
@@ -58,6 +60,7 @@ _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.t
 log_buffer: deque[str] = deque()
 buffer_handler: logging.Handler | None = None
 _SUBSCRIPTIONS: list[Any] = []
+startup_report: list[dict[str, Any]] = []
 
 # websocket state for streaming log lines
 log_ws_clients: set[Any] = set()
@@ -258,50 +261,10 @@ def _missing_required() -> list[str]:
 
 def create_app() -> Flask:
     """Create and configure the Flask application."""
-    global log_buffer, buffer_handler, _SUBSCRIPTIONS
+    global log_buffer, buffer_handler, _SUBSCRIPTIONS, startup_report
 
-    install_uvloop()
-
-    cfg = load_config()
-    if not cfg and _DEFAULT_PRESET.is_file():
-        cfg = load_config(_DEFAULT_PRESET)
-
-    if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
-        dest = Path(config_module.CONFIG_DIR) / _DEFAULT_PRESET.name
-        if not dest.exists():
-            dest.write_bytes(_DEFAULT_PRESET.read_bytes())
-        select_config(dest.name)
-
-    cfg = apply_env_overrides(cfg)
-    set_env_from_config(cfg)
-
-    # auto-select single keypair and configuration on startup
-    try:
-        if wallet.get_active_keypair_name() is None:
-            keys = wallet.list_keypairs()
-            if len(keys) == 1:
-                wallet.select_keypair(keys[0])
-                if not os.getenv("KEYPAIR_PATH"):
-                    os.environ["KEYPAIR_PATH"] = os.path.join(
-                        wallet.KEYPAIR_DIR, keys[0] + ".json"
-                    )
-    except Exception as exc:
-        print(
-            f"Wallet interaction failed: {exc}\n"
-            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
-            file=sys.stderr,
-        )
-
-    if get_active_config_name() is None:
-        configs = list_configs()
-        if len(configs) == 1:
-            select_config(configs[0])
-            set_env_from_config(load_selected_config())
-
-    app = Flask(
-        __name__, static_folder=str(Path(__file__).resolve().parent / "static")
-    )
-    app.register_blueprint(bp)
+    console = Console()
+    progress = Progress(transient=True, console=console)
 
     log_buffer = deque(maxlen=200)
     buffer_handler = _BufferHandler()
@@ -309,27 +272,99 @@ def create_app() -> Flask:
         logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     )
     logging.getLogger().addHandler(buffer_handler)
+    logging.getLogger().setLevel(logging.INFO)
 
-    _SUBSCRIPTIONS = [
-        subscription("weights_updated", _update_weights),
-        subscription("rl_weights", _update_rl_weights),
-        subscription("rl_metrics", _store_rl_metrics),
-        subscription("system_metrics_combined", _store_system_metrics),
-        subscription("rl_checkpoint", _send_rl_update),
-        subscription("rl_weights", _send_rl_update),
-        subscription("rl_metrics", _send_rl_update),
-        subscription("action_executed", _sub_handler("action_executed")),
-        subscription("weights_updated", _sub_handler("weights_updated")),
-        subscription("rl_weights", _sub_handler("rl_weights")),
-        subscription("rl_metrics", _sub_handler("rl_metrics")),
-        subscription("risk_updated", _sub_handler("risk_updated")),
-        subscription("config_updated", _sub_handler("config_updated")),
-        subscription("system_metrics_combined", _sub_handler("system_metrics")),
-        subscription("heartbeat", _heartbeat),
-        subscription("depth_service_status", _depth_status),
-    ]
-    for sub in _SUBSCRIPTIONS:
-        sub.__enter__()
+    startup_report = []
+
+    install_uvloop()
+
+    with progress:
+        # Step 1: configuration loading
+        cfg_task = progress.add_task("Loading config", total=1)
+        start = time.perf_counter()
+        cfg = load_config()
+        if not cfg and _DEFAULT_PRESET.is_file():
+            cfg = load_config(_DEFAULT_PRESET)
+
+        if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
+            dest = Path(config_module.CONFIG_DIR) / _DEFAULT_PRESET.name
+            if not dest.exists():
+                dest.write_bytes(_DEFAULT_PRESET.read_bytes())
+            select_config(dest.name)
+
+        cfg = apply_env_overrides(cfg)
+        set_env_from_config(cfg)
+        progress.update(cfg_task, advance=1)
+        elapsed = time.perf_counter() - start
+        msg = f"Config load completed in {elapsed:.2f}s"
+        console.log(msg)
+        logging.getLogger().info(msg)
+        startup_report.append({"step": "config load", "elapsed": elapsed})
+
+        # Step 2: keypair selection
+        kp_task = progress.add_task("Selecting keypair", total=1)
+        start = time.perf_counter()
+        try:
+            if wallet.get_active_keypair_name() is None:
+                keys = wallet.list_keypairs()
+                if len(keys) == 1:
+                    wallet.select_keypair(keys[0])
+                    if not os.getenv("KEYPAIR_PATH"):
+                        os.environ["KEYPAIR_PATH"] = os.path.join(
+                            wallet.KEYPAIR_DIR, keys[0] + ".json"
+                        )
+        except Exception as exc:
+            print(
+                f"Wallet interaction failed: {exc}\n"
+                "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+                file=sys.stderr,
+            )
+        if get_active_config_name() is None:
+            configs = list_configs()
+            if len(configs) == 1:
+                select_config(configs[0])
+                set_env_from_config(load_selected_config())
+        progress.update(kp_task, advance=1)
+        elapsed = time.perf_counter() - start
+        msg = f"Keypair selection completed in {elapsed:.2f}s"
+        console.log(msg)
+        logging.getLogger().info(msg)
+        startup_report.append({"step": "keypair selection", "elapsed": elapsed})
+
+        app = Flask(
+            __name__, static_folder=str(Path(__file__).resolve().parent / "static")
+        )
+        app.register_blueprint(bp)
+
+        # Step 3: subscription registration
+        sub_task = progress.add_task("Registering subscriptions", total=1)
+        start = time.perf_counter()
+        _SUBSCRIPTIONS = [
+            subscription("weights_updated", _update_weights),
+            subscription("rl_weights", _update_rl_weights),
+            subscription("rl_metrics", _store_rl_metrics),
+            subscription("system_metrics_combined", _store_system_metrics),
+            subscription("rl_checkpoint", _send_rl_update),
+            subscription("rl_weights", _send_rl_update),
+            subscription("rl_metrics", _send_rl_update),
+            subscription("action_executed", _sub_handler("action_executed")),
+            subscription("weights_updated", _sub_handler("weights_updated")),
+            subscription("rl_weights", _sub_handler("rl_weights")),
+            subscription("rl_metrics", _sub_handler("rl_metrics")),
+            subscription("risk_updated", _sub_handler("risk_updated")),
+            subscription("config_updated", _sub_handler("config_updated")),
+            subscription("system_metrics_combined", _sub_handler("system_metrics")),
+            subscription("heartbeat", _heartbeat),
+            subscription("depth_service_status", _depth_status),
+        ]
+        for sub in _SUBSCRIPTIONS:
+            sub.__enter__()
+        progress.update(sub_task, advance=1)
+        elapsed = time.perf_counter() - start
+        msg = f"Subscription registration completed in {elapsed:.2f}s"
+        console.log(msg)
+        logging.getLogger().info(msg)
+        startup_report.append({"step": "subscription registration", "elapsed": elapsed})
 
     return app
 
@@ -777,6 +812,12 @@ def balances() -> dict:
 def logs() -> dict:
     """Return recent log messages."""
     return jsonify({"logs": list(log_buffer)})
+
+
+@bp.route("/startup")
+def startup() -> dict:
+    """Return startup step timing information."""
+    return jsonify({"startup": startup_report})
 
 
 @bp.route("/rl/status")
