@@ -25,6 +25,8 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 
 import logging
 import tomllib
+from pathlib import Path
+
 from .trade_analyzer import TradeAnalyzer
 import numpy as np
 
@@ -48,6 +50,7 @@ from .schemas import ActionExecuted, WeightsUpdated
 from .multi_rl import PopulationRL
 from .rl_training import MultiAgentRL
 from .datasets.sample_ticks import load_sample_ticks, DEFAULT_PATH as _TICKS_PATH
+from .config import load_config
 
 
 logger = logging.getLogger(__name__)
@@ -984,6 +987,16 @@ class AgentManager:
             supervisor_checkpoint=supervisor_checkpoint,
         )
         return cls(agents, config=cfg_obj)
+
+    @classmethod
+    def from_default(cls) -> "AgentManager | None":
+        """Instantiate with bundled default agent configuration."""
+        default_path = Path(__file__).resolve().parent.parent / "config" / "default.toml"
+        try:
+            cfg = load_config(default_path)
+        except Exception:
+            cfg = {"agents": ["simulation"], "agent_weights": {"simulation": 1.0}}
+        return cls.from_config(cfg)
 
     def close(self) -> None:
         for sub in getattr(self, "_subscriptions", []):

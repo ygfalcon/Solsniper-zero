@@ -869,8 +869,9 @@ def main(
             logging.warning("Failed to load recent trade timestamps: %s", exc)
 
     agent_manager: AgentManager | None = None
+    agents_cfg = cfg.get("agents")
 
-    if cfg.get("agents"):
+    if agents_cfg:
         if weight_config_paths:
             cfg["weight_config_paths"] = weight_config_paths
         if strategy_rotation_interval is not None:
@@ -884,11 +885,21 @@ def main(
         else:
             strategy_manager = None
 
-    else:
+    elif "agents" in cfg:
         strategy_manager = StrategyManager(strategies)
         missing = getattr(strategy_manager, "list_missing", lambda: [])()
         if missing:
             logging.warning("Skipped strategies: %s", ", ".join(missing))
+
+    else:
+        agent_manager = AgentManager.from_default()
+        if agent_manager is None:
+            strategy_manager = StrategyManager(strategies)
+            missing = getattr(strategy_manager, "list_missing", lambda: [])()
+            if missing:
+                logging.warning("Skipped strategies: %s", ", ".join(missing))
+        else:
+            strategy_manager = None
 
     if keypair_path:
         keypair = load_keypair(keypair_path)
