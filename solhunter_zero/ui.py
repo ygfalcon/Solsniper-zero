@@ -894,6 +894,7 @@ HTML_PAGE = """
     </button>
     <select id='keypair_select'></select>
     <pre id='status_info'></pre>
+    <pre id='logs'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
     <p>Active Config: <span id='active_config'></span></p>
     <div class="section">
@@ -977,6 +978,7 @@ HTML_PAGE = """
     document.getElementById('stop').onclick = function() {
         fetch('/stop_all', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
+    let logIndex = 0;
 
     const roiChart = new Chart(document.getElementById('roi_chart'), {
         type: 'line',
@@ -1181,6 +1183,15 @@ HTML_PAGE = """
         });
         fetch('/rl/status').then(r => r.json()).then(data => {
             document.getElementById('rl_status').textContent = JSON.stringify(data);
+        });
+        fetch('/logs').then(r => r.json()).then(data => {
+            const logEl = document.getElementById('logs');
+            const newLogs = data.logs.slice(logIndex);
+            if(newLogs.length) {
+                logEl.textContent += newLogs.join('\n') + '\n';
+                logEl.scrollTop = logEl.scrollHeight;
+                logIndex = data.logs.length;
+            }
         });
         loadWeights();
         loadStrategies();
