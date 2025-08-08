@@ -10,13 +10,14 @@ from typing import Any
 import time
 import subprocess
 import sys
+from queue import SimpleQueue
 
 from .http import close_session
 from .util import install_uvloop
 
 install_uvloop()
 
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string, Response
 from .event_bus import subscription, publish
 try:
     import websockets
@@ -101,13 +102,19 @@ app = Flask(
 
 # in-memory log storage for UI access
 log_buffer: deque[str] = deque(maxlen=200)
+log_queue: SimpleQueue[str] = SimpleQueue()
 
 
 class _BufferHandler(logging.Handler):
     """Logging handler that stores formatted log records in ``log_buffer``."""
 
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - simple
-        log_buffer.append(self.format(record))
+        msg = self.format(record)
+        log_buffer.append(msg)
+        try:
+            log_queue.put_nowait(msg)
+        except Exception:
+            pass
 
 
 buffer_handler = _BufferHandler()
@@ -761,6 +768,19 @@ def logs() -> dict:
     return jsonify({"logs": list(log_buffer)})
 
 
+@app.route("/logs/stream")
+def stream_logs():
+    """Stream log messages via Server-Sent Events."""
+    def generate():
+        for line in list(log_buffer):
+            yield f"data: {line}\n\n"
+        while True:
+            line = log_queue.get()
+            yield f"data: {line}\n\n"
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
 @app.route("/rl/status")
 def rl_status() -> dict:
     """Return RL training metrics if available."""
@@ -944,6 +964,15 @@ HTML_PAGE = """
         <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
         <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
         <button id='save_risk'>Save Risk</button>
+    </div>
+
+    <div class="section">
+        <h3>Startup Logs</h3>
+        <div>
+            <label>Filter <input id='log_filter' type='text' placeholder='Filter'></label>
+            <label><input type='checkbox' id='auto_scroll' checked> Auto-scroll</label>
+        </div>
+        <pre id='log_output'></pre>
     </div>
     </div>
 
@@ -1175,6 +1204,21 @@ HTML_PAGE = """
         loadKeypairs();
         loadStrategies();
     }, 5000);
+
+    const logOutput = document.getElementById('log_output');
+    const evtSource = new EventSource('/logs/stream');
+    evtSource.onmessage = function(ev) {
+        const line = ev.data;
+        const filterText = document.getElementById('log_filter').value.toLowerCase();
+        if (filterText && !line.toLowerCase().includes(filterText)) return;
+        logOutput.textContent += line + '\n';
+        if (document.getElementById('auto_scroll').checked) {
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+    };
+    document.getElementById('log_filter').addEventListener('input', () => {
+        logOutput.textContent = '';
+    });
     try {
         const rlSock = new WebSocket('ws://' + window.location.hostname + ':8767');
         rlSock.onmessage = function(ev) {
