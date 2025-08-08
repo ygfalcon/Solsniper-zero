@@ -14,6 +14,10 @@ import asyncio
 from pathlib import Path
 from typing import IO
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
@@ -53,6 +57,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     raise SystemExit
 
 PROCS: list[subprocess.Popen] = []
+
+console = Console()
 
 
 ENV_VARS = REQUIRED_ENV_VARS + (
@@ -125,53 +131,70 @@ except OSError as exc:
 data_sync.start_scheduler(interval=interval, db_path=db_path)
 
 ensure_cargo()
+step_desc = ""
 try:
-    depth_proc = start_depth_service(cfg, stream_stderr=True)
-    PROCS.append(depth_proc)
-    PROCS.append(start_rl_daemon())
-    addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
-    port = int(os.getenv("DEPTH_WS_PORT", "8765"))
-    deadline = time.monotonic() + 30.0
-    wait_for_depth_ws(addr, port, deadline, depth_proc)
+    with Progress(console=console, transient=True) as progress:
+        step_desc = "Starting depth service"
+        depth_task = progress.add_task(step_desc, total=1)
+        depth_proc = start_depth_service(cfg, stream_stderr=True)
+        PROCS.append(depth_proc)
+        progress.update(depth_task, advance=1)
 
-    def _run_ui() -> None:
-        app = ui.create_app()
-        if ui.websockets is not None:
-            def _start_rl_ws() -> None:
-                ui.rl_ws_loop = asyncio.new_event_loop()
-                ui.rl_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._rl_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8767,
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+        step_desc = "Starting RL daemon"
+        rl_task = progress.add_task(step_desc, total=1)
+        PROCS.append(start_rl_daemon())
+        progress.update(rl_task, advance=1)
+
+        step_desc = "Waiting for depth websocket"
+        ws_task = progress.add_task(step_desc, total=1)
+        addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
+        port = int(os.getenv("DEPTH_WS_PORT", "8765"))
+        deadline = time.monotonic() + 30.0
+        wait_for_depth_ws(addr, port, deadline, depth_proc)
+        progress.update(ws_task, advance=1)
+
+        step_desc = "Launching UI"
+        ui_task = progress.add_task(step_desc, total=1)
+
+        def _run_ui() -> None:
+            app = ui.create_app()
+            if ui.websockets is not None:
+                def _start_rl_ws() -> None:
+                    ui.rl_ws_loop = asyncio.new_event_loop()
+                    ui.rl_ws_loop.run_until_complete(
+                        ui.websockets.serve(
+                            ui._rl_ws_handler,  # type: ignore[attr-defined]
+                            "localhost",
+                            8767,
+                            ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
+                            ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                        )
                     )
-                )
-                ui.rl_ws_loop.run_forever()
+                    ui.rl_ws_loop.run_forever()
 
-            def _start_event_ws() -> None:
-                ui.event_ws_loop = asyncio.new_event_loop()
-                ui.event_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._event_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8766,
-                        path="/ws",
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                def _start_event_ws() -> None:
+                    ui.event_ws_loop = asyncio.new_event_loop()
+                    ui.event_ws_loop.run_until_complete(
+                        ui.websockets.serve(
+                            ui._event_ws_handler,  # type: ignore[attr-defined]
+                            "localhost",
+                            8766,
+                            path="/ws",
+                            ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
+                            ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                        )
                     )
-                )
-                ui.event_ws_loop.run_forever()
+                    ui.event_ws_loop.run_forever()
 
-            threading.Thread(target=_start_rl_ws, daemon=True).start()
-            threading.Thread(target=_start_event_ws, daemon=True).start()
+                threading.Thread(target=_start_rl_ws, daemon=True).start()
+                threading.Thread(target=_start_event_ws, daemon=True).start()
 
-        app.run()
+            app.run()
 
-    threading.Thread(target=_run_ui, daemon=True).start()
+        threading.Thread(target=_run_ui, daemon=True).start()
+        progress.update(ui_task, advance=1)
 except Exception as exc:
-    logging.error(str(exc))
+    console.print(Panel(f"{step_desc} failed: {exc}", style="red"))
     stop_all()
 
 main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
