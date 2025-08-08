@@ -812,6 +812,35 @@ def status() -> dict:
     )
 
 
+@app.route("/startup_summary")
+def startup_summary() -> dict:
+    """Return the latest startup summary lines from startup.log."""
+    log_path = Path(__file__).resolve().parent.parent / "startup.log"
+    result = {
+        "config_path": None,
+        "keypair": None,
+        "gpu": None,
+        "rpc_status": None,
+        "http_status": None,
+    }
+    if log_path.is_file():
+        lines = log_path.read_text().splitlines()
+        markers = {
+            "config_path": "Config path",
+            "keypair": "Keypair",
+            "gpu": "GPU",
+            "rpc_status": "RPC",
+            "http_status": "HTTP",
+        }
+        for line in reversed(lines):
+            for key, token in markers.items():
+                if result[key] is None and token in line:
+                    # store text after colon if present
+                    parts = line.split(":", 1)
+                    result[key] = parts[1].strip() if len(parts) > 1 else line.strip()
+    return jsonify(result)
+
+
 @app.route("/memory/insert", methods=["POST"])
 def memory_insert() -> dict:
     data = request.get_json() or {}
@@ -878,6 +907,14 @@ HTML_PAGE = """
     <pre id='status_info'></pre>
     <p>Active Keypair: <span id='active_keypair'></span></p>
     <p>Active Config: <span id='active_config'></span></p>
+    <div class="section">
+        <h3>Startup Summary</h3>
+        <p>Config Path: <span id='summary_config'></span></p>
+        <p>Keypair: <span id='summary_keypair'></span></p>
+        <p>GPU: <span id='summary_gpu'></span></p>
+        <p>RPC Endpoint: <span id='summary_rpc'></span></p>
+        <p>HTTP Endpoint: <span id='summary_http'></span></p>
+    </div>
     <div class="section">
         <h3>Strategies</h3>
         <div id='strategy_controls'></div>
@@ -1075,6 +1112,16 @@ HTML_PAGE = """
         });
     }
 
+    function loadStartupSummary() {
+        fetch('/startup_summary').then(r => r.json()).then(data => {
+            document.getElementById('summary_config').textContent = data.config_path || '';
+            document.getElementById('summary_keypair').textContent = data.keypair || '';
+            document.getElementById('summary_gpu').textContent = data.gpu || '';
+            document.getElementById('summary_rpc').textContent = data.rpc_status || '';
+            document.getElementById('summary_http').textContent = data.http_status || '';
+        });
+    }
+
     document.getElementById('save_weights').onclick = function() {
         const data = {};
         document.querySelectorAll('#weights_controls input').forEach(inp => {
@@ -1100,6 +1147,7 @@ HTML_PAGE = """
     };
 
     function refreshData() {
+        loadStartupSummary();
         fetch('/status').then(r => r.json()).then(data => {
             document.getElementById('status_info').textContent = JSON.stringify(data, null, 2);
         });
