@@ -50,7 +50,7 @@ elif _GPU_BACKEND == "cupy":  # pragma: no cover - optional dependency
 
 logger = logging.getLogger(__name__)
 
-# Default base URL for the metrics API. Can be overridden by the
+# Default base URL for the metrics API (CoinGecko). Can be overridden by the
 # ``METRICS_BASE_URL`` environment variable or via a configuration file that
 # sets this variable before the module is imported.
 DEFAULT_METRICS_BASE_URL = "https://api.coingecko.com/api/v3"
