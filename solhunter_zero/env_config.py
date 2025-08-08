@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import shutil
+import sys
 
 import tomllib
 
@@ -15,6 +16,24 @@ from .env_defaults import DEFAULTS
 from .paths import ROOT
 
 __all__ = ["configure_environment", "report_env_changes"]
+
+
+def _update_env_file(env_file: Path, updates: dict[str, str]) -> None:
+    """Persist ``updates`` to *env_file* replacing existing values."""
+
+    try:
+        lines = env_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    existing = {line.split("=", 1)[0]: i for i, line in enumerate(lines) if "=" in line}
+    for key, value in updates.items():
+        line = f"{key}={value}"
+        if key in existing:
+            lines[existing[key]] = line
+        else:
+            lines.append(line)
+    text = "\n".join(lines) + ("\n" if lines else "")
+    env_file.write_text(text, encoding="utf-8")
 
 
 def configure_environment(root: Path | None = None) -> dict[str, str]:
@@ -89,6 +108,36 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         if key not in os.environ:
             os.environ[key] = value
         applied[key] = os.environ[key]
+
+    # Validate MEV bundle configuration. If bundles are enabled but Jito
+    # credentials are missing, either prompt for the token or disable bundles
+    # and persist the change to ``.env``.
+    mev_enabled = os.environ.get("USE_MEV_BUNDLES", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    jito_auth = os.environ.get("JITO_AUTH", "").strip()
+    if mev_enabled and not jito_auth:
+        token = ""
+        if sys.stdin.isatty():
+            try:
+                token = input(
+                    "JITO_AUTH is required for MEV bundles. Enter token or leave blank to disable: "
+                ).strip()
+            except EOFError:
+                token = ""
+        if token:
+            os.environ["JITO_AUTH"] = token
+            applied["JITO_AUTH"] = token
+            _update_env_file(env_file, {"JITO_AUTH": token})
+            report_env_changes({"JITO_AUTH": token}, env_file)
+        else:
+            os.environ["USE_MEV_BUNDLES"] = "false"
+            applied["USE_MEV_BUNDLES"] = "false"
+            _update_env_file(env_file, {"USE_MEV_BUNDLES": "false"})
+            report_env_changes({"USE_MEV_BUNDLES": "false"}, env_file)
 
     # GPU-related environment variables are configured exclusively via
     # :func:`device.initialize_gpu` during launcher startup to keep a single
