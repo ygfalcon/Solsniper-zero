@@ -862,16 +862,18 @@ HTML_PAGE = """
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
 </head>
 <body>
+    <div id="loading" class="loading-spinner" role="status" aria-label="Loading"></div>
     <div class="container">
-    <button id='start' class='action-btn'>
+    <button id='start' class='action-btn btn btn-success'>
         <i class="fa-solid fa-play"></i> Start
     </button>
-    <button id='stop' class='action-btn'>
+    <button id='stop' class='action-btn btn btn-danger'>
         <i class="fa-solid fa-stop"></i> Stop
     </button>
     <select id='keypair_select'></select>
@@ -879,13 +881,13 @@ HTML_PAGE = """
     <p>Active Keypair: <span id='active_keypair'></span></p>
     <p>Active Config: <span id='active_config'></span></p>
     <div class="section">
-        <h3>Strategies</h3>
+        <h3><i class="fa-solid fa-chess-knight"></i> Strategies</h3>
         <div id='strategy_controls'></div>
         <button id='save_strategies'>Save Strategies</button>
     </div>
 
     <div class="section">
-        <h3>ROI: <span id='roi_value'>0</span></h3>
+        <h3><i class="fa-solid fa-chart-line"></i> ROI: <span id='roi_value'>0</span></h3>
         <canvas id='roi_chart' width='400' height='100'></canvas>
         <p id='roi_legend' title='Green indicates positive ROI, red indicates negative ROI.'>
             ROI color legend: green ≥ 0, red &lt; 0
@@ -893,53 +895,53 @@ HTML_PAGE = """
     </div>
 
     <div class="section">
-        <h3>Positions</h3>
+        <h3><i class="fa-solid fa-coins"></i> Positions</h3>
         <pre id='positions'></pre>
     </div>
 
     <div class="section">
-        <h3>Recent Trades</h3>
+        <h3><i class="fa-solid fa-arrows-rotate"></i> Recent Trades</h3>
         <pre id='trades'></pre>
         <canvas id='trade_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>Agent Weights</h3>
+        <h3><i class="fa-solid fa-scale-balanced"></i> Agent Weights</h3>
         <div id='weights_controls'></div>
         <button id='save_weights'>Save Weights</button>
         <canvas id='weights_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>Token PnL</h3>
+        <h3><i class="fa-solid fa-sack-dollar"></i> Token PnL</h3>
         <canvas id='pnl_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>Token Allocation</h3>
+        <h3><i class="fa-solid fa-chart-pie"></i> Token Allocation</h3>
         <canvas id='allocation_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>VaR History</h3>
+        <h3><i class="fa-solid fa-chart-area"></i> VaR History</h3>
         <pre id='var_values'></pre>
         <canvas id='var_chart' width='400' height='100'></canvas>
     </div>
 
     <div class="section">
-        <h3>Exposure</h3>
+        <h3><i class="fa-solid fa-eye"></i> Exposure</h3>
         <pre id='exposure'></pre>
     </div>
 
     <div class="section">
-        <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
+        <h3><i class="fa-solid fa-square-root-variable"></i> Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
 
-        <h3>RL Status</h3>
+        <h3><i class="fa-solid fa-robot"></i> RL Status</h3>
         <pre id='rl_status'></pre>
     </div>
 
     <div class="section">
-        <h3>Risk Parameters</h3>
+        <h3><i class="fa-solid fa-triangle-exclamation"></i> Risk Parameters</h3>
         <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
         <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
         <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
@@ -1169,6 +1171,9 @@ HTML_PAGE = """
     loadWeights();
     loadStrategies();
     refreshData();
+    window.addEventListener('load', () => {
+        document.getElementById('loading').classList.add('hidden');
+    });
     setInterval(function(){
         refreshData();
         loadConfig();
