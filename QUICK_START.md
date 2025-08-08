@@ -4,10 +4,10 @@
  - To customize, copy `config/default.toml` to `config.toml` and edit the values.
  - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
  - Use `solhunter-start` to launch the same startup routine with `--one-click` by default while still accepting additional flags.
-- Run `./run.sh --auto` (or `python start.py --auto`) for a fully automated launch. It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
+- Run `./run.sh --auto` (or `python start.py --auto`) for a fully automated launch. The trading engine and Web UI start together. It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`. Use `--no-ui` to disable the UI for headless deployments.
 - `scripts/quick_setup.py --auto` populates `config.toml` with defaults. Use `--non-interactive` to rely on environment variables only. Set `AUTO_SELECT_KEYPAIR=1` to have the sole keypair chosen without prompts.
 - On macOS, run `scripts/mac_setup.py` to install the Xcode command line tools if needed. The script exits after starting the installation; rerun it once the tools are installed before continuing.
-- Launch the Web UI with `python -m solhunter_zero.ui`.
+- The Web UI starts automatically; launch it manually with `python -m solhunter_zero.ui` when using `--no-ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
 - Or start everything at once with `python scripts/start_all.py` (includes `depth_service`).
 - Programmatic consumers can call `solhunter_zero.bootstrap.bootstrap()` to

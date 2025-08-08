@@ -240,6 +240,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Suppress post-run diagnostics collection",
     )
     parser.add_argument(
+        "--no-ui",
+        action="store_true",
+        help="Do not launch the Web UI",
+    )
+    parser.add_argument(
         "--repair",
         action="store_true",
         help="Force macOS setup and clear dependency caches",
@@ -467,9 +472,31 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
     print(f"  HTTP endpoints: {endpoint_status}")
 
-    proc = subprocess.run(
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
-    )
+    if args.no_ui:
+        proc = subprocess.run(
+            [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+        )
+    else:
+        trading_cmd = [
+            sys.executable,
+            "-m",
+            "solhunter_zero.main",
+            "--auto",
+            *rest,
+        ]
+        trading_proc = subprocess.Popen(trading_cmd)
+        try:
+            ui_proc = subprocess.Popen([sys.executable, "-m", "solhunter_zero.ui"])
+        except Exception:
+            ui_proc = None
+        ret = trading_proc.wait()
+        if ui_proc and ui_proc.poll() is None:
+            ui_proc.terminate()
+            try:
+                ui_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                ui_proc.kill()
+        proc = subprocess.CompletedProcess(trading_cmd, ret)
 
     if proc.returncode == 0:
         msg = "SolHunter Zero launch complete – system ready."

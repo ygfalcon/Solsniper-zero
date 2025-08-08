@@ -74,8 +74,9 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
 
     monkeypatch.setattr(startup.device, "initialize_gpu", fake_gpu_env)
     monkeypatch.setattr(startup.device, "get_default_device", lambda: "cpu")
-    from scripts import preflight as preflight_mod
-    monkeypatch.setattr(preflight_mod, "check_internet", lambda: (True, "ok"))
+    from scripts import preflight as preflight_mod  # noqa: F401
+    monkeypatch.setattr(startup.preflight_utils, "check_internet", lambda: (True, "ok"))
+    monkeypatch.setattr(startup.preflight_utils, "check_disk_space", lambda *_: (True, "ok"))
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
 
@@ -87,6 +88,7 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
         "--skip-setup",
         "--skip-deps",
         "--no-diagnostics",
+        "--no-ui",
     ])
     assert code == 0
     out = capsys.readouterr().out
@@ -736,7 +738,7 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
 
-    ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
+    ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight", "--no-ui"])
     out = capsys.readouterr().out
     assert "endpoints" in called
     assert "HTTP endpoints: reachable" in out
@@ -782,6 +784,7 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
         "--skip-rpc-check",
         "--skip-endpoint-check",
         "--skip-preflight",
+        "--no-ui",
     ])
 
     out = capsys.readouterr().out
@@ -826,6 +829,7 @@ def test_main_preflight_success(monkeypatch):
             "--one-click",
             "--skip-setup",
             "--skip-deps",
+            "--no-ui",
         ])
 
     assert called.get("preflight") is True
@@ -869,6 +873,7 @@ def test_main_preflight_failure(monkeypatch, capsys):
         "--one-click",
         "--skip-deps",
         "--skip-setup",
+        "--no-ui",
     ])
 
     assert ret == 2
@@ -974,7 +979,7 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
     monkeypatch.setattr(startup, "ensure_wallet_cli", fail_wallet)
 
-    ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
+    ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight", "--no-ui"])
     assert ret == 5
 
 
@@ -1022,7 +1027,10 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
 
     import types, sys
     config_mod = types.SimpleNamespace(
-        load_config=lambda path: {}, validate_config=lambda cfg: cfg
+        load_config=lambda path: {},
+        validate_config=lambda cfg: cfg,
+        apply_env_overrides=lambda cfg: cfg,
+        find_config_file=lambda: (_ for _ in ()).throw(FileNotFoundError("missing")),
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", config_mod)
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
@@ -1046,6 +1054,8 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     monkeypatch.setattr(startup.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
     import scripts.healthcheck as healthcheck
     monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
+    dummy_quick = types.SimpleNamespace(_is_placeholder=lambda path: False)
+    monkeypatch.setitem(sys.modules, "scripts.quick_setup", dummy_quick)
 
     ret = startup.main([
         "--one-click",
@@ -1054,6 +1064,7 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
         "--skip-endpoint-check",
         "--skip-preflight",
         "--no-diagnostics",
+        "--no-ui",
     ])
 
     assert ret == 0
@@ -1121,6 +1132,7 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
         "--skip-endpoint-check",
         "--skip-preflight",
         "--no-diagnostics",
+        "--no-ui",
     ])
 
     assert ret == 0
@@ -1189,4 +1201,4 @@ def test_disk_space_threshold_uses_config(monkeypatch):
     monkeypatch.setattr(startup, "log_startup", lambda msg: None)
 
     with pytest.raises(SystemExit):
-        startup.main([])
+        startup.main(["--no-ui"])

@@ -30,7 +30,8 @@ The default workflow is intentionally simple:
    run `./run.sh` to invoke the same entry point. On macOS double-click
    `start.command`, which simply calls `run.sh` for a one-click start.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
-   and warns if the wallet balance is below `min_portfolio_value`.
+   and warns if the wallet balance is below `min_portfolio_value`. It also starts the Web UI
+   alongside trading for real-time monitoring.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
@@ -39,7 +40,7 @@ The default workflow is intentionally simple:
    and `target/release/depth_service` are present before startup.
    A machine-readable diagnostics summary is written to `diagnostics.json` after the bot exits
    unless `--no-diagnostics` is supplied.
-3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
+3. The Web UI launches automatically. Pass `--no-ui` to skip it for headless deployments.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50 GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
 Control how often snapshots and trades are flushed to disk with `OFFLINE_BATCH_SIZE` and `OFFLINE_FLUSH_INTERVAL`.

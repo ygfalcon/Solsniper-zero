@@ -58,7 +58,7 @@
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
-On macOS, double-click `start.command` (or run `./run.sh` from Terminal) for a one-click launch that executes the same Python entry point via `start.py`.
+On macOS, double-click `start.command` (or run `./run.sh` from Terminal) for a one-click launch that executes the same Python entry point via `start.py` and opens the Web UI automatically. Use `--no-ui` to disable the UI for headless runs.
 
 Developers embedding SolHunter Zero can initialize the environment
 programmatically:
@@ -76,6 +76,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
 ### One-Click macOS M1 Setup
 
 1. **Launch** — From Terminal, run `python start.py --one-click` to begin the automated setup.
+   The trading process and Web UI start together; pass `--no-ui` to skip launching the UI.
    Alternatively, run `make setup` from Terminal to invoke the same command directly.
 2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  
    Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.
