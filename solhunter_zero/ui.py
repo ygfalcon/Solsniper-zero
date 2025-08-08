@@ -1276,37 +1276,60 @@ async def _log_ws_handler(ws):
         log_ws_clients.discard(ws)
 
 
+_WS_PORT_RL = 8767
+_WS_PORT_EVENT = 8766
+_WS_STARTED = False
+
+
+def start_websocket_servers() -> None:
+    """Launch RL and event websocket servers if not already running."""
+    global rl_ws_loop, event_ws_loop, _WS_STARTED
+    if websockets is None:
+        logging.warning("websockets library not available; websocket servers not started")
+        return
+    if _WS_STARTED:
+        return
+
+    def _start_rl_ws() -> None:
+        global rl_ws_loop
+        rl_ws_loop = asyncio.new_event_loop()
+        rl_ws_loop.run_until_complete(
+            websockets.serve(
+                _rl_ws_handler,
+                "localhost",
+                _WS_PORT_RL,
+                ping_interval=_WS_PING_INTERVAL,
+                ping_timeout=_WS_PING_TIMEOUT,
+            )
+        )
+        logging.info("RL websocket server listening on port %s", _WS_PORT_RL)
+        rl_ws_loop.run_forever()
+
+    def _start_event_ws() -> None:
+        global event_ws_loop
+        event_ws_loop = asyncio.new_event_loop()
+        event_ws_loop.run_until_complete(
+            websockets.serve(
+                _event_ws_handler,
+                "localhost",
+                _WS_PORT_EVENT,
+                path="/ws",
+                ping_interval=_WS_PING_INTERVAL,
+                ping_timeout=_WS_PING_TIMEOUT,
+            )
+        )
+        logging.info("Event websocket server listening on port %s", _WS_PORT_EVENT)
+        event_ws_loop.run_forever()
+
+    threading.Thread(target=_start_rl_ws, daemon=True).start()
+    threading.Thread(target=_start_event_ws, daemon=True).start()
+    _WS_STARTED = True
+
+
 if __name__ == "__main__":
     app = create_app()
     if websockets is not None:
-        def _start_rl_ws():
-            global rl_ws_loop
-            rl_ws_loop = asyncio.new_event_loop()
-            rl_ws_loop.run_until_complete(
-                websockets.serve(
-                    _rl_ws_handler,
-                    "localhost",
-                    8767,
-                    ping_interval=_WS_PING_INTERVAL,
-                    ping_timeout=_WS_PING_TIMEOUT,
-                )
-            )
-            rl_ws_loop.run_forever()
-
-        def _start_event_ws():
-            global event_ws_loop
-            event_ws_loop = asyncio.new_event_loop()
-            event_ws_loop.run_until_complete(
-                websockets.serve(
-                    _event_ws_handler,
-                    "localhost",
-                    8766,
-                    path="/ws",
-                    ping_interval=_WS_PING_INTERVAL,
-                    ping_timeout=_WS_PING_TIMEOUT,
-                )
-            )
-            event_ws_loop.run_forever()
+        start_websocket_servers()
 
         def _start_log_ws():
             global log_ws_loop
@@ -1322,8 +1345,6 @@ if __name__ == "__main__":
             )
             log_ws_loop.run_forever()
 
-        threading.Thread(target=_start_rl_ws, daemon=True).start()
-        threading.Thread(target=_start_event_ws, daemon=True).start()
         threading.Thread(target=_start_log_ws, daemon=True).start()
 
     try:
