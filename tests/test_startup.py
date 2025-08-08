@@ -494,7 +494,7 @@ def test_ensure_endpoints_success(monkeypatch):
     cfg = {
         "dex_base_url": "https://quote-api.jup.ag",
         "birdeye_api_key": "k",
-        "jito_ws_url": "wss://ws.example",
+        "jito_ws_url": "wss://mainnet.block-engine.jito.wtf/api/v1/ws",
         "jito_ws_auth": "T",
     }
     ensure_endpoints(cfg)
@@ -505,7 +505,12 @@ def test_ensure_endpoints_success(monkeypatch):
         "https://public-api.birdeye.so/defi/tokenlist",
     }
     assert all(m == "HEAD" for _, m in calls)
-    assert ws_calls == [("wss://ws.example", {"Authorization": "T"})]
+    assert ws_calls == [
+        (
+            "wss://mainnet.block-engine.jito.wtf/api/v1/ws",
+            {"Authorization": "T"},
+        )
+    ]
 
 
 def test_ensure_endpoints_failure(monkeypatch, capsys):
@@ -547,7 +552,7 @@ def test_ensure_endpoints_ws_failure(monkeypatch, capsys):
     monkeypatch.setattr(websockets, "connect", fake_connect)
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
-    cfg = {"jito_ws_url": "ws://ws.example"}
+    cfg = {"jito_ws_url": "wss://mainnet.block-engine.jito.wtf/api/v1/ws"}
 
     with pytest.raises(SystemExit):
         ensure_endpoints(cfg)

@@ -3,13 +3,13 @@ import logging
 import types
 import sys
 
-os.environ.setdefault("SOLANA_RPC_URL", "http://localhost")
-os.environ.setdefault("DEX_BASE_URL", "http://localhost")
+os.environ.setdefault("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+os.environ.setdefault("DEX_BASE_URL", "https://quote-api.jup.ag")
 os.environ.setdefault("AGENTS", "[\"dummy\"]")
 _cfg_path = os.path.join(os.path.dirname(__file__), "tmp_config.toml")
 with open(_cfg_path, "w", encoding="utf-8") as _f:
-    _f.write("solana_rpc_url='http://localhost'\n")
-    _f.write("dex_base_url='http://localhost'\n")
+    _f.write("solana_rpc_url='https://api.mainnet-beta.solana.com'\n")
+    _f.write("dex_base_url='https://quote-api.jup.ag'\n")
     _f.write("agents=['dummy']\n")
     _f.write("agent_weights={dummy=1.0}\n")
 os.environ["SOLHUNTER_CONFIG"] = _cfg_path
