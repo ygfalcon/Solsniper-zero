@@ -3,8 +3,8 @@ import sys
 import types
 import asyncio
 
-os.environ.setdefault("SOLANA_RPC_URL", "http://localhost")
-os.environ.setdefault("DEX_BASE_URL", "http://localhost")
+os.environ.setdefault("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+os.environ.setdefault("DEX_BASE_URL", "https://quote-api.jup.ag")
 os.environ.setdefault("AGENTS", "[\"dummy\"]")
 
 # Provide a minimal stub for pydantic if it's missing

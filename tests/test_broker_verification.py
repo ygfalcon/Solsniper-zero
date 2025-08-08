@@ -89,8 +89,8 @@ async def test_verify_broker_connection_failure(monkeypatch, caplog):
 
 def test_startup_abort_on_verify_failure(monkeypatch):
     cfg_text = (
-        "solana_rpc_url='http://localhost'\n"
-        "dex_base_url='http://localhost'\n"
+        "solana_rpc_url='https://api.mainnet-beta.solana.com'\n"
+        "dex_base_url='https://quote-api.jup.ag'\n"
         "agents=['dummy']\n"
         "agent_weights={dummy=1.0}\n"
     )

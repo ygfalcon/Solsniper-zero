@@ -14,7 +14,7 @@ def test_strategy_manager_showcase(monkeypatch):
     cfg_path = Path(__file__).resolve().parent / "demo_config.toml"
     cfg_path.write_text(
         """
-solana_rpc_url = "https://example.com"
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
 dex_base_url = "https://quote-api.jup.ag"
 agents = ["demo"]
 [agent_weights]

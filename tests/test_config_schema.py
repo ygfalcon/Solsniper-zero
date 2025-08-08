@@ -4,8 +4,8 @@ from solhunter_zero.config_schema import validate_config
 
 def _cfg():
     return {
-        "solana_rpc_url": "http://local",
-        "dex_base_url": "http://dex",
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
         "agents": ["a"],
         "agent_weights": {"a": 1.0},
     }
