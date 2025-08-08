@@ -1,7 +1,14 @@
 import os
 from pathlib import Path
+import sys
+import types
 
 import pytest
+
+# Provide minimal stubs for optional dependencies so the module can import
+cryptography_fernet = types.SimpleNamespace(Fernet=object, InvalidToken=Exception)
+sys.modules.setdefault("cryptography", types.SimpleNamespace(fernet=cryptography_fernet))
+sys.modules.setdefault("cryptography.fernet", cryptography_fernet)
 
 from solhunter_zero.env_config import configure_environment
 from solhunter_zero.preflight_utils import check_required_env
@@ -20,7 +27,6 @@ def restore_env():
 
 def test_check_required_env_success(restore_env):
     os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
-    os.environ["BIRDEYE_API_KEY"] = "real_key"
     ok, msg = check_required_env()
     assert ok is True
     assert msg == "Required environment variables set"
@@ -28,18 +34,17 @@ def test_check_required_env_success(restore_env):
 
 def test_check_required_env_missing(restore_env):
     os.environ.pop("SOLANA_RPC_URL", None)
-    os.environ.pop("BIRDEYE_API_KEY", None)
     ok, msg = check_required_env()
     assert ok is False
-    assert "SOLANA_RPC_URL" in msg and "BIRDEYE_API_KEY" in msg
+    assert "SOLANA_RPC_URL" in msg
 
 
 def test_check_required_env_placeholder(restore_env):
     os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
     os.environ["BIRDEYE_API_KEY"] = "YOUR_BIRDEYE_KEY"
     ok, msg = check_required_env()
-    assert ok is False
-    assert msg.startswith("Missing environment variables: BIRDEYE_API_KEY")
+    assert ok is True
+    assert msg == "Required environment variables set"
 
 
 def test_configure_env_strips_placeholder(tmp_path: Path, restore_env):
@@ -50,7 +55,7 @@ def test_configure_env_strips_placeholder(tmp_path: Path, restore_env):
     )
     configure_environment(tmp_path)
     ok, msg = check_required_env()
-    assert ok is False and "BIRDEYE_API_KEY" in msg
+    assert ok is True
     assert os.environ.get("BIRDEYE_API_KEY") == ""
     assert "be_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" not in env_file.read_text()
 

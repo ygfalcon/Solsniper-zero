@@ -257,11 +257,11 @@ def check_internet(url: str | None = None) -> Check:
 def check_required_env(keys: List[str] | None = None) -> Check:
     """Ensure critical environment variables are configured."""
 
-    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
+    required = keys or ["SOLANA_RPC_URL"]
     missing = []
     for key in required:
         val = os.getenv(key)
-        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+        if not val:
             missing.append(key)
     if missing:
         joined = ", ".join(missing)

@@ -47,49 +47,64 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             return True
         return False
 
-    def _sanitize_lines(lines: list[str]) -> tuple[list[str], set[str]]:
+    def _sanitize_lines(lines: list[str]) -> tuple[list[str], dict[str, str]]:
+        """Return sanitized lines and any placeholder replacements.
+
+        If a placeholder value is encountered the user is prompted for a real
+        value.  An empty response keeps the value blank which causes the
+        application to fall back to on-chain scanning.
+        """
+
         sanitized: list[str] = []
-        removed: set[str] = set()
+        replacements: dict[str, str] = {}
         for line in lines:
             if "=" in line and not line.lstrip().startswith("#"):
                 name, value = line.split("=", 1)
                 if _is_placeholder(value.strip()):
-                    sanitized.append(f"{name}=\n")
-                    removed.add(name)
+                    try:
+                        new_value = input(
+                            f"Enter value for {name} (leave blank to skip): "
+                        ).strip()
+                    except (EOFError, OSError):
+                        new_value = ""
+                    if _is_placeholder(new_value):
+                        new_value = ""
+                    sanitized.append(f"{name}={new_value}\n")
+                    replacements[name] = new_value
                 else:
                     sanitized.append(line if line.endswith("\n") else line + "\n")
             else:
                 sanitized.append(line if line.endswith("\n") else line + "\n")
-        return sanitized, removed
+        return sanitized, replacements
 
-    removed_placeholders: set[str] = set()
+    replacements: dict[str, str] = {}
     if not env_file.exists():
         example_file = Path(root) / ".env.example"
         env_file.parent.mkdir(parents=True, exist_ok=True)
         if example_file.exists():
             with example_file.open("r", encoding="utf-8") as fh:
-                sanitized, removed_placeholders = _sanitize_lines(fh.readlines())
+                sanitized, replacements = _sanitize_lines(fh.readlines())
             with env_file.open("w", encoding="utf-8") as fh:
                 fh.writelines(sanitized)
             log_startup(
                 f"Created environment file {env_file} from {example_file}"
             )
-            if removed_placeholders:
-                report_env_changes({name: "" for name in removed_placeholders}, env_file)
+            if replacements:
+                report_env_changes(replacements, env_file)
         else:
             env_file.touch()
             log_startup(f"Created environment file {env_file}")
     else:
         with env_file.open("r", encoding="utf-8") as fh:
-            sanitized, removed_placeholders = _sanitize_lines(fh.readlines())
-        if removed_placeholders:
+            sanitized, replacements = _sanitize_lines(fh.readlines())
+        if replacements:
             with env_file.open("w", encoding="utf-8") as fh:
                 fh.writelines(sanitized)
-            report_env_changes({name: "" for name in removed_placeholders}, env_file)
+            report_env_changes(replacements, env_file)
 
     env.load_env_file(env_file)
 
-    applied: dict[str, str] = {name: "" for name in removed_placeholders}
+    applied: dict[str, str] = {name: value for name, value in replacements.items()}
     file_updates: dict[str, str] = {}
 
     cfg_path = Path(root) / "config.toml"
