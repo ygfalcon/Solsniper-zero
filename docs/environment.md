@@ -67,7 +67,7 @@ This document lists environment variables recognized by the project.
 | `GRAPH_MODEL_PATH` | `` | Path to graph model |
 | `HTTP_CONNECTOR_LIMIT` | `0` | Configures http connector limit |
 | `HTTP_CONNECTOR_LIMIT_PER_HOST` | `0` | Configures http connector limit per host |
-| `JITO_AUTH` | `` | Configures jito auth |
+| `JITO_AUTH` | `` | Authentication token for Jito; supply via environment variable or personal config |
 | `JITO_RPC_URL` | `` | URL for jito rpc |
 | `JITO_WS_AUTH` | `` | Configures jito ws auth |
 | `JITO_WS_URL` | `` | URL for jito ws |

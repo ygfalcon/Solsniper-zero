@@ -74,7 +74,9 @@ All modes emit the same report files along with console summaries.
 When `use_mev_bundles` is enabled (the default), swaps are submitted
 through the [Jito block-engine](https://jito.network/). The same
 credentials can also be used to subscribe to Jito's searcher websocket
-for real‑time pending transactions. Provide the block-engine and
+for real‑time pending transactions. The default `config.toml` leaves
+`jito_auth` blank, so supply your token via the `JITO_AUTH` environment
+variable or your own configuration file. Provide the block-engine and
 websocket endpoints and authentication token:
 
 ```bash
