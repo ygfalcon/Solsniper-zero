@@ -21,16 +21,11 @@ except Exception:  # pragma: no cover - fallback when cachetools missing
                 self.pop(next(iter(self)), None)
             super().__setitem__(key, value)
 
-try:
-    from cachetools import TTLCache as _BaseTTL
-except Exception:  # pragma: no cover - fallback when cachetools missing
-    _BaseTTL = object  # type: ignore
-
 # Re-export :class:`cachetools.LRUCache` for external modules.
 LRUCache = _LRUCache
 
 
-class TTLCache(_BaseTTL):
+class TTLCache:
     """A simple TTL cache usable from async code.
 
     The implementation intentionally avoids a dependency on ``cachetools`` so

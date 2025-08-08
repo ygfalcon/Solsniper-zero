@@ -194,7 +194,11 @@ def set_env_from_config(config: dict) -> None:
     """Set environment variables for values present in ``config``."""
     for key, env in ENV_VARS.items():
         val = config.get(key)
-        if val is not None and os.getenv(env) is None:
+        if (
+            val is not None
+            and os.getenv(env) is None
+            and not isinstance(val, (list, dict, set, tuple))
+        ):
             os.environ[env] = str(val)
 def validate_config(cfg: Mapping[str, Any]) -> dict:
     """Validate configuration against :class:`ConfigModel` schema.
@@ -419,16 +423,6 @@ def reload_active_config() -> dict:
     return _ACTIVE_CONFIG
 
 
-from . import event_bus as _event_bus
-
-_sub = _event_bus.subscription("config_updated", _update_active)
-_sub.__enter__()
-try:
-    _event_bus._reload_bus(None)
-    _event_bus._reload_broker(None)
-    _event_bus._reload_serialization(None)
-except Exception:
-    logger.exception("Failed to reload event bus settings")
 
 
 def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
@@ -526,3 +520,15 @@ def get_depth_ws_addr(cfg: Mapping[str, Any] | None = None) -> tuple[str, int]:
     else:
         port = int(cast(int, cfg.get("depth_ws_port", 8765)))
     return addr, port
+
+
+from . import event_bus as _event_bus
+
+_sub = _event_bus.subscription("config_updated", _update_active)
+_sub.__enter__()
+try:
+    _event_bus._reload_bus(None)
+    _event_bus._reload_broker(None)
+    _event_bus._reload_serialization(None)
+except Exception:
+    logger.exception("Failed to reload event bus settings")
