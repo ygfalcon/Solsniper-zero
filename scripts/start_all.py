@@ -10,7 +10,6 @@ import sys
 import time
 import threading
 import logging
-import asyncio
 from pathlib import Path
 from typing import IO
 
@@ -53,6 +52,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     raise SystemExit
 
 PROCS: list[subprocess.Popen] = []
+WS_THREADS: dict[str, threading.Thread] = {}
 
 
 ENV_VARS = REQUIRED_ENV_VARS + (
@@ -87,6 +87,11 @@ def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
 
 def stop_all(*_: object) -> None:
     data_sync.stop_scheduler()
+    for loop in (ui.rl_ws_loop, ui.event_ws_loop, ui.log_ws_loop):
+        if loop is not None:
+            loop.call_soon_threadsafe(loop.stop)
+    for thread in WS_THREADS.values():
+        thread.join(timeout=1)
     for p in PROCS:
         if p.poll() is None:
             p.terminate()
@@ -135,38 +140,9 @@ try:
     wait_for_depth_ws(addr, port, deadline, depth_proc)
 
     def _run_ui() -> None:
+        global WS_THREADS
         app = ui.create_app()
-        if ui.websockets is not None:
-            def _start_rl_ws() -> None:
-                ui.rl_ws_loop = asyncio.new_event_loop()
-                ui.rl_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._rl_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8767,
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
-                    )
-                )
-                ui.rl_ws_loop.run_forever()
-
-            def _start_event_ws() -> None:
-                ui.event_ws_loop = asyncio.new_event_loop()
-                ui.event_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._event_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8766,
-                        path="/ws",
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
-                    )
-                )
-                ui.event_ws_loop.run_forever()
-
-            threading.Thread(target=_start_rl_ws, daemon=True).start()
-            threading.Thread(target=_start_event_ws, daemon=True).start()
-
+        WS_THREADS = ui.start_websockets()
         app.run()
 
     threading.Thread(target=_run_ui, daemon=True).start()
