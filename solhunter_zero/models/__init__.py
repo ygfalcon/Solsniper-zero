@@ -313,7 +313,7 @@ def export_onnx(model: nn.Module, path: str, example_input: torch.Tensor) -> str
 
 
 def load_compiled_model(
-    path: str, device: str | torch.device | None = device_module.get_default_device()
+    path: str, device: str | torch.device | None = None
 ) -> nn.Module | None:
     """Load compiled TorchScript or ONNX model next to ``path`` if available."""
 
