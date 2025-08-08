@@ -78,9 +78,9 @@ for real‑time pending transactions. Provide the block-engine and
 websocket endpoints and authentication token:
 
 ```bash
-export JITO_RPC_URL=https://block-engine.example.com
+export JITO_RPC_URL=https://mainnet.block-engine.jito.wtf/api/v1/bundles
 export JITO_AUTH=your_token
-export JITO_WS_URL=wss://searcher.example.com
+export JITO_WS_URL=wss://mainnet.block-engine.jito.wtf/api/v1/ws
 export JITO_WS_AUTH=your_token
 ```
 
