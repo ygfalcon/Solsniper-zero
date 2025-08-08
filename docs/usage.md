@@ -1,7 +1,9 @@
 # Usage
 
 ## Autopilot
-Automatically selects the only keypair and active configuration, then launches all services and the trading loop:
+Automatically selects the only keypair and active configuration, then launches all services and the trading loop. It ensures the
+`solhunter-wallet` CLI is installed and will provision a default keypair automatically, falling back to a non-interactive quick
+setup if necessary:
 
 ```bash
 python scripts/start_all.py autopilot
