@@ -46,6 +46,8 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             return True
         if value.startswith("be_") and all(ch in "xX" for ch in value[3:]):
             return True
+        if lower.startswith("bd"):
+            return True
         return False
 
     def _sanitize_lines(lines: list[str]) -> tuple[list[str], set[str]]:
@@ -96,6 +98,7 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             del os.environ[env_name]
             applied[env_name] = ""
     for name in removed_placeholders:
+        os.environ[name] = ""
         applied.setdefault(name, "")
     file_updates: dict[str, str] = {}
 

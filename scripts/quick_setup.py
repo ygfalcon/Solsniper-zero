@@ -60,6 +60,8 @@ def _is_placeholder(value: str | None) -> bool:
         return True
     if value.startswith("be_") and all(ch in "xX" for ch in value[3:]):
         return True
+    if lower.startswith("bd"):
+        return True
     return False
 
 
