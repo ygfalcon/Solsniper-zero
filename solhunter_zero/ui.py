@@ -10,97 +10,54 @@ from typing import Any
 import time
 import subprocess
 import sys
+from pathlib import Path
+
+from flask import Flask, Blueprint, jsonify, request, render_template_string
 
 from .http import close_session
 from .util import install_uvloop
-
-install_uvloop()
-
-from flask import Flask, jsonify, request, render_template_string
 from .event_bus import subscription, publish
 try:
     import websockets
 except Exception:  # pragma: no cover - optional
     websockets = None
 
-# websocket ping configuration
-_WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
-_WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 import sqlalchemy as sa
+import numpy as np
+
 from .config import (
     load_config,
     apply_env_overrides,
     set_env_from_config,
     get_event_bus_url,
     get_depth_ws_addr,
+    list_configs,
+    save_config,
+    select_config,
+    get_active_config_name,
+    load_selected_config,
 )
-from pathlib import Path
-import numpy as np
-
 from . import config as config_module
-
 from .prices import fetch_token_prices
-
 from .strategy_manager import StrategyManager
-
 from . import wallet
 from . import main as main_module
 from .memory import Memory
 from .base_memory import BaseMemory
 from .portfolio import Portfolio
-from .config import (
-    list_configs,
-    save_config,
-    select_config,
-    get_active_config_name,
-    set_env_from_config,
-    load_selected_config,
-)
+
+# websocket ping configuration
+_WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
+_WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
+
+bp = Blueprint("ui", __name__)
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
-cfg = load_config()
-if not cfg and _DEFAULT_PRESET.is_file():
-    cfg = load_config(_DEFAULT_PRESET)
-
-if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
-    dest = Path(config_module.CONFIG_DIR) / _DEFAULT_PRESET.name
-    if not dest.exists():
-        dest.write_bytes(_DEFAULT_PRESET.read_bytes())
-    select_config(dest.name)
-
-cfg = apply_env_overrides(cfg)
-set_env_from_config(cfg)
-
-# auto-select single keypair and configuration on startup
-try:
-    if wallet.get_active_keypair_name() is None:
-        keys = wallet.list_keypairs()
-        if len(keys) == 1:
-            wallet.select_keypair(keys[0])
-            if not os.getenv("KEYPAIR_PATH"):
-                os.environ["KEYPAIR_PATH"] = os.path.join(
-                    wallet.KEYPAIR_DIR, keys[0] + ".json"
-                )
-except Exception as exc:
-    print(
-        f"Wallet interaction failed: {exc}\n"
-        "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
-        file=sys.stderr,
-    )
-
-if get_active_config_name() is None:
-    configs = list_configs()
-    if len(configs) == 1:
-        select_config(configs[0])
-        set_env_from_config(load_selected_config())
-
-app = Flask(
-    __name__, static_folder=str(Path(__file__).resolve().parent / "static")
-)
-
-# in-memory log storage for UI access
-log_buffer: deque[str] = deque(maxlen=200)
+# in-memory log storage for UI access (initialised in ``create_app``)
+log_buffer: deque[str] = deque()
+buffer_handler: logging.Handler | None = None
+_SUBSCRIPTIONS: list[Any] = []
 
 
 class _BufferHandler(logging.Handler):
@@ -109,13 +66,6 @@ class _BufferHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - simple
         log_buffer.append(self.format(record))
 
-
-buffer_handler = _BufferHandler()
-buffer_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-)
-logging.getLogger().addHandler(buffer_handler)
-
 def _update_weights(weights):
     if is_dataclass(weights):
         weights = asdict(weights)["weights"]
@@ -123,9 +73,6 @@ def _update_weights(weights):
         os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
     except Exception:
         pass
-
-_weights_subscription = subscription("weights_updated", _update_weights)
-_weights_subscription.__enter__()
 
 def _update_rl_weights(msg: Any) -> None:
     weights = msg.weights if hasattr(msg, "weights") else msg.get("weights", {})
@@ -139,8 +86,6 @@ def _update_rl_weights(msg: Any) -> None:
     if rm is not None:
         os.environ["RISK_MULTIPLIER"] = str(rm)
 
-_rl_weights_sub = subscription("rl_weights", _update_rl_weights)
-_rl_weights_sub.__enter__()
 
 
 def _store_rl_metrics(msg: Any) -> None:
@@ -154,8 +99,6 @@ def _store_rl_metrics(msg: Any) -> None:
         return
     rl_metrics.append({"loss": float(loss), "reward": float(reward)})
 
-_rl_metrics_sub = subscription("rl_metrics", _store_rl_metrics)
-_rl_metrics_sub.__enter__()
 
 
 def _store_system_metrics(msg: Any) -> None:
@@ -170,8 +113,6 @@ def _store_system_metrics(msg: Any) -> None:
     system_metrics["cpu"] = float(cpu)
     system_metrics["memory"] = float(mem)
 
-_sys_metrics_sub = subscription("system_metrics_combined", _store_system_metrics)
-_sys_metrics_sub.__enter__()
 
 
 async def _send_rl_update(payload):
@@ -194,12 +135,6 @@ async def _send_rl_update(payload):
     asyncio.run_coroutine_threadsafe(_broadcast(), rl_ws_loop)
 
 
-_rl_subscription = subscription("rl_checkpoint", _send_rl_update)
-_rl_subscription.__enter__()
-_rl_weights_ws = subscription("rl_weights", _send_rl_update)
-_rl_weights_ws.__enter__()
-_rl_metrics_ws = subscription("rl_metrics", _send_rl_update)
-_rl_metrics_ws.__enter__()
 
 
 def _emit_ws_event(topic: str, payload: Any) -> None:
@@ -230,21 +165,6 @@ def _sub_handler(topic: str):
     return handler
 
 
-_action_sub = subscription("action_executed", _sub_handler("action_executed"))
-_weights_ws_sub = subscription("weights_updated", _sub_handler("weights_updated"))
-_rl_weights_ws_sub = subscription("rl_weights", _sub_handler("rl_weights"))
-_rl_metrics_ws_sub = subscription("rl_metrics", _sub_handler("rl_metrics"))
-_risk_ws_sub = subscription("risk_updated", _sub_handler("risk_updated"))
-_config_ws_sub = subscription("config_updated", _sub_handler("config_updated"))
-_sys_metrics_ws_sub = subscription("system_metrics_combined", _sub_handler("system_metrics"))
-
-_action_sub.__enter__()
-_weights_ws_sub.__enter__()
-_rl_weights_ws_sub.__enter__()
-_rl_metrics_ws_sub.__enter__()
-_risk_ws_sub.__enter__()
-_config_ws_sub.__enter__()
-_sys_metrics_ws_sub.__enter__()
 
 depth_service_connected = False
 last_heartbeat = 0.0
@@ -260,16 +180,12 @@ def _heartbeat(_payload: Any) -> None:
     elif service == "depth_service":
         depth_service_heartbeat = last_heartbeat
 
-_heartbeat_sub = subscription("heartbeat", _heartbeat)
-_heartbeat_sub.__enter__()
 
 def _depth_status(payload: Any) -> None:
     global depth_service_connected
     status = str(getattr(payload, "status", payload.get("status")))
     depth_service_connected = status in {"connected", "reconnected"}
 
-_depth_status_sub = subscription("depth_service_status", _depth_status)
-_depth_status_sub.__enter__()
 
 trading_thread = None
 stop_event = threading.Event()
@@ -314,6 +230,84 @@ def _missing_required() -> list[str]:
     if not (os.getenv("BIRDEYE_API_KEY") or os.getenv("SOLANA_RPC_URL")):
         missing.append("BIRDEYE_API_KEY or SOLANA_RPC_URL")
     return missing
+
+
+def create_app() -> Flask:
+    """Create and configure the Flask application."""
+    global log_buffer, buffer_handler, _SUBSCRIPTIONS
+
+    install_uvloop()
+
+    cfg = load_config()
+    if not cfg and _DEFAULT_PRESET.is_file():
+        cfg = load_config(_DEFAULT_PRESET)
+
+    if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
+        dest = Path(config_module.CONFIG_DIR) / _DEFAULT_PRESET.name
+        if not dest.exists():
+            dest.write_bytes(_DEFAULT_PRESET.read_bytes())
+        select_config(dest.name)
+
+    cfg = apply_env_overrides(cfg)
+    set_env_from_config(cfg)
+
+    # auto-select single keypair and configuration on startup
+    try:
+        if wallet.get_active_keypair_name() is None:
+            keys = wallet.list_keypairs()
+            if len(keys) == 1:
+                wallet.select_keypair(keys[0])
+                if not os.getenv("KEYPAIR_PATH"):
+                    os.environ["KEYPAIR_PATH"] = os.path.join(
+                        wallet.KEYPAIR_DIR, keys[0] + ".json"
+                    )
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+
+    if get_active_config_name() is None:
+        configs = list_configs()
+        if len(configs) == 1:
+            select_config(configs[0])
+            set_env_from_config(load_selected_config())
+
+    app = Flask(
+        __name__, static_folder=str(Path(__file__).resolve().parent / "static")
+    )
+    app.register_blueprint(bp)
+
+    log_buffer = deque(maxlen=200)
+    buffer_handler = _BufferHandler()
+    buffer_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+    logging.getLogger().addHandler(buffer_handler)
+
+    _SUBSCRIPTIONS = [
+        subscription("weights_updated", _update_weights),
+        subscription("rl_weights", _update_rl_weights),
+        subscription("rl_metrics", _store_rl_metrics),
+        subscription("system_metrics_combined", _store_system_metrics),
+        subscription("rl_checkpoint", _send_rl_update),
+        subscription("rl_weights", _send_rl_update),
+        subscription("rl_metrics", _send_rl_update),
+        subscription("action_executed", _sub_handler("action_executed")),
+        subscription("weights_updated", _sub_handler("weights_updated")),
+        subscription("rl_weights", _sub_handler("rl_weights")),
+        subscription("rl_metrics", _sub_handler("rl_metrics")),
+        subscription("risk_updated", _sub_handler("risk_updated")),
+        subscription("config_updated", _sub_handler("config_updated")),
+        subscription("system_metrics_combined", _sub_handler("system_metrics")),
+        subscription("heartbeat", _heartbeat),
+        subscription("depth_service_status", _depth_status),
+    ]
+    for sub in _SUBSCRIPTIONS:
+        sub.__enter__()
+
+    return app
 
 
 async def trading_loop(memory: BaseMemory | None = None) -> None:
@@ -367,7 +361,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
             await asyncio.sleep(1)
 
 
-@app.route("/start", methods=["POST"])
+@bp.route("/start", methods=["POST"])
 def start() -> dict:
     global trading_thread
     if trading_thread and trading_thread.is_alive():
@@ -415,7 +409,7 @@ def start() -> dict:
     return jsonify({"status": "started"})
 
 
-@app.route("/stop", methods=["POST"])
+@bp.route("/stop", methods=["POST"])
 def stop() -> dict:
     stop_event.set()
     if trading_thread:
@@ -423,7 +417,7 @@ def stop() -> dict:
     return jsonify({"status": "stopped"})
 
 
-@app.route("/autostart", methods=["POST"])
+@bp.route("/autostart", methods=["POST"])
 def autostart() -> dict:
     """Launch the bot in fully automatic mode."""
     global trading_thread
@@ -448,7 +442,7 @@ def _run_start_all() -> None:
     start_all_proc.wait()
 
 
-@app.route("/start_all", methods=["POST"])
+@bp.route("/start_all", methods=["POST"])
 def start_all_route() -> dict:
     global start_all_thread
     if start_all_thread and start_all_thread.is_alive():
@@ -458,7 +452,7 @@ def start_all_route() -> dict:
     return jsonify({"status": "started"})
 
 
-@app.route("/stop_all", methods=["POST"])
+@bp.route("/stop_all", methods=["POST"])
 def stop_all_route() -> dict:
     if start_all_proc and start_all_proc.poll() is None:
         start_all_proc.terminate()
@@ -471,7 +465,7 @@ def stop_all_route() -> dict:
     return jsonify({"status": "stopped"})
 
 
-@app.route("/risk", methods=["GET", "POST"])
+@bp.route("/risk", methods=["GET", "POST"])
 def risk_params() -> dict:
     if request.method == "POST":
         data = request.get_json() or {}
@@ -495,7 +489,7 @@ def risk_params() -> dict:
     )
 
 
-@app.route("/weights", methods=["GET", "POST"])
+@bp.route("/weights", methods=["GET", "POST"])
 def agent_weights() -> dict:
     """Get or update agent weighting factors."""
     if request.method == "POST":
@@ -517,7 +511,7 @@ def agent_weights() -> dict:
             return jsonify({})
 
 
-@app.route("/strategies", methods=["GET", "POST"])
+@bp.route("/strategies", methods=["GET", "POST"])
 def strategies_route() -> dict:
     """Get or set active strategy modules."""
     if request.method == "POST":
@@ -535,7 +529,7 @@ def strategies_route() -> dict:
     return jsonify({"available": list(StrategyManager.DEFAULT_STRATEGIES), "active": active})
 
 
-@app.route("/discovery", methods=["GET", "POST"])
+@bp.route("/discovery", methods=["GET", "POST"])
 def discovery_method() -> dict:
     if request.method == "POST":
         method = (request.get_json() or {}).get("method")
@@ -545,7 +539,7 @@ def discovery_method() -> dict:
     return jsonify({"method": os.getenv("DISCOVERY_METHOD", "websocket")})
 
 
-@app.route("/keypairs", methods=["GET"])
+@bp.route("/keypairs", methods=["GET"])
 def keypairs() -> dict:
     try:
         data = {
@@ -562,7 +556,7 @@ def keypairs() -> dict:
     return jsonify(data)
 
 
-@app.route("/keypairs/upload", methods=["POST"])
+@bp.route("/keypairs/upload", methods=["POST"])
 def upload_keypair() -> dict:
     file = request.files.get("file")
     name = request.form.get("name") or (file.filename if file else None)
@@ -576,7 +570,7 @@ def upload_keypair() -> dict:
     return jsonify({"status": "ok"})
 
 
-@app.route("/keypairs/select", methods=["POST"])
+@bp.route("/keypairs/select", methods=["POST"])
 def select_keypair_route() -> dict:
     name = request.get_json().get("name")
     try:
@@ -599,12 +593,12 @@ def select_keypair_route() -> dict:
     return jsonify({"status": "ok"})
 
 
-@app.route("/configs", methods=["GET"])
+@bp.route("/configs", methods=["GET"])
 def configs() -> dict:
     return jsonify({"configs": list_configs(), "active": get_active_config_name()})
 
 
-@app.route("/configs/upload", methods=["POST"])
+@bp.route("/configs/upload", methods=["POST"])
 def upload_config() -> dict:
     file = request.files.get("file")
     name = request.form.get("name") or (file.filename if file else None)
@@ -617,14 +611,14 @@ def upload_config() -> dict:
     return jsonify({"status": "ok"})
 
 
-@app.route("/configs/select", methods=["POST"])
+@bp.route("/configs/select", methods=["POST"])
 def select_config_route() -> dict:
     name = request.get_json().get("name")
     select_config(name)
     return jsonify({"status": "ok"})
 
 
-@app.route("/positions")
+@bp.route("/positions")
 def positions() -> dict:
     pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -642,7 +636,7 @@ def positions() -> dict:
     return jsonify(result)
 
 
-@app.route("/trades")
+@bp.route("/trades")
 def trades() -> dict:
     mem = Memory("sqlite:///memory.db")
     recents = [
@@ -658,7 +652,7 @@ def trades() -> dict:
     return jsonify(recents)
 
 
-@app.route("/vars")
+@bp.route("/vars")
 def vars_route() -> dict:
     """Return recent VaR measurements."""
     mem = Memory("sqlite:///memory.db")
@@ -669,7 +663,7 @@ def vars_route() -> dict:
     return jsonify(data)
 
 
-@app.route("/roi")
+@bp.route("/roi")
 def roi() -> dict:
     pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -682,7 +676,7 @@ def roi() -> dict:
     return jsonify({"roi": roi})
 
 
-@app.route("/exposure")
+@bp.route("/exposure")
 def exposure() -> dict:
     """Return current portfolio weights."""
     pf = current_portfolio or Portfolio()
@@ -692,7 +686,7 @@ def exposure() -> dict:
     return jsonify(weights)
 
 
-@app.route("/sharpe")
+@bp.route("/sharpe")
 def sharpe_ratio() -> dict:
     """Return rolling Sharpe ratio from PnL history."""
     if len(pnl_history) < 2:
@@ -707,7 +701,7 @@ def sharpe_ratio() -> dict:
     return jsonify({"sharpe": sharpe})
 
 
-@app.route("/pnl")
+@bp.route("/pnl")
 def pnl() -> dict:
     pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -721,7 +715,7 @@ def pnl() -> dict:
     return jsonify({"pnl": pnl, "history": pnl_history})
 
 
-@app.route("/token_history")
+@bp.route("/token_history")
 def token_history() -> dict:
     pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -741,7 +735,7 @@ def token_history() -> dict:
     return jsonify(result)
 
 
-@app.route("/balances")
+@bp.route("/balances")
 def balances() -> dict:
     """Return portfolio balances with USD values."""
     pf = Portfolio()
@@ -755,13 +749,13 @@ def balances() -> dict:
     return jsonify(result)
 
 
-@app.route("/logs")
+@bp.route("/logs")
 def logs() -> dict:
     """Return recent log messages."""
     return jsonify({"logs": list(log_buffer)})
 
 
-@app.route("/rl/status")
+@bp.route("/rl/status")
 def rl_status() -> dict:
     """Return RL training metrics if available."""
     if rl_daemon is None:
@@ -775,7 +769,7 @@ def rl_status() -> dict:
     )
 
 
-@app.route("/status")
+@bp.route("/status")
 def status() -> dict:
     """Return status of background components."""
     trading_alive = trading_thread.is_alive() if trading_thread else False
@@ -812,7 +806,7 @@ def status() -> dict:
     )
 
 
-@app.route("/memory/insert", methods=["POST"])
+@bp.route("/memory/insert", methods=["POST"])
 def memory_insert() -> dict:
     data = request.get_json() or {}
     sql = data.get("sql")
@@ -826,7 +820,7 @@ def memory_insert() -> dict:
     return jsonify({"status": "ok", "rows": result.rowcount})
 
 
-@app.route("/memory/update", methods=["POST"])
+@bp.route("/memory/update", methods=["POST"])
 def memory_update() -> dict:
     data = request.get_json() or {}
     sql = data.get("sql")
@@ -840,7 +834,7 @@ def memory_update() -> dict:
     return jsonify({"status": "ok", "rows": result.rowcount})
 
 
-@app.route("/memory/query", methods=["POST"])
+@bp.route("/memory/query", methods=["POST"])
 def memory_query() -> dict:
     data = request.get_json() or {}
     sql = data.get("sql")
@@ -1192,7 +1186,7 @@ HTML_PAGE = """
 """
 
 
-@app.route("/")
+@bp.route("/")
 def index() -> str:
     return render_template_string(HTML_PAGE)
 
@@ -1220,6 +1214,7 @@ async def _event_ws_handler(ws):
 
 
 if __name__ == "__main__":
+    app = create_app()
     if websockets is not None:
         def _start_rl_ws():
             global rl_ws_loop
