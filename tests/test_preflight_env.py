@@ -50,6 +50,18 @@ def test_check_required_env_placeholder(restore_env, caplog):
     assert "BIRDEYE_API_KEY" in caplog.text
 
 
+def test_check_required_env_bd_placeholder(restore_env, caplog):
+    os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
+    os.environ["BIRDEYE_API_KEY"] = "BD1234567890ABCDEFGHIJKL"
+    with caplog.at_level(
+        logging.WARNING, logger="solhunter_zero.preflight_utils"
+    ):
+        ok, msg = check_required_env()
+    assert ok is True
+    assert msg == "Required environment variables set"
+    assert "BIRDEYE_API_KEY" in caplog.text
+
+
 def test_configure_env_strips_placeholder(tmp_path: Path, restore_env, caplog):
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -64,6 +76,23 @@ def test_configure_env_strips_placeholder(tmp_path: Path, restore_env, caplog):
     assert ok is True
     assert os.environ.get("BIRDEYE_API_KEY") == ""
     assert "be_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" not in env_file.read_text()
+    assert "BIRDEYE_API_KEY" in caplog.text
+
+
+def test_configure_env_strips_bd_placeholder(tmp_path: Path, restore_env, caplog):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "SOLANA_RPC_URL=https://api.mainnet-beta.solana.com\n"
+        "BIRDEYE_API_KEY=BD1234567890ABCDEFGHIJKL\n"
+    )
+    configure_environment(tmp_path)
+    with caplog.at_level(
+        logging.WARNING, logger="solhunter_zero.preflight_utils"
+    ):
+        ok, msg = check_required_env()
+    assert ok is True
+    assert os.environ.get("BIRDEYE_API_KEY") == ""
+    assert "BD1234567890ABCDEFGHIJKL" not in env_file.read_text()
     assert "BIRDEYE_API_KEY" in caplog.text
 
 

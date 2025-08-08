@@ -268,7 +268,16 @@ def check_required_env(keys: List[str] | None = None) -> Check:
         )
 
     bird_key = os.getenv("BIRDEYE_API_KEY")
-    if not bird_key or bird_key in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+    placeholder = False
+    if bird_key:
+        lower = bird_key.lower()
+        placeholder = (
+            "your_" in lower
+            or "example" in lower
+            or (bird_key.startswith("be_") and all(ch in "xX" for ch in bird_key[3:]))
+            or lower.startswith("bd")
+        )
+    if not bird_key or placeholder:
         logging.getLogger(__name__).warning(
             "BIRDEYE_API_KEY missing or placeholder; continuing with on-chain scanning only"
         )
