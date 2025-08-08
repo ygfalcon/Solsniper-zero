@@ -54,10 +54,9 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             if "=" in line and not line.lstrip().startswith("#"):
                 name, value = line.split("=", 1)
                 if _is_placeholder(value.strip()):
-                    sanitized.append(f"{name}=\n")
                     removed.add(name)
-                else:
-                    sanitized.append(line if line.endswith("\n") else line + "\n")
+                    continue
+                sanitized.append(line if line.endswith("\n") else line + "\n")
             else:
                 sanitized.append(line if line.endswith("\n") else line + "\n")
         return sanitized, removed
@@ -89,7 +88,14 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
 
     env.load_env_file(env_file)
 
-    applied: dict[str, str] = {name: "" for name in removed_placeholders}
+    applied: dict[str, str] = {}
+    for env_name in ENV_VARS.values():
+        current = os.environ.get(env_name)
+        if current and _is_placeholder(current):
+            del os.environ[env_name]
+            applied[env_name] = ""
+    for name in removed_placeholders:
+        applied.setdefault(name, "")
     file_updates: dict[str, str] = {}
 
     cfg_path = Path(root) / "config.toml"
@@ -101,12 +107,15 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             cfg = {}
         for key, env_name in ENV_VARS.items():
             val = cfg.get(key)
-            if val is not None and (
-                env_name not in os.environ or not os.environ[env_name]
-            ):
-                value_str = (
-                    str(val).lower() if isinstance(val, bool) else str(val)
-                )
+            if val is None:
+                continue
+            value_str = (
+                str(val).lower() if isinstance(val, bool) else str(val)
+            )
+            if _is_placeholder(value_str) or not value_str:
+                applied.setdefault(env_name, "")
+                continue
+            if env_name not in os.environ or not os.environ[env_name]:
                 os.environ[env_name] = value_str
                 applied[env_name] = value_str
                 file_updates[env_name] = value_str
