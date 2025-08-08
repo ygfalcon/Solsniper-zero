@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import signal
 import subprocess
@@ -18,6 +19,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
 from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
 from solhunter_zero import env  # noqa: E402
+from scripts import preflight  # noqa: E402
 
 setup_logging("startup")
 env.load_env_file(ROOT / ".env")
@@ -44,7 +46,16 @@ from solhunter_zero.service_launcher import (  # noqa: E402
 )
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 
-if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
+parser = argparse.ArgumentParser(
+    description="Launch depth service, RL daemon and trading bot"
+)
+parser.add_argument(
+    "--skip-preflight", action="store_true", help="Skip environment preflight checks"
+)
+parser.add_argument("mode", nargs="?", help="Optional mode (e.g., 'autopilot')")
+args = parser.parse_args()
+
+if args.mode == "autopilot":
     from solhunter_zero import autopilot
 
     autopilot.main()
@@ -105,6 +116,21 @@ logging.basicConfig(level=logging.INFO)
 cfg = ensure_config_file()
 cfg_data = validate_env(ENV_VARS, cfg)
 set_env_from_config(cfg_data)
+
+if args.skip_preflight:
+    os.environ["SOLHUNTER_SKIP_PREFLIGHT"] = "1"
+else:
+    setup_logging("preflight")
+    results = preflight.run_preflight()
+    failures: list[tuple[str, str]] = []
+    for name, ok, msg in results:
+        status = "OK" if ok else "FAIL"
+        line = f"{name}: {status} - {msg}"
+        print(line)
+        if not ok:
+            failures.append((name, msg))
+    if failures:
+        sys.exit(1)
 
 # Launch depth service and RL daemon first
 interval = float(
