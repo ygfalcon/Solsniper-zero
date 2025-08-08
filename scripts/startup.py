@@ -503,7 +503,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  HTTP endpoints: {endpoint_status}")
 
     proc = subprocess.run(
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+        [sys.executable, "scripts/start_all.py", *rest]
     )
 
     if proc.returncode == 0:
