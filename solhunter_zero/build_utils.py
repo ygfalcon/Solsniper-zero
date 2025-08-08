@@ -3,6 +3,7 @@ from __future__ import annotations
 import platform
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from .paths import ROOT
@@ -111,3 +112,21 @@ def ensure_depth_service() -> None:
             "and then re-running this program."
         )
         raise SystemExit(1)
+
+
+def ensure_event_proto() -> None:
+    """Generate event_pb2.py from event.proto if outdated."""
+    proto = ROOT / "proto" / "event.proto"
+    out = ROOT / "solhunter_zero" / "event_pb2.py"
+    if out.exists() and out.stat().st_mtime >= proto.stat().st_mtime:
+        return
+    cmd = [
+        sys.executable,
+        "-m",
+        "grpc_tools.protoc",
+        "-I",
+        "proto",
+        "--python_out=solhunter_zero",
+        "proto/event.proto",
+    ]
+    subprocess.check_call(cmd, cwd=ROOT)

@@ -52,6 +52,12 @@ def ensure_depth_service() -> None:
 
     _ensure_depth_service()
 
+
+def ensure_event_proto() -> None:
+    from solhunter_zero.build_utils import ensure_event_proto as _ensure_event_proto
+
+    _ensure_event_proto()
+
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     script = Path(__file__).resolve()
     cmd = ["arch", "-arm64", sys.executable, str(script), *sys.argv[1:]]
@@ -365,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
         ensure_deps(install_optional=args.full_deps)
         ensure_route_ffi()
         ensure_depth_service()
+    ensure_event_proto()
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"

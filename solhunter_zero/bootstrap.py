@@ -31,6 +31,12 @@ def ensure_depth_service() -> None:
     _ensure_depth_service()
 
 
+def ensure_event_proto() -> None:
+    from .build_utils import ensure_event_proto as _ensure_event_proto
+
+    _ensure_event_proto()
+
+
 def ensure_config() -> tuple[Path, dict]:
     """Ensure a configuration file exists and is valid.
 
