@@ -107,7 +107,9 @@ class _BufferHandler(logging.Handler):
     """Logging handler that stores formatted log records in ``log_buffer``."""
 
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - simple
-        log_buffer.append(self.format(record))
+        line = self.format(record)
+        log_buffer.append(line)
+        _emit_ws_event("log", line)
 
 
 buffer_handler = _BufferHandler()
@@ -1194,7 +1196,8 @@ HTML_PAGE = """
 
 @app.route("/")
 def index() -> str:
-    return render_template_string(HTML_PAGE)
+    template_path = Path(__file__).resolve().parent / "templates" / "index.html"
+    return render_template_string(template_path.read_text())
 
 
 async def _rl_ws_handler(ws):
@@ -1211,6 +1214,8 @@ async def _rl_ws_handler(ws):
 async def _event_ws_handler(ws):
     event_ws_clients.add(ws)
     try:
+        for line in list(log_buffer):
+            await ws.send(json.dumps({"topic": "log", "payload": line}))
         async for _ in ws:
             pass
     except Exception:
