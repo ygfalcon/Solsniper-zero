@@ -137,9 +137,9 @@ profit calculation so routes are ranked based on the borrowed size.
 8. **Configure news feeds for sentiment**
    Sentiment scores influence RL training. Provide comma-separated RSS URLs via `NEWS_FEEDS` and optional social feeds:
    ```bash
-   export NEWS_FEEDS=https://news.example/rss
-   export TWITTER_FEEDS=https://example.com/twitter.json
-   export DISCORD_FEEDS=https://example.com/discord.json
+   export NEWS_FEEDS=https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://www.coindesk.com/arc/outboundfeeds/rss/
+   export TWITTER_FEEDS=https://nitter.net/solana/rss
+   export DISCORD_FEEDS=https://discord.com/api/guilds/613425648685547541/widget.json
    ```
 9. **Provide a keypair for signing**
     Generate a keypair with `solana-keygen new` if you don't already have one and
@@ -179,7 +179,7 @@ profit calculation so routes are ranked based on the borrowed size.
 10. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
-    export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+    export PRIORITY_RPC=https://api.mainnet-beta.solana.com,https://rpc.ankr.com/solana
     ```
 11. **Priority fee multipliers**
     Configure compute unit price multipliers used when the mempool is busy:
@@ -217,10 +217,10 @@ profit calculation so routes are ranked based on the borrowed size.
   python start.py --auto
    ```
 16. **External event bus**
-   Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
-   ```bash
-   export EVENT_BUS_URL=wss://bus.example.com
-   ```
+    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
+    ```bash
+    export EVENT_BUS_URL=ws://0.0.0.0:8787
+    ```
    Alternatively specify `event_bus_url` in the configuration file.
 17. **Message broker**
    Connect to one or more brokers so multiple instances share events:
@@ -353,7 +353,7 @@ endpoints using ``priority_rpc`` (or the ``PRIORITY_RPC`` environment
 variable):
 
 ```bash
-export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+export PRIORITY_RPC=https://api.mainnet-beta.solana.com,https://rpc.ankr.com/solana
 ```
 ### Running in a Cluster
 
@@ -370,11 +370,11 @@ event_bus_url = "ws://0.0.0.0:8787"
 broker_url = "redis://localhost:6379"
 
 [[nodes]]
-solana_rpc_url = "https://rpc1.example.com"
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
 solana_keypair = "keypairs/node1.json"
 
 [[nodes]]
-solana_rpc_url = "https://rpc2.example.com"
+solana_rpc_url = "https://rpc.ankr.com/solana"
 solana_keypair = "keypairs/node2.json"
 ```
 
@@ -525,7 +525,7 @@ To forward events to a remote bus use the `--event-bus` option when running
 `scripts/run_rl_daemon.py`:
 
 ```bash
-python scripts/run_rl_daemon.py --event-bus wss://bus.example.com
+python scripts/run_rl_daemon.py --event-bus ws://0.0.0.0:8787
 ```
 
 Hierarchical RL training now runs by default and stores its policy in

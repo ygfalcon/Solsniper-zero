@@ -41,7 +41,7 @@ This document lists environment variables recognized by the project.
 | `DEX_LISTING_WS_URL` | `` | URL for dex listing ws |
 | `DEX_METRICS_CACHE_TTL` | `30` | TTL for dex metrics cache cache |
 | `DEX_METRIC_URLS` | `` | Configures dex metric urls |
-| `DISCORD_FEEDS` | `` | Configures discord feeds |
+| `DISCORD_FEEDS` | `https://discord.com/api/guilds/613425648685547541/widget.json` | Configures discord feeds |
 | `DISCOVERY_METHOD` | `websocket` | Configures discovery method |
 | `DYNAMIC_CONCURRENCY_INTERVAL` | `` | Interval for dynamic concurrency |
 | `EDGE_CACHE_TTL` | `60` | TTL for edge cache cache |
@@ -50,7 +50,7 @@ This document lists environment variables recognized by the project.
 | `EVENT_BUS_MMAP` | `` | Configures event bus mmap |
 | `EVENT_BUS_MMAP_SIZE` | `` | Configures event bus mmap size |
 | `EVENT_BUS_PEERS` | `` | Configures event bus peers |
-| `EVENT_BUS_URL` | `` | URL for event bus |
+| `EVENT_BUS_URL` | `ws://0.0.0.0:8787` | URL for event bus |
 | `EVENT_COMPRESSION` | `` | Configures event compression |
 | `EVENT_COMPRESSION_THRESHOLD` | `512` | Threshold for event compression |
 | `EVENT_MMAP_BATCH_MS` | `` | Configures event mmap batch ms |
@@ -95,14 +95,14 @@ This document lists environment variables recognized by the project.
 | `METEORA_API_URL` | `https://api.meteora.ag` | URL for meteora api |
 | `METEORA_DEPTH_WS_URL` | `` | URL for meteora depth ws |
 | `METEORA_WS_URL` | `` | URL for meteora ws |
-| `METRICS_BASE_URL` | `` | URL for metrics base |
+| `METRICS_BASE_URL` | `https://api.coingecko.com/api/v3` | URL for metrics base |
 | `METRICS_URL` | `` | URL for metrics |
 | `MIN_PORTFOLIO_VALUE` | `20` | Minimum portfolio value |
 | `MIN_STARTING_BALANCE` | `0` | Minimum starting balance |
 | `MNEMONIC` | `` | Configures mnemonic |
 | `ENCRYPT_MNEMONIC` | `0` | Store mnemonic file encrypted when set to `1` |
 | `MNEMONIC_ENCRYPTION_KEY` | `` | Passphrase used for mnemonic encryption |
-| `NEWS_FEEDS` | `` | Configures news feeds |
+| `NEWS_FEEDS` | `https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml,https://www.coindesk.com/arc/outboundfeeds/rss/` | Configures news feeds |
 | `OFFLINE_BATCH_SIZE` | `` | Configures offline batch size |
 | `OFFLINE_DATA_INTERVAL` | `3600` | Interval for offline data |
 | `OFFLINE_DATA_LIMIT_GB` | `` | Configures offline data limit gb |
@@ -175,7 +175,7 @@ This document lists environment variables recognized by the project.
 | `TORCH_METAL_VERSION` | `` | Configures torch metal version |
 | `TRAILING_STOP` | `0` | Configures trailing stop |
 | `TREND_CACHE_TTL` | `60` | TTL for trend cache cache |
-| `TWITTER_FEEDS` | `` | Configures twitter feeds |
+| `TWITTER_FEEDS` | `https://nitter.net/solana/rss` | Configures twitter feeds |
 | `USE_DEPTH_FEED` | `0` | Enable depth feed |
 | `USE_DEPTH_STREAM` | `1` | Enable depth stream |
 | `USE_FFI_ROUTE` | `` | Enable ffi route |
