@@ -102,12 +102,36 @@ app = Flask(
 # in-memory log storage for UI access
 log_buffer: deque[str] = deque(maxlen=200)
 
+# websocket state for streaming log lines
+log_ws_clients: set[Any] = set()
+log_ws_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _broadcast_log_line(line: str) -> None:
+    """Broadcast a log line to all connected websocket clients."""
+    if log_ws_loop is None:
+        return
+
+    async def _broadcast() -> None:
+        to_remove: list[Any] = []
+        for ws in list(log_ws_clients):
+            try:
+                await ws.send(line)
+            except Exception:
+                to_remove.append(ws)
+        for ws in to_remove:
+            log_ws_clients.discard(ws)
+
+    asyncio.run_coroutine_threadsafe(_broadcast(), log_ws_loop)
+
 
 class _BufferHandler(logging.Handler):
     """Logging handler that stores formatted log records in ``log_buffer``."""
 
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - simple
-        log_buffer.append(self.format(record))
+        line = self.format(record)
+        log_buffer.append(line)
+        _broadcast_log_line(line)
 
 
 buffer_handler = _BufferHandler()
@@ -939,6 +963,11 @@ HTML_PAGE = """
     </div>
 
     <div class="section">
+        <h3>Logs</h3>
+        <pre id='logs'></pre>
+    </div>
+
+    <div class="section">
         <h3>Risk Parameters</h3>
         <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
         <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
@@ -1186,6 +1215,16 @@ HTML_PAGE = """
             } catch(e) {}
         };
     } catch(e) {}
+    try {
+        const logSock = new WebSocket('ws://' + window.location.hostname + ':8768');
+        logSock.onmessage = function(ev) {
+            const el = document.getElementById('logs');
+            if(el){
+                el.textContent += ev.data + '\n';
+                el.scrollTop = el.scrollHeight;
+            }
+        };
+    } catch(e) {}
     </script>
 </body>
 </html>
@@ -1219,6 +1258,19 @@ async def _event_ws_handler(ws):
         event_ws_clients.discard(ws)
 
 
+async def _log_ws_handler(ws):
+    log_ws_clients.add(ws)
+    try:
+        for line in list(log_buffer):
+            await ws.send(line)
+        async for _ in ws:
+            pass
+    except Exception:
+        pass
+    finally:
+        log_ws_clients.discard(ws)
+
+
 if __name__ == "__main__":
     if websockets is not None:
         def _start_rl_ws():
@@ -1250,8 +1302,23 @@ if __name__ == "__main__":
             )
             event_ws_loop.run_forever()
 
+        def _start_log_ws():
+            global log_ws_loop
+            log_ws_loop = asyncio.new_event_loop()
+            log_ws_loop.run_until_complete(
+                websockets.serve(
+                    _log_ws_handler,
+                    "localhost",
+                    8768,
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                )
+            )
+            log_ws_loop.run_forever()
+
         threading.Thread(target=_start_rl_ws, daemon=True).start()
         threading.Thread(target=_start_event_ws, daemon=True).start()
+        threading.Thread(target=_start_log_ws, daemon=True).start()
 
     try:
         app.run()
