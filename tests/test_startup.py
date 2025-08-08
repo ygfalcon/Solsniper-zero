@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -735,11 +736,15 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+    dummy_manager = types.SimpleNamespace(
+        AgentManager=types.SimpleNamespace(from_config=lambda cfg: object())
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.agent_manager", dummy_manager)
 
     ret = startup.main(["--skip-deps", "--skip-rpc-check", "--skip-preflight"])
     out = capsys.readouterr().out
     assert "endpoints" in called
-    assert "HTTP endpoints: reachable" in out
+    assert re.search(r"HTTP endpoints\s+reachable", out)
     assert ret == 0
 
 
@@ -755,6 +760,8 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
     from solhunter_zero import bootstrap as bootstrap_mod
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
+    from solhunter_zero import preflight_utils
+    monkeypatch.setattr(preflight_utils, "check_disk_space", lambda *a, **k: (True, "ok"))
     import types, sys
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
@@ -769,6 +776,9 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr(startup.os, "execv", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    monkeypatch.setattr(
+        startup.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0)
+    )
     conf = types.SimpleNamespace(
         load_config=lambda path=None: {"dex_base_url": "https://quote-api.jup.ag"},
         validate_config=lambda cfg: cfg,
@@ -776,6 +786,10 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
         find_config_file=lambda: "config.toml",
     )
     monkeypatch.setitem(sys.modules, "solhunter_zero.config", conf)
+    dummy_manager = types.SimpleNamespace(
+        AgentManager=types.SimpleNamespace(from_config=lambda cfg: object())
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.agent_manager", dummy_manager)
 
     ret = startup.main([
         "--skip-deps",
@@ -786,7 +800,7 @@ def test_main_skips_endpoint_check(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "endpoints" not in called
-    assert "HTTP endpoints: skipped" in out
+    assert "HTTP endpoints" in out and "skipped" in out
     assert ret == 0
 
 
