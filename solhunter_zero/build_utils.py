@@ -125,18 +125,8 @@ def ensure_protos() -> None:
 
     print("event_pb2.py is stale. Regenerating...")
     try:
-        subprocess.check_call(
-            [
-                sys.executable,
-                "-m",
-                "grpc_tools.protoc",
-                "-I",
-                "proto",
-                "--python_out=solhunter_zero",
-                "proto/event.proto",
-            ],
-            cwd=ROOT,
-        )
+        regen = ROOT / "scripts" / "gen_proto.py"
+        subprocess.check_call([sys.executable, str(regen)], cwd=ROOT)
     except subprocess.CalledProcessError as exc:  # pragma: no cover - rare
         print(f"Failed to regenerate event_pb2.py: {exc}")
         log_startup(f"Failed to regenerate event_pb2.py: {exc}")

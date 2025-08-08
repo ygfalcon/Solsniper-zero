@@ -600,7 +600,9 @@ Protocol buffer classes are generated with `grpcio-tools`. If you modify
 `proto/event.proto`, run:
 
 ```bash
-python -m grpc_tools.protoc -I proto --python_out=solhunter_zero proto/event.proto
+python scripts/gen_proto.py
+# or
+make gen-proto
 ```
 
 This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
