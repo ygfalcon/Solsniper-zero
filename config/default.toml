@@ -9,10 +9,13 @@ dex_base_url = "https://quote-api.jup.ag"
 solana_testnet_rpc_url = "https://api.devnet.solana.com"
 dex_testnet_url = "https://quote-api.jup.ag"
 
-# Minimal agent setup
+# Minimal agent setup. If this section is omitted, the default agent
+# configuration will be loaded automatically. Set ``agents = []`` to disable
+# agents entirely.
 agents = ["simulation"]
 
 [agent_weights]
+# Weights for the default agent configuration.
 simulation = 1.0
 
 # This is the sole bundled preset and will be copied to ``config.toml``
