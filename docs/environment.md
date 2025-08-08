@@ -95,7 +95,7 @@ This document lists environment variables recognized by the project.
 | `METEORA_API_URL` | `https://api.meteora.ag` | URL for meteora api |
 | `METEORA_DEPTH_WS_URL` | `` | URL for meteora depth ws |
 | `METEORA_WS_URL` | `` | URL for meteora ws |
-| `METRICS_BASE_URL` | `` | URL for metrics base |
+| `METRICS_BASE_URL` | `https://api.coingecko.com/api/v3` | URL for metrics base |
 | `METRICS_URL` | `` | URL for metrics |
 | `MIN_PORTFOLIO_VALUE` | `20` | Minimum portfolio value |
 | `MIN_STARTING_BALANCE` | `0` | Minimum starting balance |
