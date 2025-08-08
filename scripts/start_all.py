@@ -19,11 +19,15 @@ sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
 from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
 from solhunter_zero import env  # noqa: E402
+from rich.console import Console
+from rich.progress import Progress
+from rich.panel import Panel
 
 setup_logging("startup")
 env.load_env_file(ROOT / ".env")
 os.chdir(ROOT)
 log_startup("start_all launched")
+console = Console()
 
 from solhunter_zero import device  # noqa: E402
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
@@ -125,59 +129,111 @@ except OSError as exc:
 data_sync.start_scheduler(interval=interval, db_path=db_path)
 
 ensure_cargo()
-try:
-    depth_proc = start_depth_service(cfg, stream_stderr=True)
-    PROCS.append(depth_proc)
-    PROCS.append(start_rl_daemon())
+depth_proc: subprocess.Popen | None = None
+with Progress(console=console, transient=True) as progress:
+    depth_task = progress.add_task("Starting depth service...", total=1)
+    try:
+        depth_proc = start_depth_service(cfg, stream_stderr=True)
+        PROCS.append(depth_proc)
+        progress.advance(depth_task)
+        console.log("[green]Depth service started[/]")
+        log_startup("Depth service started")
+    except Exception as exc:
+        msg = f"Failed to start depth service: {exc}"
+        console.print(Panel(msg, style="red"))
+        log_startup(msg)
+        stop_all()
+
+    rl_task = progress.add_task("Starting RL daemon...", total=1)
+    try:
+        rl_proc = start_rl_daemon()
+        PROCS.append(rl_proc)
+        progress.advance(rl_task)
+        console.log("[green]RL daemon started[/]")
+        log_startup("RL daemon started")
+    except Exception as exc:
+        msg = f"Failed to start RL daemon: {exc}"
+        console.print(Panel(msg, style="red"))
+        log_startup(msg)
+        stop_all()
+
     addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
     port = int(os.getenv("DEPTH_WS_PORT", "8765"))
     deadline = time.monotonic() + 30.0
-    wait_for_depth_ws(addr, port, deadline, depth_proc)
+    ws_task = progress.add_task("Waiting for depth websocket...", total=1)
+    try:
+        wait_for_depth_ws(addr, port, deadline, depth_proc)
+        progress.advance(ws_task)
+        console.log("[green]Depth websocket ready[/]")
+        log_startup("Depth websocket ready")
+    except Exception as exc:
+        msg = f"Depth websocket not ready: {exc}"
+        console.print(Panel(msg, style="red"))
+        log_startup(msg)
+        stop_all()
 
-    def _run_ui() -> None:
-        app = ui.create_app()
-        if ui.websockets is not None:
-            def _start_rl_ws() -> None:
-                ui.rl_ws_loop = asyncio.new_event_loop()
-                ui.rl_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._rl_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8767,
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+    ui_task = progress.add_task("Starting UI...", total=1)
+    try:
+        def _run_ui() -> None:
+            app = ui.create_app()
+            if ui.websockets is not None:
+                def _start_rl_ws() -> None:
+                    ui.rl_ws_loop = asyncio.new_event_loop()
+                    ui.rl_ws_loop.run_until_complete(
+                        ui.websockets.serve(
+                            ui._rl_ws_handler,  # type: ignore[attr-defined]
+                            "localhost",
+                            8767,
+                            ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
+                            ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                        )
                     )
-                )
-                ui.rl_ws_loop.run_forever()
+                    ui.rl_ws_loop.run_forever()
 
-            def _start_event_ws() -> None:
-                ui.event_ws_loop = asyncio.new_event_loop()
-                ui.event_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._event_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8766,
-                        path="/ws",
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                def _start_event_ws() -> None:
+                    ui.event_ws_loop = asyncio.new_event_loop()
+                    ui.event_ws_loop.run_until_complete(
+                        ui.websockets.serve(
+                            ui._event_ws_handler,  # type: ignore[attr-defined]
+                            "localhost",
+                            8766,
+                            path="/ws",
+                            ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
+                            ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                        )
                     )
-                )
-                ui.event_ws_loop.run_forever()
+                    ui.event_ws_loop.run_forever()
 
-            threading.Thread(target=_start_rl_ws, daemon=True).start()
-            threading.Thread(target=_start_event_ws, daemon=True).start()
+                threading.Thread(target=_start_rl_ws, daemon=True).start()
+                threading.Thread(target=_start_event_ws, daemon=True).start()
 
-        app.run()
+            app.run()
 
-    threading.Thread(target=_run_ui, daemon=True).start()
-except Exception as exc:
-    logging.error(str(exc))
-    stop_all()
+        threading.Thread(target=_run_ui, daemon=True).start()
+        progress.advance(ui_task)
+        console.log("[green]UI started[/]")
+        log_startup("UI started")
+    except Exception as exc:
+        msg = f"Failed to start UI: {exc}"
+        console.print(Panel(msg, style="red"))
+        log_startup(msg)
+        stop_all()
 
 main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
 if cfg:
     main_cmd += ["--config", cfg]
-start(main_cmd)
+with Progress(console=console, transient=True) as progress:
+    main_task = progress.add_task("Starting main engine...", total=1)
+    try:
+        start(main_cmd)
+        progress.advance(main_task)
+        console.log("[green]Main engine started[/]")
+        log_startup("Main engine started")
+    except Exception as exc:
+        msg = f"Failed to start main engine: {exc}"
+        console.print(Panel(msg, style="red"))
+        log_startup(msg)
+        stop_all()
 
 try:
     while any(p.poll() is None for p in PROCS):

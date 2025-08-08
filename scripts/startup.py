@@ -414,17 +414,29 @@ def main(argv: list[str] | None = None) -> int:
         rest = ["--non-interactive", *rest]
 
     if not args.skip_deps:
+        log_startup("Installing dependencies")
         with Progress(console=console, transient=True) as progress:
             dep_task = progress.add_task("Installing dependencies...", total=4)
-            ensure_deps(install_optional=args.full_deps)
-            progress.advance(dep_task)
-            ensure_protos()
-            progress.advance(dep_task)
-            ensure_route_ffi()
-            progress.advance(dep_task)
-            ensure_depth_service()
-            progress.advance(dep_task)
-        console.print("[green]Dependencies installed[/]")
+            try:
+                ensure_deps(install_optional=args.full_deps)
+                progress.advance(dep_task)
+                log_startup("Base dependencies installed")
+                ensure_protos()
+                progress.advance(dep_task)
+                log_startup("Protos generated")
+                ensure_route_ffi()
+                progress.advance(dep_task)
+                log_startup("Route FFI built")
+                ensure_depth_service()
+                progress.advance(dep_task)
+                log_startup("Depth service built")
+            except Exception as exc:
+                msg = f"Dependency installation failed: {exc}"
+                console.print(Panel(msg, style="red"))
+                log_startup(msg)
+                return 1
+        console.log("[green]Dependencies installed[/]")
+        log_startup("Dependencies installed")
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
@@ -514,14 +526,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to initialize AgentManager: {exc}")
         return 1
 
-    proc = subprocess.run(
-        [sys.executable, "scripts/start_all.py", *rest]
-    )
-
+    log_startup("Launching core services")
+    with Progress(console=console, transient=True) as progress:
+        launch_task = progress.add_task("Launching services...", total=1)
+        proc = subprocess.run(
+            [sys.executable, "scripts/start_all.py", *rest]
+        )
+        progress.advance(launch_task)
     if proc.returncode == 0:
         msg = "SolHunter Zero launch complete – system ready."
-        print(msg)
-        log_startup(msg)
+        console.print(Panel(msg, style="green"))
+    else:
+        msg = f"SolHunter Zero launch failed with code {proc.returncode}"
+        console.print(Panel(msg, style="red"))
+    log_startup(msg)
 
     # Diagnostics are handled by :func:`solhunter_zero.bootstrap.bootstrap`.
 
