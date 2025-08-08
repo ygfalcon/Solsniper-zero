@@ -135,7 +135,12 @@ try:
     wait_for_depth_ws(addr, port, deadline, depth_proc)
 
     def _run_ui() -> None:
-        app = ui.create_app()
+        try:
+            app = ui.create_app()
+        except RuntimeError as exc:
+            logging.error(str(exc))
+            stop_all()
+            return
         if ui.websockets is not None:
             def _start_rl_ws() -> None:
                 ui.rl_ws_loop = asyncio.new_event_loop()

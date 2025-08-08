@@ -274,6 +274,11 @@ def create_app() -> Flask:
 
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
+    missing = _missing_required()
+    if missing:
+        msg = "Missing required environment variables: " + ", ".join(missing)
+        logging.error(msg)
+        raise RuntimeError(msg)
 
     # auto-select single keypair and configuration on startup
     try:
@@ -422,7 +427,7 @@ def start() -> dict:
 
     missing = _missing_required()
     if missing:
-        msg = "Missing required configuration: " + ", ".join(missing)
+        msg = "Missing required environment variables: " + ", ".join(missing)
         return jsonify({"status": "error", "message": msg}), 400
 
     stop_event.clear()
@@ -1277,7 +1282,11 @@ async def _log_ws_handler(ws):
 
 
 if __name__ == "__main__":
-    app = create_app()
+    try:
+        app = create_app()
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1)
     if websockets is not None:
         def _start_rl_ws():
             global rl_ws_loop
