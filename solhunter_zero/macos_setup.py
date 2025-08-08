@@ -273,6 +273,36 @@ MANUAL_FIXES = {
     ),
 }
 
+# mapping of automatic fix functions for each setup step.  Each function should
+# attempt to resolve the issue and is followed by a retry of the original step
+# in :func:`prepare_macos_env`.
+AUTO_FIXES: dict[str, Callable[[], None]] = {
+    "xcode": lambda: _run(["xcode-select", "--install"], check=False),
+    "homebrew": lambda: _run(
+        [
+            "/bin/bash",
+            "-c",
+            "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
+        ]
+    ),
+    "brew_packages": lambda: _run_with_retry(
+        [
+            "brew",
+            "install",
+            "python@3.11",
+            "rustup-init",
+            "pkg-config",
+            "cmake",
+            "protobuf",
+        ]
+    ),
+    "rustup": lambda: _run(["rustup-init", "-y"]),
+    "pip_torch": upgrade_pip_and_torch,
+    "verify_tools": apply_brew_env,
+    "deps": install_deps,
+    "profile": ensure_profile,
+}
+
 
 def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     """Ensure core macOS development tools are installed.
@@ -300,17 +330,29 @@ def prepare_macos_env(non_interactive: bool = True) -> dict[str, object]:
     for idx, (name, func) in enumerate(steps):
         try:
             func()
-        except SystemExit as exc:
-            if exc.code:
-                report["steps"][name] = {
-                    "status": "error",
-                    "message": str(exc),
-                }
-                report["success"] = False
-                for n, _ in steps[idx + 1 :]:
-                    report["steps"][n] = {"status": "skipped"}
-                break
-        except Exception as exc:  # pragma: no cover - unexpected failure
+        except Exception as exc:
+            # Attempt automatic fix
+            fix = AUTO_FIXES.get(name)
+            if fix:
+                print(f"Step '{name}' failed: {exc}. Attempting automatic fix...")
+                try:
+                    fix()
+                    func()
+                except Exception as exc2:
+                    print(f"Automatic fix for {name} failed: {exc2}")
+                    report["steps"][name] = {
+                        "status": "error",
+                        "message": str(exc2),
+                    }
+                    report["success"] = False
+                    for n, _ in steps[idx + 1 :]:
+                        report["steps"][n] = {"status": "skipped"}
+                    break
+                else:
+                    print(f"Automatic fix for {name} succeeded")
+                    report["steps"][name] = {"status": "ok", "fixed": True}
+                    continue
+            # No fix available or fix not attempted
             report["steps"][name] = {"status": "error", "message": str(exc)}
             report["success"] = False
             for n, _ in steps[idx + 1 :]:
