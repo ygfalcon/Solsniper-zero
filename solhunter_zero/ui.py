@@ -1218,8 +1218,46 @@ async def _event_ws_handler(ws):
     finally:
         event_ws_clients.discard(ws)
 
+from rich.console import Console
+from . import __version__
+
+console = Console()
+
+ASCII_ART = r"""
+  _____       _ _             _            _   _                ______              
+ / ____|     | | |           | |          | | (_)              |  ____|             
+| (___   ___ | | | ___   ___ | |__   ___  | |_ _  ___  _ __    | |____   _____ _ __ 
+ \___ \ / _ \| | |/ _ \ / _ \| '_ \ / _ \ | __| |/ _ \| '_ \   |  __\ \ / / _ \ '__|
+ ____) | (_) | | | (_) | (_) | | | |  __/ | |_| | (_) | | | |  | |___\ V /  __/ |   
+|_____/ \___/|_|_|\___/ \___/|_| |_|\___|  \__|_|\___/|_| |_|  |______\_/ \___|_|   
+"""
+
+def print_startup_banner() -> None:
+    """Display startup information using rich console."""
+    console.print(ASCII_ART, style="bold cyan")
+    console.print(f"[bold]Version:[/bold] {__version__}")
+    console.print(
+        f"[bold]Active config:[/bold] {get_active_config_name() or 'None'}"
+    )
+    console.print(
+        f"[bold]Active keypair:[/bold] {wallet.get_active_keypair_name() or 'None'}"
+    )
+    console.print("[bold]Required env vars:[/bold]")
+    for var in REQUIRED_ENV_VARS:
+        val = os.getenv(var)
+        if val:
+            console.print(f"  [green]{var}[/green]= {val}")
+        else:
+            console.print(f"  [red]{var}[/red]= [red]<missing>[/red]")
+    missing = _missing_required()
+    if missing:
+        console.print(
+            f"[bold red]Missing required env vars: {', '.join(missing)}[/bold red]"
+        )
+
 
 if __name__ == "__main__":
+    print_startup_banner()
     if websockets is not None:
         def _start_rl_ws():
             global rl_ws_loop
