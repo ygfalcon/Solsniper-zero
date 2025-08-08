@@ -131,15 +131,15 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
 7. **Export RL metrics**
     Provide a URL that receives ``rl_metrics`` events:
-    ```bash
-    export METRICS_URL=http://localhost:9000/metrics
-    ```
+   ```bash
+   export METRICS_URL=http://localhost:9000/metrics
+   ```
 8. **Configure news feeds for sentiment**
    Sentiment scores influence RL training. Provide comma-separated RSS URLs via `NEWS_FEEDS` and optional social feeds:
    ```bash
-   export NEWS_FEEDS=https://news.example/rss
-   export TWITTER_FEEDS=https://example.com/twitter.json
-   export DISCORD_FEEDS=https://example.com/discord.json
+   export NEWS_FEEDS=https://news.ycombinator.com/rss
+   export TWITTER_FEEDS=https://jsonplaceholder.typicode.com/todos/1
+   export DISCORD_FEEDS=https://jsonplaceholder.typicode.com/todos/2
    ```
 9. **Provide a keypair for signing**
     Generate a keypair with `solana-keygen new` if you don't already have one and
