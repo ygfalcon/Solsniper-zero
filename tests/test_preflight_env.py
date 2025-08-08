@@ -15,25 +15,22 @@ def restore_env():
         os.environ.update(original)
 
 
-def test_check_required_env_success(restore_env):
+def test_check_required_env_warns_without_birdeye(restore_env):
     os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
-    os.environ["BIRDEYE_API_KEY"] = "real_key"
     ok, msg = check_required_env()
     assert ok is True
-    assert msg == "Required environment variables set"
+    assert "BIRDEYE_API_KEY" in msg
 
 
-def test_check_required_env_missing(restore_env):
+def test_check_required_env_missing_rpc(restore_env):
     os.environ.pop("SOLANA_RPC_URL", None)
-    os.environ.pop("BIRDEYE_API_KEY", None)
     ok, msg = check_required_env()
     assert ok is False
-    assert "SOLANA_RPC_URL" in msg and "BIRDEYE_API_KEY" in msg
+    assert "SOLANA_RPC_URL" in msg
 
 
-def test_check_required_env_placeholder(restore_env):
+def test_check_required_env_require_birdeye(restore_env):
     os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
-    os.environ["BIRDEYE_API_KEY"] = "YOUR_BIRDEYE_KEY"
-    ok, msg = check_required_env()
+    ok, msg = check_required_env(require_birdeye=True)
     assert ok is False
-    assert msg.startswith("Missing environment variables: BIRDEYE_API_KEY")
+    assert "BIRDEYE_API_KEY" in msg

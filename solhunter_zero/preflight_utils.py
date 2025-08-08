@@ -254,21 +254,50 @@ def check_internet(url: str | None = None) -> Check:
     return False, f"Failed to reach {target}"
 
 
-def check_required_env(keys: List[str] | None = None) -> Check:
-    """Ensure critical environment variables are configured."""
+def check_required_env(
+    keys: List[str] | None = None, *, require_birdeye: bool = False
+) -> Check:
+    """Ensure critical environment variables are configured.
 
-    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
+    Parameters
+    ----------
+    keys:
+        Explicit list of required keys.  When ``None`` only ``SOLANA_RPC_URL``
+        is mandatory.
+    require_birdeye:
+        When ``True`` the ``BIRDEYE_API_KEY`` is also treated as required.
+    """
+
+    required = keys or ["SOLANA_RPC_URL"]
+    if require_birdeye and "BIRDEYE_API_KEY" not in required:
+        required.append("BIRDEYE_API_KEY")
+
+    placeholders = {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}
     missing = []
     for key in required:
         val = os.getenv(key)
-        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+        if not val or (key == "BIRDEYE_API_KEY" and val in placeholders):
             missing.append(key)
+
     if missing:
         joined = ", ".join(missing)
         return False, (
             f"Missing environment variables: {joined}. "
             "Set them and retry"
         )
+
+    if "BIRDEYE_API_KEY" not in required:
+        val = os.getenv("BIRDEYE_API_KEY")
+        if not val or val in placeholders:
+            from solhunter_zero.logging_utils import log_startup
+
+            log_startup(
+                "WARNING: BIRDEYE_API_KEY not set - some features may be disabled"
+            )
+            return True, (
+                "Required environment variables set; missing optional BIRDEYE_API_KEY"
+            )
+
     return True, "Required environment variables set"
 
 
