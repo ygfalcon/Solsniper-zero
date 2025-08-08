@@ -13,6 +13,7 @@ from collections import deque
 from solhunter_zero.portfolio import Position
 import logging
 import threading
+import time
 
 pytest.importorskip("google.protobuf")
 
@@ -546,13 +547,36 @@ def test_autostart(monkeypatch):
 
     def fake_run_auto():
         events.append("run")
+        time.sleep(2)
 
     monkeypatch.setattr(ui.main_module, "run_auto", fake_run_auto)
 
     client = ui.app.test_client()
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "started"
-    ui.trading_thread.join(timeout=1)
-    assert "run" in events
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "already running"
+    ui.trading_thread.join(timeout=3)
+    assert "run" in events
+
+
+def test_cli_autostart(monkeypatch):
+    ui.trading_thread = None
+    events = []
+
+    def fake_run_auto():
+        events.append("run")
+
+    monkeypatch.setattr(ui.main_module, "run_auto", fake_run_auto)
+    monkeypatch.setattr(ui, "websockets", None)
+
+    async def fake_close_session():
+        return None
+
+    monkeypatch.setattr(ui, "close_session", fake_close_session)
+    monkeypatch.setattr(ui.app, "run", lambda *a, **k: None)
+
+    ui.main(["--autostart"])
+
+    ui.trading_thread.join(timeout=1)
+    assert "run" in events

@@ -1,3 +1,4 @@
+import argparse
 import threading
 import os
 import asyncio
@@ -1276,10 +1277,20 @@ async def _log_ws_handler(ws):
         log_ws_clients.discard(ws)
 
 
-if __name__ == "__main__":
-    app = create_app()
+app = create_app()
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--autostart",
+        action="store_true",
+        help="start trading automatically when the UI launches",
+    )
+    args = parser.parse_args(argv)
+
     if websockets is not None:
-        def _start_rl_ws():
+        def _start_rl_ws() -> None:
             global rl_ws_loop
             rl_ws_loop = asyncio.new_event_loop()
             rl_ws_loop.run_until_complete(
@@ -1293,7 +1304,7 @@ if __name__ == "__main__":
             )
             rl_ws_loop.run_forever()
 
-        def _start_event_ws():
+        def _start_event_ws() -> None:
             global event_ws_loop
             event_ws_loop = asyncio.new_event_loop()
             event_ws_loop.run_until_complete(
@@ -1308,7 +1319,7 @@ if __name__ == "__main__":
             )
             event_ws_loop.run_forever()
 
-        def _start_log_ws():
+        def _start_log_ws() -> None:
             global log_ws_loop
             log_ws_loop = asyncio.new_event_loop()
             log_ws_loop.run_until_complete(
@@ -1326,7 +1337,15 @@ if __name__ == "__main__":
         threading.Thread(target=_start_event_ws, daemon=True).start()
         threading.Thread(target=_start_log_ws, daemon=True).start()
 
+    if args.autostart:
+        with app.app_context():
+            autostart()
+
     try:
         app.run()
     finally:
         asyncio.run(close_session())
+
+
+if __name__ == "__main__":  # pragma: no cover - manual launch
+    main()
