@@ -5,7 +5,7 @@ PYTHON ?= python3
 
 .RECIPEPREFIX := >
 
-.PHONY: start run test demo demo-rl demo-multi setup
+.PHONY: start run test demo demo-rl demo-multi setup gen-proto
 
 start:
 >$(PYTHON) start.py $(ARGS)
@@ -22,6 +22,9 @@ test:
 
 typecheck:
 >$(PYTHON) -m mypy solhunter_zero tests
+
+gen-proto:
+>$(PYTHON) scripts/gen_proto.py
 
 # Run the investor demo. Pass ARGS to override or extend defaults.
 # Examples:

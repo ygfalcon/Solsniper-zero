@@ -44,9 +44,7 @@ def main() -> int:
             sys.stderr.write(
                 "\nevent_pb2.py is stale. Regenerate with:\n"
             )
-            sys.stderr.write(
-                "  python -m grpc_tools.protoc -I proto --python_out=solhunter_zero proto/event.proto\n"
-            )
+            sys.stderr.write("  python scripts/gen_proto.py\n")
             return 1
     return 0
 
