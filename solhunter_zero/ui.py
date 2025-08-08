@@ -59,6 +59,17 @@ log_buffer: deque[str] = deque()
 buffer_handler: logging.Handler | None = None
 _SUBSCRIPTIONS: list[Any] = []
 
+# Ensure event bus subscriptions are cleaned up when the application context ends
+@bp.teardown_appcontext
+def _clear_subscriptions(_exc: Exception | None) -> None:
+    """Terminate all active event bus subscriptions."""
+    for sub in _SUBSCRIPTIONS:
+        try:
+            sub.__exit__(None, None, None)
+        except Exception:
+            pass
+    _SUBSCRIPTIONS.clear()
+
 # websocket state for streaming log lines
 log_ws_clients: set[Any] = set()
 log_ws_loop: asyncio.AbstractEventLoop | None = None
