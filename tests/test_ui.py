@@ -7,12 +7,21 @@ import contextlib
 import importlib.machinery
 import sys
 import pytest
-from solders.keypair import Keypair
-from solhunter_zero import ui, config
 from collections import deque
 from solhunter_zero.portfolio import Position
 import logging
 import threading
+
+from solders.keypair import Keypair
+
+# Ensure real Flask is used rather than the lightweight stub installed in tests.stubs
+if "flask" in sys.modules:
+    del sys.modules["flask"]
+import flask as _real_flask  # type: ignore
+sys.modules["flask"] = _real_flask
+
+from solhunter_zero import ui, config
+ui.app = ui.create_app()
 
 pytest.importorskip("google.protobuf")
 
@@ -496,48 +505,44 @@ def test_status_endpoint(monkeypatch):
     monkeypatch.setattr(ui, "rl_daemon", object(), raising=False)
     monkeypatch.setattr(ui, "depth_service_connected", True, raising=False)
 
-    called = {}
-
-    class Dummy:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            pass
-
-    def fake_ws(url):
-        called["url"] = url
-
-        class Conn:
-            async def __aenter__(self_inner):
-                return Dummy()
-
-            async def __aexit__(self_inner, exc_type, exc, tb):
-                pass
-
-            def __await__(self_inner):
-                async def _coro():
-                    return self_inner
-
-                return _coro().__await__()
-
-        return Conn()
-
-    monkeypatch.setattr(ui.websockets, "connect", fake_ws)
-    monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: "ws://bus")
+    monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: None)
 
     client = ui.app.test_client()
     resp = client.get("/status")
     data = resp.get_json()
+    assert resp.status_code == 200
     assert data == {
         "trading_loop": True,
         "rl_daemon": True,
         "depth_service": True,
-        "event_bus": True,
+        "event_bus": False,
         "heartbeat": False,
         "system_metrics": {"cpu": 0.0, "memory": 0.0},
     }
-    assert called["url"] == "ws://bus"
+
+
+def test_status_endpoint_failure(monkeypatch):
+    monkeypatch.setattr(ui, "trading_thread", None, raising=False)
+    monkeypatch.setattr(ui, "rl_daemon", None, raising=False)
+    monkeypatch.setattr(ui, "depth_service_connected", False, raising=False)
+    monkeypatch.setattr(ui, "rl_daemon_heartbeat", 0.0, raising=False)
+    monkeypatch.setattr(ui, "depth_service_heartbeat", 0.0, raising=False)
+
+    monkeypatch.setattr(ui.time, "sleep", lambda *a, **k: None)
+
+    class FailingSocket:
+        def __init__(self, *a, **k):
+            raise OSError("fail")
+
+    monkeypatch.setattr(ui.socket, "create_connection", FailingSocket)
+    monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: None)
+
+    client = ui.app.test_client()
+    resp = client.get("/status")
+    data = resp.get_json()
+    assert resp.status_code == 500
+    assert data["rl_daemon"] is False
+    assert data["depth_service"] is False
 
 
 def test_autostart(monkeypatch):

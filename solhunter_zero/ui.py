@@ -211,6 +211,75 @@ def _depth_status(payload: Any) -> None:
     depth_service_connected = status in {"connected", "reconnected"}
 
 
+def verify_services(retries: int = 3, delay: float = 1.0) -> dict[str, bool]:
+    """Verify connectivity to depth service and RL daemon.
+
+    The function attempts to establish a TCP connection to the depth service
+    websocket and checks that an RL daemon heartbeat has been received. If a
+    service appears to be down, the check is retried a number of times before
+    logging an error instructing the user to intervene manually.
+
+    Parameters
+    ----------
+    retries:
+        Number of connection attempts for each service.
+    delay:
+        Seconds to wait between retries.
+    """
+
+    global depth_service_connected
+
+    # Depth service check -------------------------------------------------
+    depth_ok = depth_service_connected or (
+        time.time() - depth_service_heartbeat < 120
+    )
+    if not depth_ok:
+        addr, port = get_depth_ws_addr()
+        for attempt in range(retries):
+            try:
+                with socket.create_connection((addr, port), timeout=5):
+                    depth_ok = True
+                    depth_service_connected = True
+                    break
+            except Exception as exc:  # pragma: no cover - network dependent
+                logging.error(
+                    "Depth service connectivity check failed (%s:%s) attempt %d/%d: %s",
+                    addr,
+                    port,
+                    attempt + 1,
+                    retries,
+                    exc,
+                )
+                if attempt + 1 < retries:
+                    time.sleep(delay)
+        if not depth_ok:
+            logging.error(
+                "Depth service unreachable. Please ensure it is running or restart the service manually."
+            )
+
+    # RL daemon check -----------------------------------------------------
+    rl_ok = rl_daemon is not None or (
+        time.time() - rl_daemon_heartbeat < 120
+    )
+    if not rl_ok:
+        for attempt in range(retries):
+            rl_ok = rl_daemon is not None or (
+                time.time() - rl_daemon_heartbeat < 120
+            )
+            if rl_ok:
+                break
+            logging.error(
+                "RL daemon heartbeat missing (attempt %d/%d). "
+                "Start the RL daemon using 'scripts/run_rl_daemon.py' or ensure it is running.",
+                attempt + 1,
+                retries,
+            )
+            if attempt + 1 < retries:
+                time.sleep(delay)
+
+    return {"depth_service": depth_ok, "rl_daemon": rl_ok}
+
+
 trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
@@ -797,8 +866,9 @@ def rl_status() -> dict:
 def status() -> dict:
     """Return status of background components."""
     trading_alive = trading_thread.is_alive() if trading_thread else False
-    rl_alive = rl_daemon is not None or time.time() - rl_daemon_heartbeat < 120
-    depth_alive = depth_service_connected or time.time() - depth_service_heartbeat < 120
+    checks = verify_services()
+    rl_alive = checks["rl_daemon"]
+    depth_alive = checks["depth_service"]
     heartbeat_alive = time.time() - last_heartbeat < 120
     event_alive = False
     url = get_event_bus_url()
@@ -818,16 +888,16 @@ def status() -> dict:
             event_alive = asyncio.run(_check())
         except Exception:
             event_alive = False
-    return jsonify(
-        {
-            "trading_loop": trading_alive,
-            "rl_daemon": rl_alive,
-            "depth_service": depth_alive,
-            "event_bus": event_alive,
-            "heartbeat": heartbeat_alive,
-            "system_metrics": system_metrics,
-        }
-    )
+    resp = {
+        "trading_loop": trading_alive,
+        "rl_daemon": rl_alive,
+        "depth_service": depth_alive,
+        "event_bus": event_alive,
+        "heartbeat": heartbeat_alive,
+        "system_metrics": system_metrics,
+    }
+    status_code = 200 if rl_alive and depth_alive else 500
+    return jsonify(resp), status_code
 
 
 @bp.route("/memory/insert", methods=["POST"])
