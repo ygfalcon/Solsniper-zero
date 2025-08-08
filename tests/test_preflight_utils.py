@@ -42,7 +42,7 @@ def test_check_internet_success(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(time, "sleep", lambda s: None)
-    ok, msg = preflight_utils.check_internet("https://example.com")
+    ok, msg = preflight_utils.check_internet("https://api.github.com")
     assert ok is True
     assert "Reached" in msg
 
@@ -53,9 +53,9 @@ def test_check_internet_failure(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setattr(time, "sleep", lambda s: None)
-    ok, msg = preflight_utils.check_internet("https://example.com")
+    ok, msg = preflight_utils.check_internet("https://api.github.com")
     assert ok is False
-    assert "Failed to reach https://example.com after 3 attempts" in msg
+    assert "Failed to reach https://api.github.com after 3 attempts" in msg
 
 
 def test_check_wallet_balance_ok(monkeypatch, tmp_path):

@@ -95,7 +95,7 @@ def ensure_network() -> None:
         return
     except Exception:
         try:
-            with request.urlopen("https://example.com", timeout=5):
+            with request.urlopen("https://api.github.com", timeout=5):
                 return
         except Exception:
             print(
