@@ -244,6 +244,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Force macOS setup and clear dependency caches",
     )
+    parser.add_argument(
+        "--no-auto-browser",
+        action="store_true",
+        help="Do not automatically open the web UI in a browser",
+    )
     args, rest = parser.parse_known_args(argv)
 
     disk_required = _disk_space_required_bytes()
@@ -467,9 +472,19 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
     print(f"  HTTP endpoints: {endpoint_status}")
 
-    proc = subprocess.run(
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
-    )
+    ui_cmd = [sys.executable, "-m", "solhunter_zero.ui"]
+    if args.no_auto_browser or os.getenv("NO_AUTO_BROWSER"):
+        ui_cmd.append("--no-auto-browser")
+    ui_proc = subprocess.Popen(ui_cmd)
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+        )
+    finally:
+        ui_proc.terminate()
+        with contextlib.suppress(Exception):
+            ui_proc.wait(timeout=5)
 
     if proc.returncode == 0:
         msg = "SolHunter Zero launch complete – system ready."

@@ -10,6 +10,7 @@ from typing import Any
 import time
 import subprocess
 import sys
+import argparse
 
 from .http import close_session
 from .util import install_uvloop
@@ -1220,6 +1221,14 @@ async def _event_ws_handler(ws):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--no-auto-browser",
+        action="store_true",
+        help="Do not automatically open the UI in a web browser",
+    )
+    args = parser.parse_args()
+
     if websockets is not None:
         def _start_rl_ws():
             global rl_ws_loop
@@ -1253,7 +1262,31 @@ if __name__ == "__main__":
         threading.Thread(target=_start_rl_ws, daemon=True).start()
         threading.Thread(target=_start_event_ws, daemon=True).start()
 
+    server_thread = threading.Thread(target=app.run, kwargs={"use_reloader": False})
+    server_thread.start()
+
+    auto_browser = not (args.no_auto_browser or os.getenv("NO_AUTO_BROWSER"))
+
+    if auto_browser:
+        import webbrowser
+
+        def _wait_for_server(host: str = "localhost", port: int = 5000, timeout: float = 10.0) -> bool:
+            start = time.time()
+            while time.time() - start < timeout:
+                try:
+                    with socket.create_connection((host, port), timeout=1):
+                        return True
+                except OSError:
+                    time.sleep(0.1)
+            return False
+
+        if _wait_for_server():
+            try:
+                webbrowser.open("http://localhost:5000")
+            except Exception:
+                pass
+
     try:
-        app.run()
+        server_thread.join()
     finally:
         asyncio.run(close_session())
