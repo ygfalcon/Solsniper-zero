@@ -179,7 +179,7 @@ profit calculation so routes are ranked based on the borrowed size.
 10. **Priority RPC endpoints**
     Specify one or more RPC URLs used for high-priority submission:
     ```bash
-    export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+    export PRIORITY_RPC=https://api.mainnet-beta.solana.com,https://solana-rpc.publicnode.com
     ```
 11. **Priority fee multipliers**
     Configure compute unit price multipliers used when the mempool is busy:
@@ -353,7 +353,7 @@ endpoints using ``priority_rpc`` (or the ``PRIORITY_RPC`` environment
 variable):
 
 ```bash
-export PRIORITY_RPC=https://rpc1.example.com,https://rpc2.example.com
+export PRIORITY_RPC=https://api.mainnet-beta.solana.com,https://solana-rpc.publicnode.com
 ```
 ### Running in a Cluster
 
@@ -370,11 +370,11 @@ event_bus_url = "ws://0.0.0.0:8787"
 broker_url = "redis://localhost:6379"
 
 [[nodes]]
-solana_rpc_url = "https://rpc1.example.com"
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
 solana_keypair = "keypairs/node1.json"
 
 [[nodes]]
-solana_rpc_url = "https://rpc2.example.com"
+solana_rpc_url = "https://solana-rpc.publicnode.com"
 solana_keypair = "keypairs/node2.json"
 ```
 
