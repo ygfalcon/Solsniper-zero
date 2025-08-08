@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Environment preflight checks for Solsniper-zero."""
+"""Environment preflight checks for Solsniper-zero.
+
+This script verifies tooling, configuration, and critical environment
+variables before startup. Either ``SOLANA_RPC_URL`` or ``BIRDEYE_API_KEY``
+must be supplied for the application to operate, though both are
+recommended.
+"""
 
 from __future__ import annotations
 

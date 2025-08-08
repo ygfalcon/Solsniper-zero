@@ -9,6 +9,7 @@ entrypoint is executed.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -254,21 +255,34 @@ def check_internet(url: str | None = None) -> Check:
     return False, f"Failed to reach {target}"
 
 
+def _is_placeholder(key: str, value: str | None) -> bool:
+    """Return ``True`` if ``value`` looks like a placeholder for ``key``."""
+
+    if value in {None, "", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+        return True
+    if key == "BIRDEYE_API_KEY":
+        if re.fullmatch(r"be_[xX]{32}", value):
+            return True
+        if re.fullmatch(r"BD(?:1234567890){3,}", value):
+            return True
+    return False
+
+
 def check_required_env(keys: List[str] | None = None) -> Check:
     """Ensure critical environment variables are configured."""
 
-    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
-    missing = []
-    for key in required:
-        val = os.getenv(key)
-        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
-            missing.append(key)
-    if missing:
+    required = keys or ["BIRDEYE_API_KEY", "SOLANA_RPC_URL"]
+    missing = [key for key in required if _is_placeholder(key, os.getenv(key))]
+
+    if keys is None:
+        if len(missing) == len(required):
+            joined = " or ".join(required)
+            return False, (
+                f"Missing environment variables: {joined}. Set one and retry"
+            )
+    elif missing:
         joined = ", ".join(missing)
-        return False, (
-            f"Missing environment variables: {joined}. "
-            "Set them and retry"
-        )
+        return False, f"Missing environment variables: {joined}. Set them and retry"
     return True, "Required environment variables set"
 
 
