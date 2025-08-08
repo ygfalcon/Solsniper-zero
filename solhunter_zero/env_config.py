@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
-import shutil
 
 import tomllib
 
@@ -37,21 +36,61 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
 
     root = root or ROOT
     env_file = Path(root) / ".env"
+
+    def _is_placeholder(value: str) -> bool:
+        if not value:
+            return False
+        lower = value.lower()
+        if "your_" in lower or "example" in lower:
+            return True
+        if value.startswith("be_") and all(ch in "xX" for ch in value[3:]):
+            return True
+        return False
+
+    def _sanitize_lines(lines: list[str]) -> tuple[list[str], set[str]]:
+        sanitized: list[str] = []
+        removed: set[str] = set()
+        for line in lines:
+            if "=" in line and not line.lstrip().startswith("#"):
+                name, value = line.split("=", 1)
+                if _is_placeholder(value.strip()):
+                    sanitized.append(f"{name}=\n")
+                    removed.add(name)
+                else:
+                    sanitized.append(line if line.endswith("\n") else line + "\n")
+            else:
+                sanitized.append(line if line.endswith("\n") else line + "\n")
+        return sanitized, removed
+
+    removed_placeholders: set[str] = set()
     if not env_file.exists():
         example_file = Path(root) / ".env.example"
         env_file.parent.mkdir(parents=True, exist_ok=True)
         if example_file.exists():
-            shutil.copy(example_file, env_file)
+            with example_file.open("r", encoding="utf-8") as fh:
+                sanitized, removed_placeholders = _sanitize_lines(fh.readlines())
+            with env_file.open("w", encoding="utf-8") as fh:
+                fh.writelines(sanitized)
             log_startup(
                 f"Created environment file {env_file} from {example_file}"
             )
+            if removed_placeholders:
+                report_env_changes({name: "" for name in removed_placeholders}, env_file)
         else:
             env_file.touch()
             log_startup(f"Created environment file {env_file}")
+    else:
+        with env_file.open("r", encoding="utf-8") as fh:
+            sanitized, removed_placeholders = _sanitize_lines(fh.readlines())
+        if removed_placeholders:
+            with env_file.open("w", encoding="utf-8") as fh:
+                fh.writelines(sanitized)
+            report_env_changes({name: "" for name in removed_placeholders}, env_file)
+
     env.load_env_file(env_file)
 
-    applied: dict[str, str] = {}
-    missing_lines: list[str] = []
+    applied: dict[str, str] = {name: "" for name in removed_placeholders}
+    file_updates: dict[str, str] = {}
 
     cfg_path = Path(root) / "config.toml"
     if cfg_path.exists():
@@ -62,28 +101,34 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             cfg = {}
         for key, env_name in ENV_VARS.items():
             val = cfg.get(key)
-            if val is not None and env_name not in os.environ:
+            if val is not None and (
+                env_name not in os.environ or not os.environ[env_name]
+            ):
                 value_str = (
                     str(val).lower() if isinstance(val, bool) else str(val)
                 )
                 os.environ[env_name] = value_str
                 applied[env_name] = value_str
-                missing_lines.append(f"{env_name}={value_str}\n")
+                file_updates[env_name] = value_str
 
-    added_vars: dict[str, str] = {}
-    if missing_lines:
-        env_file.parent.mkdir(parents=True, exist_ok=True)
-        env_file.touch(exist_ok=True)
-        with env_file.open("a", encoding="utf-8") as fh:
-            fh.writelines(missing_lines)
-        for line in missing_lines:
-            name, _, value = line.partition("=")
-            added_vars[name] = value.strip()
+    if file_updates:
+        lines = env_file.read_text().splitlines(True)
+        updated: set[str] = set()
+        for i, line in enumerate(lines):
+            if "=" in line and not line.lstrip().startswith("#"):
+                name, _ = line.split("=", 1)
+                if name in file_updates:
+                    lines[i] = f"{name}={file_updates[name]}\n"
+                    updated.add(name)
+        for name, value in file_updates.items():
+            if name not in updated:
+                lines.append(f"{name}={value}\n")
+        with env_file.open("w", encoding="utf-8") as fh:
+            fh.writelines(lines)
         log_startup(
-            f"Updated environment file {env_file} with: "
-            f"{', '.join(added_vars)}"
+            f"Updated environment file {env_file} with: {', '.join(file_updates)}"
         )
-        report_env_changes(added_vars, env_file)
+        report_env_changes(file_updates, env_file)
 
     for key, value in DEFAULTS.items():
         if key not in os.environ:
