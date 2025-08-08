@@ -280,6 +280,17 @@ def main(argv: list[str] | None = None) -> int:
     ran_quick_setup = False
 
     if not args.skip_setup:
+        from scripts.quick_setup import _is_placeholder
+
+        def _has_placeholder(value: object) -> bool:
+            if isinstance(value, str):
+                return _is_placeholder(value)
+            if isinstance(value, dict):
+                return any(_has_placeholder(v) for v in value.values())
+            if isinstance(value, list):
+                return any(_has_placeholder(v) for v in value)
+            return False
+
         try:
             config_path, cfg_data = ensure_config()
         except (Exception, SystemExit):
@@ -289,6 +300,16 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             config_path, cfg_data = ensure_config(cfg_new)
             ran_quick_setup = True
+        if _has_placeholder(cfg_data):
+            cfg_new = run_quick_setup()
+            if not cfg_new:
+                print("Failed to populate configuration via quick setup")
+                return 1
+            config_path, cfg_data = ensure_config(cfg_new)
+            ran_quick_setup = True
+            if _has_placeholder(cfg_data):
+                print("Configuration still contains placeholder values")
+                return 1
         try:
             ensure_wallet_cli()
         except SystemExit as exc:
