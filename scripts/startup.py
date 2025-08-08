@@ -244,6 +244,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Force macOS setup and clear dependency caches",
     )
+    parser.add_argument(
+        "--skip-startup-check",
+        action="store_true",
+        help="Bypass post-launch startup verification",
+    )
     args, rest = parser.parse_known_args(argv)
 
     disk_required = _disk_space_required_bytes()
@@ -467,11 +472,36 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
     print(f"  HTTP endpoints: {endpoint_status}")
 
-    proc = subprocess.run(
-        [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+    cmd = [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
+    run_check = not (
+        args.skip_startup_check or args.offline or args.skip_setup or args.skip_preflight
     )
 
-    if proc.returncode == 0:
+    if run_check:
+        proc_p = subprocess.Popen(cmd)
+        try:
+            from scripts import verify_startup
+
+            if not verify_startup.main():
+                proc_p.terminate()
+                with contextlib.suppress(Exception):
+                    proc_p.wait(timeout=5)
+                log_startup("Startup verification failed")
+                print("Startup verification failed")
+                return 1
+        except Exception as exc:  # pragma: no cover - defensive
+            proc_p.terminate()
+            with contextlib.suppress(Exception):
+                proc_p.wait(timeout=5)
+            log_startup(f"Startup verification error: {exc}")
+            print(f"Startup verification error: {exc}")
+            return 1
+        proc_code = proc_p.wait()
+    else:
+        proc_run = subprocess.run(cmd)
+        proc_code = proc_run.returncode
+
+    if proc_code == 0:
         msg = "SolHunter Zero launch complete – system ready."
         print(msg)
         log_startup(msg)
@@ -519,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Detailed logs: {log_path}")
     log_startup(f"Log summary: see {log_path}")
 
-    return proc.returncode or hc_code
+    return proc_code or hc_code
 
 
 def run(argv: list[str] | None = None) -> int:
