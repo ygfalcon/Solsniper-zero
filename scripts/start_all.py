@@ -10,6 +10,7 @@ import sys
 import time
 import threading
 import logging
+import asyncio
 from pathlib import Path
 from typing import IO
 
@@ -43,6 +44,7 @@ from solhunter_zero.service_launcher import (  # noqa: E402
     wait_for_depth_ws,
 )
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
+import solhunter_zero.ui as ui  # noqa: E402
 
 if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
     from solhunter_zero import autopilot
@@ -131,6 +133,43 @@ try:
     port = int(os.getenv("DEPTH_WS_PORT", "8765"))
     deadline = time.monotonic() + 30.0
     wait_for_depth_ws(addr, port, deadline, depth_proc)
+
+    def _run_ui() -> None:
+        app = ui.create_app()
+        if ui.websockets is not None:
+            def _start_rl_ws() -> None:
+                ui.rl_ws_loop = asyncio.new_event_loop()
+                ui.rl_ws_loop.run_until_complete(
+                    ui.websockets.serve(
+                        ui._rl_ws_handler,  # type: ignore[attr-defined]
+                        "localhost",
+                        8767,
+                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
+                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                    )
+                )
+                ui.rl_ws_loop.run_forever()
+
+            def _start_event_ws() -> None:
+                ui.event_ws_loop = asyncio.new_event_loop()
+                ui.event_ws_loop.run_until_complete(
+                    ui.websockets.serve(
+                        ui._event_ws_handler,  # type: ignore[attr-defined]
+                        "localhost",
+                        8766,
+                        path="/ws",
+                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
+                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
+                    )
+                )
+                ui.event_ws_loop.run_forever()
+
+            threading.Thread(target=_start_rl_ws, daemon=True).start()
+            threading.Thread(target=_start_event_ws, daemon=True).start()
+
+        app.run()
+
+    threading.Thread(target=_run_ui, daemon=True).start()
 except Exception as exc:
     logging.error(str(exc))
     stop_all()
