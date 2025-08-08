@@ -40,6 +40,12 @@ from solhunter_zero.logging_utils import (
     rotate_preflight_log,
 )  # noqa: E402
 
+from rich.console import Console
+from rich.progress import Progress
+from rich.panel import Panel
+
+console = Console()
+
 
 def ensure_route_ffi() -> None:
     from solhunter_zero.build_utils import ensure_route_ffi as _ensure_route_ffi
@@ -82,15 +88,16 @@ def ensure_wallet_cli() -> None:
     if shutil.which("solhunter-wallet") is not None:
         return
 
-    print("'solhunter-wallet' command not found. Attempting installation via pip...")
+    console.print(
+        "[yellow]'solhunter-wallet' command not found. Attempting installation via pip...[/]"
+    )
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
         text=True,
     )
     if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
-        print(
-            "Failed to install 'solhunter-wallet'. Please install it manually with "
-            "'pip install solhunter-wallet' and re-run.",
+        console.print(
+            "[red]Failed to install 'solhunter-wallet'. Please install it manually with 'pip install solhunter-wallet' and re-run.[/]"
         )
         raise SystemExit(1)
 
@@ -182,6 +189,7 @@ def _disk_space_required_bytes() -> int:
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
+    console.print(Panel.fit("[bold cyan]SolHunter Zero Startup[/]"), justify="center")
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument(
         "--skip-deps", action="store_true", help="Skip dependency check"
@@ -249,9 +257,11 @@ def main(argv: list[str] | None = None) -> int:
     disk_required = _disk_space_required_bytes()
 
     # Run early environment checks before any heavy work
-    print("Checking disk space...")
-    ok, msg = preflight_utils.check_disk_space(disk_required)
-    print(msg)
+    with Progress(console=console, transient=True) as progress:
+        disk_task = progress.add_task("Checking disk space...", total=1)
+        ok, msg = preflight_utils.check_disk_space(disk_required)
+        progress.advance(disk_task)
+    console.print(f"[green]{msg}[/]" if ok else f"[red]{msg}[/]")
     if not ok:
         log_startup("Disk space check failed")
         raise SystemExit(1)
@@ -291,40 +301,55 @@ def main(argv: list[str] | None = None) -> int:
                 return any(_has_placeholder(v) for v in value)
             return False
 
-        try:
-            config_path, cfg_data = ensure_config()
-        except (Exception, SystemExit):
-            cfg_new = run_quick_setup()
-            if not cfg_new:
-                print("Failed to create configuration via quick setup")
-                return 1
-            config_path, cfg_data = ensure_config(cfg_new)
-            ran_quick_setup = True
-        if _has_placeholder(cfg_data):
-            cfg_new = run_quick_setup()
-            if not cfg_new:
-                print("Failed to populate configuration via quick setup")
-                return 1
-            config_path, cfg_data = ensure_config(cfg_new)
-            ran_quick_setup = True
+        with Progress(console=console, transient=True) as progress:
+            cfg_task = progress.add_task("Ensuring configuration...", total=1)
+            try:
+                config_path, cfg_data = ensure_config()
+            except (Exception, SystemExit):
+                cfg_new = run_quick_setup()
+                if not cfg_new:
+                    console.print("[red]Failed to create configuration via quick setup[/]")
+                    return 1
+                config_path, cfg_data = ensure_config(cfg_new)
+                ran_quick_setup = True
+            progress.advance(cfg_task)
+
             if _has_placeholder(cfg_data):
-                print("Configuration still contains placeholder values")
-                return 1
-        try:
-            ensure_wallet_cli()
-        except SystemExit as exc:
-            return exc.code if isinstance(exc.code, int) else 1
-        info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
-        active_keypair = info.name
-        keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
-        mnemonic_path = info.mnemonic_path
+                cfg_new = run_quick_setup()
+                if not cfg_new:
+                    console.print("[red]Failed to populate configuration via quick setup[/]")
+                    return 1
+                config_path, cfg_data = ensure_config(cfg_new)
+                ran_quick_setup = True
+                if _has_placeholder(cfg_data):
+                    console.print("[red]Configuration still contains placeholder values[/]")
+                    return 1
+
+            wallet_task = progress.add_task("Ensuring wallet CLI...", total=1)
+            try:
+                ensure_wallet_cli()
+            except SystemExit as exc:
+                return exc.code if isinstance(exc.code, int) else 1
+            progress.advance(wallet_task)
+
+            key_task = progress.add_task("Selecting active keypair...", total=1)
+            info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
+            active_keypair = info.name
+            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
+            mnemonic_path = info.mnemonic_path
+            progress.advance(key_task)
+        console.print("[green]Configuration complete[/]")
 
     if args.offline:
         endpoint_status = "offline"
     elif args.skip_endpoint_check or args.skip_setup:
         endpoint_status = "skipped"
     else:
-        ensure_endpoints(cfg_data)
+        with Progress(console=console, transient=True) as progress:
+            ep_task = progress.add_task("Checking HTTP endpoints...", total=1)
+            ensure_endpoints(cfg_data)
+            progress.advance(ep_task)
+        console.print("[green]HTTP endpoints reachable[/]")
         endpoint_status = "reachable"
 
     if args.repair and platform.system() == "Darwin":
@@ -389,10 +414,17 @@ def main(argv: list[str] | None = None) -> int:
         rest = ["--non-interactive", *rest]
 
     if not args.skip_deps:
-        ensure_deps(install_optional=args.full_deps)
-        ensure_protos()
-        ensure_route_ffi()
-        ensure_depth_service()
+        with Progress(console=console, transient=True) as progress:
+            dep_task = progress.add_task("Installing dependencies...", total=4)
+            ensure_deps(install_optional=args.full_deps)
+            progress.advance(dep_task)
+            ensure_protos()
+            progress.advance(dep_task)
+            ensure_route_ffi()
+            progress.advance(dep_task)
+            ensure_depth_service()
+            progress.advance(dep_task)
+        console.print("[green]Dependencies installed[/]")
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"

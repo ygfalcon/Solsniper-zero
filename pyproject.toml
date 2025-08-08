@@ -24,6 +24,7 @@ dependencies = [
     "watchfiles>=0.19,<2.0",
     "pydantic>=1.10,<3.0",
     "cryptography>=41,<44",
+    "rich>=13,<14",
 ]
 
 [project.optional-dependencies]
