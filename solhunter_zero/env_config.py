@@ -9,6 +9,7 @@ import tomllib
 
 from . import env
 from .logging_utils import log_startup
+from .jito_auth import ensure_jito_auth
 from .config import ENV_VARS
 from .env_defaults import DEFAULTS
 from .paths import ROOT
@@ -134,6 +135,8 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         if key not in os.environ:
             os.environ[key] = value
         applied[key] = os.environ[key]
+
+    ensure_jito_auth(env_file)
 
     # GPU-related environment variables are configured exclusively via
     # :func:`device.initialize_gpu` during launcher startup to keep a single
