@@ -219,7 +219,7 @@ profit calculation so routes are ranked based on the borrowed size.
 16. **External event bus**
    Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
    ```bash
-   export EVENT_BUS_URL=wss://bus.example.com
+   export EVENT_BUS_URL=wss://echo.websocket.events
    ```
    Alternatively specify `event_bus_url` in the configuration file.
 17. **Message broker**
@@ -525,7 +525,7 @@ To forward events to a remote bus use the `--event-bus` option when running
 `scripts/run_rl_daemon.py`:
 
 ```bash
-python scripts/run_rl_daemon.py --event-bus wss://bus.example.com
+python scripts/run_rl_daemon.py --event-bus wss://echo.websocket.events
 ```
 
 Hierarchical RL training now runs by default and stores its policy in
