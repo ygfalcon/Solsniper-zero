@@ -356,6 +356,31 @@ def test_logs_endpoint(monkeypatch):
     assert logs[-1] == "beta"
 
 
+def test_autostart_env(monkeypatch):
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
+    monkeypatch.setenv("DEX_BASE_URL", "x")
+    monkeypatch.setenv("AUTO_START", "1")
+
+    called = []
+
+    def fake_autostart():
+        called.append(True)
+        return {"status": "started"}
+
+    monkeypatch.setattr(ui, "autostart", fake_autostart)
+
+    app = ui.create_app()
+    assert called
+
+    client = app.test_client()
+    resp = client.get("/logs")
+    logs = resp.get_json()["logs"]
+    assert any("Autostart triggered" in log for log in logs)
+
+
 def test_token_history_endpoint(monkeypatch):
     pf = ui.Portfolio(path=None)
     pf.balances = {"tok": Position("tok", 1, 2.0)}

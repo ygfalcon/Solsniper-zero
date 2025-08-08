@@ -469,6 +469,9 @@ def stub_psutil() -> None:
 def stub_flask() -> None:
     if 'flask' in sys.modules:
         return
+    import importlib.util
+    if importlib.util.find_spec('flask') is not None:
+        return
     flask = types.ModuleType('flask')
     flask.__spec__ = importlib.machinery.ModuleSpec('flask', None)
 

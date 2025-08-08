@@ -11,6 +11,7 @@ import time
 import subprocess
 import sys
 from pathlib import Path
+from contextlib import nullcontext
 
 from flask import Flask, Blueprint, jsonify, request, render_template_string
 
@@ -330,6 +331,16 @@ def create_app() -> Flask:
     ]
     for sub in _SUBSCRIPTIONS:
         sub.__enter__()
+
+    if os.getenv("AUTO_START") == "1":
+        ctx = app.app_context() if hasattr(app, "app_context") else nullcontext()
+        try:
+            with ctx:
+                result = autostart()
+            data = result.get_json() if hasattr(result, "get_json") else result
+            logging.warning("Autostart triggered: %s", data.get("status"))
+        except Exception as exc:  # pragma: no cover - simple logging
+            logging.warning("Autostart failed: %s", exc)
 
     return app
 
