@@ -1,13 +1,16 @@
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import IO
 
 from .paths import ROOT
+from .cache_paths import CARGO_MARKER
 logger = logging.getLogger(__name__)
 
 
@@ -17,35 +20,48 @@ def _stream_stderr(pipe: IO[bytes]) -> None:
     pipe.close()
 
 
+def _ensure_cargo() -> None:
+    """Ensure the Rust toolchain is installed via rustup."""
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    os.environ["PATH"] = f"{cargo_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+    if shutil.which("cargo") is not None:
+        return
+    if CARGO_MARKER.exists():
+        raise RuntimeError(
+            "Rust toolchain previously installed but 'cargo' was not found. "
+            "Ensure ~/.cargo/bin is in your PATH or remove the cache marker and rerun."
+        )
+    CARGO_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("Installing Rust toolchain via rustup...")
+    try:
+        subprocess.run(["rustup-init", "-y"], check=True)
+    except FileNotFoundError as exc:  # pragma: no cover - rustup missing is rare
+        raise RuntimeError(
+            "rustup-init not found. Please install rustup from https://rustup.rs/."
+        ) from exc
+    CARGO_MARKER.touch()
+    if shutil.which("cargo") is None:
+        raise RuntimeError("cargo installation failed; ensure ~/.cargo/bin is in PATH")
+
+
 def start_depth_service(
     cfg_path: str | None = None, *, stream_stderr: bool = False
 ) -> subprocess.Popen:
     """Start the depth_service binary, building it if needed."""
     depth_bin = ROOT / "target" / "release" / "depth_service"
     if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
+        _ensure_cargo()
         logger.info("depth_service binary not found, building with cargo...")
-        try:
-            result = subprocess.run(
-                [
-                    "cargo",
-                    "build",
-                    "--manifest-path",
-                    str(ROOT / "depth_service" / "Cargo.toml"),
-                    "--release",
-                ]
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                "cargo is not installed. Please run "
-                "'cargo build --manifest-path depth_service/Cargo.toml "
-                "--release'"
-            ) from exc
-        if result.returncode != 0:
-            raise RuntimeError(
-                "Failed to build depth_service. Please run "
-                "'cargo build --manifest-path depth_service/Cargo.toml "
-                "--release' manually."
-            )
+        subprocess.run(
+            [
+                "cargo",
+                "build",
+                "--manifest-path",
+                str(ROOT / "depth_service" / "Cargo.toml"),
+                "--release",
+            ],
+            check=True,
+        )
         if not depth_bin.exists() or not os.access(depth_bin, os.X_OK):
             raise RuntimeError(
                 "depth_service binary missing or not executable after build. "
