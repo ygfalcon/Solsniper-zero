@@ -16,7 +16,7 @@ def restore_env():
 
 
 def test_check_required_env_success(restore_env):
-    os.environ["SOLANA_RPC_URL"] = "https://rpc.example"
+    os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
     os.environ["BIRDEYE_API_KEY"] = "real_key"
     ok, msg = check_required_env()
     assert ok is True
@@ -32,7 +32,7 @@ def test_check_required_env_missing(restore_env):
 
 
 def test_check_required_env_placeholder(restore_env):
-    os.environ["SOLANA_RPC_URL"] = "https://rpc.example"
+    os.environ["SOLANA_RPC_URL"] = "https://api.mainnet-beta.solana.com"
     os.environ["BIRDEYE_API_KEY"] = "YOUR_BIRDEYE_KEY"
     ok, msg = check_required_env()
     assert ok is False
