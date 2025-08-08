@@ -3,9 +3,11 @@ from __future__ import annotations
 import platform
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from .paths import ROOT
+from .logging_utils import log_startup
 
 
 def build_rust_component(
@@ -111,3 +113,35 @@ def ensure_depth_service() -> None:
             "and then re-running this program."
         )
         raise SystemExit(1)
+
+
+def ensure_protos() -> None:
+    """Ensure generated protobuf modules are up to date."""
+
+    script = ROOT / "scripts" / "check_protos.py"
+    result = subprocess.run([sys.executable, str(script)], cwd=ROOT)
+    if result.returncode == 0:
+        return
+
+    print("event_pb2.py is stale. Regenerating...")
+    try:
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "grpc_tools.protoc",
+                "-I",
+                "proto",
+                "--python_out=solhunter_zero",
+                "proto/event.proto",
+            ],
+            cwd=ROOT,
+        )
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - rare
+        print(f"Failed to regenerate event_pb2.py: {exc}")
+        log_startup(f"Failed to regenerate event_pb2.py: {exc}")
+        raise SystemExit(1)
+
+    msg = "Regenerated event_pb2.py from proto/event.proto"
+    print(msg)
+    log_startup(msg)
