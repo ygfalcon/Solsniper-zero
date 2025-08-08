@@ -8,6 +8,7 @@ entrypoint is executed.
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -257,18 +258,21 @@ def check_internet(url: str | None = None) -> Check:
 def check_required_env(keys: List[str] | None = None) -> Check:
     """Ensure critical environment variables are configured."""
 
-    required = keys or ["SOLANA_RPC_URL", "BIRDEYE_API_KEY"]
-    missing = []
-    for key in required:
-        val = os.getenv(key)
-        if not val or val in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
-            missing.append(key)
+    required = keys or ["SOLANA_RPC_URL"]
+    missing = [key for key in required if not os.getenv(key)]
     if missing:
         joined = ", ".join(missing)
         return False, (
             f"Missing environment variables: {joined}. "
             "Set them and retry"
         )
+
+    bird_key = os.getenv("BIRDEYE_API_KEY")
+    if not bird_key or bird_key in {"", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY"}:
+        logging.getLogger(__name__).warning(
+            "BIRDEYE_API_KEY missing or placeholder; continuing with on-chain scanning only"
+        )
+
     return True, "Required environment variables set"
 
 
@@ -325,4 +329,3 @@ def run_basic_checks(min_bytes: int = 1 << 30, url: str | None = None) -> None:
     print(msg)
     if not ok:
         raise SystemExit(1)
-
