@@ -67,7 +67,7 @@ This document lists environment variables recognized by the project.
 | `GRAPH_MODEL_PATH` | `` | Path to graph model |
 | `HTTP_CONNECTOR_LIMIT` | `0` | Configures http connector limit |
 | `HTTP_CONNECTOR_LIMIT_PER_HOST` | `0` | Configures http connector limit per host |
-| `JITO_AUTH` | `` | Authentication token for Jito; supply via environment variable or personal config |
+| `JITO_AUTH` | `` | Authentication token for Jito; fetched automatically on first run and stored in `.env`; override via environment variable or personal config |
 | `JITO_RPC_URL` | `` | URL for jito rpc |
 | `JITO_WS_AUTH` | `` | Configures jito ws auth |
 | `JITO_WS_URL` | `` | URL for jito ws |
@@ -198,3 +198,12 @@ This document lists environment variables recognized by the project.
 | `VOLUME_THRESHOLD` | `0` | Threshold for volume |
 | `WS_PING_INTERVAL` | `20` | Interval for ws ping |
 | `WS_PING_TIMEOUT` | `20` | Configures ws ping timeout |
+
+## Jito Authentication
+
+On first launch the project checks for `JITO_AUTH`. If it is missing, a
+token is requested from Jito's authentication service using your wallet
+keypair. The returned JWT is written to `.env` for reuse in future
+sessions. To provide your own or replace the cached value, set
+`JITO_AUTH` in the environment or edit `.env` before starting the
+application.

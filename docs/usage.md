@@ -74,11 +74,13 @@ All modes emit the same report files along with console summaries.
 ## MEV Bundles
 
 When `use_mev_bundles` is enabled (the default), swaps are submitted
-through the [Jito block-engine](https://jito.network/). The same
-credentials can also be used to subscribe to Jito's searcher websocket
-for real‑time pending transactions. The default `config.toml` leaves
-`jito_auth` blank, so supply your token via the `JITO_AUTH` environment
-variable or your own configuration file. Provide the block-engine and
+through the [Jito block-engine](https://jito.network/). On first launch
+the toolkit checks for `JITO_AUTH`; if it is missing, a new token is
+requested from Jito's authentication service using your wallet keypair
+and saved to `.env`. The same credentials can also be used to subscribe
+to Jito's searcher websocket for real‑time pending transactions. To use
+a custom token instead, set `JITO_AUTH` in the environment or your own
+configuration file before starting. Provide the block-engine and
 websocket endpoints and authentication token:
 
 ```bash
@@ -91,5 +93,8 @@ export JITO_WS_AUTH=your_token
 The sniper and sandwich agents automatically pass these credentials to
 `MEVExecutor` and will read pending transactions from the Jito stream
 when both variables are set. A warning is logged if either variable is
-missing while MEV bundles are enabled.
+missing while MEV bundles are enabled. The authentication request signs
+Jito's challenge with your trading keypair to obtain the JWT; editing
+`.env` or exporting `JITO_AUTH` lets you substitute a token retrieved
+elsewhere.
 
