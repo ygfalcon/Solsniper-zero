@@ -248,6 +248,39 @@ event_ws_loop: asyncio.AbstractEventLoop | None = None
 REQUIRED_ENV_VARS = ("DEX_BASE_URL",)
 
 
+def ensure_active_keypair() -> None:
+    """Select the sole available keypair if none is active.
+
+    When a single keypair exists in the keypair directory and no keypair
+    is currently active, this helper selects it and populates the
+    ``KEYPAIR_PATH`` environment variable if it is unset.  Wallet
+    interaction errors are propagated to the caller.
+    """
+
+    if wallet.get_active_keypair_name() is not None:
+        return
+    keys = wallet.list_keypairs()
+    if len(keys) != 1:
+        return
+    wallet.select_keypair(keys[0])
+    if not os.getenv("KEYPAIR_PATH"):
+        os.environ["KEYPAIR_PATH"] = os.path.join(
+            wallet.KEYPAIR_DIR, keys[0] + ".json"
+        )
+
+
+def ensure_active_config() -> None:
+    """Select the sole available config if none is active."""
+
+    if get_active_config_name() is not None:
+        return
+    configs = list_configs()
+    if len(configs) != 1:
+        return
+    select_config(configs[0])
+    set_env_from_config(load_selected_config())
+
+
 def _missing_required() -> list[str]:
     """Return names of required variables that are unset."""
     missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
@@ -275,16 +308,8 @@ def create_app() -> Flask:
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
 
-    # auto-select single keypair and configuration on startup
     try:
-        if wallet.get_active_keypair_name() is None:
-            keys = wallet.list_keypairs()
-            if len(keys) == 1:
-                wallet.select_keypair(keys[0])
-                if not os.getenv("KEYPAIR_PATH"):
-                    os.environ["KEYPAIR_PATH"] = os.path.join(
-                        wallet.KEYPAIR_DIR, keys[0] + ".json"
-                    )
+        ensure_active_keypair()
     except Exception as exc:
         print(
             f"Wallet interaction failed: {exc}\n"
@@ -292,11 +317,7 @@ def create_app() -> Flask:
             file=sys.stderr,
         )
 
-    if get_active_config_name() is None:
-        configs = list_configs()
-        if len(configs) == 1:
-            select_config(configs[0])
-            set_env_from_config(load_selected_config())
+    ensure_active_config()
 
     app = Flask(
         __name__, static_folder=str(Path(__file__).resolve().parent / "static")
@@ -339,6 +360,17 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+    ensure_active_config()
+
+    try:
+        ensure_active_keypair()
+    except Exception as exc:
+        print(
+            f"Wallet interaction failed: {exc}\n"
+            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     memory = memory or Memory("sqlite:///memory.db")
     portfolio = Portfolio()
@@ -393,6 +425,7 @@ def start() -> dict:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+    ensure_active_config()
 
     try:
         from . import data_sync
@@ -401,12 +434,8 @@ def start() -> dict:
     except Exception as exc:  # pragma: no cover - ignore sync errors
         logging.getLogger(__name__).warning("data sync failed: %s", exc)
 
-    # auto-select the only available keypair if none is active
     try:
-        if wallet.get_active_keypair_name() is None:
-            keys = wallet.list_keypairs()
-            if len(keys) == 1:
-                wallet.select_keypair(keys[0])
+        ensure_active_keypair()
     except Exception as exc:
         print(
             f"Wallet interaction failed: {exc}\n"

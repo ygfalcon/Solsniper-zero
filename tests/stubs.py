@@ -498,6 +498,8 @@ def stub_flask() -> None:
                     for (p, m), func in app.routes.items():
                         if p == path and method.upper() in m:
                             data = func()
+                            if isinstance(data, tuple):
+                                return Response(data[0], data[1])
                             return Response(data)
                     return Response(None)
 
@@ -509,9 +511,13 @@ def stub_flask() -> None:
 
             return Client()
 
+        def register_blueprint(self, bp):
+            self.routes.update(getattr(bp, "routes", {}))
+
     class Response:
-        def __init__(self, data):
+        def __init__(self, data, status=200):
             self._data = data
+            self.status_code = status
 
         def get_json(self):
             return self._data
@@ -523,6 +529,7 @@ def stub_flask() -> None:
         return tpl
 
     flask.Flask = Flask
+    flask.Blueprint = Flask
     flask.jsonify = jsonify
     flask.request = request
     flask.render_template_string = render_template_string

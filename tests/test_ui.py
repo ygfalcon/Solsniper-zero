@@ -49,6 +49,48 @@ dummy_watchfiles.awatch = lambda *a, **k: None
 sys.modules.setdefault("watchfiles", dummy_watchfiles)
 
 
+def test_ensure_active_keypair_selects_single(monkeypatch):
+    monkeypatch.setattr(ui.wallet, "get_active_keypair_name", lambda: None)
+    monkeypatch.setattr(ui.wallet, "list_keypairs", lambda: ["only"])
+    selected = {}
+
+    def _select(name):
+        selected["name"] = name
+
+    monkeypatch.setattr(ui.wallet, "select_keypair", _select)
+    monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", "kpdir")
+    monkeypatch.delenv("KEYPAIR_PATH", raising=False)
+
+    ui.ensure_active_keypair()
+
+    assert selected["name"] == "only"
+    assert os.getenv("KEYPAIR_PATH") == os.path.join("kpdir", "only.json")
+
+
+def test_ensure_active_config_selects_single(monkeypatch):
+    monkeypatch.setattr(ui, "get_active_config_name", lambda: None)
+    monkeypatch.setattr(ui, "list_configs", lambda: ["cfg"])
+    selected = {}
+
+    def _select(name):
+        selected["name"] = name
+
+    monkeypatch.setattr(ui, "select_config", _select)
+    cfg = {"a": 1}
+    monkeypatch.setattr(ui, "load_selected_config", lambda: cfg)
+    called = {}
+
+    def _set_env(c):
+        called["cfg"] = c
+
+    monkeypatch.setattr(ui, "set_env_from_config", _set_env)
+
+    ui.ensure_active_config()
+
+    assert selected["name"] == "cfg"
+    assert called["cfg"] is cfg
+
+
 def test_start_and_stop(monkeypatch):
     ui.start_all_thread = None
     ui.start_all_proc = None
@@ -121,8 +163,17 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
-    monkeypatch.setattr(ui.wallet, "load_selected_keypair", lambda: None)
-    monkeypatch.setattr(ui.wallet, "load_keypair", lambda path: None)
+    async def _load_sel():
+        return None
+
+    async def _load_kp(path):
+        return None
+
+    monkeypatch.setattr(ui.wallet, "load_selected_keypair_async", _load_sel)
+    monkeypatch.setattr(ui.wallet, "load_keypair_async", _load_kp)
+    monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
+    monkeypatch.delenv("KEYPAIR_PATH", raising=False)
     monkeypatch.setattr(ui, "loop_delay", 0)
 
     ui.stop_event.clear()
@@ -149,7 +200,12 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
-    monkeypatch.setattr(ui.wallet, "load_selected_keypair", lambda: None)
+    async def _load_sel2():
+        return None
+
+    monkeypatch.setattr(ui.wallet, "load_selected_keypair_async", _load_sel2)
+    monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
 
     sentinel = object()
 
@@ -237,9 +293,12 @@ def test_start_requires_env(monkeypatch):
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
     monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
     monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
     monkeypatch.delenv("DEX_BASE_URL", raising=False)
+    ui.app = ui.create_app()
     client = ui.app.test_client()
     resp = client.post("/start")
     assert resp.status_code == 400
@@ -301,9 +360,10 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
     monkeypatch.setenv("BIRDEYE_API_KEY", "x")
     monkeypatch.setenv("DEX_BASE_URL", "x")
-
+    ui.app = ui.create_app()
     client = ui.app.test_client()
     resp = client.post("/start")
     assert resp.get_json()["status"] == "started"
@@ -544,15 +604,21 @@ def test_autostart(monkeypatch):
     ui.trading_thread = None
     events = []
 
+    done = threading.Event()
+
     def fake_run_auto():
         events.append("run")
+        done.wait()
 
     monkeypatch.setattr(ui.main_module, "run_auto", fake_run_auto)
-
+    monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
+    ui.app = ui.create_app()
     client = ui.app.test_client()
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "started"
-    ui.trading_thread.join(timeout=1)
     assert "run" in events
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "already running"
+    done.set()
+    ui.trading_thread.join(timeout=1)
