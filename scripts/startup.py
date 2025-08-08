@@ -467,6 +467,18 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
     print(f"  HTTP endpoints: {endpoint_status}")
 
+    from solhunter_zero.agent_manager import AgentManager
+
+    try:
+        if AgentManager.from_config(load_config("config.toml")) is None:
+            log_startup("AgentManager.from_config returned None")
+            print("AgentManager.from_config returned None")
+            return 1
+    except Exception as exc:
+        log_startup(f"AgentManager initialization failed: {exc}")
+        print(f"Failed to initialize AgentManager: {exc}")
+        return 1
+
     proc = subprocess.run(
         [sys.executable, "-m", "solhunter_zero.main", "--auto", *rest]
     )
