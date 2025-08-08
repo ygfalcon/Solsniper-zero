@@ -856,98 +856,171 @@ def memory_query() -> dict:
 
 HTML_PAGE = """
 <!doctype html>
-<html>
+<html lang=\"en\">
 <head>
+    <meta charset=\"utf-8\">
     <title>SolHunter UI</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
+    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
+    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
+    <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap\" rel=\"stylesheet\">
+    <link rel=\"stylesheet\" href=\"{{ url_for('static', filename='bootstrap.min.css') }}\">
+    <link rel=\"stylesheet\" href=\"{{ url_for('static', filename='styles.css') }}\">
+    <link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css\">
+    <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>
 </head>
-<body>
-    <div class="container">
-    <button id='start' class='action-btn'>
-        <i class="fa-solid fa-play"></i> Start
-    </button>
-    <button id='stop' class='action-btn'>
-        <i class="fa-solid fa-stop"></i> Stop
-    </button>
-    <select id='keypair_select'></select>
-    <pre id='status_info'></pre>
-    <p>Active Keypair: <span id='active_keypair'></span></p>
-    <p>Active Config: <span id='active_config'></span></p>
-    <div class="section">
-        <h3>Strategies</h3>
-        <div id='strategy_controls'></div>
-        <button id='save_strategies'>Save Strategies</button>
+<body data-bs-theme=\"dark\">
+<nav class=\"navbar navbar-expand-lg navbar-dark bg-dark\">
+  <div class=\"container-fluid\">
+    <a class=\"navbar-brand\" href=\"#\">SolHunter</a>
+    <div class=\"d-flex align-items-center gap-2 ms-auto\">
+      <button id=\"start\" class=\"btn btn-success action-btn\">
+        <i class=\"fa-solid fa-play\"></i>
+      </button>
+      <button id=\"stop\" class=\"btn btn-danger action-btn\">
+        <i class=\"fa-solid fa-stop\"></i>
+      </button>
+      <select id=\"keypair_select\" class=\"form-select form-select-sm\"></select>
+      <button id=\"theme_toggle\" class=\"btn btn-outline-light action-btn\">
+        <i class=\"fa-solid fa-moon\"></i>
+      </button>
     </div>
-
-    <div class="section">
-        <h3>ROI: <span id='roi_value'>0</span></h3>
-        <canvas id='roi_chart' width='400' height='100'></canvas>
-        <p id='roi_legend' title='Green indicates positive ROI, red indicates negative ROI.'>
-            ROI color legend: green ≥ 0, red &lt; 0
-        </p>
+  </div>
+</nav>
+<div class=\"container-fluid py-3\">
+  <div class=\"row g-3\">
+    <div class=\"col-lg-8\">
+      <div class=\"row g-3\">
+        <div class=\"col-12 col-md-6\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">ROI: <span id=\"roi_value\">0</span></div>
+            <div class=\"card-body\">
+              <canvas id=\"roi_chart\" height=\"100\"></canvas>
+              <p id=\"roi_legend\" class=\"small text-muted mb-0\">ROI color legend: green ≥ 0, red &lt; 0</p>
+            </div>
+          </div>
+        </div>
+        <div class=\"col-12 col-md-6\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">Recent Trades</div>
+            <div class=\"card-body\">
+              <pre id=\"trades\" class=\"small\"></pre>
+              <canvas id=\"trade_chart\" height=\"100\"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class=\"col-12\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">Token PnL</div>
+            <div class=\"card-body\">
+              <canvas id=\"pnl_chart\" height=\"100\"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class=\"col-12\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">Token Allocation</div>
+            <div class=\"card-body\">
+              <canvas id=\"allocation_chart\" height=\"100\"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class=\"col-12 col-md-6\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">VaR History</div>
+            <div class=\"card-body\">
+              <pre id=\"var_values\" class=\"small\"></pre>
+              <canvas id=\"var_chart\" height=\"100\"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class=\"col-12 col-md-6\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">Exposure</div>
+            <div class=\"card-body\">
+              <pre id=\"exposure\" class=\"small\"></pre>
+            </div>
+          </div>
+        </div>
+        <div class=\"col-12 col-md-6\">
+          <div class=\"card h-100\">
+            <div class=\"card-header\">Sharpe Ratio: <span id=\"sharpe_val\">0</span></div>
+            <div class=\"card-body\">
+              <h5 class=\"card-title\">RL Status</h5>
+              <pre id=\"rl_status\" class=\"small\"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-
-    <div class="section">
-        <h3>Positions</h3>
-        <pre id='positions'></pre>
+    <div class=\"col-lg-4\">
+      <div class=\"card mb-3\">
+        <div class=\"card-header\">Strategies</div>
+        <div class=\"card-body\">
+          <div id=\"strategy_controls\" class=\"mb-2\"></div>
+          <button id=\"save_strategies\" class=\"btn btn-primary btn-sm\">Save Strategies</button>
+        </div>
+      </div>
+      <div class=\"card mb-3\">
+        <div class=\"card-header\">Agent Weights</div>
+        <div class=\"card-body\">
+          <div id=\"weights_controls\" class=\"mb-2\"></div>
+          <button id=\"save_weights\" class=\"btn btn-primary btn-sm mb-2\">Save Weights</button>
+          <canvas id=\"weights_chart\" height=\"100\"></canvas>
+        </div>
+      </div>
+      <div class=\"card mb-3\">
+        <div class=\"card-header\">Risk Parameters</div>
+        <div class=\"card-body\">
+          <div class=\"mb-2\">
+            <label class=\"form-label\">Risk Tolerance
+              <input id=\"risk_tolerance\" type=\"number\" step=\"0.01\" class=\"form-control form-control-sm\">
+            </label>
+          </div>
+          <div class=\"mb-2\">
+            <label class=\"form-label\">Max Allocation
+              <input id=\"max_allocation\" type=\"number\" step=\"0.01\" class=\"form-control form-control-sm\">
+            </label>
+          </div>
+          <div class=\"mb-2\">
+            <label class=\"form-label\">Risk Multiplier
+              <input id=\"risk_multiplier\" type=\"number\" step=\"0.01\" class=\"form-control form-control-sm\">
+            </label>
+          </div>
+          <button id=\"save_risk\" class=\"btn btn-warning btn-sm\">Save Risk</button>
+        </div>
+      </div>
+      <div class=\"card mb-3\">
+        <div class=\"card-header\">Status</div>
+        <div class=\"card-body\">
+          <pre id=\"status_info\" class=\"small\"></pre>
+          <p class=\"mb-0\">Active Keypair: <span id=\"active_keypair\"></span></p>
+          <p class=\"mb-0\">Active Config: <span id=\"active_config\"></span></p>
+        </div>
+      </div>
+      <div class=\"card mb-3\">
+        <div class=\"card-header\">Positions</div>
+        <div class=\"card-body\">
+          <pre id=\"positions\" class=\"small\"></pre>
+        </div>
+      </div>
     </div>
-
-    <div class="section">
-        <h3>Recent Trades</h3>
-        <pre id='trades'></pre>
-        <canvas id='trade_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>Agent Weights</h3>
-        <div id='weights_controls'></div>
-        <button id='save_weights'>Save Weights</button>
-        <canvas id='weights_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>Token PnL</h3>
-        <canvas id='pnl_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>Token Allocation</h3>
-        <canvas id='allocation_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>VaR History</h3>
-        <pre id='var_values'></pre>
-        <canvas id='var_chart' width='400' height='100'></canvas>
-    </div>
-
-    <div class="section">
-        <h3>Exposure</h3>
-        <pre id='exposure'></pre>
-    </div>
-
-    <div class="section">
-        <h3>Sharpe Ratio: <span id='sharpe_val'>0</span></h3>
-
-        <h3>RL Status</h3>
-        <pre id='rl_status'></pre>
-    </div>
-
-    <div class="section">
-        <h3>Risk Parameters</h3>
-        <label>Risk Tolerance <input id='risk_tolerance' type='number' step='0.01'></label>
-        <label>Max Allocation <input id='max_allocation' type='number' step='0.01'></label>
-        <label>Risk Multiplier <input id='risk_multiplier' type='number' step='0.01'></label>
-        <button id='save_risk'>Save Risk</button>
-    </div>
-    </div>
-
-    <script>
+  </div>
+</div>
+<script src=\"{{ url_for('static', filename='bootstrap.bundle.min.js') }}\"></script>
+<script>
+const themeToggle = document.getElementById('theme_toggle');
+const storedTheme = localStorage.getItem('theme') || 'dark';
+document.body.setAttribute('data-bs-theme', storedTheme);
+themeToggle.innerHTML = storedTheme === 'dark' ? '<i class=\"fa-solid fa-sun\"></i>' : '<i class=\"fa-solid fa-moon\"></i>';
+themeToggle.addEventListener('click', () => {
+    const current = document.body.getAttribute('data-bs-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.body.setAttribute('data-bs-theme', next);
+    localStorage.setItem('theme', next);
+    themeToggle.innerHTML = next === 'dark' ? '<i class=\"fa-solid fa-sun\"></i>' : '<i class=\"fa-solid fa-moon\"></i>';
+});
+</script>
+<script>
     document.getElementById('start').onclick = function() {
         fetch('/start_all', {method: 'POST'}).then(r => r.json()).then(console.log);
     };
