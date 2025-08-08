@@ -1,186 +1,103 @@
-#!/usr/bin/env python3
-"""Launch depth_service, RL daemon and trading bot."""
-
-from __future__ import annotations
-
 import os
-import signal
-import subprocess
 import sys
-import time
+import signal
 import threading
-import logging
 import asyncio
-from pathlib import Path
-from typing import IO
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
-from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
-from solhunter_zero import env  # noqa: E402
-
-setup_logging("startup")
-env.load_env_file(ROOT / ".env")
-os.chdir(ROOT)
-log_startup("start_all launched")
-
-from solhunter_zero import device  # noqa: E402
-from solhunter_zero.system import set_rayon_threads  # noqa: E402
-
-device.ensure_gpu_env()
-set_rayon_threads()
-
-from solhunter_zero.config import (  # noqa: E402
-    set_env_from_config,
-    ensure_config_file,
-    validate_env,
-    REQUIRED_ENV_VARS,
+from solhunter_zero.logging_utils import setup_logging, log_startup
+from solhunter_zero import env
+from solhunter_zero.http import close_session
+from solhunter_zero.service_launcher import (
+    start_background_services,
+    stop_background_services,
 )
-from solhunter_zero import data_sync  # noqa: E402
-from solhunter_zero.service_launcher import (  # noqa: E402
-    start_depth_service,
-    start_rl_daemon,
-    wait_for_depth_ws,
-)
-from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
-import solhunter_zero.ui as ui  # noqa: E402
-
-if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
-    from solhunter_zero import autopilot
-
-    autopilot.main()
-    raise SystemExit
-
-PROCS: list[subprocess.Popen] = []
+import solhunter_zero.ui as ui
 
 
-ENV_VARS = REQUIRED_ENV_VARS + (
-    "DEPTH_SERVICE_SOCKET",
-    "DEPTH_MMAP_PATH",
-    "DEPTH_WS_ADDR",
-    "DEPTH_WS_PORT",
-)
+def main() -> None:
+    setup_logging("startup")
+    env.load_env_file(ROOT / ".env")
+    os.chdir(ROOT)
+    log_startup("start_all launched")
 
+    if len(sys.argv) > 1 and sys.argv[1] == "autopilot":
+        from solhunter_zero import autopilot
 
-def _stream_stderr(pipe: IO[bytes]) -> None:
-    for line in iter(pipe.readline, b""):
-        sys.stderr.buffer.write(line)
-    pipe.close()
+        autopilot.main()
+        return
 
+    services = start_background_services("config.toml")
+    app = ui.create_app()
 
-def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
-    env = os.environ.copy()
-    for var in ENV_VARS:
-        val = os.getenv(var)
-        if val is not None:
-            env[var] = val
-    stderr = subprocess.PIPE if stream_stderr else None
-    proc = subprocess.Popen(cmd, env=env, stderr=stderr)
-    PROCS.append(proc)
-    if stream_stderr and proc.stderr is not None:
-        threading.Thread(
-            target=_stream_stderr, args=(proc.stderr,), daemon=True
-        ).start()
-    return proc
+    def _shutdown(*_: object) -> None:
+        stop_background_services(services)
+        ui.stop_event.set()
+        if ui.trading_thread:
+            ui.trading_thread.join()
+        asyncio.run(close_session())
+        sys.exit(0)
 
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
 
-def stop_all(*_: object) -> None:
-    data_sync.stop_scheduler()
-    for p in PROCS:
-        if p.poll() is None:
-            p.terminate()
-    deadline = time.time() + 5
-    for p in PROCS:
-        if p.poll() is None:
-            try:
-                p.wait(deadline - time.time())
-            except Exception:
-                p.kill()
-    sys.exit(0)
+    if ui.websockets is not None:
+        def _start_rl_ws() -> None:
+            ui.rl_ws_loop = asyncio.new_event_loop()
+            ui.rl_ws_loop.run_until_complete(
+                ui.websockets.serve(
+                    ui._rl_ws_handler,
+                    "localhost",
+                    8767,
+                    ping_interval=ui._WS_PING_INTERVAL,
+                    ping_timeout=ui._WS_PING_TIMEOUT,
+                )
+            )
+            ui.rl_ws_loop.run_forever()
 
+        def _start_event_ws() -> None:
+            ui.event_ws_loop = asyncio.new_event_loop()
+            ui.event_ws_loop.run_until_complete(
+                ui.websockets.serve(
+                    ui._event_ws_handler,
+                    "localhost",
+                    8766,
+                    path="/ws",
+                    ping_interval=ui._WS_PING_INTERVAL,
+                    ping_timeout=ui._WS_PING_TIMEOUT,
+                )
+            )
+            ui.event_ws_loop.run_forever()
 
-signal.signal(signal.SIGINT, stop_all)
-signal.signal(signal.SIGTERM, stop_all)
-logging.basicConfig(level=logging.INFO)
+        def _start_log_ws() -> None:
+            ui.log_ws_loop = asyncio.new_event_loop()
+            ui.log_ws_loop.run_until_complete(
+                ui.websockets.serve(
+                    ui._log_ws_handler,
+                    "localhost",
+                    8768,
+                    ping_interval=ui._WS_PING_INTERVAL,
+                    ping_timeout=ui._WS_PING_TIMEOUT,
+                )
+            )
+            ui.log_ws_loop.run_forever()
 
-cfg = ensure_config_file()
-cfg_data = validate_env(ENV_VARS, cfg)
-set_env_from_config(cfg_data)
+        threading.Thread(target=_start_rl_ws, daemon=True).start()
+        threading.Thread(target=_start_event_ws, daemon=True).start()
+        threading.Thread(target=_start_log_ws, daemon=True).start()
 
-# Launch depth service and RL daemon first
-interval = float(
-    cfg_data.get(
-        "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
+    ui.stop_event.clear()
+    ui.trading_thread = threading.Thread(
+        target=lambda: asyncio.run(ui.trading_loop()), daemon=True
     )
-)
-db_path = cfg_data.get("rl_db_path", "offline_data.db")
-Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-try:
-    with open(db_path, "a"):
-        pass
-except OSError as exc:
-    print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
-    sys.exit(1)
-data_sync.start_scheduler(interval=interval, db_path=db_path)
+    ui.trading_thread.start()
 
-ensure_cargo()
-try:
-    depth_proc = start_depth_service(cfg, stream_stderr=True)
-    PROCS.append(depth_proc)
-    PROCS.append(start_rl_daemon())
-    addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
-    port = int(os.getenv("DEPTH_WS_PORT", "8765"))
-    deadline = time.monotonic() + 30.0
-    wait_for_depth_ws(addr, port, deadline, depth_proc)
-
-    def _run_ui() -> None:
-        app = ui.create_app()
-        if ui.websockets is not None:
-            def _start_rl_ws() -> None:
-                ui.rl_ws_loop = asyncio.new_event_loop()
-                ui.rl_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._rl_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8767,
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
-                    )
-                )
-                ui.rl_ws_loop.run_forever()
-
-            def _start_event_ws() -> None:
-                ui.event_ws_loop = asyncio.new_event_loop()
-                ui.event_ws_loop.run_until_complete(
-                    ui.websockets.serve(
-                        ui._event_ws_handler,  # type: ignore[attr-defined]
-                        "localhost",
-                        8766,
-                        path="/ws",
-                        ping_interval=ui._WS_PING_INTERVAL,  # type: ignore[attr-defined]
-                        ping_timeout=ui._WS_PING_TIMEOUT,  # type: ignore[attr-defined]
-                    )
-                )
-                ui.event_ws_loop.run_forever()
-
-            threading.Thread(target=_start_rl_ws, daemon=True).start()
-            threading.Thread(target=_start_event_ws, daemon=True).start()
-
+    try:
         app.run()
+    finally:
+        _shutdown()
 
-    threading.Thread(target=_run_ui, daemon=True).start()
-except Exception as exc:
-    logging.error(str(exc))
-    stop_all()
 
-main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
-if cfg:
-    main_cmd += ["--config", cfg]
-start(main_cmd)
+if __name__ == "__main__":
+    main()
 
-try:
-    while any(p.poll() is None for p in PROCS):
-        time.sleep(1)
-finally:
-    stop_all()

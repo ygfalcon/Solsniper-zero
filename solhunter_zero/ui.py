@@ -12,11 +12,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-from flask import Flask, Blueprint, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string
+try:
+    from flask import Blueprint
+except Exception:  # pragma: no cover - fallback for test stubs
+    class Blueprint:  # type: ignore[no-redef]
+        def __init__(self, name: str, import_name: str):
+            self.name = name
+            self.routes: dict[tuple[str, tuple[str, ...]], Any] = {}
+
+        def route(self, rule: str, **options):
+            methods = tuple(m.upper() for m in options.get("methods", ["GET"]))
+
+            def decorator(func):
+                self.routes[(rule, methods)] = func
+                return func
+
+            return decorator
 
 from .http import close_session
 from .util import install_uvloop
 from .event_bus import subscription, publish
+from . import service_launcher
 try:
     import websockets
 except Exception:  # pragma: no cover - optional
@@ -215,9 +232,8 @@ trading_thread = None
 stop_event = threading.Event()
 loop_delay = 60
 
-# background thread/process for running scripts/start_all.py
-start_all_thread = None
-start_all_proc = None
+# processes for background services (depth service, RL daemon)
+service_procs: list[subprocess.Popen] = []
 
 # currently active portfolio and keypair used by the trading loop
 current_portfolio: Portfolio | None = None
@@ -301,7 +317,11 @@ def create_app() -> Flask:
     app = Flask(
         __name__, static_folder=str(Path(__file__).resolve().parent / "static")
     )
-    app.register_blueprint(bp)
+    if hasattr(app, "register_blueprint"):
+        app.register_blueprint(bp)
+    else:  # pragma: no cover - stub flask without blueprints
+        for (rule, methods), view in getattr(bp, "routes", {}).items():
+            app.route(rule, methods=list(methods))(view)
 
     log_buffer = deque(maxlen=200)
     buffer_handler = _BufferHandler()
@@ -454,38 +474,32 @@ def autostart() -> dict:
     return jsonify({"status": "started"})
 
 
-def _run_start_all() -> None:
-    """Run scripts/start_all.py in a subprocess and wait for it to exit."""
-    global start_all_proc
-    cmd = [
-        sys.executable,
-        str(Path(__file__).resolve().parent.parent / "scripts" / "start_all.py"),
-        "autopilot",
-    ]
-    start_all_proc = subprocess.Popen(cmd)
-    start_all_proc.wait()
-
-
 @bp.route("/start_all", methods=["POST"])
 def start_all_route() -> dict:
-    global start_all_thread
-    if start_all_thread and start_all_thread.is_alive():
+    """Start background services and trading loop."""
+    global trading_thread, service_procs
+    if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
-    start_all_thread = threading.Thread(target=_run_start_all, daemon=True)
-    start_all_thread.start()
+    try:
+        service_procs = list(service_launcher.start_background_services("config.toml"))
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    stop_event.clear()
+    trading_thread = threading.Thread(
+        target=lambda: asyncio.run(trading_loop()), daemon=True
+    )
+    trading_thread.start()
     return jsonify({"status": "started"})
 
 
 @bp.route("/stop_all", methods=["POST"])
 def stop_all_route() -> dict:
-    if start_all_proc and start_all_proc.poll() is None:
-        start_all_proc.terminate()
-        try:
-            start_all_proc.wait(timeout=5)
-        except Exception:
-            start_all_proc.kill()
-    if start_all_thread:
-        start_all_thread.join(timeout=5)
+    """Stop trading loop and all background services."""
+    stop_event.set()
+    if trading_thread:
+        trading_thread.join()
+    service_launcher.stop_background_services(service_procs)
+    service_procs.clear()
     return jsonify({"status": "stopped"})
 
 

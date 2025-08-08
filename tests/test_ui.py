@@ -48,38 +48,49 @@ dummy_watchfiles = types.ModuleType("watchfiles")
 dummy_watchfiles.awatch = lambda *a, **k: None
 sys.modules.setdefault("watchfiles", dummy_watchfiles)
 
+ui.app = ui.create_app()
+
 
 def test_start_and_stop(monkeypatch):
-    ui.start_all_thread = None
-    ui.start_all_proc = None
+    ui.trading_thread = None
+    ui.service_procs = []
     events = []
 
     class DummyProc:
-        def __init__(self, *a, **k):
-            events.append("start")
+        def __init__(self):
             self.ev = threading.Event()
 
         def poll(self):
             return None if not self.ev.is_set() else 0
 
-        def wait(self, timeout=None):
-            self.ev.wait(timeout)
-
         def terminate(self):
             events.append("term")
             self.ev.set()
 
-        def kill(self):
-            events.append("kill")
-            self.ev.set()
+        def wait(self, timeout=None):
+            self.ev.wait(timeout)
 
-    monkeypatch.setattr(ui.subprocess, "Popen", DummyProc)
+    def fake_start_services(cfg=None):
+        events.append("start")
+        return [DummyProc()]
+
+    def fake_stop_services(procs):
+        events.append("stop")
+        for p in procs:
+            p.terminate()
+
+    async def dummy_loop():
+        ui.stop_event.set()
+
+    monkeypatch.setattr(ui.service_launcher, "start_background_services", fake_start_services)
+    monkeypatch.setattr(ui.service_launcher, "stop_background_services", fake_stop_services)
+    monkeypatch.setattr(ui, "trading_loop", dummy_loop)
 
     client = ui.app.test_client()
 
     resp = client.post("/start_all")
     assert resp.get_json()["status"] == "started"
-    assert ui.start_all_thread and ui.start_all_thread.is_alive()
+    assert ui.trading_thread and ui.trading_thread.is_alive()
 
     resp = client.post("/start_all")
     assert resp.get_json()["status"] == "already running"
@@ -87,9 +98,9 @@ def test_start_and_stop(monkeypatch):
     resp = client.post("/stop_all")
     assert resp.get_json()["status"] == "stopped"
 
-    ui.start_all_thread.join(timeout=1)
-    assert not ui.start_all_thread.is_alive()
-    assert "term" in events
+    ui.trading_thread.join(timeout=1)
+    assert not ui.trading_thread.is_alive()
+    assert "stop" in events and "term" in events
 
 
 def test_balances_includes_usd(monkeypatch):

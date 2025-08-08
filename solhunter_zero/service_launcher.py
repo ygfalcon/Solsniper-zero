@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import IO
+from typing import IO, Sequence
 
 from .paths import ROOT
 from .cache_paths import CARGO_MARKER
@@ -107,3 +107,56 @@ def wait_for_depth_ws(
             if time.monotonic() > deadline:
                 raise TimeoutError("depth_service websocket timed out")
             time.sleep(0.1)
+
+
+ENV_VARS = (
+    "DEX_BASE_URL",
+    "DEPTH_SERVICE_SOCKET",
+    "DEPTH_MMAP_PATH",
+    "DEPTH_WS_ADDR",
+    "DEPTH_WS_PORT",
+)
+
+
+def start_background_services(cfg_path: str | None = None) -> Sequence[subprocess.Popen]:
+    """Launch depth_service and RL daemon and start data sync scheduler."""
+    from .config import set_env_from_config, ensure_config_file, validate_env
+    from . import data_sync
+
+    cfg = ensure_config_file(cfg_path)
+    cfg_data = validate_env(ENV_VARS, cfg)
+    set_env_from_config(cfg_data)
+
+    interval = float(
+        cfg_data.get(
+            "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
+        )
+    )
+    db_path = cfg_data.get("rl_db_path", "offline_data.db")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    data_sync.start_scheduler(interval=interval, db_path=db_path)
+
+    depth_proc = start_depth_service(cfg, stream_stderr=True)
+    rl_proc = start_rl_daemon()
+    addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
+    port = int(os.getenv("DEPTH_WS_PORT", "8765"))
+    deadline = time.monotonic() + 30.0
+    wait_for_depth_ws(addr, port, deadline, depth_proc)
+    return [depth_proc, rl_proc]
+
+
+def stop_background_services(procs: Sequence[subprocess.Popen]) -> None:
+    """Terminate running background service processes."""
+    from . import data_sync
+
+    data_sync.stop_scheduler()
+    for p in procs:
+        if p and p.poll() is None:
+            p.terminate()
+    deadline = time.time() + 5
+    for p in procs:
+        if p and p.poll() is None:
+            try:
+                p.wait(deadline - time.time())
+            except Exception:
+                p.kill()
