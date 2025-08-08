@@ -45,6 +45,7 @@ from . import main as main_module
 from .memory import Memory
 from .base_memory import BaseMemory
 from .portfolio import Portfolio
+from .logging_utils import log_startup
 
 # websocket ping configuration
 _WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
@@ -275,6 +276,14 @@ def create_app() -> Flask:
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
 
+    cfg_dict = cfg or {}
+    ui_host = os.getenv("UI_HOST") or cfg_dict.get("ui_host") or cfg_dict.get("UI_HOST") or "0.0.0.0"
+    ui_port = os.getenv("UI_PORT") or cfg_dict.get("ui_port") or cfg_dict.get("UI_PORT") or 5000
+    try:
+        ui_port = int(ui_port)
+    except (TypeError, ValueError):
+        ui_port = 5000
+
     # auto-select single keypair and configuration on startup
     try:
         if wallet.get_active_keypair_name() is None:
@@ -302,6 +311,8 @@ def create_app() -> Flask:
         __name__, static_folder=str(Path(__file__).resolve().parent / "static")
     )
     app.register_blueprint(bp)
+    app.config["UI_HOST"] = ui_host
+    app.config["UI_PORT"] = ui_port
 
     log_buffer = deque(maxlen=200)
     buffer_handler = _BufferHandler()
@@ -1278,6 +1289,8 @@ async def _log_ws_handler(ws):
 
 if __name__ == "__main__":
     app = create_app()
+    host = app.config.get("UI_HOST", "0.0.0.0")
+    port = app.config.get("UI_PORT", 5000)
     if websockets is not None:
         def _start_rl_ws():
             global rl_ws_loop
@@ -1326,7 +1339,10 @@ if __name__ == "__main__":
         threading.Thread(target=_start_event_ws, daemon=True).start()
         threading.Thread(target=_start_log_ws, daemon=True).start()
 
+    url = f"http://{host}:{port}/"
+    log_startup(f"UI available at {url}")
+    print(f"UI available at {url}")
     try:
-        app.run()
+        app.run(host=host, port=port)
     finally:
         asyncio.run(close_session())
