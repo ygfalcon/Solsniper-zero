@@ -40,19 +40,29 @@ def _stop_all(*_: object) -> None:
 
 
 def _ensure_keypair() -> None:
+    from scripts.startup import ensure_wallet_cli, run_quick_setup
+
+    ensure_wallet_cli()
     try:
         info = wallet.setup_default_keypair()
-        path = os.path.join(wallet.KEYPAIR_DIR, info.name + ".json")
-        os.environ["KEYPAIR_PATH"] = path
-        print(f"Using keypair: {info.name}")
     except Exception as exc:
-        print(
-            f"Wallet interaction failed: {exc}\n"
-            "Run 'solhunter-wallet' manually or set the MNEMONIC "
-            "environment variable.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
+        print(f"Wallet interaction failed: {exc}", file=sys.stderr)
+        print("Attempting quick non-interactive setup...", file=sys.stderr)
+        try:
+            run_quick_setup()
+            info = wallet.setup_default_keypair()
+        except Exception as exc2:
+            print(
+                f"Wallet interaction failed: {exc2}\n"
+                "Run 'solhunter-wallet' manually or set the MNEMONIC "
+                "environment variable.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+    path = os.path.join(wallet.KEYPAIR_DIR, info.name + ".json")
+    os.environ["KEYPAIR_PATH"] = path
+    print(f"Using keypair: {info.name}")
 
 
 def _get_config() -> tuple[str | None, dict]:
