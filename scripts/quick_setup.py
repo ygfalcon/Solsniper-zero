@@ -52,6 +52,17 @@ AUTO_DEFAULTS = {
 }
 
 
+def _is_placeholder(value: str | None) -> bool:
+    if not value:
+        return False
+    lower = value.lower()
+    if "your_" in lower or "example" in lower:
+        return True
+    if value.startswith("be_") and all(ch in "xX" for ch in value[3:]):
+        return True
+    return False
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Interactive helper to create or update config.toml for basic setup."
@@ -75,8 +86,13 @@ def main(argv: list[str] | None = None) -> None:
     updated = False
     for key, env, desc in PROMPTS:
         val = os.getenv(env) or cfg.get(key)
-        missing = val in (None, "", "YOUR_BIRDEYE_KEY", "YOUR_BIRDEYE_API_KEY")
+        if _is_placeholder(val):
+            val = ""
+        missing = val in (None, "")
         if missing:
+            if key in cfg:
+                cfg.pop(key, None)
+                updated = True
             if args.auto and key in AUTO_DEFAULTS:
                 cfg[key] = AUTO_DEFAULTS[key]
                 updated = True
@@ -90,11 +106,6 @@ def main(argv: list[str] | None = None) -> None:
             if inp:
                 cfg[key] = inp
                 updated = True
-            else:
-                # remove empty values so they are not exported
-                if key in cfg:
-                    cfg.pop(key, None)
-                    updated = True
         else:
             if cfg.get(key) != val:
                 cfg[key] = val
