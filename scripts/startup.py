@@ -422,7 +422,10 @@ def main(argv: list[str] | None = None) -> int:
             if not ok:
                 failures.append((name, msg))
         if failures:
-            return 1
+            summary = "; ".join(f"{n}: {m}" for n, m in failures)
+            print(f"Preflight checks failed: {summary}")
+            log_startup(f"Preflight checks failed: {summary}")
+            sys.exit(1)
 
     if args.offline:
         rpc_status = "offline"
