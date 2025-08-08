@@ -40,6 +40,10 @@ The default workflow is intentionally simple:
    A machine-readable diagnostics summary is written to `diagnostics.json` after the bot exits
    unless `--no-diagnostics` is supplied.
 3. Load the keypair in the SolHunter GUI if running manually, then press **Start**.
+   To automatically start when the UI loads, append `?autostart=1` to the page
+   URL (for example, `http://localhost:5000/?autostart=1`). The page will
+   immediately send a POST request to `/autostart`. Omit the query parameter to
+   disable this behaviour.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50 GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
 Control how often snapshots and trades are flushed to disk with `OFFLINE_BATCH_SIZE` and `OFFLINE_FLUSH_INTERVAL`.

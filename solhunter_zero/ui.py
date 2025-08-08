@@ -1175,6 +1175,10 @@ HTML_PAGE = """
         loadKeypairs();
         loadStrategies();
     }, 5000);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === '1' || params.get('autostart') === 'true') {
+        fetch('/autostart', {method:'POST'});
+    }
     try {
         const rlSock = new WebSocket('ws://' + window.location.hostname + ':8767');
         rlSock.onmessage = function(ev) {
