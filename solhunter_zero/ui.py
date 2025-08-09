@@ -1276,57 +1276,85 @@ async def _log_ws_handler(ws):
         log_ws_clients.discard(ws)
 
 
+def start_websockets() -> dict[str, threading.Thread]:
+    """Start websocket servers for RL checkpoints, events and logs.
+
+    Returns a mapping of websocket name to the ``Thread`` running its event
+    loop so callers can stop the loops and join the threads for a graceful
+    shutdown.
+    """
+    if websockets is None:
+        return {}
+
+    threads: dict[str, threading.Thread] = {}
+
+    def _start_rl_ws() -> None:
+        global rl_ws_loop
+        rl_ws_loop = asyncio.new_event_loop()
+        rl_ws_loop.run_until_complete(
+            websockets.serve(
+                _rl_ws_handler,
+                "localhost",
+                8767,
+                ping_interval=_WS_PING_INTERVAL,
+                ping_timeout=_WS_PING_TIMEOUT,
+            )
+        )
+        rl_ws_loop.run_forever()
+
+    def _start_event_ws() -> None:
+        global event_ws_loop
+        event_ws_loop = asyncio.new_event_loop()
+        event_ws_loop.run_until_complete(
+            websockets.serve(
+                _event_ws_handler,
+                "localhost",
+                8766,
+                path="/ws",
+                ping_interval=_WS_PING_INTERVAL,
+                ping_timeout=_WS_PING_TIMEOUT,
+            )
+        )
+        event_ws_loop.run_forever()
+
+    def _start_log_ws() -> None:
+        global log_ws_loop
+        log_ws_loop = asyncio.new_event_loop()
+        log_ws_loop.run_until_complete(
+            websockets.serve(
+                _log_ws_handler,
+                "localhost",
+                8768,
+                ping_interval=_WS_PING_INTERVAL,
+                ping_timeout=_WS_PING_TIMEOUT,
+            )
+        )
+        log_ws_loop.run_forever()
+
+    for name, target in (
+        ("rl", _start_rl_ws),
+        ("event", _start_event_ws),
+        ("log", _start_log_ws),
+    ):
+        t = threading.Thread(target=target, daemon=True)
+        t.start()
+        threads[name] = t
+
+    return threads
+
+
 if __name__ == "__main__":
     app = create_app()
-    if websockets is not None:
-        def _start_rl_ws():
-            global rl_ws_loop
-            rl_ws_loop = asyncio.new_event_loop()
-            rl_ws_loop.run_until_complete(
-                websockets.serve(
-                    _rl_ws_handler,
-                    "localhost",
-                    8767,
-                    ping_interval=_WS_PING_INTERVAL,
-                    ping_timeout=_WS_PING_TIMEOUT,
-                )
-            )
-            rl_ws_loop.run_forever()
-
-        def _start_event_ws():
-            global event_ws_loop
-            event_ws_loop = asyncio.new_event_loop()
-            event_ws_loop.run_until_complete(
-                websockets.serve(
-                    _event_ws_handler,
-                    "localhost",
-                    8766,
-                    path="/ws",
-                    ping_interval=_WS_PING_INTERVAL,
-                    ping_timeout=_WS_PING_TIMEOUT,
-                )
-            )
-            event_ws_loop.run_forever()
-
-        def _start_log_ws():
-            global log_ws_loop
-            log_ws_loop = asyncio.new_event_loop()
-            log_ws_loop.run_until_complete(
-                websockets.serve(
-                    _log_ws_handler,
-                    "localhost",
-                    8768,
-                    ping_interval=_WS_PING_INTERVAL,
-                    ping_timeout=_WS_PING_TIMEOUT,
-                )
-            )
-            log_ws_loop.run_forever()
-
-        threading.Thread(target=_start_rl_ws, daemon=True).start()
-        threading.Thread(target=_start_event_ws, daemon=True).start()
-        threading.Thread(target=_start_log_ws, daemon=True).start()
-
+    threads = start_websockets()
     try:
         app.run()
     finally:
+        for loop in (rl_ws_loop, event_ws_loop, log_ws_loop):
+            if loop is not None:
+                loop.call_soon_threadsafe(loop.stop)
+        for t in threads.values():
+            t.join(timeout=1)
+        for loop in (rl_ws_loop, event_ws_loop, log_ws_loop):
+            if loop is not None:
+                loop.close()
         asyncio.run(close_session())
