@@ -43,6 +43,7 @@ from solhunter_zero.logging_utils import (
 from rich.console import Console
 from rich.progress import Progress
 from rich.panel import Panel
+from rich.table import Table
 
 console = Console()
 
@@ -256,11 +257,18 @@ def main(argv: list[str] | None = None) -> int:
 
     disk_required = _disk_space_required_bytes()
 
+    # Track status for summary table
+    disk_status = "unknown"
+    internet_status = "skipped" if args.offline or args.skip_rpc_check else "unknown"
+    config_status = "skipped" if args.skip_setup else "unknown"
+    wallet_status = "skipped" if args.skip_setup else "unknown"
+
     # Run early environment checks before any heavy work
     with Progress(console=console, transient=True) as progress:
         disk_task = progress.add_task("Checking disk space...", total=1)
         ok, msg = preflight_utils.check_disk_space(disk_required)
         progress.advance(disk_task)
+    disk_status = "passed" if ok else "failed"
     console.print(f"[green]{msg}[/]" if ok else f"[red]{msg}[/]")
     if not ok:
         log_startup("Disk space check failed")
@@ -268,14 +276,17 @@ def main(argv: list[str] | None = None) -> int:
     log_startup("Disk space check passed")
 
     if args.offline or args.skip_rpc_check:
+        internet_status = "skipped"
         log_startup("Internet connectivity check skipped")
     else:
         print("Checking internet connectivity...")
         ok, msg = preflight_utils.check_internet()
         print(msg)
         if not ok:
+            internet_status = "failed"
             log_startup("Internet connectivity check failed")
             raise SystemExit(1)
+        internet_status = "passed"
         log_startup("Internet connectivity check passed")
 
     from solhunter_zero.config_bootstrap import ensure_config
@@ -325,6 +336,8 @@ def main(argv: list[str] | None = None) -> int:
                     console.print("[red]Configuration still contains placeholder values[/]")
                     return 1
 
+            config_status = str(config_path)
+
             wallet_task = progress.add_task("Ensuring wallet CLI...", total=1)
             try:
                 ensure_wallet_cli()
@@ -338,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
             keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
             mnemonic_path = info.mnemonic_path
             progress.advance(key_task)
+            wallet_status = active_keypair
         console.print("[green]Configuration complete[/]")
 
     if args.offline:
@@ -486,6 +500,9 @@ def main(argv: list[str] | None = None) -> int:
         "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
     )
 
+    log_startup(f"GPU device: {gpu_device}")
+    log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
+
     os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
 
     ensure_cargo()
@@ -495,12 +512,21 @@ def main(argv: list[str] | None = None) -> int:
         mnemonic_path=mnemonic_path,
         active_keypair=active_keypair,
     )
-    print("Startup summary:")
-    print(f"  Config file: {config_path or 'none'}")
-    print(f"  Active keypair: {active_keypair or 'none'}")
-    print(f"  GPU device: {gpu_device}")
-    print(f"  RPC endpoint: {rpc_url} ({rpc_status})")
-    print(f"  HTTP endpoints: {endpoint_status}")
+    summary_rows = [
+        ("Disk space", disk_status),
+        ("Internet", internet_status),
+        ("Configuration", str(config_status)),
+        ("Wallet", str(wallet_status)),
+        ("HTTP endpoints", endpoint_status),
+    ]
+
+    table = Table(title="Startup Summary")
+    table.add_column("Item", style="cyan", no_wrap=True)
+    table.add_column("Status", style="green")
+    for item, status in summary_rows:
+        table.add_row(item, status)
+        log_startup(f"{item}: {status}")
+    console.print(table)
 
     from solhunter_zero.agent_manager import AgentManager
 
