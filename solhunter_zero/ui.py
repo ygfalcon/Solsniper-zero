@@ -218,6 +218,7 @@ loop_delay = 60
 # background thread/process for running scripts/start_all.py
 start_all_thread = None
 start_all_proc = None
+startup_message = ""
 
 # currently active portfolio and keypair used by the trading loop
 current_portfolio: Portfolio | None = None
@@ -330,6 +331,32 @@ def create_app() -> Flask:
     ]
     for sub in _SUBSCRIPTIONS:
         sub.__enter__()
+    global startup_message
+    active_keypair = wallet.get_active_keypair_name()
+    active_config = get_active_config_name()
+    if active_keypair and active_config:
+        startup_message = (
+            f"Detected keypair '{active_keypair}' and config '{active_config}'. "
+            "Starting trading."
+        )
+        logging.getLogger(__name__).info(startup_message)
+        try:
+            with app.app_context():
+                start()
+        except Exception as exc:
+            logging.getLogger(__name__).error("Automatic start failed: %s", exc)
+    else:
+        missing: list[str] = []
+        if not active_keypair:
+            missing.append("keypair")
+        if not active_config:
+            missing.append("configuration")
+        startup_message = (
+            "Missing required "
+            + " and ".join(missing)
+            + ". Configure them to begin trading."
+        )
+        logging.getLogger(__name__).warning(startup_message)
 
     return app
 
@@ -826,6 +853,7 @@ def status() -> dict:
             "event_bus": event_alive,
             "heartbeat": heartbeat_alive,
             "system_metrics": system_metrics,
+            "message": startup_message,
         }
     )
 
