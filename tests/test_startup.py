@@ -32,6 +32,17 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
         model_validator=lambda *a, **k: (lambda f: f),
     )
     monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    class DummyConsole:
+        def print(self, *args, **kwargs):
+            print(*args, **kwargs)
+
+    dummy_rich = types.SimpleNamespace(Console=DummyConsole)
+    monkeypatch.setitem(sys.modules, "rich.console", dummy_rich)
+    monkeypatch.setitem(sys.modules, "rich.progress", types.SimpleNamespace(Progress=object))
+    monkeypatch.setitem(sys.modules, "rich.panel", types.SimpleNamespace(Panel=object))
+    monkeypatch.setitem(sys.modules, "rich.table", types.SimpleNamespace(Table=object))
+    monkeypatch.setitem(sys.modules, "rich", types.SimpleNamespace())
     from scripts import startup
 
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
@@ -993,8 +1004,35 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
 
 def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
-    from scripts import startup
     import types, subprocess, shutil, sys
+
+    dummy_fernet = types.SimpleNamespace(Fernet=object, InvalidToken=Exception)
+    monkeypatch.setitem(sys.modules, "cryptography", types.SimpleNamespace(fernet=dummy_fernet))
+    monkeypatch.setitem(sys.modules, "cryptography.fernet", dummy_fernet)
+
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    class DummyConsole:
+        def print(self, *args, **kwargs):
+            print(*args, **kwargs)
+
+    dummy_rich = types.SimpleNamespace(Console=DummyConsole)
+    monkeypatch.setitem(sys.modules, "rich.console", dummy_rich)
+    monkeypatch.setitem(sys.modules, "rich.progress", types.SimpleNamespace(Progress=object))
+    monkeypatch.setitem(sys.modules, "rich.panel", types.SimpleNamespace(Panel=object))
+    monkeypatch.setitem(sys.modules, "rich.table", types.SimpleNamespace(Table=object))
+    monkeypatch.setitem(sys.modules, "rich", types.SimpleNamespace())
+
+    from scripts import startup
 
     monkeypatch.setattr(shutil, "which", lambda cmd: None)
 
@@ -1011,6 +1049,43 @@ def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
 
     assert calls["cmd"][:4] == [sys.executable, "-m", "pip", "install"]
     assert "Please install it manually" in capsys.readouterr().out
+
+
+def test_ensure_wallet_cli_logs_pip_output(monkeypatch):
+    import types, subprocess, shutil, sys
+
+    dummy_fernet = types.SimpleNamespace(Fernet=object, InvalidToken=Exception)
+    monkeypatch.setitem(sys.modules, "cryptography", types.SimpleNamespace(fernet=dummy_fernet))
+    monkeypatch.setitem(sys.modules, "cryptography.fernet", dummy_fernet)
+
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    from scripts import startup
+
+    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+
+    logs: list[str] = []
+    monkeypatch.setattr(startup, "log_startup", lambda msg: logs.append(msg))
+
+    def fake_run(cmd, **kwargs):
+        return types.SimpleNamespace(returncode=1, stdout="out", stderr="err")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit):
+        startup.ensure_wallet_cli()
+
+    assert "out" in logs
+    assert "err" in logs
 
 
 def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys):

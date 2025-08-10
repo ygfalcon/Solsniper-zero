@@ -91,7 +91,14 @@ def ensure_wallet_cli() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
         text=True,
+        capture_output=True,
     )
+    stdout = getattr(result, "stdout", "")
+    stderr = getattr(result, "stderr", "")
+    if stdout:
+        log_startup(stdout.rstrip())
+    if stderr:
+        log_startup(stderr.rstrip())
     if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
         console.print(
             "[red]Failed to install 'solhunter-wallet'. Please install it manually with 'pip install solhunter-wallet' and re-run.[/]"
