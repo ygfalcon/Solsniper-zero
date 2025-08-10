@@ -14,6 +14,7 @@ import contextlib
 import io
 from pathlib import Path
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
@@ -187,6 +188,21 @@ def _disk_space_required_bytes() -> int:
     return int(limit_gb * (1024 ** 3))
 
 
+def _check_endpoints(cfg: dict) -> tuple[bool, str]:
+    """Wrapper to run ``ensure_endpoints`` and capture its output."""
+
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            ensure_endpoints(cfg)
+    except SystemExit:
+        msg = buf.getvalue().strip()
+        return False, msg or "HTTP endpoint check failed"
+    except Exception as exc:
+        return False, str(exc)
+    return True, "HTTP endpoints reachable"
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is not None:
         os.environ["SOLHUNTER_SKIP_VENV"] = "1"
@@ -262,32 +278,11 @@ def main(argv: list[str] | None = None) -> int:
     internet_status = "skipped" if args.offline or args.skip_rpc_check else "unknown"
     config_status = "skipped" if args.skip_setup else "unknown"
     wallet_status = "skipped" if args.skip_setup else "unknown"
-
-    # Run early environment checks before any heavy work
-    with Progress(console=console, transient=True) as progress:
-        disk_task = progress.add_task("Checking disk space...", total=1)
-        ok, msg = preflight_utils.check_disk_space(disk_required)
-        progress.advance(disk_task)
-    disk_status = "passed" if ok else "failed"
-    console.print(f"[green]{msg}[/]" if ok else f"[red]{msg}[/]")
-    if not ok:
-        log_startup("Disk space check failed")
-        raise SystemExit(1)
-    log_startup("Disk space check passed")
-
-    if args.offline or args.skip_rpc_check:
-        internet_status = "skipped"
-        log_startup("Internet connectivity check skipped")
-    else:
-        print("Checking internet connectivity...")
-        ok, msg = preflight_utils.check_internet()
-        print(msg)
-        if not ok:
-            internet_status = "failed"
-            log_startup("Internet connectivity check failed")
-            raise SystemExit(1)
-        internet_status = "passed"
-        log_startup("Internet connectivity check passed")
+    endpoint_status = (
+        "offline"
+        if args.offline
+        else ("skipped" if args.skip_endpoint_check or args.skip_setup else "unknown")
+    )
 
     from solhunter_zero.config_bootstrap import ensure_config
     from solhunter_zero.config_utils import select_active_keypair
@@ -354,17 +349,63 @@ def main(argv: list[str] | None = None) -> int:
             wallet_status = active_keypair
         console.print("[green]Configuration complete[/]")
 
-    if args.offline:
-        endpoint_status = "offline"
-    elif args.skip_endpoint_check or args.skip_setup:
-        endpoint_status = "skipped"
+    if not args.offline and not args.skip_rpc_check:
+        print("Checking internet connectivity...")
+
+    with Progress(console=console, transient=True) as progress, ThreadPoolExecutor() as executor:
+        tasks: dict[str, int] = {}
+        futures: dict[object, str] = {}
+        tasks["disk"] = progress.add_task("Checking disk space...", total=1)
+        futures[executor.submit(preflight_utils.check_disk_space, disk_required)] = "disk"
+        if not args.offline and not args.skip_rpc_check:
+            tasks["internet"] = progress.add_task(
+                "Checking internet connectivity...", total=1
+            )
+            futures[executor.submit(preflight_utils.check_internet)] = "internet"
+        if not args.offline and not args.skip_endpoint_check and not args.skip_setup:
+            tasks["endpoints"] = progress.add_task(
+                "Checking HTTP endpoints...", total=1
+            )
+            futures[executor.submit(_check_endpoints, cfg_data)] = "endpoints"
+
+        results: dict[str, tuple[bool, str]] = {}
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                results[name] = future.result()
+            except Exception as exc:  # pragma: no cover - defensive
+                results[name] = (False, str(exc))
+            progress.advance(tasks[name])
+
+    ok, msg = results.get("disk", (False, "Disk check failed"))
+    disk_status = "passed" if ok else "failed"
+    console.print(f"[green]{msg}[/]" if ok else f"[red]{msg}[/]")
+    if not ok:
+        log_startup("Disk space check failed")
+        raise SystemExit(1)
+    log_startup("Disk space check passed")
+
+    if "internet" in results:
+        ok, msg = results["internet"]
+        print(msg)
+        if not ok:
+            internet_status = "failed"
+            log_startup("Internet connectivity check failed")
+            raise SystemExit(1)
+        internet_status = "passed"
+        log_startup("Internet connectivity check passed")
     else:
-        with Progress(console=console, transient=True) as progress:
-            ep_task = progress.add_task("Checking HTTP endpoints...", total=1)
-            ensure_endpoints(cfg_data)
-            progress.advance(ep_task)
-        console.print("[green]HTTP endpoints reachable[/]")
-        endpoint_status = "reachable"
+        log_startup("Internet connectivity check skipped")
+
+    if "endpoints" in results:
+        ok, msg = results["endpoints"]
+        if ok:
+            console.print("[green]HTTP endpoints reachable[/]")
+            endpoint_status = "reachable"
+        else:
+            console.print(f"[red]{msg}[/]")
+            endpoint_status = "failed"
+            raise SystemExit(1)
 
     if args.repair and platform.system() == "Darwin":
         from solhunter_zero import macos_setup
