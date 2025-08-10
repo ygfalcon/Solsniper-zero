@@ -14,6 +14,7 @@ import contextlib
 import io
 from pathlib import Path
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
@@ -429,15 +430,23 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_deps:
         with Progress(console=console, transient=True) as progress:
-            dep_task = progress.add_task("Installing dependencies...", total=4)
-            ensure_deps(install_optional=args.full_deps)
-            progress.advance(dep_task)
-            ensure_protos()
-            progress.advance(dep_task)
-            ensure_route_ffi()
-            progress.advance(dep_task)
-            ensure_depth_service()
-            progress.advance(dep_task)
+            with ThreadPoolExecutor() as executor:
+                task_map = {
+                    executor.submit(ensure_deps, install_optional=args.full_deps): progress.add_task(
+                        "Installing dependencies...", total=1
+                    ),
+                    executor.submit(ensure_protos): progress.add_task(
+                        "Generating protos...", total=1
+                    ),
+                    executor.submit(ensure_route_ffi): progress.add_task(
+                        "Building route FFI...", total=1
+                    ),
+                    executor.submit(ensure_depth_service): progress.add_task(
+                        "Building depth service...", total=1
+                    ),
+                }
+                for future in as_completed(task_map):
+                    progress.advance(task_map[future])
         console.print("[green]Dependencies installed[/]")
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
