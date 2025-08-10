@@ -17,6 +17,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import argparse
 from pathlib import Path
 from typing import NoReturn
 
@@ -24,6 +25,11 @@ from .paths import ROOT
 
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
+
+# Parse launcher-specific arguments early to avoid mutating ``sys.argv`` later
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument("--repair", action="store_true")
+_parsed_args, _forward_args = _parser.parse_known_args(sys.argv[1:])
 
 
 def _check_python(exe: str) -> bool:
@@ -39,7 +45,7 @@ def _check_python(exe: str) -> bool:
         return False
 
 
-def find_python() -> str:
+def find_python(repair: bool = False) -> str:
     """Locate a suitable Python 3.11 interpreter.
 
     If the current interpreter is already adequate, it is returned. Otherwise
@@ -56,9 +62,7 @@ def find_python() -> str:
     cache_dir = ROOT / ".cache"
     cache_file = cache_dir / "python-exe"
 
-    repair = "--repair" in sys.argv or bool(os.environ.get("SOLHUNTER_REPAIR"))
-    if "--repair" in sys.argv:
-        sys.argv.remove("--repair")
+    repair = repair or bool(os.environ.get("SOLHUNTER_REPAIR"))
     if repair:
         try:
             cache_file.unlink()
@@ -138,10 +142,10 @@ def find_python() -> str:
     raise SystemExit(1)
 
 
-PYTHON_EXE = find_python()
+PYTHON_EXE = find_python(repair=_parsed_args.repair)
 if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
     launcher = Path(__file__).resolve()
-    os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *sys.argv[1:]])
+    os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *_forward_args])
     raise SystemExit(1)
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
@@ -161,7 +165,7 @@ from solhunter_zero.system import set_rayon_threads  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
-    argv = sys.argv[1:] if argv is None else argv
+    argv = list(_forward_args) if argv is None else list(argv)
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
