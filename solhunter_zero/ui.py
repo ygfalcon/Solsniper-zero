@@ -14,6 +14,10 @@ from pathlib import Path
 
 from flask import Flask, Blueprint, jsonify, request, render_template_string
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
 from .http import close_session
 from .util import install_uvloop
 from .event_bus import subscription, publish
@@ -298,6 +302,41 @@ def create_app() -> Flask:
         if len(configs) == 1:
             select_config(configs[0])
             set_env_from_config(load_selected_config())
+
+    # assemble startup summary
+    active_cfg = get_active_config_name() or "<none>"
+    active_keypair = wallet.get_active_keypair_name() or "<none>"
+    solana_rpc = os.getenv("SOLANA_RPC_URL") or cfg.get("solana_rpc_url")
+    jito_rpc = os.getenv("JITO_RPC_URL") or cfg.get("jito_rpc_url")
+    event_bus_url = get_event_bus_url(cfg)
+    depth_addr, depth_port = get_depth_ws_addr(cfg)
+    jito_ws = os.getenv("JITO_WS_URL") or cfg.get("jito_ws_url")
+    order_book_ws = os.getenv("ORDER_BOOK_WS_URL") or cfg.get("order_book_ws_url")
+
+    table = Table(show_header=False, box=None)
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="magenta")
+    table.add_row("Config", active_cfg)
+    table.add_row("Keypair", active_keypair)
+    if solana_rpc:
+        table.add_row("Solana RPC", str(solana_rpc))
+    if jito_rpc:
+        table.add_row("Jito RPC", str(jito_rpc))
+    if event_bus_url:
+        table.add_row("Event Bus", str(event_bus_url))
+    if jito_ws:
+        table.add_row("Jito WS", str(jito_ws))
+    if order_book_ws:
+        table.add_row("OrderBook WS", str(order_book_ws))
+    if depth_addr:
+        table.add_row("Depth WS", f"{depth_addr}:{depth_port}")
+
+    banner = Panel(
+        table,
+        title="[bold green]Solhunter Zero Startup[/bold green]",
+        border_style="green",
+    )
+    Console().print(banner)
 
     app = Flask(
         __name__, static_folder=str(Path(__file__).resolve().parent / "static")
