@@ -174,6 +174,34 @@ def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
     assert result.stdout.startswith("RAYON_NUM_THREADS=")
 
 
+def test_launcher_injects_one_click_once(monkeypatch):
+    import os, sys, importlib
+
+    monkeypatch.setenv("SOLHUNTER_TESTING", "1")
+    monkeypatch.setenv("SOLHUNTER_PYTHON", sys.executable)
+    monkeypatch.setattr(os, "execv", lambda *a, **k: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap_utils.ensure_venv", lambda argv: None)
+
+    launcher = importlib.import_module("solhunter_zero.launcher")
+
+    monkeypatch.setattr(launcher.device, "initialize_gpu", lambda: None)
+    monkeypatch.setattr(launcher, "set_rayon_threads", lambda: None)
+
+    captured = {}
+
+    def fake_execvp(file, argv):
+        captured["cmd"] = [file, *argv]
+        raise RuntimeError
+
+    monkeypatch.setattr(launcher.os, "execvp", fake_execvp)
+
+    with pytest.raises(RuntimeError):
+        launcher.main(["--skip-preflight"])
+
+    cmd = captured.get("cmd", [])
+    assert cmd.count("--one-click") == 1
+
+
 def test_cluster_setup_assemble(tmp_path):
     cfg = tmp_path / 'cluster.toml'
     cfg.write_text(
