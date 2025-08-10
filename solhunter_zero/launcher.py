@@ -49,16 +49,20 @@ def find_python() -> str:
 
     The resolved path is cached in ``.cache/python-exe`` and the
     ``SOLHUNTER_PYTHON`` environment variable. Pass ``--repair`` or set
-    ``SOLHUNTER_REPAIR`` to ignore any cached value.
+    ``SOLHUNTER_REPAIR`` to ignore any cached value. When ``--repair`` is
+    supplied on the command line it is restored to :data:`sys.argv` after
+    interpreter detection so downstream code can observe the flag.
     """
 
     cache_env = "SOLHUNTER_PYTHON"
     cache_dir = ROOT / ".cache"
     cache_file = cache_dir / "python-exe"
 
-    repair = "--repair" in sys.argv or bool(os.environ.get("SOLHUNTER_REPAIR"))
+    repair_index: int | None = None
     if "--repair" in sys.argv:
-        sys.argv.remove("--repair")
+        repair_index = sys.argv.index("--repair")
+        sys.argv.pop(repair_index)
+    repair = (repair_index is not None) or bool(os.environ.get("SOLHUNTER_REPAIR"))
     if repair:
         try:
             cache_file.unlink()
@@ -72,6 +76,8 @@ def find_python() -> str:
             cache_file.write_text(path)
         except OSError:
             pass
+        if repair_index is not None and "--repair" not in sys.argv:
+            sys.argv.insert(repair_index, "--repair")
         return path
 
     if _check_python(sys.executable):
