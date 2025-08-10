@@ -58,7 +58,7 @@
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
-On macOS, double-click `start.command` (or run `./run.sh` from Terminal) for a one-click launch that executes the same Python entry point via `start.py`.
+On macOS, double-click `start.command` (or run `python start.py` from Terminal) for a one-click launch that executes the same Python entry point.
 
 Developers embedding SolHunter Zero can initialize the environment
 programmatically:
