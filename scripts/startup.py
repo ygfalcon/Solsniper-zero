@@ -184,9 +184,7 @@ def _disk_space_required_bytes() -> int:
     return int(limit_gb * (1024 ** 3))
 
 
-def main(argv: list[str] | None = None) -> int:
-    if argv is not None:
-        os.environ["SOLHUNTER_SKIP_VENV"] = "1"
+def _main_impl(argv: list[str] | None = None) -> int:
     console.print(Panel.fit("[bold cyan]SolHunter Zero Startup[/]"), justify="center")
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument(
@@ -610,6 +608,19 @@ def main(argv: list[str] | None = None) -> int:
     log_startup(f"Log summary: see {log_path}")
 
     return proc.returncode or hc_code
+
+
+def main(argv: list[str] | None = None) -> int:
+    prev_skip_venv = os.environ.get("SOLHUNTER_SKIP_VENV")
+    if argv is not None:
+        os.environ["SOLHUNTER_SKIP_VENV"] = "1"
+    try:
+        return _main_impl(argv)
+    finally:
+        if prev_skip_venv is None:
+            os.environ.pop("SOLHUNTER_SKIP_VENV", None)
+        else:
+            os.environ["SOLHUNTER_SKIP_VENV"] = prev_skip_venv
 
 
 def run(argv: list[str] | None = None) -> int:
