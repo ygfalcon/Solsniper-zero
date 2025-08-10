@@ -85,3 +85,28 @@ def test_one_click_launch(monkeypatch, capsys):
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "SolHunter Zero launch complete – system ready." in out
+
+
+def test_launcher_rpc_failure_exits_early(monkeypatch):
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+
+    launcher = load_launcher()
+
+    def fake_rpc():
+        raise SystemExit(5)
+
+    monkeypatch.setattr(launcher, "ensure_rpc", fake_rpc, raising=False)
+
+    called = {}
+
+    def fake_execvp(prog, argv):
+        called["execvp"] = True
+
+    monkeypatch.setattr(os, "execvp", fake_execvp)
+
+    with pytest.raises(SystemExit) as exc:
+        launcher.main(["--skip-deps"])
+
+    assert exc.value.code == 5
+    assert "execvp" not in called

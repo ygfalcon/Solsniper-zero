@@ -975,9 +975,9 @@ def _make_failing_stream():
 def test_ensure_connectivity_warns_on_ws_failure(monkeypatch, caplog):
     monkeypatch.setenv("DEX_LISTING_WS_URL", "ws://dex")
 
-    import scripts.startup as startup
+    import solhunter_zero.rpc_utils as rpc_utils
 
-    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(rpc_utils, "ensure_rpc", lambda: None)
 
     import solhunter_zero.dex_ws as dex_ws
 
@@ -993,9 +993,9 @@ def test_ensure_connectivity_raises_on_ws_failure(monkeypatch):
     monkeypatch.setenv("DEX_LISTING_WS_URL", "ws://dex")
     monkeypatch.setenv("RAISE_ON_WS_FAIL", "1")
 
-    import scripts.startup as startup
+    import solhunter_zero.rpc_utils as rpc_utils
 
-    monkeypatch.setattr(startup, "ensure_rpc", lambda: None)
+    monkeypatch.setattr(rpc_utils, "ensure_rpc", lambda: None)
 
     import solhunter_zero.dex_ws as dex_ws
 
