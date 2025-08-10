@@ -82,21 +82,7 @@ from solhunter_zero import device  # noqa: E402
 def ensure_wallet_cli() -> None:
     """Ensure the ``solhunter-wallet`` CLI is available."""
 
-    if shutil.which("solhunter-wallet") is not None:
-        return
-
-    console.print(
-        "[yellow]'solhunter-wallet' command not found. Attempting installation via pip...[/]"
-    )
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
-        text=True,
-    )
-    if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
-        console.print(
-            "[red]Failed to install 'solhunter-wallet'. Please install it manually with 'pip install solhunter-wallet' and re-run.[/]"
-        )
-        raise SystemExit(1)
+    ensure_deps(ensure_wallet_cli=True)
 
 
 def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | None = None,

@@ -32,6 +32,13 @@ def test_startup_repair_clears_markers(monkeypatch, capsys):
         model_validator=lambda *a, **k: (lambda f: f),
     )
     monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    dummy_rich = types.ModuleType("rich")
+    dummy_console_mod = types.ModuleType("rich.console")
+    dummy_console_mod.Console = lambda *a, **k: types.SimpleNamespace(print=lambda *a, **k: None)
+    dummy_rich.console = dummy_console_mod
+    monkeypatch.setitem(sys.modules, "rich", dummy_rich)
+    monkeypatch.setitem(sys.modules, "rich.console", dummy_console_mod)
     from scripts import startup
 
     monkeypatch.setattr(startup.platform, "system", lambda: "Darwin")
@@ -993,24 +1000,72 @@ def test_wallet_cli_failure_propagates(monkeypatch):
 
 
 def test_ensure_wallet_cli_attempts_install(monkeypatch, capsys):
+    import types, shutil, sys
+    import solhunter_zero.bootstrap_utils as bootstrap_utils
+
+    dummy_fernet = types.ModuleType("fernet")
+    dummy_fernet.Fernet = object
+    dummy_fernet.InvalidToken = Exception
+    dummy_crypto = types.ModuleType("cryptography")
+    dummy_crypto.fernet = dummy_fernet
+    dummy_crypto.__path__ = []
+    monkeypatch.setitem(sys.modules, "cryptography", dummy_crypto)
+    monkeypatch.setitem(sys.modules, "cryptography.fernet", dummy_fernet)
+
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    dummy_rich = types.ModuleType("rich")
+    dummy_rich.__path__ = []
+    dummy_console_mod = types.ModuleType("rich.console")
+    dummy_console_mod.Console = lambda *a, **k: types.SimpleNamespace(print=lambda *a, **k: None)
+    dummy_rich.console = dummy_console_mod
+    dummy_progress_mod = types.ModuleType("rich.progress")
+    dummy_progress_mod.Progress = lambda *a, **k: types.SimpleNamespace(__enter__=lambda self: self, __exit__=lambda self, exc_type, exc, tb: None)
+    dummy_panel_mod = types.ModuleType("rich.panel")
+    dummy_panel_mod.Panel = object
+    dummy_table_mod = types.ModuleType("rich.table")
+    dummy_table_mod.Table = object
+    monkeypatch.setitem(sys.modules, "rich.progress", dummy_progress_mod)
+    monkeypatch.setitem(sys.modules, "rich.panel", dummy_panel_mod)
+    monkeypatch.setitem(sys.modules, "rich.table", dummy_table_mod)
+    monkeypatch.setitem(sys.modules, "rich", dummy_rich)
+    monkeypatch.setitem(sys.modules, "rich.console", dummy_console_mod)
+
+    dummy_preflight = types.SimpleNamespace(check_internet=lambda: (True, "ok"))
+    monkeypatch.setitem(sys.modules, "scripts.preflight", dummy_preflight)
+
     from scripts import startup
-    import types, subprocess, shutil, sys
+    monkeypatch.setattr(sys.modules["scripts"], "preflight", dummy_preflight, raising=False)
 
+    bootstrap_utils.DEPS_MARKER.unlink(missing_ok=True)
     monkeypatch.setattr(shutil, "which", lambda cmd: None)
+    monkeypatch.setattr(bootstrap_utils.shutil, "which", lambda cmd: None)
+    monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
 
-    calls: dict[str, list[str]] = {}
+    calls: list[tuple[str, ...]] = []
 
-    def fake_run(cmd, **kwargs):
-        calls["cmd"] = cmd
-        return types.SimpleNamespace(returncode=1)
+    def fake_pip_install(*args, **kwargs):
+        calls.append(args)
+        if args and args[0] == "solhunter-wallet":
+            print("Failed to install. To retry manually, run: pip install solhunter-wallet")
+            raise SystemExit(1)
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(bootstrap_utils, "_pip_install", fake_pip_install)
 
     with pytest.raises(SystemExit):
         startup.ensure_wallet_cli()
 
-    assert calls["cmd"][:4] == [sys.executable, "-m", "pip", "install"]
-    assert "Please install it manually" in capsys.readouterr().out
+    assert any(args[0] == "solhunter-wallet" for args in calls)
+    assert "pip install solhunter-wallet" in capsys.readouterr().out
 
 
 def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys):

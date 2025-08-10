@@ -333,6 +333,8 @@ def ensure_deps(
         else:
             extras_arg = "."
         _pip_install(extras_arg, *extra_index)
+        if need_cli:
+            _pip_install("solhunter-wallet")
         failed_req = [m for m in req if importlib.util.find_spec(m) is None]
         if failed_req:
             print(
@@ -341,7 +343,11 @@ def ensure_deps(
             )
             raise SystemExit(1)
         if need_cli and shutil.which("solhunter-wallet") is None:
-            print("'solhunter-wallet' still not available after installation. Aborting.")
+            print(
+                "'solhunter-wallet' still not available after installation. "
+                "Please install it manually with 'pip install solhunter-wallet' "
+                "and ensure it is in your PATH."
+            )
             raise SystemExit(1)
 
     if cfg.install_optional and extra_index:
