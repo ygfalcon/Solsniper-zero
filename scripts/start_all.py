@@ -17,11 +17,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
 from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
-from solhunter_zero import env  # noqa: E402
 
 setup_logging("startup")
-env.load_env_file(ROOT / ".env")
-os.chdir(ROOT)
 log_startup("start_all launched")
 
 from solhunter_zero import device  # noqa: E402
@@ -128,15 +125,18 @@ def launch_services() -> None:
             "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
         )
     )
-    db_path = cfg_data.get("rl_db_path", "offline_data.db")
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path_val = cfg_data.get("rl_db_path", "offline_data.db")
+    db_path = Path(db_path_val)
+    if not db_path.is_absolute():
+        db_path = ROOT / db_path
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(db_path, "a"):
             pass
     except OSError as exc:
         print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
         sys.exit(1)
-    data_sync.start_scheduler(interval=interval, db_path=db_path)
+    data_sync.start_scheduler(interval=interval, db_path=str(db_path))
 
     ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)

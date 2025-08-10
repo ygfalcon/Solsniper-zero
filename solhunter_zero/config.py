@@ -3,12 +3,14 @@ from __future__ import annotations
 import os
 import sys
 import logging
-from .jsonutil import loads, dumps
 import ast
 from typing import Mapping, Any, Sequence, cast
 from pathlib import Path
-from .dex_config import DEXConfig
 from importlib import import_module
+
+from .jsonutil import loads, dumps
+from .dex_config import DEXConfig
+from .paths import ROOT
 
 import tomllib
 from pydantic import ValidationError
@@ -218,7 +220,11 @@ def validate_config(cfg: Mapping[str, Any]) -> dict:
 #  Configuration file management helpers
 # ---------------------------------------------------------------------------
 
-CONFIG_DIR = os.getenv("CONFIG_DIR", "configs")
+_config_dir = os.getenv("CONFIG_DIR", "configs")
+if not os.path.isabs(_config_dir):
+    CONFIG_DIR = str(ROOT / _config_dir)
+else:
+    CONFIG_DIR = _config_dir
 ACTIVE_CONFIG_FILE = os.path.join(CONFIG_DIR, "active")
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
@@ -231,10 +237,14 @@ def find_config_file() -> str | None:
     """
 
     path = os.getenv("SOLHUNTER_CONFIG")
-    if path and Path(path).is_file():
-        return path
+    if path:
+        p = Path(path)
+        if not p.is_absolute():
+            p = ROOT / p
+        if p.is_file():
+            return str(p)
     for name in ("config.toml", "config.yaml", "config.yml"):
-        p = Path(name)
+        p = ROOT / name
         if p.is_file():
             return str(p)
     return None

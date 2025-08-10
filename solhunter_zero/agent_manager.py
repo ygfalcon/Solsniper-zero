@@ -8,6 +8,7 @@ import random
 import inspect
 from typing import Iterable, Dict, Any, List
 from dataclasses import dataclass, field
+from .paths import ROOT
 
 from .backtester import backtest_weighted, DEFAULT_STRATEGIES
 from .backtest_cli import bayesian_optimize_weights
@@ -289,6 +290,8 @@ class AgentManager:
         """Return latest RL policy confidence scores if available."""
         conf = dict(self.rl_policy)
         path = os.getenv("RL_POLICY_PATH", "rl_policy.json")
+        if not os.path.isabs(path):
+            path = str(ROOT / path)
         if os.path.exists(path):
             raw = None
             try:

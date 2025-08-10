@@ -24,6 +24,7 @@ from .util import install_uvloop
 from .system import detect_cpu_count
 
 from pathlib import Path
+from .paths import ROOT
 
 from .config import (
     load_config,
@@ -584,8 +585,14 @@ async def _init_rl_training(
     import torch
 
     mem_db = cfg.get("memory_path", "sqlite:///memory.db")
-    data_path = cfg.get("rl_db_path", "offline_data.db")
-    model_path = cfg.get("rl_model_path", "ppo_model.pt")
+    data_val = cfg.get("rl_db_path", "offline_data.db")
+    model_val = cfg.get("rl_model_path", "ppo_model.pt")
+    data_path = Path(data_val)
+    if not data_path.is_absolute():
+        data_path = ROOT / data_path
+    model_path = Path(model_val)
+    if not model_path.is_absolute():
+        model_path = ROOT / model_path
     algo = cfg.get("rl_algo", "ppo")
     policy = cfg.get("rl_policy", "mlp")
     auto_train = auto_train_cfg
@@ -595,8 +602,8 @@ async def _init_rl_training(
 
     daemon = RLDaemon(
         memory_path=mem_db,
-        data_path=data_path,
-        model_path=model_path,
+        data_path=str(data_path),
+        model_path=str(model_path),
         algo=algo,
         policy=policy,
         dynamic_workers=dyn_workers,
@@ -962,8 +969,11 @@ def main(
         ).lower() in {"1", "true", "yes"}
         stop_collector = None
         if collect_data:
-            db_path = cfg.get("rl_db_path", "offline_data.db")
-            stop_collector = start_depth_snapshot_listener(db_path)
+            db_val = cfg.get("rl_db_path", "offline_data.db")
+            db_path = Path(db_val)
+            if not db_path.is_absolute():
+                db_path = ROOT / db_path
+            stop_collector = start_depth_snapshot_listener(str(db_path))
         if proc_ref[0]:
             watch_task = asyncio.create_task(_depth_service_watchdog(cfg, proc_ref))
         prev_activity = 0.0
