@@ -34,6 +34,7 @@ from solhunter_zero.logging_utils import (
     log_startup,
     setup_logging,
     rotate_preflight_log,
+    STARTUP_LOG,
 )  # noqa: E402
 
 from rich.console import Console
@@ -73,7 +74,7 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
         )
         raise SystemExit(msg)
 
-setup_logging("startup")
+setup_logging("startup", path=STARTUP_LOG)
 setup_logging("preflight")
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
@@ -591,7 +592,7 @@ def main(argv: list[str] | None = None) -> int:
         if line:
             log_startup(line)
 
-    log_path = ROOT / "startup.log"
+    log_path = STARTUP_LOG
     print("Log summary:")
     print(f"  Detailed logs: {log_path}")
     log_startup(f"Log summary: see {log_path}")

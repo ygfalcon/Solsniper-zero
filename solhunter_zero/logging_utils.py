@@ -8,6 +8,10 @@ from .paths import ROOT
 MAX_STARTUP_LOG_SIZE = 1_000_000  # 1 MB
 MAX_PREFLIGHT_LOG_SIZE = 1_000_000  # 1 MB
 
+# Default log locations
+STARTUP_LOG = ROOT / "logs" / "startup.log"
+PREFLIGHT_LOG = ROOT / "preflight.log"
+
 
 def setup_logging(
     log_name: str,
@@ -23,7 +27,12 @@ def setup_logging(
     """
 
     if path is None:
-        path = ROOT / f"{log_name}.log"
+        if log_name == "startup":
+            path = STARTUP_LOG
+        elif log_name == "preflight":
+            path = PREFLIGHT_LOG
+        else:  # pragma: no cover - defensive branch
+            path = ROOT / f"{log_name}.log"
 
     if max_bytes is None:
         if log_name == "startup":
@@ -32,6 +41,8 @@ def setup_logging(
             max_bytes = MAX_PREFLIGHT_LOG_SIZE
         else:  # pragma: no cover - defensive branch
             max_bytes = MAX_STARTUP_LOG_SIZE
+
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     if path.exists():
         try:
@@ -46,25 +57,27 @@ def setup_logging(
     return path
 
 
-def rotate_startup_log(path: Path = ROOT / "startup.log") -> None:
+def rotate_startup_log(
+    path: Path = STARTUP_LOG, max_bytes: int = MAX_STARTUP_LOG_SIZE
+) -> None:
     """Rotate or truncate the startup log before writing new output."""
 
-    setup_logging("startup", path=path)
+    setup_logging("startup", path=path, max_bytes=max_bytes)
 
 
 def rotate_preflight_log(
-    path: Path = ROOT / "preflight.log", max_bytes: int = MAX_PREFLIGHT_LOG_SIZE
+    path: Path = PREFLIGHT_LOG, max_bytes: int = MAX_PREFLIGHT_LOG_SIZE
 ) -> None:
     """Rotate or truncate the preflight log before writing new output."""
 
     setup_logging("preflight", path=path, max_bytes=max_bytes)
 
 
-def log_startup(message: str) -> None:
+def log_startup(message: str, path: Path = STARTUP_LOG) -> None:
     """Append *message* to ``startup.log`` with a timestamp."""
     try:
         timestamp = datetime.now().isoformat(timespec="seconds")
-        with open(ROOT / "startup.log", "a", encoding="utf-8") as fh:
+        with open(path, "a", encoding="utf-8") as fh:
             fh.write(f"{timestamp} {message}\n")
     except OSError:
         pass
