@@ -10,6 +10,7 @@ from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 import base64
 import hashlib
 from cryptography.fernet import Fernet, InvalidToken
+from .paths import ROOT
 
 # Older versions of ``solders`` do not expose ``to_bytes`` which our tests rely
 # on. Provide a backwards compatible shim.
@@ -29,7 +30,11 @@ if not hasattr(Keypair, "to_bytes_array"):
     Keypair.to_bytes_array = _to_bytes_array  # type: ignore[attr-defined]
 
 
-KEYPAIR_DIR = os.getenv("KEYPAIR_DIR", "keypairs")
+_keypair_dir = os.getenv("KEYPAIR_DIR", "keypairs")
+if not os.path.isabs(_keypair_dir):
+    KEYPAIR_DIR = str(ROOT / _keypair_dir)
+else:
+    KEYPAIR_DIR = _keypair_dir
 ACTIVE_KEYPAIR_FILE = os.path.join(KEYPAIR_DIR, "active")
 os.makedirs(KEYPAIR_DIR, exist_ok=True)
 
