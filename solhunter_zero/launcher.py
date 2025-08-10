@@ -21,6 +21,9 @@ from typing import NoReturn
 
 from .paths import ROOT
 
+os.chdir(ROOT)
+sys.path.insert(0, str(ROOT))
+
 
 def _check_python(exe: str) -> bool:
     """Return ``True`` if ``exe`` is a Python >=3.11 interpreter."""
@@ -68,7 +71,6 @@ def find_python() -> str:
             return candidate
 
     if platform.system() == "Darwin":
-        sys.path.insert(0, str(ROOT))
         try:
             from solhunter_zero.macos_setup import prepare_macos_env  # type: ignore
         except Exception:
@@ -101,9 +103,6 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
     launcher = Path(__file__).resolve()
     os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *sys.argv[1:]])
     raise SystemExit(1)
-
-
-sys.path.insert(0, str(ROOT))
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
@@ -117,7 +116,6 @@ import solhunter_zero.env_config as env_config  # noqa: E402
 
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
-os.chdir(ROOT)
 
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
 
@@ -146,8 +144,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
         argv.insert(idx, "--full-deps")
 
     python_exe = sys.executable
-    startup = ROOT / "scripts" / "startup.py"
-    cmd = [python_exe, str(startup), *argv]
+    cmd = [python_exe, "-m", "scripts.startup", *argv]
 
     if platform.system() == "Darwin":
         cmd = ["arch", "-arm64", *cmd]
