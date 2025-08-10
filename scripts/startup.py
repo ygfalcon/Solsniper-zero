@@ -31,8 +31,7 @@ from solhunter_zero.bootstrap_utils import (
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 from solhunter_zero.logging_utils import (
-    log_startup,
-    setup_logging,
+    startup_logger,
     rotate_preflight_log,
 )  # noqa: E402
 
@@ -73,8 +72,8 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
         )
         raise SystemExit(msg)
 
-setup_logging("startup")
-setup_logging("preflight")
+log_startup = startup_logger()
+startup_logger("preflight")
 env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
 

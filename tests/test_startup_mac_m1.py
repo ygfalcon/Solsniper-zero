@@ -4,10 +4,15 @@ import types
 import sys
 from pathlib import Path
 
-from scripts import startup
-
 
 def test_startup_mac_m1(monkeypatch, capsys):
+    logs: list[str] = []
+    monkeypatch.setattr(
+        "solhunter_zero.logging_utils.startup_logger",
+        lambda *a, **k: (lambda msg: logs.append(msg)),
+    )
+    from scripts import startup
+
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
 
@@ -62,6 +67,7 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
     monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
     monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup.preflight_utils, "check_disk_space", lambda r: (True, "ok"))
 
     from solhunter_zero import bootstrap, wallet
     monkeypatch.setattr(bootstrap, "bootstrap", lambda one_click=False: None)
@@ -75,8 +81,6 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(wallet, "list_keypairs", lambda: ["default"])
 
     monkeypatch.setattr(startup.subprocess, "run", lambda cmd: types.SimpleNamespace(returncode=0))
-    logs: list[str] = []
-    monkeypatch.setattr(startup, "log_startup", lambda msg: logs.append(msg))
 
     args = [
         "--skip-deps",

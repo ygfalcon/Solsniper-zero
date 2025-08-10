@@ -145,9 +145,8 @@ if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
     raise SystemExit(1)
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
-
-setup_logging("startup")
+from solhunter_zero.logging_utils import startup_logger  # noqa: E402
+log_startup = startup_logger()
 ensure_tools(non_interactive=True)
 ensure_venv(None)
 log_startup(f"Virtual environment: {sys.prefix}")

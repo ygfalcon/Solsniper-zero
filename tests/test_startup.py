@@ -920,6 +920,17 @@ def test_startup_log_rotation(tmp_path):
     assert not log_path.exists()
 
 
+def test_startup_logger_writes(tmp_path):
+    from solhunter_zero.logging_utils import startup_logger
+
+    log_path = tmp_path / "custom.log"
+    log = startup_logger(path=log_path)
+    log("hello")
+
+    content = log_path.read_text()
+    assert "hello" in content
+
+
 def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.delenv("TORCH_DEVICE", raising=False)
     monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)

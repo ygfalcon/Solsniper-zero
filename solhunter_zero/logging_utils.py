@@ -68,3 +68,27 @@ def log_startup(message: str) -> None:
             fh.write(f"{timestamp} {message}\n")
     except OSError:
         pass
+
+
+def startup_logger(
+    log_name: str = "startup", *, path: Path | None = None
+):
+    """Return a logging callable that writes timestamped messages.
+
+    The target ``<log_name>.log`` file is prepared via :func:`setup_logging` and
+    lives under :data:`solhunter_zero.paths.ROOT` unless ``path`` is provided.
+    The returned function accepts a string message which is appended to the log
+    with an ISO-8601 timestamp.
+    """
+
+    log_path = setup_logging(log_name, path=path)
+
+    def _log(message: str) -> None:
+        try:
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write(f"{timestamp} {message}\n")
+        except OSError:
+            pass
+
+    return _log

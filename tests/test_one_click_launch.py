@@ -29,8 +29,8 @@ bootstrap_utils_mod.METAL_EXTRA_INDEX = []
 sys.modules["solhunter_zero.bootstrap_utils"] = bootstrap_utils_mod
 
 logging_utils_mod = types.ModuleType("solhunter_zero.logging_utils")
+logging_utils_mod.startup_logger = lambda *a, **k: (lambda msg: None)
 logging_utils_mod.log_startup = lambda msg: None
-logging_utils_mod.setup_logging = lambda name: None
 sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
 
 env_config_mod = types.ModuleType("solhunter_zero.env_config")
