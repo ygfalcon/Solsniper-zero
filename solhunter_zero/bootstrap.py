@@ -19,16 +19,10 @@ import solhunter_zero.device as device
 from .diagnostics import write_diagnostics
 
 
-def ensure_route_ffi() -> None:
-    from .build_utils import ensure_route_ffi as _ensure_route_ffi
+def ensure_target(name: str) -> None:
+    from .build_utils import ensure_target as _ensure_target
 
-    _ensure_route_ffi()
-
-
-def ensure_depth_service() -> None:
-    from .build_utils import ensure_depth_service as _ensure_depth_service
-
-    _ensure_depth_service()
+    _ensure_target(name)
 
 
 def ensure_config() -> tuple[Path, dict]:

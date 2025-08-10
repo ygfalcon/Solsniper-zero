@@ -19,8 +19,7 @@ def test_ensure_deps_runs_prepare_macos_env(monkeypatch):
         "solhunter_zero.macos_setup.mac_setup_completed", lambda: False
     )
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_target", lambda name: None)
 
     bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
 
@@ -44,8 +43,7 @@ def test_mac_setup_marker_skips_prepare(monkeypatch):
         "solhunter_zero.macos_setup.mac_setup_completed", lambda: True
     )
     monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_target", lambda name: None)
 
     bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
 
@@ -63,8 +61,7 @@ def test_deps_marker_skips_install(monkeypatch):
     monkeypatch.setattr(
         bootstrap_utils, "_pip_install", lambda *a, **k: calls.append(a)
     )
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_target", lambda name: None)
     import types, sys
     dummy_preflight = types.SimpleNamespace(check_internet=lambda: (True, "ok"))
     monkeypatch.setitem(sys.modules, "scripts.preflight", dummy_preflight)
@@ -106,8 +103,7 @@ def test_force_env_var_reinstalls(monkeypatch):
     monkeypatch.setattr(
         bootstrap_utils, "_pip_install", lambda *a, **k: calls.append(a)
     )
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_route_ffi", lambda: None)
-    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_depth_service", lambda: None)
+    monkeypatch.setattr("solhunter_zero.bootstrap.ensure_target", lambda name: None)
     monkeypatch.setenv("SOLHUNTER_FORCE_DEPS", "1")
     import types, sys
     dummy_preflight = types.SimpleNamespace(check_internet=lambda: (True, "ok"))

@@ -71,67 +71,80 @@ def build_rust_component(
             )
 
 
-def ensure_route_ffi() -> None:
-    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
-    libpath = ROOT / "solhunter_zero" / libname
-    if libpath.exists():
-        return
-    try:
-        build_rust_component(
-            "route_ffi",
-            ROOT / "route_ffi" / "Cargo.toml",
-            libpath,
+def ensure_target(name: str) -> None:
+    """Ensure build artifacts for *name* exist.
+
+    Parameters
+    ----------
+    name:
+        The build target to ensure. Supported values are ``"route_ffi"``,
+        ``"depth_service"`` and ``"protos"``.
+    """
+
+    if name == "route_ffi":
+        libname = (
+            "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
         )
-    except Exception as exc:  # pragma: no cover - build errors are rare
-        print(f"Failed to build route_ffi: {exc}")
-        print(
-            "To retry the build, run 'cargo build --manifest-path route_ffi/Cargo.toml --release' "
-            "and re-run this program."
-        )
-        raise SystemExit(1)
-
-
-def ensure_depth_service() -> None:
-    bin_path = ROOT / "target" / "release" / "depth_service"
-    if bin_path.exists():
-        return
-    target = "aarch64-apple-darwin" if platform.system() == "Darwin" else None
-    try:
-        build_rust_component(
-            "depth_service",
-            ROOT / "depth_service" / "Cargo.toml",
-            bin_path,
-            target=target,
-        )
-    except Exception as exc:  # pragma: no cover - build errors are rare
-        hint = ""
-        if platform.system() == "Darwin":
-            hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
-        print(f"Failed to build depth_service: {exc}.{hint}")
-        print(
-            "You can retry by running 'cargo build --manifest-path depth_service/Cargo.toml --release' "
-            "and then re-running this program."
-        )
-        raise SystemExit(1)
-
-
-def ensure_protos() -> None:
-    """Ensure generated protobuf modules are up to date."""
-
-    script = ROOT / "scripts" / "check_protos.py"
-    result = subprocess.run([sys.executable, str(script)], cwd=ROOT)
-    if result.returncode == 0:
+        libpath = ROOT / "solhunter_zero" / libname
+        if libpath.exists():
+            return
+        try:
+            build_rust_component(
+                "route_ffi",
+                ROOT / "route_ffi" / "Cargo.toml",
+                libpath,
+            )
+        except Exception as exc:  # pragma: no cover - build errors are rare
+            print(f"Failed to build route_ffi: {exc}")
+            print(
+                "To retry the build, run 'cargo build --manifest-path route_ffi/Cargo.toml --release' "
+                "and re-run this program."
+            )
+            raise SystemExit(1)
         return
 
-    print("event_pb2.py is stale. Regenerating...")
-    try:
-        regen = ROOT / "scripts" / "gen_proto.py"
-        subprocess.check_call([sys.executable, str(regen)], cwd=ROOT)
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - rare
-        print(f"Failed to regenerate event_pb2.py: {exc}")
-        log_startup(f"Failed to regenerate event_pb2.py: {exc}")
-        raise SystemExit(1)
+    if name == "depth_service":
+        bin_path = ROOT / "target" / "release" / "depth_service"
+        if bin_path.exists():
+            return
+        target = "aarch64-apple-darwin" if platform.system() == "Darwin" else None
+        try:
+            build_rust_component(
+                "depth_service",
+                ROOT / "depth_service" / "Cargo.toml",
+                bin_path,
+                target=target,
+            )
+        except Exception as exc:  # pragma: no cover - build errors are rare
+            hint = ""
+            if platform.system() == "Darwin":
+                hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
+            print(f"Failed to build depth_service: {exc}.{hint}")
+            print(
+                "You can retry by running 'cargo build --manifest-path depth_service/Cargo.toml --release' "
+                "and then re-running this program."
+            )
+            raise SystemExit(1)
+        return
 
-    msg = "Regenerated event_pb2.py from proto/event.proto"
-    print(msg)
-    log_startup(msg)
+    if name == "protos":
+        script = ROOT / "scripts" / "check_protos.py"
+        result = subprocess.run([sys.executable, str(script)], cwd=ROOT)
+        if result.returncode == 0:
+            return
+
+        print("event_pb2.py is stale. Regenerating...")
+        try:
+            regen = ROOT / "scripts" / "gen_proto.py"
+            subprocess.check_call([sys.executable, str(regen)], cwd=ROOT)
+        except subprocess.CalledProcessError as exc:  # pragma: no cover - rare
+            print(f"Failed to regenerate event_pb2.py: {exc}")
+            log_startup(f"Failed to regenerate event_pb2.py: {exc}")
+            raise SystemExit(1)
+
+        msg = "Regenerated event_pb2.py from proto/event.proto"
+        print(msg)
+        log_startup(msg)
+        return
+
+    raise ValueError(f"unknown target: {name}")

@@ -68,8 +68,9 @@ sys.modules["solhunter_zero.config_utils"] = config_utils_mod
 
 # Dummy bootstrap module to simulate service launches
 bootstrap_mod = types.ModuleType("solhunter_zero.bootstrap")
-bootstrap_mod.ensure_route_ffi = lambda: print("Launching route-ffi")
-bootstrap_mod.ensure_depth_service = lambda: print("Launching depth-service")
+bootstrap_mod.ensure_target = (
+    lambda name: print("Launching route-ffi" if name == "route_ffi" else "Launching depth-service")
+)
 bootstrap_mod.bootstrap = lambda one_click=False: None
 sys.modules["solhunter_zero.bootstrap"] = bootstrap_mod
 
