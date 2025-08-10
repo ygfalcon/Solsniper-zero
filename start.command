@@ -2,5 +2,5 @@
 # macOS launcher wrapper.
 
 cd "$(dirname "$0")"
-exec ./run.sh "$@"
+exec ./start.py "$@"
 

@@ -13,8 +13,8 @@ def _script_lines(name: str) -> list[str]:
     return (REPO_ROOT / name).read_text().splitlines()
 
 
-def test_run_sh_invokes_launcher():
-    lines = _script_lines("run.sh")
+def test_start_command_invokes_launcher():
+    lines = _script_lines("start.command")
     assert any("start.py" in line for line in lines)
 
 

@@ -26,9 +26,8 @@ The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
 2. Run `python start.py` for a fully automated launch. This script delegates to
-   `solhunter_zero.launcher.main` and is the canonical entry point. You can also
-   run `./run.sh` to invoke the same entry point. On macOS double-click
-   `start.command`, which simply calls `run.sh` for a one-click start.
+   `solhunter_zero.launcher.main` and is the canonical entry point. On macOS
+   double-click `start.command` for a one-click start.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
@@ -155,7 +154,7 @@ profit calculation so routes are ranked based on the borrowed size.
     mkdir -p keypairs
     cp ~/my-keypair.json keypairs/main.json
     ```
-    Set `AUTO_SELECT_KEYPAIR=1` so `run.sh` and the Web UI pick the only
+    Set `AUTO_SELECT_KEYPAIR=1` so `start.py` and the Web UI pick the only
     available keypair automatically. When there is just one keypair in the
     `keypairs/` directory it will be selected on start. The `--one-click`
     option for `scripts/startup.py` sets `AUTO_SELECT_KEYPAIR=1` automatically.
@@ -167,7 +166,7 @@ profit calculation so routes are ranked based on the borrowed size.
     solhunter-wallet select mywallet
     ```
     Placing the resulting file in `keypairs/` and setting `AUTO_SELECT_KEYPAIR=1`
-    lets `run.sh` load it automatically.
+      lets `start.py` load it automatically.
 
     To set up a default wallet non-interactively, export `MNEMONIC` (and
     optional `PASSPHRASE`) then run:
