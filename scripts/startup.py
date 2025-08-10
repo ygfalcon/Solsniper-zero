@@ -603,6 +603,9 @@ def run(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
     if "--one-click" not in args_list:
         args_list.insert(0, "--one-click")
+    if "--full-deps" not in args_list:
+        idx = 1 if args_list and args_list[0] == "--one-click" else 0
+        args_list.insert(idx, "--full-deps")
     try:
         code = main(args_list)
     except SystemExit as exc:
