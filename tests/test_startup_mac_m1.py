@@ -60,13 +60,11 @@ def test_startup_mac_m1(monkeypatch, capsys):
     monkeypatch.setattr(startup, "ensure_wallet_cli", lambda: None)
     monkeypatch.setattr(startup, "ensure_rpc", lambda warn_only=False: None)
     monkeypatch.setattr(startup, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(startup, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup, "ensure_target", lambda name: None)
 
     from solhunter_zero import bootstrap, wallet
     monkeypatch.setattr(bootstrap, "bootstrap", lambda one_click=False: None)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
     monkeypatch.setattr(
         bootstrap, "ensure_config", lambda: (Path("config.toml"), {})

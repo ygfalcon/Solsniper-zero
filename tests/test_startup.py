@@ -121,8 +121,7 @@ def test_mac_startup_prereqs(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
     )
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
     startup.ensure_deps(ensure_wallet_cli=False)
 
     dummy_torch = types.SimpleNamespace(
@@ -299,8 +298,7 @@ def test_ensure_deps_installs_optional(monkeypatch):
         startup.bootstrap_utils, "_package_missing", lambda pkg: True
     )
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
 
     startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
@@ -328,8 +326,7 @@ def test_ensure_deps_warns_on_missing_optional(monkeypatch, capsys):
     monkeypatch.setattr(startup.deps, "check_deps", lambda: results.pop(0))
     monkeypatch.setattr(startup.bootstrap_utils, "_pip_install", lambda *a, **k: None)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
 
     startup.ensure_deps(ensure_wallet_cli=False)
     out = capsys.readouterr().out
@@ -375,8 +372,7 @@ def test_ensure_deps_installs_torch_metal(monkeypatch):
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
     )
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
     startup.ensure_deps(install_optional=True, ensure_wallet_cli=False)
 
     assert calls == [
@@ -432,8 +428,7 @@ def test_ensure_deps_requires_mps(monkeypatch):
         "solhunter_zero.macos_setup.prepare_macos_env", lambda non_interactive=True: {"success": True}
     )
     from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_target", lambda name: None)
     import importlib
     orig_find_spec = importlib.util.find_spec
 
@@ -695,8 +690,7 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr(bootstrap_mod, "bootstrap", lambda one_click=False: None)
 
     from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_target", lambda name: None)
     dummy_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setattr(bootstrap_mod.device, "torch", dummy_torch)
     monkeypatch.setattr(
@@ -705,13 +699,12 @@ def test_main_calls_ensure_endpoints(monkeypatch, capsys):
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
 
     from solhunter_zero import bootstrap as bootstrap_mod
-    monkeypatch.setattr(bootstrap_mod, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap_mod, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap_mod, "ensure_target", lambda name: None)
     monkeypatch.setattr(
         "solhunter_zero.macos_setup.ensure_tools", lambda: {"success": True}
     )
     monkeypatch.setattr("scripts.preflight.main", lambda: 0)
-    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(startup, "ensure_target", lambda name: None)
     monkeypatch.setattr(startup, "ensure_endpoints", lambda cfg: called.setdefault("endpoints", cfg))
     stub_torch = types.SimpleNamespace(set_default_device=lambda dev: None)
     monkeypatch.setitem(sys.modules, "torch", stub_torch)
@@ -944,8 +937,7 @@ def test_startup_sets_mps_device(monkeypatch):
     monkeypatch.setattr(bootstrap, "ensure_keypair", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: (Path("config.toml"), {}))
     monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
     monkeypatch.setattr(bootstrap.device, "torch", dummy_torch)
 
     bootstrap.bootstrap(one_click=True)
@@ -1155,8 +1147,7 @@ def test_bootstrap_aborts_on_low_balance(monkeypatch, tmp_path):
     monkeypatch.setattr(bootstrap, "ensure_venv", lambda *_: None)
     monkeypatch.setattr(bootstrap, "ensure_deps", lambda *_: None)
     monkeypatch.setattr(bootstrap, "ensure_cargo", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_route_ffi", lambda: None)
-    monkeypatch.setattr(bootstrap, "ensure_depth_service", lambda: None)
+    monkeypatch.setattr(bootstrap, "ensure_target", lambda name: None)
     monkeypatch.setattr(bootstrap.device, "initialize_gpu", lambda: None)
     monkeypatch.setattr(bootstrap, "ensure_config", lambda: (tmp_path / "c.toml", {}))
 

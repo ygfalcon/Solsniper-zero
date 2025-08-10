@@ -248,8 +248,8 @@ def ensure_deps(
         log_startup("Dependency marker present; skipping installation")
         from . import bootstrap as bootstrap_mod
 
-        bootstrap_mod.ensure_route_ffi()
-        bootstrap_mod.ensure_depth_service()
+        bootstrap_mod.ensure_target("route_ffi")
+        bootstrap_mod.ensure_target("depth_service")
         return
 
     req, opt = deps.check_deps()
@@ -272,8 +272,8 @@ def ensure_deps(
     if not need_install:
         from . import bootstrap as bootstrap_mod
 
-        bootstrap_mod.ensure_route_ffi()
-        bootstrap_mod.ensure_depth_service()
+        bootstrap_mod.ensure_target("route_ffi")
+        bootstrap_mod.ensure_target("depth_service")
         DEPS_MARKER.parent.mkdir(parents=True, exist_ok=True)
         DEPS_MARKER.write_text(
             json.dumps(
@@ -389,8 +389,8 @@ def ensure_deps(
             )
 
     from . import bootstrap as bootstrap_mod
-    bootstrap_mod.ensure_route_ffi()
-    bootstrap_mod.ensure_depth_service()
+    bootstrap_mod.ensure_target("route_ffi")
+    bootstrap_mod.ensure_target("depth_service")
 
     DEPS_MARKER.parent.mkdir(parents=True, exist_ok=True)
     DEPS_MARKER.write_text(

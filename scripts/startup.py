@@ -44,24 +44,10 @@ from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
+def ensure_target(name: str) -> None:
+    from solhunter_zero.build_utils import ensure_target as _ensure_target
 
-
-def ensure_route_ffi() -> None:
-    from solhunter_zero.build_utils import ensure_route_ffi as _ensure_route_ffi
-
-    _ensure_route_ffi()
-
-
-def ensure_depth_service() -> None:
-    from solhunter_zero.build_utils import ensure_depth_service as _ensure_depth_service
-
-    _ensure_depth_service()
-
-
-def ensure_protos() -> None:
-    from solhunter_zero.build_utils import ensure_protos as _ensure_protos
-
-    _ensure_protos()
+    _ensure_target(name)
 
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     script = Path(__file__).resolve()
@@ -391,16 +377,16 @@ def _main_impl(argv: list[str] | None = None) -> int:
         with Progress(console=console, transient=True) as progress:
             with ThreadPoolExecutor() as executor:
                 task_map = {
-                    executor.submit(ensure_deps, install_optional=args.full_deps): progress.add_task(
-                        "Installing dependencies...", total=1
-                    ),
-                    executor.submit(ensure_protos): progress.add_task(
+                    executor.submit(
+                        ensure_deps, install_optional=args.full_deps
+                    ): progress.add_task("Installing dependencies...", total=1),
+                    executor.submit(ensure_target, "protos"): progress.add_task(
                         "Generating protos...", total=1
                     ),
-                    executor.submit(ensure_route_ffi): progress.add_task(
+                    executor.submit(ensure_target, "route_ffi"): progress.add_task(
                         "Building route FFI...", total=1
                     ),
-                    executor.submit(ensure_depth_service): progress.add_task(
+                    executor.submit(ensure_target, "depth_service"): progress.add_task(
                         "Building depth service...", total=1
                     ),
                 }
