@@ -545,11 +545,22 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     proc = subprocess.run(
-        [sys.executable, "scripts/start_all.py", *rest]
+        [sys.executable, "scripts/start_all.py", *rest],
+        capture_output=True,
+        text=True,
     )
 
     if proc.returncode == 0:
         msg = "SolHunter Zero launch complete – system ready."
+        print(msg)
+        log_startup(msg)
+    else:
+        sys.stdout.write(proc.stdout)
+        sys.stderr.write(proc.stderr)
+        for line in (proc.stdout + proc.stderr).splitlines():
+            if line:
+                log_startup(line)
+        msg = f"SolHunter Zero startup failed with exit code {proc.returncode}"
         print(msg)
         log_startup(msg)
 
