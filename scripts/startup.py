@@ -391,7 +391,15 @@ def _main_impl(argv: list[str] | None = None) -> int:
                     ),
                 }
                 for future in as_completed(task_map):
-                    progress.advance(task_map[future])
+                    task_id = task_map[future]
+                    task_desc = progress.tasks[task_id].description
+                    try:
+                        future.result()
+                        progress.advance(task_id)
+                    except Exception as exc:  # pragma: no cover - defensive
+                        progress.update(task_id, description=f"{task_desc} [failed]", advance=1)
+                        console.print(f"[red]{task_desc} failed: {exc}[/]")
+                        return 1
         console.print("[green]Dependencies installed[/]")
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:

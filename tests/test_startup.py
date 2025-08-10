@@ -19,6 +19,54 @@ def test_startup_help():
     assert 'usage' in out
 
 
+def test_startup_task_failure(monkeypatch, capsys):
+    import types, sys
+    from pathlib import Path
+
+    dummy_wallet = types.SimpleNamespace(
+        KEYPAIR_DIR=str(Path(".")),
+        setup_default_keypair=lambda: types.SimpleNamespace(name="test", mnemonic_path=Path("mn")),
+        KeypairInfo=types.SimpleNamespace,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    from scripts import startup
+    from solhunter_zero import preflight_utils
+
+    monkeypatch.setattr(preflight_utils, "check_disk_space", lambda *a, **k: (True, "ok"))
+    monkeypatch.setattr(startup, "ensure_deps", lambda install_optional=False: None)
+    monkeypatch.setattr(startup, "ensure_protos", lambda: None)
+    monkeypatch.setattr(startup, "ensure_depth_service", lambda: None)
+
+    def boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(startup, "ensure_route_ffi", boom)
+
+    code = startup.main([
+        "--skip-setup",
+        "--skip-preflight",
+        "--skip-rpc-check",
+        "--skip-endpoint-check",
+        "--no-diagnostics",
+    ])
+
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "Building route FFI" in out
+    assert "failed" in out.lower()
+
+
 def test_startup_repair_clears_markers(monkeypatch, capsys):
     import platform
     import types, sys
