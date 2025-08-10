@@ -26,8 +26,10 @@ The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
 2. Run `python start.py` for a fully automated launch. This script delegates to
-   `solhunter_zero.launcher.main` and is the canonical entry point. On macOS
-   double-click `start.command` for a one-click start.
+   `solhunter_zero.launcher.main` and is the canonical entry point. It injects
+   `--one-click` and `--full-deps` by default; pass `--no-one-click` or
+   `--no-full-deps` to disable these flags. On macOS double-click `start.command`
+   for a one-click start.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.

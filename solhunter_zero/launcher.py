@@ -9,9 +9,12 @@ script so that all entry points invoke the same Python-based logic.
 * Sets ``RAYON_NUM_THREADS`` based on the CPU count.
 * On macOS re-execs via ``arch -arm64`` to ensure native arm64 binaries.
 * Delegates all arguments to ``scripts/startup.py``.
+* Automatically inserts ``--one-click`` and ``--full-deps`` unless
+  ``--no-one-click`` or ``--no-full-deps`` are supplied.
 """
 from __future__ import annotations
 
+import argparse
 import os
 import platform
 import shutil
@@ -163,6 +166,24 @@ from solhunter_zero.system import set_rayon_threads  # noqa: E402
 def main(argv: list[str] | None = None) -> NoReturn:
     argv = sys.argv[1:] if argv is None else argv
 
+    parser = argparse.ArgumentParser(
+        add_help=False,
+        description="SolHunter Zero launcher",
+    )
+    parser.add_argument(
+        "--no-one-click",
+        action="store_true",
+        help="Do not automatically add --one-click",
+    )
+    parser.add_argument(
+        "--no-full-deps",
+        action="store_true",
+        help="Do not automatically add --full-deps",
+    )
+    args, argv = parser.parse_known_args(argv)
+    if any(flag in argv for flag in ("-h", "--help")):
+        parser.print_help()
+
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
     try:
@@ -177,9 +198,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
             raise SystemExit(1) from None
         raise
 
-    if "--one-click" not in argv:
+    if not args.no_one_click and "--one-click" not in argv:
         argv.insert(0, "--one-click")
-    if "--full-deps" not in argv:
+    if not args.no_full_deps and "--full-deps" not in argv:
         idx = 1 if argv and argv[0] == "--one-click" else 0
         argv.insert(idx, "--full-deps")
 

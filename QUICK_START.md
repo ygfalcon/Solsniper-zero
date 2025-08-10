@@ -3,7 +3,9 @@
  - A default keypair (`keypairs/default.json`) and configuration (`config.toml`) are bundled for immediate runs.
  - To customize, copy `config/default.toml` to `config.toml` and edit the values.
  - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
- - Use `solhunter-start` to launch the same startup routine with `--one-click` by default while still accepting additional flags.
+ - Use `solhunter-start` to launch the same startup routine with `--one-click`
+   and `--full-deps` added automatically. Disable either default with
+   `--no-one-click` or `--no-full-deps`.
 - Run `python start.py --auto` for a fully automated launch. On macOS, double-click `start.command --auto` for the same effect. It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
 - `scripts/quick_setup.py --auto` populates `config.toml` with defaults. Use `--non-interactive` to rely on environment variables only. Set `AUTO_SELECT_KEYPAIR=1` to have the sole keypair chosen without prompts.
 - On macOS, run `scripts/mac_setup.py` to install the Xcode command line tools if needed. The script exits after starting the installation; rerun it once the tools are installed before continuing.

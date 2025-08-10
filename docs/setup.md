@@ -56,7 +56,7 @@
    pip install .[fastcompress]
    ```
 
-For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
+For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` and `--full-deps` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization. Disable these defaults with `--no-one-click` or `--no-full-deps`.
 
 On macOS, double-click `start.command` (or run `python start.py` from Terminal) for a one-click launch that executes the same Python entry point.
 
