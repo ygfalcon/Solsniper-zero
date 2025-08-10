@@ -5,7 +5,7 @@ See [QUICK_START.md](QUICK_START.md) for a condensed setup guide.
 
 This project is targeted towards being the greatest Solana bot ever created and built by a mad genius known only as zero
 
-For a quick preview across all bundled strategies, double-click `demo.command`
+For a quick preview across all bundled strategies, double-click `demo.command` (a thin wrapper over `scripts/wrap.sh`)
 (or run `python demo.py`) to generate sample reports without additional
 setup. The sample metrics in [docs/demo_full_sample.md](docs/demo_full_sample.md)
 show the expected output, and the integration test
@@ -27,7 +27,7 @@ The default workflow is intentionally simple:
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
 2. Run `python start.py` for a fully automated launch. This script delegates to
    `solhunter_zero.launcher.main` and is the canonical entry point. On macOS
-   double-click `start.command` for a one-click start.
+   double-click `start.command`, which sources `scripts/wrap.sh`, for a one-click start.
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
