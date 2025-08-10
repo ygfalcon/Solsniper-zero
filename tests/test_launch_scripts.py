@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -34,6 +35,34 @@ def test_start_py_invokes_launcher(tmp_path):
 
     subprocess.run([sys.executable, str(tmp_start), "EXTRA"], check=True)
 
+    assert called.read_text().split() == ["EXTRA"]
+
+
+def test_start_command_executes_launcher(tmp_path):
+    cmd_src = REPO_ROOT / "start.command"
+    py_src = REPO_ROOT / "start.py"
+
+    tmp_cmd = tmp_path / "start.command"
+    tmp_py = tmp_path / "start.py"
+    tmp_cmd.write_text(cmd_src.read_text())
+    tmp_py.write_text(py_src.read_text())
+    tmp_cmd.chmod(0o755)
+    tmp_py.chmod(0o755)
+
+    called = tmp_path / "called.txt"
+    stub = tmp_path / "solhunter_zero" / "launcher.py"
+    stub.parent.mkdir()
+    stub.write_text(
+        "import sys, pathlib\n"
+        f"def main(argv=None):\n    pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
+    )
+    stub.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(tmp_path)
+    proc = subprocess.run([str(tmp_cmd), "EXTRA"], cwd=tmp_path, env=env)
+
+    assert proc.returncode == 0
     assert called.read_text().split() == ["EXTRA"]
 
 
