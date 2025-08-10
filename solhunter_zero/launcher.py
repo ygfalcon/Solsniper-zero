@@ -139,12 +139,6 @@ def main(argv: list[str] | None = None) -> NoReturn:
             raise SystemExit(1) from None
         raise
 
-    if "--one-click" not in argv:
-        argv.insert(0, "--one-click")
-    if "--full-deps" not in argv:
-        idx = 1 if argv and argv[0] == "--one-click" else 0
-        argv.insert(idx, "--full-deps")
-
     python_exe = sys.executable
     startup = ROOT / "scripts" / "startup.py"
     cmd = [python_exe, str(startup), *argv]

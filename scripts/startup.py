@@ -197,7 +197,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--full-deps",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Install optional dependencies",
     )
     parser.add_argument(
@@ -230,7 +231,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--one-click",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Enable fully automated non-interactive startup",
     )
     parser.add_argument(
@@ -597,8 +599,6 @@ def main(argv: list[str] | None = None) -> int:
 
 def run(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
-    if "--one-click" not in args_list:
-        args_list.insert(0, "--one-click")
     try:
         code = main(args_list)
     except SystemExit as exc:
