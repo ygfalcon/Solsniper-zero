@@ -9,20 +9,17 @@ import argparse
 import os
 import platform
 import subprocess
-import shutil
 import contextlib
 import io
 from pathlib import Path
-import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from solhunter_zero.paths import ROOT
 
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
-import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero import preflight_utils  # noqa: E402
-from solhunter_zero.config import apply_env_overrides, load_config
+from solhunter_zero.config import load_config
 from solhunter_zero.bootstrap_utils import (
     ensure_deps,
     ensure_venv,
@@ -36,30 +33,20 @@ from solhunter_zero.logging_utils import (
     rotate_preflight_log,
 )  # noqa: E402
 
+from scripts.checks import ensure_rpc, ensure_cargo, disk_space_required_bytes
+from scripts.wallet_setup import (
+    ensure_wallet_cli,
+    log_startup_info,
+    run_quick_setup,
+)
+from scripts.launch import install_dependencies
+
 from rich.console import Console
 from rich.progress import Progress
 from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
-
-
-def ensure_route_ffi() -> None:
-    from solhunter_zero.build_utils import ensure_route_ffi as _ensure_route_ffi
-
-    _ensure_route_ffi()
-
-
-def ensure_depth_service() -> None:
-    from solhunter_zero.build_utils import ensure_depth_service as _ensure_depth_service
-
-    _ensure_depth_service()
-
-
-def ensure_protos() -> None:
-    from solhunter_zero.build_utils import ensure_protos as _ensure_protos
-
-    _ensure_protos()
 
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     script = Path(__file__).resolve()
@@ -79,108 +66,6 @@ env_config.configure_environment(ROOT)
 from solhunter_zero import device  # noqa: E402
 
 
-def ensure_wallet_cli() -> None:
-    """Ensure the ``solhunter-wallet`` CLI is available."""
-
-    if shutil.which("solhunter-wallet") is not None:
-        return
-
-    console.print(
-        "[yellow]'solhunter-wallet' command not found. Attempting installation via pip...[/]"
-    )
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "solhunter-wallet"],
-        text=True,
-    )
-    if result.returncode != 0 or shutil.which("solhunter-wallet") is None:
-        console.print(
-            "[red]Failed to install 'solhunter-wallet'. Please install it manually with 'pip install solhunter-wallet' and re-run.[/]"
-        )
-        raise SystemExit(1)
-
-
-def log_startup_info(*, config_path: Path | None = None, keypair_path: Path | None = None,
-                     mnemonic_path: Path | None = None, active_keypair: str | None = None) -> None:
-    """Append startup details to ``startup.log``."""
-
-    lines: list[str] = []
-    if config_path:
-        lines.append(f"Config path: {config_path}")
-    if keypair_path:
-        lines.append(f"Keypair path: {keypair_path}")
-    if mnemonic_path:
-        lines.append(f"Mnemonic path: {mnemonic_path}")
-    if active_keypair:
-        lines.append(f"Active keypair: {active_keypair}")
-    if not lines:
-        return
-    for line in lines:
-        log_startup(line)
-
-
-def run_quick_setup() -> str | None:
-    """Run the quick setup non-interactively and return new config path."""
-    try:
-        from scripts import quick_setup
-        from solhunter_zero.config import find_config_file
-
-        quick_setup.main(["--auto", "--non-interactive"])
-        return find_config_file()
-    except Exception:
-        return None
-def ensure_rpc(*, warn_only: bool = False) -> None:
-    """Send a simple JSON-RPC request to ensure the Solana RPC is reachable."""
-    rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
-    if not os.environ.get("SOLANA_RPC_URL"):
-        print(f"Using default RPC URL {rpc_url}")
-
-    import json
-    import urllib.request
-    import time
-
-    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "getHealth"}).encode()
-    req = urllib.request.Request(
-        rpc_url, data=payload, headers={"Content-Type": "application/json"}
-    )
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
-                resp.read()
-                break
-        except Exception as exc:  # pragma: no cover - network failure
-            if attempt == 2:
-                msg = (
-                    f"Failed to contact Solana RPC at {rpc_url} after 3 attempts: {exc}."
-                    " Please ensure the endpoint is reachable or set SOLANA_RPC_URL to a valid RPC."
-                )
-                if warn_only:
-                    print(f"Warning: {msg}")
-                    return
-                print(msg)
-                raise SystemExit(1)
-            wait = 2**attempt
-            print(
-                f"Attempt {attempt + 1} failed to contact Solana RPC at {rpc_url}: {exc}.",
-                f" Retrying in {wait} seconds...",
-            )
-            time.sleep(wait)
-
-
-def ensure_cargo() -> None:
-    """Wrapper around :func:`bootstrap_utils.ensure_cargo` that syncs ROOT."""
-    bootstrap_utils.ROOT = ROOT
-    bootstrap_utils.ensure_cargo()
-
-
-def _disk_space_required_bytes() -> int:
-    """Return the minimum free bytes required based on configuration."""
-
-    try:
-        cfg = apply_env_overrides(load_config())
-        limit_gb = float(cfg.get("offline_data_limit_gb", 50))
-    except Exception:
-        limit_gb = 50
-    return int(limit_gb * (1024 ** 3))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -251,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args, rest = parser.parse_known_args(argv)
 
-    disk_required = _disk_space_required_bytes()
+    disk_required = disk_space_required_bytes()
 
     # Track status for summary table
     disk_status = "unknown"
@@ -424,25 +309,10 @@ def main(argv: list[str] | None = None) -> int:
         rest = ["--non-interactive", *rest]
 
     if not args.skip_deps:
-        with Progress(console=console, transient=True) as progress:
-            with ThreadPoolExecutor() as executor:
-                task_map = {
-                    executor.submit(ensure_deps, install_optional=args.full_deps): progress.add_task(
-                        "Installing dependencies...", total=1
-                    ),
-                    executor.submit(ensure_protos): progress.add_task(
-                        "Generating protos...", total=1
-                    ),
-                    executor.submit(ensure_route_ffi): progress.add_task(
-                        "Building route FFI...", total=1
-                    ),
-                    executor.submit(ensure_depth_service): progress.add_task(
-                        "Building depth service...", total=1
-                    ),
-                }
-                for future in as_completed(task_map):
-                    progress.advance(task_map[future])
-        console.print("[green]Dependencies installed[/]")
+        install_dependencies(
+            install_optional=args.full_deps,
+            ensure_deps_func=ensure_deps,
+        )
     os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
     if args.skip_setup or args.one_click:
         os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
