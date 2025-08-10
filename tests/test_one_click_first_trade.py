@@ -33,6 +33,7 @@ sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
 
 env_config_mod = types.ModuleType("solhunter_zero.env_config")
 env_config_mod.configure_environment = lambda root: {}
+env_config_mod.configure_startup_env = lambda root: {}
 sys.modules["solhunter_zero.env_config"] = env_config_mod
 
 device_mod = types.ModuleType("solhunter_zero.device")
@@ -48,12 +49,9 @@ system_mod.set_rayon_threads = lambda: None
 system_mod.detect_cpu_count = lambda: 1
 sys.modules["solhunter_zero.system"] = system_mod
 
+# Minimal stubs for pydantic and main module to avoid heavy imports
 pydantic_mod = types.SimpleNamespace(
-    BaseModel=type(
-        "DummyBaseModel",
-        (),
-        {"__init__": lambda self, **d: self.__dict__.update(d), "dict": lambda self, *a, **k: self.__dict__},
-    ),
+    BaseModel=object,
     AnyUrl=str,
     ValidationError=Exception,
     root_validator=lambda *a, **k: (lambda f: f),
@@ -62,6 +60,34 @@ pydantic_mod = types.SimpleNamespace(
     model_validator=lambda *a, **k: (lambda f: f),
 )
 sys.modules.setdefault("pydantic", pydantic_mod)
+
+main_mod = types.ModuleType("solhunter_zero.main")
+
+class _Trade:
+    def __init__(self, token, side, amount, price):
+        self.token = token
+        self.side = side
+        self.amount = amount
+        self.price = price
+
+
+class _Memory:
+    def __init__(self, _):
+        self._trades = []
+
+    async def log_trade(self, token, side, amount, price):
+        self._trades.append(_Trade(token, side, amount, price))
+
+    async def list_trades(self):
+        return self._trades
+
+
+async def _run_auto(**kwargs):
+    return 0
+
+main_mod.Memory = _Memory
+main_mod.run_auto = _run_auto
+sys.modules["solhunter_zero.main"] = main_mod
 
 
 def load_launcher():

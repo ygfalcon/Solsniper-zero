@@ -158,7 +158,7 @@ log_startup(f"Virtual environment: {sys.prefix}")
 
 import solhunter_zero.env_config as env_config  # noqa: E402
 
-env_config.configure_environment(ROOT)
+env_config.configure_startup_env(ROOT)
 from solhunter_zero import device  # noqa: E402
 
 from solhunter_zero.system import set_rayon_threads  # noqa: E402

@@ -35,6 +35,7 @@ sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
 
 env_config_mod = types.ModuleType("solhunter_zero.env_config")
 env_config_mod.configure_environment = lambda root: {}
+env_config_mod.configure_startup_env = lambda root: {}
 sys.modules["solhunter_zero.env_config"] = env_config_mod
 
 device_mod = types.ModuleType("solhunter_zero.device")
@@ -44,6 +45,7 @@ sys.modules["solhunter_zero.device"] = device_mod
 
 system_mod = types.ModuleType("solhunter_zero.system")
 system_mod.set_rayon_threads = lambda: None
+system_mod.detect_cpu_count = lambda: 1
 sys.modules["solhunter_zero.system"] = system_mod
 
 

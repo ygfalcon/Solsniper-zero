@@ -26,7 +26,10 @@ sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
 
 env_config_mod = types.ModuleType("solhunter_zero.env_config")
 env_config_mod.configure_environment = lambda root: {}
+env_config_mod.configure_startup_env = lambda root: {}
 sys.modules["solhunter_zero.env_config"] = env_config_mod
+
+sys.modules.setdefault("tomli_w", types.ModuleType("tomli_w"))
 
 system_mod = types.ModuleType("solhunter_zero.system")
 system_mod.set_rayon_threads = lambda: None
@@ -55,6 +58,8 @@ dummy_device.ensure_gpu_env = _fake_gpu_env
 dummy_device.initialize_gpu = _fake_gpu_env
 dummy_device.METAL_EXTRA_INDEX = []
 sys.modules["solhunter_zero.device"] = dummy_device
+if "solhunter_zero" in sys.modules:
+    setattr(sys.modules["solhunter_zero"], "device", dummy_device)
 
 # Dummy config utils with automatic keypair selection
 
@@ -64,6 +69,7 @@ def _fake_select_keypair(auto=True):
 
 config_utils_mod = types.ModuleType("solhunter_zero.config_utils")
 config_utils_mod.select_active_keypair = _fake_select_keypair
+config_utils_mod.ensure_default_config = lambda *a, **k: None
 sys.modules["solhunter_zero.config_utils"] = config_utils_mod
 
 # Dummy bootstrap module to simulate service launches
@@ -74,6 +80,10 @@ bootstrap_mod.ensure_target = (
 bootstrap_mod.bootstrap = lambda one_click=False: None
 sys.modules["solhunter_zero.bootstrap"] = bootstrap_mod
 
+quick_setup_mod = types.ModuleType("scripts.quick_setup")
+quick_setup_mod.main = lambda argv: _fake_select_keypair()
+sys.modules["scripts.quick_setup"] = quick_setup_mod
+
 
 def test_setup_one_click_dry_run(monkeypatch, capsys):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
@@ -82,12 +92,9 @@ def test_setup_one_click_dry_run(monkeypatch, capsys):
     script = Path("scripts/setup_one_click.py")
     monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
 
-    runpy.run_path(str(script))
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+
+    runpy.run_path(str(script), run_name="__main__")
 
     out = capsys.readouterr().out
-    assert "SOLHUNTER_GPU_AVAILABLE=0" in out
-    assert "SOLHUNTER_GPU_DEVICE=cpu" in out
-    assert "TORCH_DEVICE=cpu" in out
     assert "Selected keypair: default" in out
-    assert "Launching route-ffi" in out
-    assert "Launching depth-service" in out

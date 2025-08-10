@@ -14,7 +14,13 @@ from .config import ENV_VARS
 from .env_defaults import DEFAULTS
 from .paths import ROOT
 
-__all__ = ["configure_environment", "report_env_changes"]
+__all__ = [
+    "configure_environment",
+    "configure_startup_env",
+    "report_env_changes",
+]
+
+_startup_env: dict[str, str] | None = None
 
 
 def configure_environment(root: Path | None = None) -> dict[str, str]:
@@ -159,6 +165,19 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         log_startup(f"{key}: {value}")
 
     return applied
+
+
+def configure_startup_env(root: Path | None = None) -> dict[str, str]:
+    """Configure the environment once during startup.
+
+    Subsequent calls return the mapping from the initial invocation without
+    reapplying configuration.
+    """
+
+    global _startup_env
+    if _startup_env is None:
+        _startup_env = configure_environment(root)
+    return _startup_env
 
 
 def report_env_changes(
