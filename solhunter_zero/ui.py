@@ -959,6 +959,7 @@ HTML_PAGE = """
     <button id='stop' class='action-btn'>
         <i class="fa-solid fa-stop"></i> Stop
     </button>
+    <a href="/startup" class="action-btn" target="_blank">View Logs</a>
     <select id='keypair_select'></select>
     <pre id='status_info'></pre>
     <pre id='logs'></pre>
@@ -1302,10 +1303,47 @@ HTML_PAGE = """
 </html>
 """
 
+STARTUP_PAGE = """
+<!doctype html>
+<html>
+<head>
+    <title>Startup Logs</title>
+    <style>
+        body {font-family: monospace;}
+        pre {height: 100vh; overflow-y: scroll;}
+    </style>
+</head>
+<body>
+<pre id="logs">{{ logs|join('\n') }}</pre>
+<script>
+let idx = {{ logs|length }};
+function poll() {
+    fetch('/logs').then(r => r.json()).then(data => {
+        const el = document.getElementById('logs');
+        const lines = data.logs.slice(idx);
+        if (lines.length) {
+            el.textContent += lines.join('\n') + '\n';
+            el.scrollTop = el.scrollHeight;
+            idx = data.logs.length;
+        }
+    }).catch(() => {});
+}
+setInterval(poll, 1000);
+</script>
+</body>
+</html>
+"""
+
 
 @bp.route("/")
 def index() -> str:
     return render_template_string(HTML_PAGE)
+
+
+@bp.route("/startup")
+def startup() -> str:
+    """Render buffered startup log lines."""
+    return render_template_string(STARTUP_PAGE, logs=list(log_buffer))
 
 
 async def _rl_ws_handler(ws):
