@@ -5,6 +5,7 @@ This script mirrors the behaviour of the previous ``start.command`` shell
 script so that all entry points invoke the same Python-based logic.
 
 * Uses ``.venv`` if present.
+* Caches the detected Python interpreter for faster startups.
 * Sets ``RAYON_NUM_THREADS`` based on the CPU count.
 * On macOS re-execs via ``arch -arm64`` to ensure native arm64 binaries.
 * Delegates all arguments to ``scripts/startup.py``.
@@ -45,10 +46,49 @@ def find_python() -> str:
     search common locations including ``.venv`` and system ``PATH``. On macOS
     ``solhunter_zero.macos_setup.prepare_macos_env`` is invoked once to provision
     the interpreter and required toolchain.
+
+    The resolved path is cached in ``.cache/python-exe`` and the
+    ``SOLHUNTER_PYTHON`` environment variable. Pass ``--repair`` or set
+    ``SOLHUNTER_REPAIR`` to ignore any cached value.
     """
 
+    cache_env = "SOLHUNTER_PYTHON"
+    cache_dir = ROOT / ".cache"
+    cache_file = cache_dir / "python-exe"
+
+    repair = "--repair" in sys.argv or bool(os.environ.get("SOLHUNTER_REPAIR"))
+    if "--repair" in sys.argv:
+        sys.argv.remove("--repair")
+    if repair:
+        try:
+            cache_file.unlink()
+        except FileNotFoundError:
+            pass
+
+    def _finalize(path: str) -> str:
+        os.environ[cache_env] = path
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(path)
+        except OSError:
+            pass
+        return path
+
     if _check_python(sys.executable):
-        return sys.executable
+        return _finalize(sys.executable)
+
+    if not repair:
+        env_path = os.environ.get(cache_env)
+        if env_path and _check_python(env_path):
+            return _finalize(env_path)
+        if cache_file.exists():
+            cached = cache_file.read_text().strip()
+            if _check_python(cached):
+                return _finalize(cached)
+            try:
+                cache_file.unlink()
+            except FileNotFoundError:
+                pass
 
     candidates: list[str] = []
 
@@ -68,7 +108,7 @@ def find_python() -> str:
 
     for candidate in candidates:
         if _check_python(candidate):
-            return candidate
+            return _finalize(candidate)
 
     if platform.system() == "Darwin":
         try:
@@ -84,7 +124,7 @@ def find_python() -> str:
             for name in ("python3.11", "python3", "python"):
                 path = shutil.which(name)
                 if path and _check_python(path):
-                    return path
+                    return _finalize(path)
 
     message = "Python 3.11 or higher is required."
     if platform.system() == "Darwin":
