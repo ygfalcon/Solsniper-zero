@@ -171,7 +171,7 @@ def ensure_connectivity(*, offline: bool = False) -> None:
     if offline:
         return
 
-    from scripts.startup import ensure_rpc as _ensure_rpc
+    from solhunter_zero.rpc_utils import ensure_rpc as _ensure_rpc
     from .dex_ws import stream_listed_tokens
 
     _ensure_rpc()
