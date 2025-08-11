@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from solhunter_zero.util import run_coro
+from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from tests import stubs
 
 
@@ -25,6 +26,7 @@ def test_paper_cli(tmp_path: Path, monkeypatch, capsys) -> None:
 
     mem = TrackingMemory()
     monkeypatch.setattr(paper, "SyncMemory", lambda: mem)
+    monkeypatch.setattr(paper, "fetch_live_ticks", lambda: load_sample_ticks())
 
     paper.run(["--reports", str(reports)])
     out = capsys.readouterr().out

@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
+from solhunter_zero.datasets.live_ticks import fetch_live_ticks
 from solhunter_zero.simple_memory import SimpleMemory
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 
@@ -34,10 +35,29 @@ def run(argv: list[str] | None = None) -> None:
         default=Path("reports"),
         help="Directory to write ROI summaries",
     )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--live",
+        dest="live",
+        action="store_true",
+        default=True,
+        help="Fetch live price history (default)",
+    )
+    group.add_argument(
+        "--offline",
+        dest="live",
+        action="store_false",
+        help="Use bundled sample price history",
+    )
     args = parser.parse_args(argv)
     args.reports.mkdir(parents=True, exist_ok=True)
 
-    ticks = load_sample_ticks()
+    if args.live:
+        ticks = fetch_live_ticks()
+        if not ticks:
+            ticks = load_sample_ticks()
+    else:
+        ticks = load_sample_ticks()
     mem = SyncMemory()
     first, last = ticks[0]["price"], ticks[-1]["price"]
     mem.log_trade(token="DEMO", direction="buy", amount=1.0, price=first, reason="demo")
