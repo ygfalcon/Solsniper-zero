@@ -19,6 +19,68 @@ def test_startup_help():
     assert 'usage' in out
 
 
+def test_startup_respects_quiet_env(monkeypatch):
+    """No log file is created when SOLHUNTER_QUIET is set."""
+    repo_root = Path(__file__).resolve().parent.parent
+    log_path = repo_root / "logs" / "startup.log"
+    if log_path.exists():
+        log_path.unlink()
+
+    monkeypatch.setenv("SOLHUNTER_QUIET", "1")
+    import types, importlib, sys
+    dummy_wallet = types.SimpleNamespace(
+        KEYPAIR_DIR=str(Path(".")),
+        setup_default_keypair=lambda: types.SimpleNamespace(name="test"),
+        KeypairInfo=types.SimpleNamespace,
+    )
+    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+    dummy_crypto = types.ModuleType("cryptography")
+    dummy_fernet = types.ModuleType("cryptography.fernet")
+    monkeypatch.setitem(sys.modules, "cryptography", dummy_crypto)
+    monkeypatch.setitem(sys.modules, "cryptography.fernet", dummy_fernet)
+    dummy_rich = types.ModuleType("rich")
+    dummy_console_mod = types.ModuleType("rich.console")
+    dummy_console_mod.Console = lambda *a, **k: types.SimpleNamespace(print=lambda *a, **k: None)
+    dummy_progress_mod = types.ModuleType("rich.progress")
+    dummy_progress_mod.Progress = lambda *a, **k: types.SimpleNamespace(
+        __enter__=lambda self: self,
+        __exit__=lambda self, exc_type, exc, tb: False,
+        add_task=lambda *a, **k: 0,
+        advance=lambda *a, **k: None,
+    )
+    dummy_panel_mod = types.ModuleType("rich.panel")
+    dummy_panel_mod.Panel = object
+    dummy_table_mod = types.ModuleType("rich.table")
+    dummy_table_mod.Table = object
+    dummy_rich.console = dummy_console_mod
+    dummy_rich.progress = dummy_progress_mod
+    dummy_rich.panel = dummy_panel_mod
+    dummy_rich.table = dummy_table_mod
+    monkeypatch.setitem(sys.modules, "rich", dummy_rich)
+    monkeypatch.setitem(sys.modules, "rich.console", dummy_console_mod)
+    monkeypatch.setitem(sys.modules, "rich.progress", dummy_progress_mod)
+    monkeypatch.setitem(sys.modules, "rich.panel", dummy_panel_mod)
+    monkeypatch.setitem(sys.modules, "rich.table", dummy_table_mod)
+
+    startup = importlib.reload(importlib.import_module("scripts.startup"))
+    startup.log_startup("quiet test")
+    assert not log_path.exists()
+
+    # Reload without the quiet flag to restore state for other tests
+    monkeypatch.delenv("SOLHUNTER_QUIET", raising=False)
+    importlib.reload(startup)
+
+
 def test_startup_task_failure(monkeypatch, capsys):
     import types, sys
     from pathlib import Path

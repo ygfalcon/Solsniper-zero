@@ -18,6 +18,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from solhunter_zero.paths import ROOT
 
+# Logging must be configured before importing modules that may write to logs.
+import solhunter_zero.logging_utils as logging_utils
+
+if os.environ.get("SOLHUNTER_QUIET"):
+    logging_utils.log_startup = lambda *a, **k: None
+else:
+    logging_utils.setup_logging("startup", path=logging_utils.STARTUP_LOG)
+    logging_utils.setup_logging("preflight")
+
+log_startup = logging_utils.log_startup
+rotate_preflight_log = logging_utils.rotate_preflight_log
+STARTUP_LOG = logging_utils.STARTUP_LOG
+
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
@@ -29,13 +42,6 @@ from solhunter_zero.bootstrap_utils import (
     ensure_endpoints,
 )
 from solhunter_zero.rpc_utils import ensure_rpc
-
-from solhunter_zero.logging_utils import (
-    log_startup,
-    setup_logging,
-    rotate_preflight_log,
-    STARTUP_LOG,
-)  # noqa: E402
 
 from rich.console import Console
 from rich.progress import Progress
@@ -59,9 +65,6 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
             "Please use 'python start.py'."
         )
         raise SystemExit(msg)
-
-setup_logging("startup", path=STARTUP_LOG)
-setup_logging("preflight")
 from solhunter_zero import device  # noqa: E402
 
 
