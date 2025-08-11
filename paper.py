@@ -8,33 +8,11 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from solhunter_zero.simple_memory import SimpleMemory
-
-try:  # Prefer the packaged analyzer when available
-    from solhunter_zero.trade_analyzer import TradeAnalyzer  # type: ignore
-except Exception:  # pragma: no cover - minimal fallback
-    class TradeAnalyzer:  # type: ignore[override]
-        def __init__(self, memory: SimpleMemory) -> None:
-            self.memory = memory
-
-        def roi_by_agent(self) -> dict[str, float]:
-            trades = self.memory.list_trades(limit=1000)
-            summary: dict[str, dict[str, float]] = {}
-            for t in trades:
-                name = str(t.get("reason") or "")
-                info = summary.setdefault(name, {"buy": 0.0, "sell": 0.0})
-                info[str(t.get("direction"))] += float(t.get("amount", 0)) * float(
-                    t.get("price", 0)
-                )
-            rois = {}
-            for name, info in summary.items():
-                spent = info.get("buy", 0.0)
-                revenue = info.get("sell", 0.0)
-                if spent > 0:
-                    rois[name] = (revenue - spent) / spent
-            return rois
+from solhunter_zero.trade_analyzer import TradeAnalyzer
 
 
 class SyncMemory(SimpleMemory):
@@ -44,7 +22,8 @@ class SyncMemory(SimpleMemory):
         return asyncio.run(super().log_trade(**kwargs))
 
     def list_trades(self, *args, **kwargs):  # type: ignore[override]
-        return asyncio.run(super().list_trades(*args, **kwargs))
+        trades = asyncio.run(super().list_trades(*args, **kwargs))
+        return [SimpleNamespace(**t) for t in trades]
 
 
 def run(argv: list[str] | None = None) -> None:
