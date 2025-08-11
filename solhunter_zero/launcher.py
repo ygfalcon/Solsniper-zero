@@ -25,6 +25,25 @@ from .python_env import find_python
 
 FAST_MODE = False
 
+# Default flags automatically added when launching.
+# They mirror the behaviour of the original ``start.command`` script.
+DEFAULT_FLAGS = ["--one-click", "--full-deps"]
+
+
+def ensure_default_flags(argv: list[str]) -> list[str]:
+    """Ensure required default flags are present.
+
+    The launcher expects ``--one-click`` and ``--full-deps`` by default. If a
+    flag is absent, it is inserted at the beginning of the argument list in the
+    order defined by :data:`DEFAULT_FLAGS`.
+    """
+
+    result = list(argv)
+    for flag in reversed(DEFAULT_FLAGS):
+        if flag not in result:
+            result.insert(0, flag)
+    return result
+
 
 def write_ok_marker(path: Path) -> None:
     """Write an ``ok`` marker file, creating parent directories."""
@@ -130,11 +149,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
 
-    if "--one-click" not in argv:
-        argv.insert(0, "--one-click")
-    if "--full-deps" not in argv:
-        idx = 1 if argv and argv[0] == "--one-click" else 0
-        argv.insert(idx, "--full-deps")
+    argv = ensure_default_flags(argv)
 
     python_exe = sys.executable
     script = "scripts.startup"
