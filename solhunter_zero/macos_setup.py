@@ -419,29 +419,36 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
 
     missing_tools = _detect_missing_tools()
     if missing_tools:
-        print(
+        msg = (
             "Missing macOS tools: "
             + ", ".join(missing_tools)
-            + ". Running mac setup...",
+            + ". Running mac setup..."
         )
+        log_startup(msg)
+        print(msg)
         report = prepare_macos_env(non_interactive=non_interactive)
         for step, info in report["steps"].items():
             msg = info.get("message", "")
             if msg:
-                print(f"{step}: {info['status']} - {msg}")
+                step_msg = f"{step}: {info['status']} - {msg}"
             else:
-                print(f"{step}: {info['status']}")
+                step_msg = f"{step}: {info['status']}"
+            log_startup(step_msg)
+            print(step_msg)
         report["missing"] = _detect_missing_tools()
         if report["missing"]:
-            print(
-                "macOS environment preparation failed; continuing without required tools",
-                file=sys.stderr,
+            err_msg = (
+                "macOS environment preparation failed; continuing without required tools"
             )
+            log_startup(err_msg)
+            print(err_msg, file=sys.stderr)
             for step, info in report["steps"].items():
                 if info.get("status") == "error":
                     fix = MANUAL_FIXES.get(step)
                     if fix:
-                        print(f"Manual fix for {step}: {fix}")
+                        fix_msg = f"Manual fix for {step}: {fix}"
+                        log_startup(fix_msg)
+                        print(fix_msg)
     else:
         report = {"steps": {}, "success": True, "missing": []}
 
