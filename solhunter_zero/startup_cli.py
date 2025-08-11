@@ -66,9 +66,3 @@ def parse_args(argv: List[str] | None = None) -> Tuple[argparse.Namespace, List[
     if args.keypair:
         os.environ["KEYPAIR_PATH"] = str(Path(args.keypair))
     return args, rest
-
-
-def launch_non_interactive(rest: List[str]) -> int:
-    """Launch start_all.py directly for non-interactive runs."""
-    proc = subprocess.run([sys.executable, "scripts/start_all.py", *rest])
-    return proc.returncode
