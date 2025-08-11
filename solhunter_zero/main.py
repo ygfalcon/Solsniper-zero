@@ -39,6 +39,7 @@ from .http import close_session
 from . import wallet
 from . import metrics_aggregator
 from .bootstrap import bootstrap
+from .config_runtime import Config
 
 _PROCESS_START_TIME = time.perf_counter()
 
@@ -208,6 +209,8 @@ def ensure_connectivity(*, offline: bool = False) -> None:
 _cfg = apply_env_overrides(load_config())
 set_env_from_config(_cfg)
 
+# Runtime configuration populated during startup
+_runtime_cfg: Config = Config.from_env(_cfg)
 
 from .token_scanner import scan_tokens_async
 from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics_async
@@ -282,6 +285,7 @@ logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
 async def _run_iteration(
     memory: Memory,
     portfolio: Portfolio,
+    cfg: Config | None = None,
     *,
     testnet: bool = False,
     dry_run: bool = False,
@@ -303,10 +307,13 @@ async def _run_iteration(
     await memory.wait_ready()
     metrics_aggregator.start()
 
+    if cfg is None:
+        cfg = _runtime_cfg
+
     if arbitrage_threshold is None:
-        arbitrage_threshold = float(os.getenv("ARBITRAGE_THRESHOLD", "0") or 0)
+        arbitrage_threshold = cfg.arbitrage_threshold
     if arbitrage_amount is None:
-        arbitrage_amount = float(os.getenv("ARBITRAGE_AMOUNT", "0") or 0)
+        arbitrage_amount = cfg.arbitrage_amount
 
     scan_kwargs = {
         "offline": offline,
@@ -333,7 +340,7 @@ async def _run_iteration(
     # Always consider existing holdings when making sell decisions
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
 
-    recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
+    recent_window = cfg.recent_trade_window
     if recent_window > 0:
         now = datetime.datetime.utcnow()
         tokens = [
@@ -345,7 +352,7 @@ async def _run_iteration(
             )
         ]
 
-    rpc_url = os.getenv("SOLANA_RPC_URL")
+    rpc_url = cfg.solana_rpc_url
     if rpc_url and not offline:
         try:
             ranked = await async_top_volume_tokens(rpc_url, limit=len(tokens))
@@ -396,13 +403,13 @@ async def _run_iteration(
 
                 rm = RiskManager.from_config(
                     {
-                        "risk_tolerance": os.getenv("RISK_TOLERANCE", "0.1"),
-                        "max_allocation": os.getenv("MAX_ALLOCATION", "0.2"),
-                        "max_risk_per_token": os.getenv("MAX_RISK_PER_TOKEN", "0.1"),
+                        "risk_tolerance": cfg.risk_tolerance,
+                        "max_allocation": cfg.max_allocation,
+                        "max_risk_per_token": cfg.max_risk_per_token,
                         "max_drawdown": max_drawdown,
                         "volatility_factor": volatility_factor,
-                        "risk_multiplier": os.getenv("RISK_MULTIPLIER", "1.0"),
-                        "min_portfolio_value": os.getenv("MIN_PORTFOLIO_VALUE", "20"),
+                        "risk_multiplier": cfg.risk_multiplier,
+                        "min_portfolio_value": cfg.min_portfolio_value,
                     }
                 )
 
@@ -414,9 +421,9 @@ async def _run_iteration(
                     portfolio.price_history.get("USDC", []),
                 )
                 lev = leverage_scaling(1.0, 1.0 / (1 + abs(hedge)))
-                var_conf = float(os.getenv("VAR_CONFIDENCE", "0.95"))
-                var_window = int(os.getenv("VAR_WINDOW", "30"))
-                var_threshold = float(os.getenv("VAR_THRESHOLD", "0"))
+                var_conf = cfg.var_confidence
+                var_window = cfg.var_window
+                var_threshold = cfg.var_threshold
                 hist = portfolio.price_history.get(token, [])
                 var = recent_value_at_risk(hist, window=var_window, confidence=var_conf)
                 params = rm.adjusted(
@@ -637,11 +644,12 @@ def perform_startup(
     *,
     offline: bool = False,
     dry_run: bool = False,
-) -> tuple[dict, subprocess.Popen | None]:
+) -> tuple[dict, Config, subprocess.Popen | None]:
     """Load config, verify connectivity, and start depth service with timing."""
     start = time.perf_counter()
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
+    runtime_cfg = Config.from_env(cfg)
     metrics_aggregator.publish(
         "startup_config_load_duration", time.perf_counter() - start
     )
@@ -661,7 +669,10 @@ def perform_startup(
             "startup_depth_service_start_duration", time.perf_counter() - start
         )
 
-    return cfg, proc
+    global _runtime_cfg
+    _runtime_cfg = runtime_cfg
+
+    return cfg, runtime_cfg, proc
 
 
 def main(
@@ -743,7 +754,7 @@ def main(
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     try:
-        cfg, proc = perform_startup(
+        cfg, runtime_cfg, proc = perform_startup(
             config_path,
             offline=offline,
             dry_run=dry_run,
@@ -751,6 +762,7 @@ def main(
     except Exception as exc:
         logging.error("Failed to start depth_service: %s", exc)
         cfg = {"depth_service": False}
+        runtime_cfg = _runtime_cfg
         proc = None
         os.environ["DEPTH_SERVICE"] = "false"
     metrics_aggregator.start()
@@ -1103,6 +1115,7 @@ def main(
                 await _run_iteration(
                     memory,
                     portfolio,
+                    runtime_cfg,
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
@@ -1151,6 +1164,7 @@ def main(
                 await _run_iteration(
                     memory,
                     portfolio,
+                    runtime_cfg,
                     testnet=testnet,
                     dry_run=dry_run,
                     offline=offline,
