@@ -23,9 +23,6 @@ from typing import NoReturn
 from .paths import ROOT
 from .python_env import find_python
 
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
-
 FAST_MODE = False
 
 

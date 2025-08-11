@@ -248,11 +248,6 @@ if importlib.util.find_spec("solana") is None:
     sys.modules.setdefault("solana.rpc.websocket_api", ws_mod)
 
 
-# Ensure project root is in sys.path when running tests directly with 'pytest'
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
 import pytest
 import asyncio
 

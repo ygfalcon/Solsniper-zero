@@ -9,13 +9,7 @@ checks allowing callers to run a filtered subset of the default checks.
 from __future__ import annotations
 
 from typing import Iterable, List, Tuple, Callable
-import sys
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
-from solhunter_zero.paths import ROOT
-sys.path[0] = str(ROOT)
 from scripts import preflight
 
 CheckFunc = Tuple[str, Callable[[], preflight.Check]]

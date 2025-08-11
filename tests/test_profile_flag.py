@@ -27,7 +27,6 @@ class _Sub:
 
 def test_profile_flag_creates_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
     _stub("solhunter_zero.token_scanner", {"scan_tokens_async": _async})
     _stub(
@@ -40,11 +39,14 @@ def test_profile_flag_creates_file(tmp_path, monkeypatch):
         "solhunter_zero.decision",
         {"should_buy": lambda *_a, **_k: False, "should_sell": lambda *_a, **_k: False},
     )
-    _stub("solhunter_zero.prices", {"fetch_token_prices_async": _async})
+    _stub("solhunter_zero.prices", {"fetch_token_prices_async": _async, "warm_cache": _async})
     _stub("solhunter_zero.order_book_ws", {})
     _stub(
         "solhunter_zero.memory",
-        {"Memory": type("Memory", (), {"__init__": lambda self, *a, **k: None})},
+        {
+            "Memory": type("Memory", (), {"__init__": lambda self, *a, **k: None}),
+            "load_snapshot": lambda *a, **k: None,
+        },
     )
     _stub(
         "solhunter_zero.portfolio",
@@ -53,6 +55,7 @@ def test_profile_flag_creates_file(tmp_path, monkeypatch):
                 "Portfolio", (), {"__init__": lambda self, *a, **k: None}
             ),
             "calculate_order_size": lambda *a, **k: 1,
+            "dynamic_order_size": lambda *a, **k: 1,
         },
     )
     _stub("solhunter_zero.exchange", {"place_order_async": _async})
@@ -77,6 +80,7 @@ def test_profile_flag_creates_file(tmp_path, monkeypatch):
         "solhunter_zero.agents.discovery",
         {"DiscoveryAgent": type("DiscoveryAgent", (), {"discover_tokens": _async})},
     )
+    _stub("solhunter_zero.agents.conviction", {"predict_price_movement": _async})
     _stub("solhunter_zero.risk", {"RiskManager": type("RiskManager", (), {})})
     _stub("solhunter_zero.arbitrage", {"detect_and_execute_arbitrage": _async})
     _stub("solhunter_zero.depth_client", {"listen_depth_ws": _async})

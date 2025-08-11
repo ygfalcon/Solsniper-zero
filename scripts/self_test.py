@@ -4,14 +4,7 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from typing import Any, Dict
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
-from solhunter_zero.paths import ROOT
-sys.path[0] = str(ROOT)
 
 from scripts import preflight  # noqa: E402
 from solhunter_zero import device  # noqa: E402
