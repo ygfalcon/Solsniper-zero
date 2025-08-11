@@ -28,7 +28,8 @@ The default workflow is intentionally simple:
 2. Run `python start.py` from any directory for a fully automated launch. The
    script resolves its own location, adjusts the working directory and `sys.path`,
    and delegates to `solhunter_zero.launcher.main`. On macOS double-click
-   `start.command` for a one-click start.
+   `start.command` for a one-click, non-interactive start (it passes
+   `--non-interactive`).
    The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
    and warns if the wallet balance is below `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.

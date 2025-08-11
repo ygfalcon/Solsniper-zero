@@ -63,7 +63,41 @@ def test_start_command_executes_launcher(tmp_path):
     proc = subprocess.run([str(tmp_cmd), "EXTRA"], cwd=tmp_path, env=env)
 
     assert proc.returncode == 0
-    assert called.read_text().split() == ["EXTRA"]
+    assert called.read_text().split() == ["--non-interactive", "EXTRA"]
+
+
+def test_startup_non_interactive(monkeypatch, tmp_path):
+    from scripts import startup
+
+    called = {}
+
+    def fake_run(cmd, *a, **k):
+        called["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(startup.subprocess, "run", fake_run)
+    monkeypatch.delenv("SOLHUNTER_CONFIG", raising=False)
+    monkeypatch.delenv("KEYPAIR_PATH", raising=False)
+
+    cfg = tmp_path / "cfg.toml"
+    kp = tmp_path / "kp.json"
+    cfg.write_text("")
+    kp.write_text("")
+
+    code = startup.main([
+        "--non-interactive",
+        "--config",
+        str(cfg),
+        "--keypair",
+        str(kp),
+        "EXTRA",
+    ])
+
+    assert code == 0
+    assert called["cmd"][1] == "scripts/start_all.py"
+    assert called["cmd"][2:] == ["EXTRA"]
+    assert os.environ["SOLHUNTER_CONFIG"] == str(cfg)
+    assert os.environ["KEYPAIR_PATH"] == str(kp)
 
 
 @pytest.mark.timeout(60)

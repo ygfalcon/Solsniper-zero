@@ -173,7 +173,28 @@ def _main_impl(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Force macOS setup and clear dependency caches",
     )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Skip prompts and launch start_all.py directly",
+    )
+    parser.add_argument("--config", help="Path to configuration file")
+    parser.add_argument(
+        "--keypair", help="Path to Solana keypair file"
+    )
     args, rest = parser.parse_known_args(argv)
+
+    if args.config:
+        os.environ["SOLHUNTER_CONFIG"] = str(Path(args.config))
+    if args.keypair:
+        os.environ["KEYPAIR_PATH"] = str(Path(args.keypair))
+    if args.non_interactive:
+        proc = subprocess.run([
+            sys.executable,
+            "scripts/start_all.py",
+            *rest,
+        ])
+        return proc.returncode
 
     disk_required = _disk_space_required_bytes()
 
