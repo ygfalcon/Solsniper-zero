@@ -30,8 +30,8 @@ from solhunter_zero.config import (  # noqa: E402
     set_env_from_config,
     ensure_config_file,
     validate_env,
-    REQUIRED_ENV_VARS,
 )
+import solhunter_zero.config as config  # noqa: E402
 from solhunter_zero import data_sync  # noqa: E402
 from solhunter_zero.service_launcher import (  # noqa: E402
     start_depth_service,
@@ -45,14 +45,6 @@ PROCS: list[subprocess.Popen] = []
 WS_THREADS: dict[str, threading.Thread] = {}
 
 
-ENV_VARS = REQUIRED_ENV_VARS + (
-    "DEPTH_SERVICE_SOCKET",
-    "DEPTH_MMAP_PATH",
-    "DEPTH_WS_ADDR",
-    "DEPTH_WS_PORT",
-)
-
-
 def _stream_stderr(pipe: IO[bytes]) -> None:
     for line in iter(pipe.readline, b""):
         sys.stderr.buffer.write(line)
@@ -61,7 +53,7 @@ def _stream_stderr(pipe: IO[bytes]) -> None:
 
 def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
     env = os.environ.copy()
-    for var in ENV_VARS:
+    for var in config.REQUIRED_ENV_VARS():
         val = os.getenv(var)
         if val is not None:
             env[var] = val
@@ -117,7 +109,7 @@ def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
 
 def launch_services() -> None:
     cfg = ensure_config_file()
-    cfg_data = validate_env(ENV_VARS, cfg)
+    cfg_data = validate_env(config.REQUIRED_ENV_VARS(), cfg)
     set_env_from_config(cfg_data)
     interval = float(
         cfg_data.get(
