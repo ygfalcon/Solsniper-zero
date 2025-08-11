@@ -29,10 +29,12 @@ from solhunter_zero.bootstrap_utils import (
     ensure_endpoints,
 )
 from solhunter_zero.rpc_utils import ensure_rpc
+from solhunter_zero.env_flags import env_flags
 
 from solhunter_zero.logging_utils import (
     log_startup,
     rotate_preflight_log,
+    STARTUP_LOG,
 )  # noqa: E402
 
 from rich.console import Console
@@ -394,71 +396,62 @@ def _main_impl(argv: list[str] | None = None) -> int:
                         console.print(f"[red]{task_desc} failed: {exc}[/]")
                         return 1
         console.print("[green]Dependencies installed[/]")
-    os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
-    if args.skip_setup or args.one_click:
-        os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
+    skip_flags = {"SOLHUNTER_SKIP_DEPS": "1"}
+    if args.skip_preflight:
+        skip_flags["SOLHUNTER_SKIP_PREFLIGHT"] = "1"
 
-    if sys.version_info < (3, 11):
-        print(
-            "Python 3.11 or higher is required. "
-            "Please install Python 3.11 following the instructions in README.md."
-        )
-        return 1
-
-    if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
-        if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
+    with env_flags(**skip_flags):
+        if sys.version_info < (3, 11):
+            print(
+                "Python 3.11 or higher is required. "
+                "Please install Python 3.11 following the instructions in README.md."
+            )
             return 1
 
-    if args.skip_preflight:
-        os.environ["SOLHUNTER_SKIP_PREFLIGHT"] = "1"
-    else:
-        results = preflight.run_preflight()
-        failures: list[tuple[str, str]] = []
-        for name, ok, msg in results:
-            status = "OK" if ok else "FAIL"
-            line = f"{name}: {status} - {msg}"
-            sys.stdout.write(line + "\n")
-            if not ok:
-                failures.append((name, msg))
-        if failures:
-            summary = "; ".join(f"{n}: {m}" for n, m in failures)
-            print(f"Preflight checks failed: {summary}")
-            log_startup(f"Preflight checks failed: {summary}")
-            sys.exit(1)
+        if platform.system() == "Darwin" and platform.machine() == "x86_64":
+            print("Warning: running under Rosetta; Metal acceleration unavailable.")
+            if not args.allow_rosetta:
+                print("Use '--allow-rosetta' to continue anyway.")
+                return 1
 
-    if args.offline:
-        rpc_status = "offline"
-    elif args.skip_rpc_check:
-        rpc_status = "skipped"
-    else:
-        ensure_rpc(warn_only=args.one_click)
-        rpc_status = "reachable"
-    from solhunter_zero.bootstrap import bootstrap
+        if not args.skip_preflight:
+            results = preflight.run_preflight()
+            failures: list[tuple[str, str]] = []
+            for name, ok, msg in results:
+                status = "OK" if ok else "FAIL"
+                line = f"{name}: {status} - {msg}"
+                sys.stdout.write(line + "\n")
+                if not ok:
+                    failures.append((name, msg))
+            if failures:
+                summary = "; ".join(f"{n}: {m}" for n, m in failures)
+                print(f"Preflight checks failed: {summary}")
+                log_startup(f"Preflight checks failed: {summary}")
+                sys.exit(1)
 
-    # ``bootstrap`` performs its own config and keypair setup.  These steps have
-    # already been handled above, so instruct it to skip them to avoid duplicate
-    # work and simplify testing.
-    os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
-    if args.no_diagnostics:
-        os.environ["SOLHUNTER_NO_DIAGNOSTICS"] = "1"
+        if args.offline:
+            rpc_status = "offline"
+        elif args.skip_rpc_check:
+            rpc_status = "skipped"
+        else:
+            ensure_rpc(warn_only=args.one_click)
+            rpc_status = "reachable"
+        from solhunter_zero.bootstrap import bootstrap
 
-    try:
-        bootstrap(one_click=args.one_click)
-    finally:
-        os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
+        inner_flags = {"SOLHUNTER_SKIP_SETUP": "1"}
+        if args.no_diagnostics:
+            inner_flags["SOLHUNTER_NO_DIAGNOSTICS"] = "1"
+        with env_flags(**inner_flags):
+            bootstrap(one_click=args.one_click)
 
-    gpu_env = device.initialize_gpu()
-    gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
-    rpc_url = os.environ.get(
-        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-    )
+        gpu_env = device.initialize_gpu()
+        gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
+        rpc_url = os.environ.get(
+            "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+        )
 
-    log_startup(f"GPU device: {gpu_device}")
-    log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
-
-    os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
+        log_startup(f"GPU device: {gpu_device}")
+        log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
 
     ensure_cargo()
     log_startup_info(
@@ -562,16 +555,9 @@ def _main_impl(argv: list[str] | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    prev_skip_venv = os.environ.get("SOLHUNTER_SKIP_VENV")
-    if argv is not None:
-        os.environ["SOLHUNTER_SKIP_VENV"] = "1"
-    try:
+    flags = {"SOLHUNTER_SKIP_VENV": "1"} if argv is not None else {}
+    with env_flags(**flags):
         return _main_impl(argv)
-    finally:
-        if prev_skip_venv is None:
-            os.environ.pop("SOLHUNTER_SKIP_VENV", None)
-        else:
-            os.environ["SOLHUNTER_SKIP_VENV"] = prev_skip_venv
 
 
 def run(argv: list[str] | None = None) -> int:

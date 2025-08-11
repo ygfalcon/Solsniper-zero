@@ -1,8 +1,8 @@
-import os
 import time
 import datetime as dt
 from types import SimpleNamespace
 
+from solhunter_zero.env_flags import env_flags
 import solhunter_zero.rl_training as rl_training
 
 
@@ -45,11 +45,10 @@ def test_parallel_training_speed(tmp_path):
     rl_training.fit(trades, snaps, model_path=m1, device="cpu")
     t_single = time.perf_counter() - start
 
-    os.environ["RL_WORKERS"] = "2"
     m2 = tmp_path / "m2.pt"
-    start = time.perf_counter()
-    rl_training.fit(trades, snaps, model_path=m2, device="cpu")
-    t_multi = time.perf_counter() - start
-    os.environ.pop("RL_WORKERS", None)
+    with env_flags(RL_WORKERS="2"):
+        start = time.perf_counter()
+        rl_training.fit(trades, snaps, model_path=m2, device="cpu")
+        t_multi = time.perf_counter() - start
 
     assert t_multi <= t_single * 1.2

@@ -2,6 +2,21 @@
 
 This document lists environment variables recognized by the project.
 
+## Startup Flags
+
+The following environment variables act as temporary flags and are defined in
+``solhunter_zero.env_flags.FLAGS``. Use the :func:`env_flags` context manager to
+apply them temporarily.
+
+| Flag | Description |
+| --- | --- |
+| `SOLHUNTER_SKIP_DEPS` | Skip dependency installation |
+| `SOLHUNTER_SKIP_SETUP` | Skip configuration and wallet setup |
+| `SOLHUNTER_SKIP_PREFLIGHT` | Skip preflight checks |
+| `SOLHUNTER_NO_DIAGNOSTICS` | Disable post-run diagnostics collection |
+| `SOLHUNTER_SKIP_VENV` | Skip virtual environment creation |
+| `SOLHUNTER_FAST` | Skip repeated environment checks when markers exist |
+
 | Variable | Default | Description |
 |---|---|---|
 | `ACTIVITY_MODEL_PATH` | `` | Path to activity model |
