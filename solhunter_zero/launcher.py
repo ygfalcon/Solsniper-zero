@@ -145,8 +145,11 @@ def find_python(repair: bool = False) -> str:
 PYTHON_EXE = find_python(repair=_parsed_args.repair)
 if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
     launcher = Path(__file__).resolve()
-    os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *_forward_args])
-    raise SystemExit(1)
+    try:
+        os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *_forward_args])
+    except OSError as exc:  # pragma: no cover - hard failure
+        print(f"Failed to re-exec launcher via {PYTHON_EXE}: {exc}", file=sys.stderr)
+        raise SystemExit(1)
 from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
 from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
@@ -170,17 +173,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
-    try:
+    if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
-    except RuntimeError as exc:
-        if platform.system() == "Darwin" and platform.machine() == "x86_64":
-            print(
-                "GPU initialization failed: running under Rosetta. "
-                "Re-run using 'arch -arm64' to use the native arm64 Python interpreter.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1) from None
-        raise
 
     if "--skip-preflight" not in argv:
         ensure_rpc()
@@ -192,11 +186,24 @@ def main(argv: list[str] | None = None) -> NoReturn:
         argv.insert(idx, "--full-deps")
 
     python_exe = sys.executable
-    cmd = [python_exe, "-m", "scripts.startup", *argv]
+    script = "scripts.startup"
+    cmd = [python_exe, "-m", script, *argv]
 
-    if platform.system() == "Darwin":
+    if platform.system() == "Darwin" and platform.machine() == "x86_64":
         cmd = ["arch", "-arm64", *cmd]
-    os.execvp(cmd[0], cmd)
+
+    try:
+        os.execvp(cmd[0], cmd)
+    except OSError as exc:  # pragma: no cover - hard failure
+        if platform.system() == "Darwin" and platform.machine() == "x86_64":
+            print(
+                f"Failed to launch {script} via 'arch -arm64': {exc}\n"
+                "Please use 'python start.py'.",
+                file=sys.stderr,
+            )
+        else:
+            print(f"Failed to launch {script}: {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
