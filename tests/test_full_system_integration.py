@@ -269,6 +269,7 @@ sys.modules.setdefault("transformers", _trans_mod)
 sys.modules["transformers"].pipeline = _trans_mod.pipeline
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("mode", ["auto"])
 def test_trading_workflow(monkeypatch, tmp_path, mode):
     repo_root = Path(__file__).resolve().parents[1]
@@ -383,6 +384,7 @@ def test_trading_workflow(monkeypatch, tmp_path, mode):
     assert pf.balances["TOK"].amount > 0
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_daemon_background_reload(tmp_path, monkeypatch):
     import inspect
@@ -426,6 +428,7 @@ async def test_daemon_background_reload(tmp_path, monkeypatch):
     await asyncio.wait_for(reloaded.wait(), timeout=1.0)
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_reload_on_timestamp_change(tmp_path, monkeypatch):
     import inspect
@@ -470,6 +473,7 @@ async def test_reload_on_timestamp_change(tmp_path, monkeypatch):
     await asyncio.wait_for(reloaded.wait(), timeout=1.0)
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_rl_daemon_heartbeat(tmp_path, monkeypatch):
     import inspect
