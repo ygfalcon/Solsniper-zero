@@ -43,7 +43,7 @@ to run quickly even in restricted environments and accepts additional options to
 control the input data and starting capital:
 
 ```bash
-python scripts/investor_demo.py --reports reports --data data.csv --capital 1000
+python demo.py --reports reports --data data.csv --capital 1000
 ```
 
 After it finishes, inspect the generated reports:
@@ -51,6 +51,20 @@ After it finishes, inspect the generated reports:
 ```bash
 head reports/trade_history.csv
 python -m json.tool reports/highlights.json
+```
+
+## Paper Trading
+
+Execute the lightweight paper trading workflow and verify ROI calculation:
+
+```bash
+pytest tests/test_paper.py
+```
+
+Run the CLI directly to generate a simple ROI summary:
+
+```bash
+python paper.py --reports reports
 ```
 
 ## Startup integration flow

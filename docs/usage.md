@@ -15,7 +15,7 @@ Use the `--testnet` flag to submit orders to a testnet DEX endpoint, `--dry-run`
 Run a small rolling backtest and generate lightweight reports:
 
 ```bash
-python scripts/investor_demo.py --reports reports
+python demo.py --reports reports
 ```
 
 This writes `summary.json`, `trade_history.csv` and `highlights.json` to the
@@ -24,52 +24,30 @@ specified reports directory and prints brief snippets to the console.
 Enable a lightweight reinforcement‑learning stub:
 
 ```bash
-python scripts/investor_demo.py --rl-demo --reports reports
+python demo.py --rl-demo --reports reports
 ```
 
 Run a canned learning loop that rotates strategy weights:
 
 ```bash
-python scripts/investor_demo.py --learn --reports reports
+python demo.py --learn --reports reports
 ```
 
 Exercise the full system with heavier dependencies:
 
 ```bash
-python scripts/investor_demo.py --full-system --reports reports
+python demo.py --full-system --reports reports
 ```
 
 All modes emit the same report files along with console summaries.
 
-### One-Click Investor Demo
+### Paper Trading
 
-1. **Download the repo**
+Replay a bundled tick dataset and report ROI:
 
-   ```bash
-   git clone https://github.com/your-org/Solsniper-zero.git
-   cd Solsniper-zero
-   ```
-
-2. **Launch the demo**
-
-   On macOS, double-click `one_click_trading_demo.command`. On Linux or Windows run it from the terminal:
-
-   ```bash
-   ./one_click_trading_demo.command
-   ```
-
-   The script verifies Python 3.11+ and a handful of lightweight dependencies. Missing packages are installed automatically; if installation fails, a warning highlights what to install manually.
-
-3. **Review the reports**
-
-   After the demo finishes, inspect the generated files in `reports`:
-
-   ```text
-   reports/summary.json
-   reports/trade_history.csv
-   ```
-
-   `summary.json` captures overall metrics, while `trade_history.csv` lists each trade. These can be imported into spreadsheets or dashboards for further analysis.
+```bash
+python paper.py --reports reports
+```
 
 ## MEV Bundles
 

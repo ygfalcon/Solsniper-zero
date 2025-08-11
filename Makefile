@@ -31,11 +31,14 @@ gen-proto:
 #   make demo ARGS="--preset multi"
 #   make demo ARGS="--rl-demo --reports reports"
 demo:
->$(PYTHON) scripts/investor_demo.py --preset short --reports reports $(ARGS)
+>$(PYTHON) demo.py --preset short --reports reports $(ARGS)
 
 demo-multi:
 >$(MAKE) demo ARGS="--preset multi"
 
 demo-rl:
 >$(MAKE) demo ARGS="--rl-demo --reports reports"
+
+paper:
+>$(PYTHON) paper.py --reports reports $(ARGS)
 
