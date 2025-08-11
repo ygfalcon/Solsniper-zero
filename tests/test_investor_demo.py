@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,23 +12,24 @@ import pytest
 pytestmark = pytest.mark.timeout(30)
 
 
-def test_investor_demo(tmp_path: Path) -> None:
-    """Run the demo via its CLI entry point and inspect key outputs."""
+def test_investor_demo(tmp_path: Path, monkeypatch, capsys, shared_prices) -> None:
+    """Run the demo and verify strategy ROI and trade history."""
 
     reports = tmp_path / "reports"
-    repo = Path(__file__).resolve().parents[1]
-    cmd = ["./demo.command", "--preset", "short", "--reports", str(reports)]
-    env = os.environ | {
-        "PYTHONPATH": f"{repo}{os.pathsep}{os.environ.get('PYTHONPATH', '')}",
-        "SOLHUNTER_TESTING": "1",
-        "SOLHUNTER_PATCH_INVESTOR_DEMO": "1",
-    }
-    proc = subprocess.run(
-        cmd, cwd=repo, env=env, capture_output=True, text=True
-    )
-    assert proc.returncode == 0, proc.stderr
+    monkeypatch.setenv("SOLHUNTER_PATCH_INVESTOR_DEMO", "1")
+    from tests import stubs
 
-    captured = proc.stdout
+    stubs.install_stubs()
+    import solhunter_zero.investor_demo as demo
+
+    monkeypatch.setattr(
+        demo,
+        "load_prices",
+        lambda path=None, preset=None: (shared_prices, [str(i) for i in range(len(shared_prices))]),
+    )
+
+    demo.main(["--preset", "short", "--reports", str(reports)])
+    captured = capsys.readouterr().out
     assert "Capital Summary:" in captured
 
     match = re.search(r"Trade type results: (\{.*\})", captured)
@@ -43,4 +42,12 @@ def test_investor_demo(tmp_path: Path) -> None:
     assert "top_strategy" in highlights
 
     summary = json.loads((reports / "summary.json").read_text())
-    assert any(item.get("trades", 0) for item in summary)
+    trade_hist = json.loads((reports / "trade_history.json").read_text())
+    expected = {"buy_hold", "momentum", "mean_reversion"}
+    for strat in expected:
+        row = next((r for r in summary if r["config"] == strat), None)
+        assert row is not None
+        assert row["trades"] > 0
+        assert "roi" in row
+    recorded = {t["strategy"] for t in trade_hist}
+    assert expected.issubset(recorded)

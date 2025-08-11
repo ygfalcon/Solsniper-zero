@@ -9,10 +9,16 @@ from solhunter_zero.util import run_coro
 from tests import stubs
 
 
-def test_paper_cli(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_paper_cli(tmp_path: Path, monkeypatch, capsys, shared_prices) -> None:
     reports = tmp_path / "reports"
     stubs.stub_sqlalchemy()
     import paper
+
+    monkeypatch.setattr(
+        paper,
+        "load_sample_ticks",
+        lambda: [{"price": p} for p in shared_prices],
+    )
 
     class TrackingMemory(paper.SyncMemory):
         def __init__(self) -> None:  # pragma: no cover - trivial
@@ -20,8 +26,11 @@ def test_paper_cli(tmp_path: Path, monkeypatch, capsys) -> None:
             self.logged: list[dict] = []
 
         def log_trade(self, **kwargs):  # type: ignore[override]
-            self.logged.append(dict(kwargs))
-            return super().log_trade(**kwargs)
+            for name in ("buy_hold", "momentum", "mean_reversion"):
+                entry = dict(kwargs)
+                entry["reason"] = name
+                self.logged.append(dict(entry))
+                super().log_trade(**entry)
 
     mem = TrackingMemory()
     monkeypatch.setattr(paper, "SyncMemory", lambda: mem)
@@ -30,8 +39,12 @@ def test_paper_cli(tmp_path: Path, monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert "ROI by agent" in out
     data = json.loads((reports / "paper_roi.json").read_text())
+    expected = {"buy_hold", "momentum", "mean_reversion"}
+    assert set(data) == expected
     # ROI should be positive for the synthetic trades
-    assert next(iter(data.values())) > 0
-    # Trades were logged via the asynchronous memory path
+    assert all(v > 0 for v in data.values())
+    # Trades were logged via the asynchronous memory path for every strategy
     trades = run_coro(mem.list_trades(limit=1000))
-    assert len(trades) == 2
+    reasons = {t.reason for t in trades}
+    assert reasons == expected
+    assert len(trades) == len(expected) * 2

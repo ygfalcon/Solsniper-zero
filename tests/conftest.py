@@ -313,3 +313,9 @@ def _reset_event_bus():
     event_bus.reset()
     yield
     event_bus.reset()
+
+
+@pytest.fixture
+def shared_prices() -> list[float]:
+    """Deterministic price series shared across demo tests."""
+    return [100.0, 90.0, 95.0, 105.0]
