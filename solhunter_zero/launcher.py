@@ -202,32 +202,31 @@ def main(argv: list[str] | None = None) -> NoReturn:
     forward_args = configure()
     argv = list(forward_args) if argv is None else list(argv)
 
+    from collections.abc import Callable
     from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
     from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
     from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
     from solhunter_zero.cache_paths import TOOLS_OK_MARKER, VENV_OK_MARKER  # noqa: E402
 
-    setup_logging("startup")
-    if FAST_MODE and TOOLS_OK_MARKER.exists():
-        log_startup("Fast mode: skipping ensure_tools")
-    else:
-        ensure_tools(non_interactive=True)
-        if not TOOLS_OK_MARKER.exists():
+    def run_once(marker: Path, action: Callable[[], None], skip_msg: str) -> None:
+        if FAST_MODE and marker.exists():
+            log_startup(skip_msg)
+        else:
+            action()
             try:
-                TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-                TOOLS_OK_MARKER.write_text("ok")
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text("ok")
             except OSError:
                 pass
 
-    if FAST_MODE and VENV_OK_MARKER.exists():
-        log_startup("Fast mode: skipping ensure_venv")
-    else:
-        ensure_venv(None)
-        try:
-            VENV_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-            VENV_OK_MARKER.write_text("ok")
-        except OSError:
-            pass
+    setup_logging("startup")
+
+    run_once(
+        TOOLS_OK_MARKER,
+        lambda: ensure_tools(non_interactive=True),
+        "Fast mode: skipping ensure_tools",
+    )
+    run_once(VENV_OK_MARKER, lambda: ensure_venv(None), "Fast mode: skipping ensure_venv")
 
     log_startup(f"Virtual environment: {sys.prefix}")
 
