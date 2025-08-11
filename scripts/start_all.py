@@ -40,55 +40,72 @@ from solhunter_zero.service_launcher import (  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
 
-PROCS: list[subprocess.Popen] = []
-WS_THREADS: dict[str, threading.Thread] = {}
 
+class ProcessManager:
+    def __init__(self) -> None:
+        self.procs: list[subprocess.Popen] = []
+        self.ws_threads: dict[str, threading.Thread] = {}
+        self._stopped = False
 
-def _stream_stderr(pipe: IO[bytes]) -> None:
-    for line in iter(pipe.readline, b""):
-        sys.stderr.buffer.write(line)
-    pipe.close()
+    @staticmethod
+    def _stream_stderr(pipe: IO[bytes]) -> None:
+        for line in iter(pipe.readline, b""):
+            sys.stderr.buffer.write(line)
+        pipe.close()
 
+    def start(self, cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
+        env = os.environ.copy()
+        for var in config.REQUIRED_ENV_VARS():
+            val = os.getenv(var)
+            if val is not None:
+                env[var] = val
+        stderr = subprocess.PIPE if stream_stderr else None
+        proc = subprocess.Popen(cmd, env=env, stderr=stderr)
+        self.procs.append(proc)
+        if stream_stderr and proc.stderr is not None:
+            threading.Thread(
+                target=self._stream_stderr, args=(proc.stderr,), daemon=True
+            ).start()
+        return proc
 
-def start(cmd: list[str], *, stream_stderr: bool = False) -> subprocess.Popen:
-    env = os.environ.copy()
-    for var in config.REQUIRED_ENV_VARS():
-        val = os.getenv(var)
-        if val is not None:
-            env[var] = val
-    stderr = subprocess.PIPE if stream_stderr else None
-    proc = subprocess.Popen(cmd, env=env, stderr=stderr)
-    PROCS.append(proc)
-    if stream_stderr and proc.stderr is not None:
-        threading.Thread(
-            target=_stream_stderr, args=(proc.stderr,), daemon=True
-        ).start()
-    return proc
+    def stop_all(self, *_: object) -> None:
+        if self._stopped:
+            return
+        self._stopped = True
+        data_sync.stop_scheduler()
+        for loop in (ui.rl_ws_loop, ui.event_ws_loop, ui.log_ws_loop):
+            if loop is not None:
+                loop.call_soon_threadsafe(loop.stop)
+        for thread in self.ws_threads.values():
+            thread.join(timeout=1)
+        for p in self.procs:
+            if p.poll() is None:
+                p.terminate()
+        deadline = time.time() + 5
+        for p in self.procs:
+            if p.poll() is None:
+                try:
+                    p.wait(deadline - time.time())
+                except Exception:
+                    p.kill()
+        sys.exit(0)
 
+    def monitor_processes(self) -> None:
+        try:
+            while any(p.poll() is None for p in self.procs):
+                time.sleep(1)
+        finally:
+            self.stop_all()
 
-def stop_all(*_: object) -> None:
-    data_sync.stop_scheduler()
-    for loop in (ui.rl_ws_loop, ui.event_ws_loop, ui.log_ws_loop):
-        if loop is not None:
-            loop.call_soon_threadsafe(loop.stop)
-    for thread in WS_THREADS.values():
-        thread.join(timeout=1)
-    for p in PROCS:
-        if p.poll() is None:
-            p.terminate()
-    deadline = time.time() + 5
-    for p in PROCS:
-        if p.poll() is None:
-            try:
-                p.wait(deadline - time.time())
-            except Exception:
-                p.kill()
-    sys.exit(0)
+    def __enter__(self) -> "ProcessManager":
+        signal.signal(signal.SIGINT, self.stop_all)
+        signal.signal(signal.SIGTERM, self.stop_all)
+        logging.basicConfig(level=logging.INFO)
+        return self
 
-
-signal.signal(signal.SIGINT, stop_all)
-signal.signal(signal.SIGTERM, stop_all)
-logging.basicConfig(level=logging.INFO)
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if not self._stopped:
+            self.stop_all()
 
 
 def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
@@ -106,7 +123,7 @@ def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
     raise TimeoutError("rl_daemon startup timed out")
 
 
-def launch_services() -> None:
+def launch_services(pm: ProcessManager) -> None:
     cfg = ensure_config_file()
     cfg_data = validate_env(config.REQUIRED_ENV_VARS(), cfg)
     set_env_from_config(cfg_data)
@@ -130,9 +147,9 @@ def launch_services() -> None:
 
     ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)
-    PROCS.append(depth_proc)
+    pm.procs.append(depth_proc)
     rl_proc = start_rl_daemon()
-    PROCS.append(rl_proc)
+    pm.procs.append(rl_proc)
     addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
     port = int(os.getenv("DEPTH_WS_PORT", "8765"))
     deadline = time.monotonic() + 30.0
@@ -142,14 +159,13 @@ def launch_services() -> None:
     main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
     if cfg:
         main_cmd += ["--config", cfg]
-    start(main_cmd)
+    pm.start(main_cmd)
 
 
-def launch_ui() -> None:
+def launch_ui(pm: ProcessManager) -> None:
     def _run_ui() -> None:
-        global WS_THREADS
         app = ui.create_app()
-        WS_THREADS = ui.start_websockets()
+        pm.ws_threads = ui.start_websockets()
         app.run()
 
     thread = threading.Thread(target=_run_ui, daemon=True)
@@ -160,18 +176,11 @@ def launch_ui() -> None:
         pass
 
 
-def monitor_processes() -> None:
-    try:
-        while any(p.poll() is None for p in PROCS):
-            time.sleep(1)
-    finally:
-        stop_all()
-
-
 def main() -> None:
-    launch_services()
-    launch_ui()
-    monitor_processes()
+    with ProcessManager() as pm:
+        launch_services(pm)
+        launch_ui(pm)
+        pm.monitor_processes()
 
 
 if __name__ == "__main__":
