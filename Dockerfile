@@ -21,5 +21,5 @@ RUN cargo build --manifest-path route_ffi/Cargo.toml --release --features=parall
     && cp depth_service/target/release/depth_service target/release/depth_service
 
 # Use the Python entry point directly
-ENTRYPOINT ["python", "start.py"]
+ENTRYPOINT ["python", "-m", "solhunter_zero.launcher"]
 CMD ["--auto"]

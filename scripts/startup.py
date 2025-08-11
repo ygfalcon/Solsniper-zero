@@ -56,7 +56,7 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":
     except OSError as exc:  # pragma: no cover - hard failure
         msg = (
             f"Failed to re-exec {script.name} via 'arch -arm64': {exc}\n"
-            "Please use 'python start.py'."
+            "Please use 'python -m solhunter_zero.launcher'."
         )
         raise SystemExit(msg)
 

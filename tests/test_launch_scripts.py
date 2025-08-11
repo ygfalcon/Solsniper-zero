@@ -16,7 +16,7 @@ def _script_lines(name: str) -> list[str]:
 
 def test_start_command_invokes_launcher():
     lines = _script_lines("start.command")
-    assert any("start.py" in line for line in lines)
+    assert any("python3 -m solhunter_zero.launcher" in line for line in lines)
 
 
 def test_start_py_invokes_launcher(tmp_path):
@@ -30,6 +30,7 @@ def test_start_py_invokes_launcher(tmp_path):
     stub.write_text(
         "import sys, pathlib\n"
         f"def main(argv=None):\n    pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
+        "if __name__ == '__main__':\n    main()\n"
     )
     stub.chmod(0o755)
 
@@ -40,14 +41,9 @@ def test_start_py_invokes_launcher(tmp_path):
 
 def test_start_command_executes_launcher(tmp_path):
     cmd_src = REPO_ROOT / "start.command"
-    py_src = REPO_ROOT / "start.py"
-
     tmp_cmd = tmp_path / "start.command"
-    tmp_py = tmp_path / "start.py"
     tmp_cmd.write_text(cmd_src.read_text())
-    tmp_py.write_text(py_src.read_text())
     tmp_cmd.chmod(0o755)
-    tmp_py.chmod(0o755)
 
     called = tmp_path / "called.txt"
     stub = tmp_path / "solhunter_zero" / "launcher.py"
@@ -55,6 +51,7 @@ def test_start_command_executes_launcher(tmp_path):
     stub.write_text(
         "import sys, pathlib\n"
         f"def main(argv=None):\n    pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
+        "if __name__ == '__main__':\n    main()\n"
     )
     stub.chmod(0o755)
 
