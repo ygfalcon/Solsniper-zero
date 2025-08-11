@@ -40,7 +40,7 @@ def _stop_all(*_: object) -> None:
 
 
 def _ensure_keypair() -> None:
-    from scripts.startup import ensure_wallet_cli, run_quick_setup
+    from solhunter_zero.startup_checks import ensure_wallet_cli, run_quick_setup
 
     ensure_wallet_cli()
     try:
