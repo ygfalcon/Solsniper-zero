@@ -26,15 +26,6 @@ from .python_env import find_python
 FAST_MODE = False
 
 
-def write_ok_marker(path: Path) -> None:
-    """Write an ``ok`` marker file, creating parent directories."""
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("ok")
-    except OSError:
-        pass
-
-
 def _ensure_arm64_python() -> None:
     """Re-exec via ``arch -arm64`` when running under Rosetta on macOS."""
     if platform.system() == "Darwin" and platform.machine() == "x86_64":
@@ -107,14 +98,11 @@ def main(argv: list[str] | None = None) -> NoReturn:
         log_startup("Fast mode: skipping ensure_tools")
     else:
         ensure_tools(non_interactive=True)
-        if not TOOLS_OK_MARKER.exists():
-            write_ok_marker(TOOLS_OK_MARKER)
 
     if FAST_MODE and VENV_OK_MARKER.exists():
         log_startup("Fast mode: skipping ensure_venv")
     else:
         ensure_venv(None)
-        write_ok_marker(VENV_OK_MARKER)
 
     log_startup(f"Virtual environment: {sys.prefix}")
 

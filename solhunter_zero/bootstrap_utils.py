@@ -26,6 +26,7 @@ from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
 from .paths import ROOT
+from .cache_paths import VENV_OK_MARKER
 
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
 VENV_DIR = ROOT / ".venv"
@@ -148,6 +149,12 @@ def ensure_venv(argv: list[str] | None) -> None:
             logging.exception(msg)
             log_startup(msg)
             raise
+
+    try:
+        VENV_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        VENV_OK_MARKER.write_text("ok")
+    except OSError:
+        pass
 
 
 

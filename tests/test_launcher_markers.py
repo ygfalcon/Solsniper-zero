@@ -4,7 +4,7 @@ import sys
 import pytest
 
 
-def test_launcher_writes_ok_markers(monkeypatch, tmp_path):
+def test_launcher_triggers_marker_writes(monkeypatch, tmp_path):
     monkeypatch.setenv("SOLHUNTER_TESTING", "1")
     monkeypatch.setenv("SOLHUNTER_PYTHON", sys.executable)
 
@@ -21,9 +21,20 @@ def test_launcher_writes_ok_markers(monkeypatch, tmp_path):
     monkeypatch.setattr(lu, "setup_logging", lambda *a, **k: None)
     monkeypatch.setattr(lu, "log_startup", lambda *a, **k: None)
     import solhunter_zero.macos_setup as ms
-    monkeypatch.setattr(ms, "ensure_tools", lambda **k: None)
+
+    def fake_ensure_tools(**k):
+        cp.TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        cp.TOOLS_OK_MARKER.write_text("ok")
+
+    monkeypatch.setattr(ms, "ensure_tools", fake_ensure_tools)
+
     import solhunter_zero.bootstrap_utils as bu
-    monkeypatch.setattr(bu, "ensure_venv", lambda *a, **k: None)
+
+    def fake_ensure_venv(*a, **k):
+        cp.VENV_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        cp.VENV_OK_MARKER.write_text("ok")
+
+    monkeypatch.setattr(bu, "ensure_venv", fake_ensure_venv)
     import solhunter_zero.device as device
     monkeypatch.setattr(device, "initialize_gpu", lambda: None)
     import solhunter_zero.system as system
