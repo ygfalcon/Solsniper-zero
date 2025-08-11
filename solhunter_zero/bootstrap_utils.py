@@ -28,6 +28,7 @@ from .logging_utils import log_startup
 from .paths import ROOT
 
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
+VENV_DIR = ROOT / ".venv"
 
 
 @dataclass
@@ -39,51 +40,85 @@ class DepsConfig:
     ensure_wallet_cli: bool = True
 
 
-def ensure_venv(argv: list[str] | None) -> None:
-    """Create a local virtual environment and re-invoke the script inside it."""
-    if argv is not None:
-        return
+# ---------------------------------------------------------------------------
+# Virtual environment helpers
+# ---------------------------------------------------------------------------
 
-    venv_dir = ROOT / ".venv"
-    python = (
-        venv_dir
+def _venv_python() -> Path:
+    """Return the path to the venv's python executable."""
+    return (
+        VENV_DIR
         / ("Scripts" if os.name == "nt" else "bin")
         / ("python.exe" if os.name == "nt" else "python")
     )
 
-    if venv_dir.exists():
+
+def _inspect_python(p: Path) -> tuple[str | None, tuple[int, int, int]]:
+    """Return ``(machine, version)`` for the interpreter at *p*.
+
+    On failure a placeholder ``(None, (0, 0, 0))`` is returned and the error is
+    printed to stdout.
+    """
+
+    try:
+        info = subprocess.check_output(
+            [
+                str(p),
+                "-c",
+                (
+                    "import json, platform, sys;"
+                    "print(json.dumps({'machine': platform.machine(), 'version': sys.version_info[:3]}))"
+                ),
+            ],
+            text=True,
+        )
+        data = json.loads(info)
+        return data.get("machine"), tuple(data.get("version", []))
+    except Exception as exc:  # pragma: no cover - hard failure
+        print(f"Failed to inspect virtual environment interpreter: {exc}")
+        return None, (0, 0, 0)
+
+
+def _create_venv(python_exe: str) -> None:
+    """Create ``.venv`` using *python_exe*.
+
+    ``SystemExit`` is raised if the command fails.
+    """
+
+    try:
+        subprocess.check_call([python_exe, "-m", "venv", str(VENV_DIR)])
+    except (subprocess.CalledProcessError, OSError) as exc:
+        print(f"Failed to create .venv with {python_exe}: {exc}")
+        raise SystemExit(1)
+
+
+def ensure_venv(argv: list[str] | None) -> None:
+    """Create a local virtual environment and re-invoke the script inside it.
+
+    If *argv* is provided, it is assumed the caller already runs inside the
+    desired interpreter and no action is taken.  Tests use this to bypass the
+    re-exec behaviour.
+    """
+
+    if argv is not None:
+        # Guard: ``argv`` is only non-``None`` when the caller explicitly wants
+        # to skip virtual environment creation, e.g. during tests.
+        return
+
+    python = _venv_python()
+
+    if VENV_DIR.exists():
         if not python.exists() or not os.access(str(python), os.X_OK):
             print("Virtual environment missing interpreter; recreating .venv...")
-            shutil.rmtree(venv_dir)
+            shutil.rmtree(VENV_DIR)
 
-    if not venv_dir.exists():
+    if not VENV_DIR.exists():
         print("Creating virtual environment in .venv...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
-        except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv: {exc}")
-            raise SystemExit(1)
+        _create_venv(sys.executable)
 
-    def _inspect(p: Path) -> tuple[str | None, tuple[int, int, int]]:
-        try:
-            info = subprocess.check_output(
-                [
-                    str(p),
-                    "-c",
-                    (
-                        "import json, platform, sys;"
-                        "print(json.dumps({'machine': platform.machine(), 'version': sys.version_info[:3]}))"
-                    ),
-                ],
-                text=True,
-            )
-            data = json.loads(info)
-            return data.get("machine"), tuple(data.get("version", []))
-        except Exception as exc:  # pragma: no cover - hard failure
-            print(f"Failed to inspect virtual environment interpreter: {exc}")
-            return None, (0, 0, 0)
-
-    machine, version = _inspect(python)
+    machine, version = _inspect_python(python)
+    required_python: str | None = None
+    reason = ""
 
     if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
         brew_python = shutil.which("python3.11")
@@ -93,43 +128,28 @@ def ensure_venv(argv: list[str] | None) -> None:
                 "Install it with 'brew install python@3.11'."
             )
             raise SystemExit(1)
-        print("Recreating .venv using Homebrew python3.11...")
-        shutil.rmtree(venv_dir, ignore_errors=True)
-        try:
-            subprocess.check_call([brew_python, "-m", "venv", str(venv_dir)])
-        except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv with Homebrew python3.11: {exc}")
-            raise SystemExit(1)
-        python = (
-            venv_dir
-            / ("Scripts" if os.name == "nt" else "bin")
-            / ("python.exe" if os.name == "nt" else "python")
-        )
-        machine, version = _inspect(python)
+        required_python = brew_python
+        reason = "Homebrew python3.11"
+    elif version < (3, 11):
+        required_python = sys.executable
+        reason = "current interpreter"
 
-    if version < (3, 11):
-        print("Recreating .venv using current interpreter...")
-        shutil.rmtree(venv_dir, ignore_errors=True)
-        try:
-            subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
-        except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"Failed to create .venv with current interpreter: {exc}")
-            raise SystemExit(1)
-        python = (
-            venv_dir
-            / ("Scripts" if os.name == "nt" else "bin")
-            / ("python.exe" if os.name == "nt" else "python")
-        )
+    if required_python:
+        print(f"Recreating .venv using {reason}...")
+        shutil.rmtree(VENV_DIR, ignore_errors=True)
+        _create_venv(required_python)
+        python = _venv_python()
 
-    if Path(sys.prefix) != venv_dir:
+    if Path(sys.prefix) != VENV_DIR:
         try:
             os.execv(str(python), [str(python), *sys.argv])
-            raise RuntimeError("exec failed")
         except OSError as exc:
             msg = f"Failed to execv {python}: {exc}"
             logging.exception(msg)
             log_startup(msg)
             raise
+
+
 
 
 def _pip_install(*args: str, retries: int = 3) -> None:
