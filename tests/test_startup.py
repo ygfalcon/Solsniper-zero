@@ -12,11 +12,172 @@ from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
 
+class DummyTask:
+    def __init__(self, description: str):
+        self.description = description
+
+
+class DummyProgress:
+    def __init__(self, *a, **k):
+        self._tasks = {}
+        self._next = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def add_task(self, description, total=1):
+        tid = self._next
+        self._next += 1
+        self._tasks[tid] = DummyTask(description)
+        return tid
+
+    def advance(self, task_id, advance=1):
+        pass
+
+    def update(self, task_id, description=None, advance=0):
+        if description:
+            self._tasks[task_id].description = description
+
+    @property
+    def tasks(self):
+        return self._tasks
+
+
+@pytest.fixture
+def startup_stubs(monkeypatch):
+    import types
+    import sys
+
+    monkeypatch.setitem(sys.modules, "scripts.preflight", types.SimpleNamespace(run_preflight=lambda: []))
+    monkeypatch.setitem(sys.modules, "scripts.deps", types.SimpleNamespace(check_deps=lambda: ([], [])))
+    monkeypatch.setitem(sys.modules, "scripts.quick_setup", types.SimpleNamespace(_is_placeholder=lambda v: False))
+    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", types.SimpleNamespace(KEYPAIR_DIR="."))
+
+
 def test_startup_help():
     result = subprocess.run([sys.executable, 'scripts/startup.py', '--help'], capture_output=True, text=True)
     assert result.returncode == 0
     out = result.stdout.lower() + result.stderr.lower()
     assert 'usage' in out
+
+
+def test_check_disk_space(startup_stubs, monkeypatch):
+    import types
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc, "Progress", DummyProgress)
+    monkeypatch.setattr(sc, "console", types.SimpleNamespace(print=lambda *a, **k: None))
+    monkeypatch.setattr(sc.preflight_utils, "check_disk_space", lambda req: (True, "ok"))
+    assert sc.check_disk_space(1, lambda m: None) == "passed"
+    monkeypatch.setattr(sc.preflight_utils, "check_disk_space", lambda req: (False, "bad"))
+    with pytest.raises(SystemExit):
+        sc.check_disk_space(1, lambda m: None)
+
+
+def test_check_network(startup_stubs, monkeypatch):
+    import types
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc, "console", types.SimpleNamespace(print=lambda *a, **k: None))
+    monkeypatch.setattr(sc.preflight_utils, "check_internet", lambda: (True, "ok"))
+    args = SimpleNamespace(offline=False, skip_rpc_check=False)
+    assert sc.check_network(args, lambda m: None) == "passed"
+    args = SimpleNamespace(offline=True, skip_rpc_check=False)
+    assert sc.check_network(args, lambda m: None) == "skipped"
+    args = SimpleNamespace(offline=False, skip_rpc_check=False)
+    monkeypatch.setattr(sc.preflight_utils, "check_internet", lambda: (False, "bad"))
+    with pytest.raises(SystemExit):
+        sc.check_network(args, lambda m: None)
+
+
+def test_ensure_configuration_and_wallet(startup_stubs, monkeypatch, tmp_path):
+    import types
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc, "console", types.SimpleNamespace(print=lambda *a, **k: None))
+    monkeypatch.setattr(sc, "Progress", DummyProgress)
+    cfg_path = tmp_path / "cfg.json"
+
+    def fake_ensure_config(path=None):
+        return cfg_path, {}
+
+    def fake_select_active_keypair(auto=False):
+        return SimpleNamespace(name="kp", mnemonic_path=tmp_path / "mn")
+
+    dummy_wallet = SimpleNamespace(KEYPAIR_DIR=str(tmp_path))
+    monkeypatch.setattr("solhunter_zero.config_bootstrap.ensure_config", fake_ensure_config)
+    monkeypatch.setattr("solhunter_zero.config_utils.select_active_keypair", fake_select_active_keypair)
+    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", dummy_wallet)
+
+    args = SimpleNamespace(skip_setup=False, one_click=False)
+    result = sc.ensure_configuration_and_wallet(args, lambda: None, lambda: str(cfg_path))
+    assert result[5] == str(cfg_path)
+    assert result[6] == "kp"
+
+    args = SimpleNamespace(skip_setup=True, one_click=False)
+    result = sc.ensure_configuration_and_wallet(args, lambda: None, lambda: None)
+    assert result[5] == "skipped"
+    assert result[6] == "skipped"
+
+
+def test_check_endpoints(startup_stubs, monkeypatch):
+    import types
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc, "console", types.SimpleNamespace(print=lambda *a, **k: None))
+    monkeypatch.setattr(sc, "Progress", DummyProgress)
+    args = SimpleNamespace(offline=True, skip_endpoint_check=False, skip_setup=False)
+    assert sc.check_endpoints(args, {}, lambda cfg: None) == "offline"
+    args = SimpleNamespace(offline=False, skip_endpoint_check=True, skip_setup=False)
+    assert sc.check_endpoints(args, {}, lambda cfg: None) == "skipped"
+    args = SimpleNamespace(offline=False, skip_endpoint_check=False, skip_setup=False)
+    assert sc.check_endpoints(args, {}, lambda cfg: None) == "reachable"
+
+
+def test_install_dependencies(startup_stubs, monkeypatch):
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc, "Progress", DummyProgress)
+    calls = []
+
+    def fake_ensure_deps(install_optional=False):
+        calls.append("deps")
+
+    def fake_ensure_target(name):
+        calls.append(name)
+
+    sc.install_dependencies(SimpleNamespace(skip_deps=False, full_deps=False), fake_ensure_deps, fake_ensure_target)
+    assert set(calls) == {"deps", "protos", "route_ffi", "depth_service"}
+    calls.clear()
+    sc.install_dependencies(SimpleNamespace(skip_deps=True, full_deps=False), fake_ensure_deps, fake_ensure_target)
+    assert calls == []
+
+
+def test_run_preflight(startup_stubs, monkeypatch):
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc.preflight, "run_preflight", lambda: [("a", True, "ok")])
+    sc.run_preflight(SimpleNamespace(skip_preflight=False), lambda m: None)
+    monkeypatch.setattr(sc.preflight, "run_preflight", lambda: [("a", False, "bad")])
+    with pytest.raises(SystemExit):
+        sc.run_preflight(SimpleNamespace(skip_preflight=False), lambda m: None)
+    called = {"called": False}
+
+    def fake_run():
+        called["called"] = True
+        return []
+
+    monkeypatch.setattr(sc.preflight, "run_preflight", fake_run)
+    sc.run_preflight(SimpleNamespace(skip_preflight=True), lambda m: None)
+    assert called["called"] is False
 
 
 def test_startup_task_failure(monkeypatch, capsys):
