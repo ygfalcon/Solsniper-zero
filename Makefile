@@ -8,10 +8,10 @@ PYTHON ?= python3
 .PHONY: start run test demo demo-rl demo-multi setup gen-proto
 
 start:
->$(PYTHON) start.py $(ARGS)
+>$(PYTHON) -m solhunter_zero.launcher $(ARGS)
 
 setup:
->$(PYTHON) start.py --one-click $(ARGS)
+>$(PYTHON) -m solhunter_zero.launcher --one-click $(ARGS)
 
 # Launch directly without the shell script (works on all platforms)
 run:

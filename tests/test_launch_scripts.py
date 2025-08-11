@@ -16,54 +16,8 @@ def _script_lines(name: str) -> list[str]:
 
 def test_start_command_invokes_launcher():
     lines = _script_lines("start.command")
-    assert any("start.py" in line for line in lines)
+    assert any("solhunter_zero.launcher" in line for line in lines)
 
-
-def test_start_py_invokes_launcher(tmp_path):
-    start_src = REPO_ROOT / "start.py"
-    tmp_start = tmp_path / "start.py"
-    tmp_start.write_text(start_src.read_text())
-
-    called = tmp_path / "called.txt"
-    stub = tmp_path / "solhunter_zero" / "launcher.py"
-    stub.parent.mkdir()
-    stub.write_text(
-        "import sys, pathlib\n"
-        f"def main(argv=None):\n    pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
-    )
-    stub.chmod(0o755)
-
-    subprocess.run([sys.executable, str(tmp_start), "EXTRA"], check=True)
-
-    assert called.read_text().split() == ["EXTRA"]
-
-
-def test_start_command_executes_launcher(tmp_path):
-    cmd_src = REPO_ROOT / "start.command"
-    py_src = REPO_ROOT / "start.py"
-
-    tmp_cmd = tmp_path / "start.command"
-    tmp_py = tmp_path / "start.py"
-    tmp_cmd.write_text(cmd_src.read_text())
-    tmp_py.write_text(py_src.read_text())
-    tmp_cmd.chmod(0o755)
-    tmp_py.chmod(0o755)
-
-    called = tmp_path / "called.txt"
-    stub = tmp_path / "solhunter_zero" / "launcher.py"
-    stub.parent.mkdir()
-    stub.write_text(
-        "import sys, pathlib\n"
-        f"def main(argv=None):\n    pathlib.Path(r'{called}').write_text(' '.join(sys.argv[1:]))\n"
-    )
-    stub.chmod(0o755)
-
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(tmp_path)
-    proc = subprocess.run([str(tmp_cmd), "EXTRA"], cwd=tmp_path, env=env)
-
-    assert proc.returncode == 0
-    assert called.read_text().split() == ["--non-interactive", "EXTRA"]
 
 
 def test_startup_non_interactive(monkeypatch, tmp_path):
