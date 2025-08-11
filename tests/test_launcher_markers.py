@@ -21,9 +21,11 @@ def test_launcher_writes_ok_markers(monkeypatch, tmp_path):
     monkeypatch.setattr(lu, "setup_logging", lambda *a, **k: None)
     monkeypatch.setattr(lu, "log_startup", lambda *a, **k: None)
     import solhunter_zero.macos_setup as ms
-    monkeypatch.setattr(ms, "ensure_tools", lambda **k: None)
     import solhunter_zero.bootstrap_utils as bu
-    monkeypatch.setattr(bu, "ensure_venv", lambda *a, **k: None)
+    from solhunter_zero.bootstrap_utils import maybe_write_marker
+
+    monkeypatch.setattr(ms, "ensure_tools", lambda **k: maybe_write_marker(tools_marker))
+    monkeypatch.setattr(bu, "ensure_venv", lambda *a, **k: maybe_write_marker(venv_marker))
     import solhunter_zero.device as device
     monkeypatch.setattr(device, "initialize_gpu", lambda: None)
     import solhunter_zero.system as system

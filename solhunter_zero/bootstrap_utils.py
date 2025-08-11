@@ -23,12 +23,22 @@ from typing import Sequence
 
 from scripts import deps
 from . import device
+from .cache_paths import VENV_OK_MARKER
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
 from .paths import ROOT
 
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
 VENV_DIR = ROOT / ".venv"
+
+
+def maybe_write_marker(path: Path) -> None:
+    """Attempt to write an ``ok`` marker file."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("ok")
+    except OSError:
+        pass
 
 
 @dataclass
@@ -148,6 +158,9 @@ def ensure_venv(argv: list[str] | None) -> None:
             logging.exception(msg)
             log_startup(msg)
             raise
+
+    # Running inside the virtual environment at this point.
+    maybe_write_marker(VENV_OK_MARKER)
 
 
 
