@@ -48,6 +48,27 @@ def mac_setup_completed() -> bool:
     return MAC_SETUP_MARKER.exists()
 
 
+def _detect_missing_tools() -> list[str]:
+    """Return a list of required macOS tools that are not available."""
+    missing: list[str] = []
+    try:
+        if (
+            subprocess.run(
+                ["xcode-select", "-p"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ).returncode
+            != 0
+        ):
+            missing.append("xcode-select")
+    except FileNotFoundError:
+        missing.append("xcode-select")
+    for cmd in ("brew", "python3.11", "rustup"):
+        if shutil.which(cmd) is None:
+            missing.append(cmd)
+    return missing
+
+
 
 
 def _run(cmd: list[str], check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
@@ -396,72 +417,40 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
         _write_report(report)
         return report
 
-    def missing() -> list[str]:
-        found: list[str] = []
-        try:
-            if (
-                subprocess.run(
-                    ["xcode-select", "-p"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                ).returncode
-                != 0
-            ):
-                found.append("xcode-select")
-        except FileNotFoundError:
-            found.append("xcode-select")
-        for cmd in ("brew", "python3.11", "rustup"):
-            if shutil.which(cmd) is None:
-                found.append(cmd)
-        return found
-
-    missing_tools = missing()
-    if mac_setup_completed() and not missing_tools:
-        if not TOOLS_OK_MARKER.exists():
-            TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-            TOOLS_OK_MARKER.write_text("ok")
-        report = {"steps": {}, "success": True, "missing": []}
-        _write_report(report)
-        return report
-    if TOOLS_OK_MARKER.exists() and not missing_tools:
-        report = {"steps": {}, "success": True, "missing": []}
-        _write_report(report)
-        return report
-    if not missing_tools:
-        TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-        TOOLS_OK_MARKER.write_text("ok")
-        report = {"steps": {}, "success": True, "missing": []}
-        _write_report(report)
-        return report
-
-    print(
-        "Missing macOS tools: " + ", ".join(missing_tools) + ". Running mac setup..."
-    )
-    report = prepare_macos_env(non_interactive=non_interactive)
-    for step, info in report["steps"].items():
-        msg = info.get("message", "")
-        if msg:
-            print(f"{step}: {info['status']} - {msg}")
-        else:
-            print(f"{step}: {info['status']}")
-    missing_after = missing()
-    report["missing"] = missing_after
-    if report.get("success") and not missing_after:
-        TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-        TOOLS_OK_MARKER.write_text("ok")
-    else:
+    missing_tools = _detect_missing_tools()
+    if missing_tools:
         print(
-            "macOS environment preparation failed; continuing without required tools",
-            file=sys.stderr,
+            "Missing macOS tools: "
+            + ", ".join(missing_tools)
+            + ". Running mac setup...",
         )
+        report = prepare_macos_env(non_interactive=non_interactive)
         for step, info in report["steps"].items():
-            if info.get("status") == "error":
-                fix = MANUAL_FIXES.get(step)
-                if fix:
-                    print(f"Manual fix for {step}: {fix}")
+            msg = info.get("message", "")
+            if msg:
+                print(f"{step}: {info['status']} - {msg}")
+            else:
+                print(f"{step}: {info['status']}")
+        report["missing"] = _detect_missing_tools()
+        if report["missing"]:
+            print(
+                "macOS environment preparation failed; continuing without required tools",
+                file=sys.stderr,
+            )
+            for step, info in report["steps"].items():
+                if info.get("status") == "error":
+                    fix = MANUAL_FIXES.get(step)
+                    if fix:
+                        print(f"Manual fix for {step}: {fix}")
+    else:
+        report = {"steps": {}, "success": True, "missing": []}
+
+    if report.get("success") and not report["missing"]:
+        TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        TOOLS_OK_MARKER.write_text("ok")
+
     _write_report(report)
     return report
-
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
