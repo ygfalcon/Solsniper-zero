@@ -1,678 +1,53 @@
 """Runtime entry points and trading loop orchestration for SolHunter Zero."""
 
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import datetime
 import logging
 import os
-import asyncio
-import sys
-import contextlib
 import subprocess
+import sys
 import time
 from argparse import ArgumentParser
-import cProfile
+from pathlib import Path
 from typing import Sequence
-import datetime
-
-try:  # pragma: no cover - optional dependency
-    import psutil
-except Exception:  # pragma: no cover - psutil optional
-    psutil = None  # type: ignore
-    logging.getLogger(__name__).warning(
-        "psutil not installed; CPU-based loop adjustments disabled"
-    )
+import cProfile
 
 from .util import install_uvloop
-from .system import detect_cpu_count
-
-from pathlib import Path
 from .paths import ROOT
-
 from .config import (
     load_config,
     apply_env_overrides,
     set_env_from_config,
     load_selected_config,
     get_active_config_name,
-    get_event_bus_url,
     CONFIG_DIR,
 )
-from .http import close_session
 from . import wallet
 from . import metrics_aggregator
 from .bootstrap import bootstrap
 from .config_runtime import Config
-
-_PROCESS_START_TIME = time.perf_counter()
-
-_SERVICE_MANIFEST = (
-    Path(__file__).resolve().parent.parent / "depth_service" / "Cargo.toml"
+from .startup import prepare_environment
+from .services import start_depth_service
+from .loop import (
+    place_order_async,
+    trading_loop,
+    FirstTradeTimeoutError,
+    _LAST_TRADE_TIMES,
 )
+from .memory import Memory, load_snapshot
+from .portfolio import Portfolio
+from .prices import warm_cache
+from .strategy_manager import StrategyManager
+from .agent_manager import AgentManager
+from . import event_bus
+
 
 install_uvloop()
 
-# record program start time for latency metrics
-_APP_START_TIME = time.monotonic()
-
-
-def _start_depth_service(cfg: dict) -> subprocess.Popen | None:
-    """Launch the Rust depth_service if enabled."""
-    if not cfg.get("depth_service"):
-        return None
-
-    args = [
-        "cargo",
-        "run",
-        "--manifest-path",
-        str(_SERVICE_MANIFEST),
-        "--release",
-        "--",
-    ]
-
-    def add(flag: str, key: str) -> None:
-        val = os.getenv(key.upper()) or cfg.get(key)
-        if val:
-            args.extend([flag, str(val)])
-
-    add("--raydium", "raydium_ws_url")
-    add("--orca", "orca_ws_url")
-    add("--phoenix", "phoenix_ws_url")
-    add("--meteora", "meteora_ws_url")
-    add("--jupiter", "jupiter_ws_url")
-    add("--serum", "serum_ws_url")
-
-    rpc = os.getenv("SOLANA_RPC_URL") or cfg.get("solana_rpc_url")
-    if rpc:
-        args.extend(["--rpc", rpc])
-    keypair = os.getenv("SOLANA_KEYPAIR") or os.getenv("KEYPAIR_PATH")
-    if keypair:
-        args.extend(["--keypair", keypair])
-
-    socket_path = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
-    socket_path = Path(socket_path).resolve()
-    socket_path.parent.mkdir(parents=True, exist_ok=True)
-
-    proc = subprocess.Popen(args)
-
-    timeout = float(os.getenv("DEPTH_START_TIMEOUT", "5") or 5)
-
-    async def wait_for_socket() -> None:
-        deadline = time.monotonic() + timeout
-        while True:
-            try:
-                reader, writer = await asyncio.open_unix_connection(socket_path)
-            except Exception:
-                if time.monotonic() > deadline:
-                    raise RuntimeError(
-                        f"depth_service socket {socket_path} not available after {timeout}s"
-                    )
-                await asyncio.sleep(0.05)
-            else:
-                writer.close()
-                await writer.wait_closed()
-                return
-
-    try:
-        asyncio.run(wait_for_socket())
-    except RuntimeError:
-        with contextlib.suppress(Exception):
-            proc.terminate()
-        with contextlib.suppress(Exception):
-            proc.wait(timeout=1)
-        raise RuntimeError(
-            f"Failed to start depth_service within {timeout}s"
-        )
-    return proc
-
-
-async def _depth_service_watchdog(
-    cfg: dict, proc_ref: list[subprocess.Popen | None]
-) -> None:
-    """Monitor the depth_service process and attempt limited restarts."""
-    proc = proc_ref[0]
-    if not proc:
-        return
-
-    max_restarts = int(
-        os.getenv("DEPTH_MAX_RESTARTS") or cfg.get("depth_max_restarts", 1)
-    )
-    restart_count = 0
-
-    try:
-        while True:
-            await asyncio.sleep(1.0)
-            if proc.poll() is None:
-                continue
-            if restart_count >= max_restarts:
-                logging.error(
-                    "depth_service exited after %d restarts; aborting",
-                    restart_count,
-                )
-                raise RuntimeError("depth_service terminated")
-
-            restart_count += 1
-            logging.warning(
-                "depth_service exited; attempting restart (%d/%d)",
-                restart_count,
-                max_restarts,
-            )
-
-            try:
-                proc = await asyncio.to_thread(_start_depth_service, cfg)
-            except Exception as exc:
-                logging.error("Failed to restart depth_service: %s", exc)
-                raise
-            if not proc:
-                logging.error("depth_service restart returned None; aborting")
-                raise RuntimeError("depth_service restart failed")
-            proc_ref[0] = proc
-    except asyncio.CancelledError:
-        pass
-
-
-def ensure_connectivity(*, offline: bool = False) -> None:
-    """Verify Solana RPC and DEX websocket connectivity."""
-    if offline:
-        return
-
-    from solhunter_zero.rpc_utils import ensure_rpc as _ensure_rpc
-    from .dex_ws import stream_listed_tokens
-
-    _ensure_rpc()
-
-    url = os.getenv("DEX_LISTING_WS_URL", "")
-    if not url:
-        return
-
-    raise_on_ws_fail = os.getenv("RAISE_ON_WS_FAIL", "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-
-    async def _check_ws() -> None:
-        gen = stream_listed_tokens(url)
-        try:
-            await asyncio.wait_for(gen.__anext__(), timeout=1)
-        except asyncio.TimeoutError:
-            msg = "No data received from DEX listing websocket"
-            logging.getLogger(__name__).warning(msg)
-            if raise_on_ws_fail:
-                raise RuntimeError(msg)
-        finally:
-            with contextlib.suppress(Exception):
-                await gen.aclose()
-
-    asyncio.run(_check_ws())
-
-
-# Load configuration at startup so modules relying on environment variables
-# pick up the values from config files or environment.
-_cfg = apply_env_overrides(load_config())
-set_env_from_config(_cfg)
-
-# Runtime configuration populated during startup
-_runtime_cfg: Config = Config.from_env(_cfg)
-
-from .token_scanner import scan_tokens_async
-from .onchain_metrics import async_top_volume_tokens, fetch_dex_metrics_async
-from .market_ws import listen_and_trade
-from .simulation import run_simulations
-from .decision import should_buy, should_sell
-from .prices import fetch_token_prices_async, warm_cache
-
-from . import order_book_ws
-
-from .memory import Memory, load_snapshot
-from .portfolio import Portfolio
-from .exchange import place_order_async as _exchange_place_order_async
-from .strategy_manager import StrategyManager
-from .agent_manager import AgentManager
-from .agents.discovery import DiscoveryAgent
-
-from .portfolio import dynamic_order_size
-from .agents.conviction import predict_price_movement
-from .risk import RiskManager, recent_value_at_risk
-from . import arbitrage
-from . import depth_client
-from . import event_bus
-from .data_pipeline import start_depth_snapshot_listener
-
-# track first trade latency
-_first_trade_recorded = False
-_first_trade_event = asyncio.Event()
-
-
-class FirstTradeTimeoutError(RuntimeError):
-    """Raised when no trade occurs before the configured timeout."""
-
-    pass
-
-async def place_order_async(*args, **kwargs):
-    """Emit time-to-first-trade metric on first successful order."""
-    global _first_trade_recorded
-    result = await _exchange_place_order_async(*args, **kwargs)
-    if not _first_trade_recorded:
-        _first_trade_recorded = True
-        _first_trade_event.set()
-        try:
-            metrics_aggregator.publish(
-                "time_to_first_trade", time.monotonic() - _APP_START_TIME
-            )
-        except Exception:  # pragma: no cover - metric errors
-            logging.exception("Failed to publish time_to_first_trade metric")
-    return result
-
-
-async def _check_first_trade(timeout: float, retry: bool) -> None:
-    """Wait for first trade or timeout and optionally request retry."""
-    try:
-        await asyncio.wait_for(_first_trade_event.wait(), timeout)
-    except asyncio.TimeoutError:
-        logging.error("First trade not recorded within %s seconds", timeout)
-        if retry:
-            raise FirstTradeTimeoutError
-
-# keep track of recently traded tokens for scheduling
-_LAST_TOKENS: list[str] = []
-# track last trade times by token
-_LAST_TRADE_TIMES: dict[str, datetime.datetime] = {}
-
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
-
-_level_name = os.getenv("LOG_LEVEL") or str(_cfg.get("log_level", "INFO"))
-logging.basicConfig(level=getattr(logging, _level_name.upper(), logging.INFO))
-
-
-async def _run_iteration(
-    memory: Memory,
-    portfolio: Portfolio,
-    cfg: Config | None = None,
-    *,
-    testnet: bool = False,
-    dry_run: bool = False,
-    offline: bool = False,
-    token_file: str | None = None,
-    discovery_method: str = "websocket",
-    keypair=None,
-    stop_loss: float | None = None,
-    take_profit: float | None = None,
-    trailing_stop: float | None = None,
-    max_drawdown: float = 1.0,
-    volatility_factor: float = 1.0,
-    arbitrage_threshold: float | None = None,
-    arbitrage_amount: float | None = None,
-    strategy_manager: StrategyManager | None = None,
-    agent_manager: AgentManager | None = None,
-) -> None:
-    """Execute a single trading iteration asynchronously."""
-    await memory.wait_ready()
-    metrics_aggregator.start()
-
-    if cfg is None:
-        cfg = _runtime_cfg
-
-    if arbitrage_threshold is None:
-        arbitrage_threshold = cfg.arbitrage_threshold
-    if arbitrage_amount is None:
-        arbitrage_amount = cfg.arbitrage_amount
-
-    scan_kwargs = {
-        "offline": offline,
-        "token_file": token_file,
-        "method": discovery_method,
-    }
-
-    if agent_manager is not None:
-        if hasattr(agent_manager, "discover_tokens"):
-            try:
-                tokens = await agent_manager.discover_tokens(**scan_kwargs)
-            except TypeError:
-                tokens = await agent_manager.discover_tokens(
-                    offline=offline, token_file=token_file
-                )
-        else:
-            tokens = await scan_tokens_async(dynamic_concurrency=True, **scan_kwargs)
-    else:
-        tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
-
-    global _LAST_TOKENS
-    _LAST_TOKENS = list(tokens)
-
-    # Always consider existing holdings when making sell decisions
-    tokens = list(set(tokens) | set(portfolio.balances.keys()))
-
-    recent_window = cfg.recent_trade_window
-    if recent_window > 0:
-        now = datetime.datetime.utcnow()
-        tokens = [
-            t
-            for t in tokens
-            if (
-                (ts := _LAST_TRADE_TIMES.get(t)) is None
-                or (now - ts).total_seconds() > recent_window
-            )
-        ]
-
-    rpc_url = cfg.solana_rpc_url
-    if rpc_url and not offline:
-        try:
-            ranked = await async_top_volume_tokens(rpc_url, limit=len(tokens))
-            ranked_set = set(ranked)
-            tokens = [t for t in ranked if t in tokens] + [
-                t for t in tokens if t not in ranked_set
-            ]
-
-        except Exception as exc:  # pragma: no cover - network errors
-            logging.warning("Volume ranking failed: %s", exc)
-
-    price_lookup = {}
-    if portfolio.balances:
-        if not offline:
-            price_lookup = await fetch_token_prices_async(portfolio.balances.keys())
-        portfolio.update_drawdown(price_lookup)
-        if price_lookup:
-            portfolio.record_prices(price_lookup)
-            portfolio.update_risk_metrics()
-    drawdown = portfolio.current_drawdown(price_lookup)
-    risk_metrics = portfolio.risk_metrics
-    os.environ["PORTFOLIO_VALUE"] = str(portfolio.total_value(price_lookup))
-
-    if agent_manager is not None:
-        for token in tokens:
-            try:
-                await agent_manager.execute(token, portfolio)
-            except Exception as exc:  # pragma: no cover - agent errors
-                logging.warning("Agent execution failed for %s: %s", token, exc)
-        return
-
-    use_old = (
-        strategy_manager is None
-        and run_simulations.__module__ != "solhunter_zero.simulation"
-    )
-    if use_old:
-        for token in tokens:
-            sims = run_simulations(token, count=100)
-            if should_buy(sims):
-                logging.info("Buying %s", token)
-                avg_roi = sum(r.expected_roi for r in sims) / len(sims)
-                if price_lookup:
-                    balance = portfolio.total_value(price_lookup)
-                    alloc = portfolio.percent_allocated(token, price_lookup)
-                else:
-                    balance = sum(p.amount for p in portfolio.balances.values()) or 1.0
-                    alloc = portfolio.percent_allocated(token)
-
-                rm = RiskManager.from_config(
-                    {
-                        "risk_tolerance": cfg.risk_tolerance,
-                        "max_allocation": cfg.max_allocation,
-                        "max_risk_per_token": cfg.max_risk_per_token,
-                        "max_drawdown": max_drawdown,
-                        "volatility_factor": volatility_factor,
-                        "risk_multiplier": cfg.risk_multiplier,
-                        "min_portfolio_value": cfg.min_portfolio_value,
-                    }
-                )
-
-                first_sim = sims[0] if sims else None
-                from .risk import hedge_ratio, leverage_scaling
-
-                hedge = hedge_ratio(
-                    portfolio.price_history.get(token, []),
-                    portfolio.price_history.get("USDC", []),
-                )
-                lev = leverage_scaling(1.0, 1.0 / (1 + abs(hedge)))
-                var_conf = cfg.var_confidence
-                var_window = cfg.var_window
-                var_threshold = cfg.var_threshold
-                hist = portfolio.price_history.get(token, [])
-                var = recent_value_at_risk(hist, window=var_window, confidence=var_conf)
-                params = rm.adjusted(
-                    drawdown,
-                    0.0,
-                    volume_spike=getattr(first_sim, "volume_spike", 1.0),
-                    depth_change=getattr(first_sim, "depth_change", 0.0),
-                    whale_activity=getattr(first_sim, "whale_activity", 0.0),
-                    portfolio_value=balance,
-                    portfolio_metrics=risk_metrics,
-                    leverage=lev,
-                    correlation=risk_metrics.get("correlation"),
-                    prices=hist,
-                    var_threshold=var_threshold,
-                    var_confidence=var_conf,
-                )
-
-                try:
-                    pred_roi = predict_price_movement(token)
-                except Exception:
-                    pred_roi = 0.0
-
-                amount = dynamic_order_size(
-                    balance,
-                    avg_roi,
-                    pred_roi,
-                    0.0,
-                    0.0,
-                    risk_tolerance=params.risk_tolerance,
-                    max_allocation=params.max_allocation,
-                    max_risk_per_token=params.max_risk_per_token,
-                    max_drawdown=max_drawdown,
-                    volatility_factor=volatility_factor,
-                    current_allocation=alloc,
-                    min_portfolio_value=params.min_portfolio_value,
-                    correlation=risk_metrics.get("correlation"),
-                    var=var,
-                    var_threshold=var_threshold,
-                )
-                await place_order_async(
-                    token,
-                    side="buy",
-                    amount=amount,
-                    price=0,
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
-                )
-
-                if not dry_run:
-                    await memory.log_trade(
-                        token=token, direction="buy", amount=amount, price=0
-                    )
-                    await portfolio.update_async(token, amount, 0)
-
-        price_lookup_sell = {}
-        if (
-            stop_loss is not None
-            or take_profit is not None
-            or trailing_stop is not None
-        ):
-            price_lookup_sell = await fetch_token_prices_async(
-                portfolio.balances.keys()
-            )
-            await portfolio.update_highs_async(price_lookup_sell)
-            if price_lookup_sell:
-                portfolio.record_prices(price_lookup_sell)
-                portfolio.update_risk_metrics()
-
-        for token, pos in list(portfolio.balances.items()):
-            sims = run_simulations(token, count=100)
-
-            roi_trigger = False
-            if token in price_lookup_sell:
-                price = price_lookup_sell[token]
-                roi = portfolio.position_roi(token, price)
-                if stop_loss is not None and roi <= -stop_loss:
-                    roi_trigger = True
-                if take_profit is not None and roi >= take_profit:
-                    roi_trigger = True
-                if trailing_stop is not None and portfolio.trailing_stop_triggered(
-                    token, price, trailing_stop
-                ):
-                    roi_trigger = True
-
-            if roi_trigger or should_sell(
-                sims,
-                trailing_stop=trailing_stop,
-                current_price=price_lookup_sell.get(token),
-                high_price=pos.high_price,
-            ):
-                logging.info("Selling %s", token)
-                await place_order_async(
-                    token,
-                    side="sell",
-                    amount=pos.amount,
-                    price=0,
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
-                )
-
-                if not dry_run:
-                    await memory.log_trade(
-                        token=token, direction="sell", amount=pos.amount, price=0
-                    )
-                    await portfolio.update_async(token, -pos.amount, 0)
-    else:
-        if strategy_manager is None:
-            strategy_manager = StrategyManager()
-            missing = strategy_manager.list_missing()
-            if missing:
-                logging.warning("Skipped strategies: %s", ", ".join(missing))
-
-        for token in tokens:
-            try:
-                actions = await strategy_manager.evaluate(token, portfolio)
-            except Exception as exc:  # pragma: no cover - strategy errors
-                logging.warning("Strategy evaluation failed for %s: %s", token, exc)
-                continue
-            for action in actions:
-                side = action.get("side")
-                amount = action.get("amount", 0.0)
-                price = action.get("price", 0.0)
-                if side not in {"buy", "sell"} or amount <= 0:
-                    continue
-
-                await place_order_async(
-                    token,
-                    side=side,
-                    amount=amount,
-                    price=price,
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    keypair=keypair,
-                )
-
-                if not dry_run:
-                    await memory.log_trade(
-                        token=token, direction=side, amount=amount, price=price
-                    )
-                    await portfolio.update_async(
-                        token,
-                        amount if side == "buy" else -amount,
-                        price,
-                    )
-
-        if agent_manager is not None:
-            agent_manager.update_weights()
-            agent_manager.save_weights()
-
-
-async def _init_rl_training(
-    cfg: dict,
-    *,
-    rl_daemon: bool = False,
-    rl_interval: float = 3600.0,
-) -> asyncio.Task | None:
-    """Set up RL background training if enabled."""
-    auto_train_cfg = bool(cfg.get("rl_auto_train", False))
-    if not rl_daemon and not auto_train_cfg:
-        return None
-
-    from .rl_daemon import RLDaemon
-    from .event_bus import subscription
-    import torch
-
-    mem_db = cfg.get("memory_path", "sqlite:///memory.db")
-    data_val = cfg.get("rl_db_path", "offline_data.db")
-    model_val = cfg.get("rl_model_path", "ppo_model.pt")
-    data_path = Path(data_val)
-    if not data_path.is_absolute():
-        data_path = ROOT / data_path
-    model_path = Path(model_val)
-    if not model_path.is_absolute():
-        model_path = ROOT / model_path
-    algo = cfg.get("rl_algo", "ppo")
-    policy = cfg.get("rl_policy", "mlp")
-    auto_train = auto_train_cfg
-    tune_interval = float(cfg.get("rl_tune_interval", rl_interval))
-    cpu_count = detect_cpu_count()
-    dyn_workers = bool(cfg.get("rl_dynamic_workers", cpu_count > 1))
-
-    daemon = RLDaemon(
-        memory_path=mem_db,
-        data_path=str(data_path),
-        model_path=str(model_path),
-        algo=algo,
-        policy=policy,
-        dynamic_workers=dyn_workers,
-    )
-    task = daemon.start(rl_interval, auto_train=auto_train, tune_interval=tune_interval)
-
-    def _reload(_payload):
-        try:
-            daemon.model.load_state_dict(
-                torch.load(model_path, map_location=daemon.device)
-            )
-        except Exception:
-            return
-        for ag in daemon.agents:
-            try:
-                if hasattr(ag, "reload_weights"):
-                    ag.reload_weights()
-                else:
-                    ag._load_weights()
-            except Exception:
-                continue
-
-    sub = subscription("rl_weights", _reload)
-    sub.__enter__()
-
-    return task
-
-
-def perform_startup(
-    config_path: str | None,
-    *,
-    offline: bool = False,
-    dry_run: bool = False,
-) -> tuple[dict, Config, subprocess.Popen | None]:
-    """Load config, verify connectivity, and start depth service with timing."""
-    start = time.perf_counter()
-    cfg = apply_env_overrides(load_config(config_path))
-    set_env_from_config(cfg)
-    runtime_cfg = Config.from_env(cfg)
-    metrics_aggregator.publish(
-        "startup_config_load_duration", time.perf_counter() - start
-    )
-
-    start = time.perf_counter()
-    ensure_connectivity(offline=offline or dry_run)
-    metrics_aggregator.publish(
-        "startup_connectivity_check_duration", time.perf_counter() - start
-    )
-
-    start = time.perf_counter()
-    proc: subprocess.Popen | None = None
-    try:
-        proc = _start_depth_service(cfg)
-    finally:
-        metrics_aggregator.publish(
-            "startup_depth_service_start_duration", time.perf_counter() - start
-        )
-
-    global _runtime_cfg
-    _runtime_cfg = runtime_cfg
-
-    return cfg, runtime_cfg, proc
 
 
 def main(
@@ -715,54 +90,21 @@ def main(
     strategy_rotation_interval: int | None = None,
     weight_config_paths: list[str] | None = None,
 ) -> None:
-    """Run the trading loop.
+    """Run the trading loop."""
 
-    Parameters
-    ----------
-    memory_path:
-        Database URL for storing trades.
-    loop_delay:
-        Delay between iterations in seconds.
-
-
-
-
-    iterations:
-        Number of iterations to run before exiting. ``None`` runs forever.
-    offline:
-        Return a predefined token list instead of querying the network.
-
-    discovery_method:
-        Token discovery method: onchain, websocket, mempool, pools or file.
-
-    portfolio_path:
-        Path to the JSON file for persisting portfolio state.
-
-    arbitrage_tokens:
-        Optional list of token addresses to monitor for arbitrage opportunities.
-
-    strategies:
-        Optional list of strategy module names to load.
-
-
-
-
-
-    """
     from .wallet import load_keypair
 
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     try:
-        cfg, runtime_cfg, proc = perform_startup(
-            config_path,
-            offline=offline,
-            dry_run=dry_run,
+        cfg, runtime_cfg = prepare_environment(
+            config_path, offline=offline, dry_run=dry_run
         )
+        proc = start_depth_service(cfg)
     except Exception as exc:
         logging.error("Failed to start depth_service: %s", exc)
         cfg = {"depth_service": False}
-        runtime_cfg = _runtime_cfg
+        runtime_cfg = Config.from_env(cfg)
         proc = None
         os.environ["DEPTH_SERVICE"] = "false"
     metrics_aggregator.start()
@@ -861,12 +203,14 @@ def main(
     snapshot_trades = load_snapshot(snapshot_path) if snapshot_path else []
     memory = Memory(memory_path)
     if snapshot_trades:
+
         async def _seed(mem: Memory, trades: Sequence[dict]) -> None:
             for tr in trades:
                 try:
                     await mem.log_trade(_broadcast=False, **tr)
                 except Exception:
                     continue
+
         asyncio.run(_seed(memory, snapshot_trades))
     memory.start_writer()
     portfolio = Portfolio(path=portfolio_path)
@@ -874,6 +218,7 @@ def main(
 
     recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
     if recent_window > 0:
+
         async def _load_recent_trades() -> None:
             trades = await memory.list_trades()
             for tr in trades:
@@ -882,6 +227,7 @@ def main(
                     prev = _LAST_TRADE_TIMES.get(tr.token)
                     if prev is None or ts > prev:
                         _LAST_TRADE_TIMES[tr.token] = ts
+
         try:
             asyncio.run(_load_recent_trades())
         except Exception as exc:
@@ -950,278 +296,47 @@ def main(
             logging.error("Connectivity test order failed: %s", exc)
             raise SystemExit(1)
 
-    async def loop() -> None:
-        depth_updates = 0
-        prev_count = 0
-        prev_ts = time.monotonic()
-        nonlocal depth_rate_limit
-
-        def _count(_p):
-            nonlocal depth_updates
-            depth_updates += 1
-
-        unsub_counter = event_bus.subscribe("depth_update", _count)
-
-        def _record_trade(payload):
-            _LAST_TRADE_TIMES[payload.token] = datetime.datetime.utcnow()
-
-        unsub_trade = event_bus.subscribe("trade_logged", _record_trade)
-        bus_started = False
-        if get_event_bus_url() is None:
-            await event_bus.start_ws_server()
-            bus_started = True
-
-        rl_task = await _init_rl_training(
-            cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
-        )
-        collect_data = str(
-            cfg.get("collect_offline_data")
-            or os.getenv("COLLECT_OFFLINE_DATA", "false")
-        ).lower() in {"1", "true", "yes"}
-        stop_collector = None
-        if collect_data:
-            db_val = cfg.get("rl_db_path", "offline_data.db")
-            db_path = Path(db_val)
-            if not db_path.is_absolute():
-                db_path = ROOT / db_path
-            stop_collector = start_depth_snapshot_listener(str(db_path))
-        prev_activity = 0.0
-        iteration_idx = 0
-        startup_reported = False
-
-        timeout = float(os.getenv("FIRST_TRADE_TIMEOUT", "0") or 0)
-        retry_first_trade = os.getenv("FIRST_TRADE_RETRY", "false").lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        first_trade_task = None
-
-        def _check_timeout() -> None:
-            if first_trade_task and first_trade_task.done():
-                first_trade_task.result()
-
-        def adjust_delay(metrics: dict) -> None:
-            nonlocal loop_delay, prev_activity, prev_count, prev_ts, depth_rate_limit
-            activity = metrics.get("liquidity", 0.0) + metrics.get("volume", 0.0)
-            cpu = psutil.cpu_percent() if psutil is not None else 0.0
-            now = time.monotonic()
-            freq = (depth_updates - prev_count) / (now - prev_ts) if now > prev_ts else 0.0
-            if (
-                activity > prev_activity * 1.5
-                or freq > depth_freq_high
-                or cpu > cpu_high_threshold
-            ):
-                loop_delay = max(min_delay, max(1, loop_delay // 2))
-                depth_rate_limit = max(0.01, depth_rate_limit / 2)
-            elif (
-                activity < prev_activity * 0.5
-                and freq < depth_freq_low
-                and cpu < cpu_low_threshold
-            ):
-                loop_delay = min(max_delay, loop_delay * 2)
-                depth_rate_limit = min(1.0, depth_rate_limit * 2)
-            prev_activity = activity
-            prev_count = depth_updates
-            prev_ts = now
-            arbitrage.DEPTH_RATE_LIMIT = depth_rate_limit
-
-        use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-
-        async with asyncio.TaskGroup() as tg:
-            if proc_ref[0]:
-                tg.create_task(_depth_service_watchdog(cfg, proc_ref))
-
-            if timeout > 0:
-                first_trade_task = tg.create_task(
-                    _check_first_trade(timeout, retry_first_trade)
-                )
-
-            if market_ws_url:
-
-                async def run_market_ws() -> None:
-                    while True:
-                        try:
-                            await listen_and_trade(
-                                market_ws_url,
-                                memory,
-                                portfolio,
-                                testnet=testnet,
-                                dry_run=dry_run,
-                                keypair=keypair,
-                            )
-                        except Exception as exc:  # pragma: no cover - network errors
-                            logging.error("Market websocket failed: %s", exc)
-                            await asyncio.sleep(1.0)
-
-                tg.create_task(run_market_ws())
-
-            if use_depth_stream:
-
-                async def run_depth_ws() -> None:
-                    while True:
-                        try:
-                            await depth_client.listen_depth_ws()
-                        except Exception as exc:  # pragma: no cover - network errors
-                            logging.error("Depth websocket failed: %s", exc)
-                            await asyncio.sleep(1.0)
-
-                tg.create_task(run_depth_ws())
-
-            if order_book_ws_url:
-
-                async def run_order_book() -> None:
-                    while True:
-                        try:
-                            async for _ in order_book_ws.stream_order_book(
-                                order_book_ws_url,
-                                rate_limit=depth_rate_limit
-                            ):
-                                pass
-                        except Exception as exc:  # pragma: no cover - network errors
-                            logging.error("Order book stream failed: %s", exc)
-                            await asyncio.sleep(1.0)
-
-                tg.create_task(run_order_book())
-
-            if arbitrage_tokens:
-
-                async def monitor_arbitrage() -> None:
-                    while True:
-                        try:
-                            await arbitrage.detect_and_execute_arbitrage(
-                                arbitrage_tokens,
-                                threshold=arbitrage_threshold,
-                                amount=arbitrage_amount,
-                                testnet=testnet,
-                                dry_run=dry_run,
-                                keypair=keypair,
-                            )
-                        except Exception as exc:  # pragma: no cover - network errors
-                            logging.warning("Arbitrage monitor failed: %s", exc)
-                        await asyncio.sleep(loop_delay)
-
-                tg.create_task(monitor_arbitrage())
-
-        if iterations is None:
-            while True:
-                _check_timeout()
-                if not startup_reported:
-                    metrics_aggregator.emit_startup_complete(
-                        (time.perf_counter() - _PROCESS_START_TIME) * 1000.0
-                    )
-                    startup_reported = True
-                await _run_iteration(
-                    memory,
-                    portfolio,
-                    runtime_cfg,
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    offline=offline,
-                    token_file=token_file,
-                    discovery_method=discovery_method,
-                    keypair=keypair,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    trailing_stop=trailing_stop,
-                    max_drawdown=max_drawdown,
-                    volatility_factor=volatility_factor,
-                    arbitrage_threshold=arbitrage_threshold,
-                    arbitrage_amount=arbitrage_amount,
-                    strategy_manager=strategy_manager,
-                    agent_manager=agent_manager,
-                )
-                if _LAST_TOKENS:
-                    metrics = await fetch_dex_metrics_async(
-                        _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
-                    )
-                    adjust_delay(metrics)
-                iteration_idx += 1
-                if (
-                    agent_manager
-                    and iteration_idx % getattr(agent_manager, "evolve_interval", 1)
-                    == 0
-                ):
-                    agent_manager.evolve(
-                        threshold=getattr(agent_manager, "mutation_threshold", 0.0)
-                    )
-                if (
-                    agent_manager
-                    and getattr(agent_manager, "strategy_rotation_interval", 0) > 0
-                    and iteration_idx % agent_manager.strategy_rotation_interval == 0
-                ):
-                    agent_manager.rotate_weight_configs()
-                await asyncio.sleep(loop_delay)
-        else:
-            for i in range(iterations):
-                _check_timeout()
-                if not startup_reported:
-                    metrics_aggregator.emit_startup_complete(
-                        (time.perf_counter() - _PROCESS_START_TIME) * 1000.0
-                    )
-                    startup_reported = True
-                await _run_iteration(
-                    memory,
-                    portfolio,
-                    runtime_cfg,
-                    testnet=testnet,
-                    dry_run=dry_run,
-                    offline=offline,
-                    token_file=token_file,
-                    discovery_method=discovery_method,
-                    keypair=keypair,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    trailing_stop=trailing_stop,
-                    max_drawdown=max_drawdown,
-                    volatility_factor=volatility_factor,
-                    arbitrage_threshold=arbitrage_threshold,
-                    arbitrage_amount=arbitrage_amount,
-                    strategy_manager=strategy_manager,
-                    agent_manager=agent_manager,
-                )
-                if _LAST_TOKENS:
-                    metrics = await fetch_dex_metrics_async(
-                        _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
-                    )
-                    adjust_delay(metrics)
-                iteration_idx += 1
-                if (
-                    agent_manager
-                    and iteration_idx % getattr(agent_manager, "evolve_interval", 1)
-                    == 0
-                ):
-                    agent_manager.evolve(
-                        threshold=getattr(agent_manager, "mutation_threshold", 0.0)
-                    )
-                if (
-                    agent_manager
-                    and getattr(agent_manager, "strategy_rotation_interval", 0) > 0
-                    and iteration_idx % agent_manager.strategy_rotation_interval == 0
-                ):
-                    agent_manager.rotate_weight_configs()
-                if i < iterations - 1:
-                    await asyncio.sleep(loop_delay)
-
-        if rl_task:
-            rl_task.cancel()
-            with contextlib.suppress(Exception):
-                await rl_task
-        if stop_collector:
-            stop_collector()
-        if bus_started:
-            await event_bus.stop_ws_server()
-        unsub_trade()
-        unsub_counter()
-
     try:
         while True:
             try:
-                asyncio.run(loop())
+                asyncio.run(
+                    trading_loop(
+                        cfg,
+                        runtime_cfg,
+                        memory,
+                        portfolio,
+                        loop_delay=loop_delay,
+                        min_delay=min_delay,
+                        max_delay=max_delay,
+                        cpu_low_threshold=cpu_low_threshold,
+                        cpu_high_threshold=cpu_high_threshold,
+                        depth_freq_low=depth_freq_low,
+                        depth_freq_high=depth_freq_high,
+                        depth_rate_limit=depth_rate_limit,
+                        iterations=iterations,
+                        testnet=testnet,
+                        dry_run=dry_run,
+                        offline=offline,
+                        token_file=token_file,
+                        discovery_method=discovery_method,
+                        keypair=keypair,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        trailing_stop=trailing_stop,
+                        max_drawdown=max_drawdown,
+                        volatility_factor=volatility_factor,
+                        arbitrage_threshold=arbitrage_threshold,
+                        arbitrage_amount=arbitrage_amount,
+                        strategy_manager=strategy_manager,
+                        agent_manager=agent_manager,
+                        market_ws_url=market_ws_url,
+                        order_book_ws_url=order_book_ws_url,
+                        arbitrage_tokens=arbitrage_tokens,
+                        rl_daemon=rl_daemon,
+                        rl_interval=rl_interval,
+                        proc_ref=proc_ref,
+                    )
+                )
                 break
             except FirstTradeTimeoutError:
                 logging.error("Retrying trading loop after first trade timeout")
@@ -1354,7 +469,7 @@ if __name__ == "__main__":
         "--stop-loss",
         type=float,
         default=None,
-        help="Stop loss threshold as a fraction (e.g. 0.1 for 10%%)",
+        help="Stop loss threshold as a fraction (e.g. 0.1 for 10%)",
     )
     parser.add_argument(
         "--take-profit",
@@ -1421,6 +536,11 @@ if __name__ == "__main__":
         help="Trade size when executing arbitrage",
     )
     parser.add_argument(
+        "--arbitrage-tokens",
+        default=None,
+        help="Comma-separated list of token addresses to monitor",
+    )
+    parser.add_argument(
         "--strategies",
         default=None,
         help="Comma-separated list of strategy modules",
@@ -1474,6 +594,13 @@ if __name__ == "__main__":
         token_file=args.token_file,
         discovery_method=args.discovery_method,
         keypair_path=args.keypair,
+        min_delay=args.min_delay,
+        max_delay=args.max_delay,
+        cpu_low_threshold=args.cpu_low_threshold,
+        cpu_high_threshold=args.cpu_high_threshold,
+        depth_freq_low=args.depth_freq_low,
+        depth_freq_high=args.depth_freq_high,
+        depth_rate_limit=args.depth_rate_limit,
         portfolio_path=args.portfolio_path,
         config_path=args.config,
         stop_loss=args.stop_loss,
@@ -1488,38 +615,20 @@ if __name__ == "__main__":
         order_book_ws_url=args.order_book_ws_url,
         arbitrage_threshold=args.arbitrage_threshold,
         arbitrage_amount=args.arbitrage_amount,
-        arbitrage_tokens=None,
-        strategies=(
-            [s.strip() for s in args.strategies.split(",")] if args.strategies else None
-        ),
-        min_delay=None,
-        max_delay=None,
-        cpu_low_threshold=None,
-        cpu_high_threshold=None,
-        depth_freq_low=None,
-        depth_freq_high=None,
-        depth_rate_limit=0.1,
+        arbitrage_tokens=args.arbitrage_tokens.split(",")
+        if args.arbitrage_tokens
+        else None,
+        strategies=args.strategies.split(",") if args.strategies else None,
         rl_daemon=args.rl_daemon,
         rl_interval=args.rl_interval,
         dynamic_concurrency=args.dynamic_concurrency,
         strategy_rotation_interval=args.strategy_rotation_interval,
         weight_config_paths=args.weight_configs,
     )
+    if args.profile:
+        cProfile.runctx("main(**kwargs)", globals(), locals(), filename="profile.out")
+    elif args.auto:
+        run_auto(**kwargs)
+    else:
+        main(**kwargs)
 
-    try:
-        if args.profile:
-            if args.auto:
-                cProfile.runctx(
-                    "run_auto(**kwargs)", globals(), locals(), filename="profile.out"
-                )
-            else:
-                cProfile.runctx(
-                    "main(**kwargs)", globals(), locals(), filename="profile.out"
-                )
-        else:
-            if args.auto:
-                run_auto(**kwargs)
-            else:
-                main(**kwargs)
-    finally:
-        asyncio.run(close_session())
