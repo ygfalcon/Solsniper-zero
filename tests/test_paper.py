@@ -30,8 +30,8 @@ def test_paper_cli(tmp_path: Path, monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert "ROI by agent" in out
     data = json.loads((reports / "paper_roi.json").read_text())
-    # ROI should be positive for the synthetic trades
-    assert next(iter(data.values())) > 0
-    # Trades were logged via the asynchronous memory path
+    # Buy-and-hold strategy should generate positive ROI on sample data
+    assert data["buy_hold"] > 0
+    # Trades were logged for each strategy
     trades = run_coro(mem.list_trades(limit=1000))
-    assert len(trades) == 2
+    assert len(trades) >= 18

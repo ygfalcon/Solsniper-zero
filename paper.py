@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
+from solhunter_zero.investor_demo import DEFAULT_STRATEGIES
 from solhunter_zero.simple_memory import SimpleMemory
 from solhunter_zero.trade_analyzer import TradeAnalyzer
 
@@ -38,10 +39,30 @@ def run(argv: list[str] | None = None) -> None:
     args.reports.mkdir(parents=True, exist_ok=True)
 
     ticks = load_sample_ticks()
+    prices = [t["price"] for t in ticks]
     mem = SyncMemory()
-    first, last = ticks[0]["price"], ticks[-1]["price"]
-    mem.log_trade(token="DEMO", direction="buy", amount=1.0, price=first, reason="demo")
-    mem.log_trade(token="DEMO", direction="sell", amount=1.0, price=last, reason="demo")
+
+    for name, strat in DEFAULT_STRATEGIES:
+        returns = strat(prices)
+        for i, r in enumerate(returns, start=1):
+            if r == 0:
+                continue
+            buy = prices[i - 1]
+            sell = prices[i]
+            mem.log_trade(
+                token="DEMO",
+                direction="buy",
+                amount=1.0,
+                price=buy,
+                reason=name,
+            )
+            mem.log_trade(
+                token="DEMO",
+                direction="sell",
+                amount=1.0,
+                price=sell,
+                reason=name,
+            )
 
     roi = TradeAnalyzer(mem).roi_by_agent()
     out_path = args.reports / "paper_roi.json"
