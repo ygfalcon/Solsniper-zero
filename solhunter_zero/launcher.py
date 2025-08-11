@@ -32,6 +32,26 @@ FAST_MODE = False
 _PYTHON_CACHE: str | None = None
 
 
+if platform.system() == "Darwin" and platform.machine() == "x86_64":
+    arch = shutil.which("arch")
+    if arch:
+        try:
+            os.execvp(arch, [arch, "-arm64", sys.executable, *sys.argv])
+        except OSError as exc:  # pragma: no cover - hard failure
+            print(
+                f"Failed to re-exec via 'arch -arm64': {exc}\n"
+                "Please run with an arm64 Python interpreter.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+    else:  # pragma: no cover - hard failure
+        print(
+            "The 'arch' command was not found; unable to launch arm64 Python.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+
 def _check_python(exe: str) -> bool:
     """Return ``True`` if ``exe`` is a Python >=3.11 interpreter."""
     try:
@@ -233,20 +253,10 @@ def main(argv: list[str] | None = None) -> NoReturn:
     script = "scripts.startup"
     cmd = [python_exe, "-m", script, *argv]
 
-    if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        cmd = ["arch", "-arm64", *cmd]
-
     try:
         os.execvp(cmd[0], cmd)
     except OSError as exc:  # pragma: no cover - hard failure
-        if platform.system() == "Darwin" and platform.machine() == "x86_64":
-            print(
-                f"Failed to launch {script} via 'arch -arm64': {exc}\n"
-                "Please use 'python -m solhunter_zero.launcher'.",
-                file=sys.stderr,
-            )
-        else:
-            print(f"Failed to launch {script}: {exc}", file=sys.stderr)
+        print(f"Failed to launch {script}: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
 
