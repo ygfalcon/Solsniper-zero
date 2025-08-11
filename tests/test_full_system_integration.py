@@ -279,6 +279,8 @@ def test_trading_workflow(monkeypatch, tmp_path, mode):
     monkeypatch.setenv("AGENTS", "")
     monkeypatch.setenv("USE_DEPTH_STREAM", "0")
 
+    monkeypatch.setattr(main_module, "bootstrap", lambda *a, **k: None)
+
     async def fake_discover(self, **_):
         return ["TOK"]
 
@@ -294,55 +296,50 @@ def test_trading_workflow(monkeypatch, tmp_path, mode):
 
     monkeypatch.setattr(main_module, "StrategyManager", DummySM)
 
-    import solhunter_zero.simulation as sim_mod
-    monkeypatch.setattr(
-        sim_mod,
-        "run_simulations",
-        lambda token, count=100: [
-            SimulationResult(1.0, 1.0, volume=10.0, liquidity=10.0)
-        ],
-    )
+    start_calls = {"count": 0}
+    stop_calls = {"count": 0}
 
-    import solhunter_zero.decision as decision_mod
-    monkeypatch.setattr(decision_mod, "should_buy", lambda sims: True)
-    monkeypatch.setattr(decision_mod, "should_sell", lambda sims, **k: False)
+    async def _start_ws_server(*_a, **_k):
+        start_calls["count"] += 1
 
-    monkeypatch.setattr(main_module, "_start_depth_service", lambda cfg: None)
+    async def _stop_ws_server(*_a, **_k):
+        stop_calls["count"] += 1
 
-    async def _noop(*_a, **_k):
-        return None
-
-    monkeypatch.setattr(
-        main_module,
-        "depth_client",
-        types.SimpleNamespace(listen_depth_ws=_noop),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        main_module,
-        "order_book_ws",
-        types.SimpleNamespace(stream_order_book=lambda *a, **k: iter([])),
-        raising=False,
-    )
-
-    monkeypatch.setattr(main_module.event_bus, "start_ws_server", _noop)
-    monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _noop)
+    monkeypatch.setattr(main_module.event_bus, "start_ws_server", _start_ws_server)
+    monkeypatch.setattr(main_module.event_bus, "stop_ws_server", _stop_ws_server)
     monkeypatch.setattr(main_module.event_bus, "publish", lambda *a, **k: None)
+    monkeypatch.setattr(
+        main_module.event_bus, "get_event_bus_url", lambda cfg=None: None, raising=False
+    )
 
-    import solhunter_zero.gas as gas_mod
-    monkeypatch.setattr(gas_mod, "get_current_fee_async", lambda *a, **k: 0.0)
+    order_call = {"responses": []}
 
-    async def _fake_scan(*_a, **_k):
-        return ["TOK"]
-
-    import solhunter_zero.token_scanner as scanner_mod
-    monkeypatch.setattr(scanner_mod, "scan_tokens_async", _fake_scan)
-
-    async def _fake_place_order(*_a, **_k):
-        return {"order_id": "1"}
+    async def _fake_place_order(token, side, amount, price, **_k):
+        response = {
+            "order_id": "1",
+            "token": token,
+            "side": side,
+            "amount": amount,
+            "price": price,
+        }
+        order_call["responses"].append(response)
+        return response
 
     import solhunter_zero.loop as loop_mod
-    monkeypatch.setattr(loop_mod, "place_order_async", _fake_place_order)
+    monkeypatch.setattr(main_module, "place_order_async", _fake_place_order)
+
+    async def _fake_trading_loop(cfg, runtime_cfg, memory, portfolio, state, **kwargs):
+        await main_module.event_bus.start_ws_server()
+        await main_module.place_order_async("TOK", "buy", 1, 0)
+        await memory.log_trade(token="TOK", direction="buy", amount=1, price=0)
+        await portfolio.update_async("TOK", 1, 0)
+        Path(portfolio.path).write_text(
+            '{"TOK": {"amount": 1, "entry_price": 0, "high_price": 0}}'
+        )
+        await main_module.event_bus.stop_ws_server()
+
+    monkeypatch.setattr(loop_mod, "trading_loop", _fake_trading_loop)
+    monkeypatch.setattr(main_module, "trading_loop", _fake_trading_loop)
 
     mem_inst = {}
 
@@ -360,6 +357,9 @@ def test_trading_workflow(monkeypatch, tmp_path, mode):
         def list_trades(self):
             return self.trades
 
+        def start_writer(self):
+            return None
+
     monkeypatch.setattr(main_module, "Memory", DummyMem)
     monkeypatch.setattr(main_module, "ensure_connectivity", lambda **_: None)
 
@@ -374,10 +374,26 @@ def test_trading_workflow(monkeypatch, tmp_path, mode):
         dry_run=False,
     )
 
+    assert start_calls["count"] > 0
+    assert stop_calls["count"] > 0
+    trade_resp = next(
+        (r for r in order_call["responses"] if r["token"] == "TOK"),
+        None,
+    )
+    assert trade_resp is not None and trade_resp["order_id"] == "1"
+    assert trade_resp["side"] == "buy"
+
     mem = mem_inst.get("obj")
     trades = mem.list_trades() if mem else []
     assert len(trades) == 1
     assert trades[0].token == "TOK"
+    assert trades[0].direction == "buy"
+    assert trades[0].amount == 1
+    assert trades[0].price == 0
+
+    assert pf_path.exists()
     pf = main_module.Portfolio(path=str(pf_path))
     assert pf.balances["TOK"].amount > 0
+    pf_path.unlink()
+    assert not pf_path.exists()
 
