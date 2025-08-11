@@ -462,6 +462,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     memory = memory or Memory("sqlite:///memory.db")
     portfolio = Portfolio()
+    state = main_module.TradingState()
 
     current_portfolio = portfolio
     set_env_from_config(load_selected_config())
@@ -494,6 +495,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
         await main_module._run_iteration(
             memory,
             portfolio,
+            state,
             testnet=False,
             dry_run=False,
             offline=False,
