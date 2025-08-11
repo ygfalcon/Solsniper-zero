@@ -36,8 +36,9 @@ from .loop import (
     place_order_async,
     trading_loop,
     FirstTradeTimeoutError,
-    _LAST_TRADE_TIMES,
+    run_iteration as _run_iteration,
 )
+from .main_state import TradingState
 from .memory import Memory, load_snapshot
 from .portfolio import Portfolio
 from .prices import warm_cache
@@ -257,6 +258,7 @@ def main(
     memory.start_writer()
     portfolio = Portfolio(path=portfolio_path)
     warm_cache(portfolio.balances.keys())
+    state = TradingState()
 
     recent_window = float(os.getenv("RECENT_TRADE_WINDOW", "0") or 0)
     if recent_window > 0:
@@ -266,9 +268,9 @@ def main(
             for tr in trades:
                 ts = getattr(tr, "created_at", None)
                 if ts is not None:
-                    prev = _LAST_TRADE_TIMES.get(tr.token)
+                    prev = state.last_trade_times.get(tr.token)
                     if prev is None or ts > prev:
-                        _LAST_TRADE_TIMES[tr.token] = ts
+                        state.last_trade_times[tr.token] = ts
 
         try:
             asyncio.run(_load_recent_trades())
@@ -347,6 +349,7 @@ def main(
                         runtime_cfg,
                         memory,
                         portfolio,
+                        state,
                         loop_delay=loop_delay,
                         min_delay=min_delay,
                         max_delay=max_delay,

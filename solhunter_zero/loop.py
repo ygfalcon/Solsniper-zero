@@ -16,6 +16,7 @@ from .exchange import place_order_async as _exchange_place_order_async
 from .paths import ROOT
 from .services import depth_service_watchdog
 from .system import detect_cpu_count
+from .main_state import TradingState
 
 
 _PROCESS_START_TIME = time.perf_counter()
@@ -57,13 +58,10 @@ async def _check_first_trade(timeout: float, retry: bool) -> None:
             raise FirstTradeTimeoutError
 
 
-_LAST_TOKENS: list[str] = []
-_LAST_TRADE_TIMES: dict[str, datetime.datetime] = {}
-
-
 async def run_iteration(
     memory,
     portfolio,
+    state: TradingState,
     cfg=None,
     *,
     testnet: bool = False,
@@ -128,8 +126,7 @@ async def run_iteration(
     else:
         tokens = await DiscoveryAgent().discover_tokens(**scan_kwargs)
 
-    global _LAST_TOKENS
-    _LAST_TOKENS = list(tokens)
+    state.last_tokens = list(tokens)
 
     tokens = list(set(tokens) | set(portfolio.balances.keys()))
 
@@ -140,7 +137,7 @@ async def run_iteration(
             t
             for t in tokens
             if (
-                (ts := _LAST_TRADE_TIMES.get(t)) is None
+                (ts := state.last_trade_times.get(t)) is None
                 or (now - ts).total_seconds() > recent_window
             )
         ]
@@ -406,6 +403,7 @@ async def trading_loop(
     runtime_cfg,
     memory,
     portfolio,
+    state: TradingState,
     *,
     loop_delay: int,
     min_delay: int,
@@ -456,7 +454,7 @@ async def trading_loop(
     unsub_counter = event_bus.subscribe("depth_update", _count)
 
     def _record_trade(payload):
-        _LAST_TRADE_TIMES[payload.token] = datetime.datetime.utcnow()
+        state.last_trade_times[payload.token] = datetime.datetime.utcnow()
 
     unsub_trade = event_bus.subscribe("trade_logged", _record_trade)
     bus_started = False
@@ -611,6 +609,7 @@ async def trading_loop(
             await run_iteration(
                 memory,
                 portfolio,
+                state,
                 runtime_cfg,
                 testnet=testnet,
                 dry_run=dry_run,
@@ -628,9 +627,9 @@ async def trading_loop(
                 strategy_manager=strategy_manager,
                 agent_manager=agent_manager,
             )
-            if _LAST_TOKENS:
+            if state.last_tokens:
                 metrics = await fetch_dex_metrics_async(
-                    _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
+                    state.last_tokens[0], os.getenv("METRICS_BASE_URL")
                 )
                 adjust_delay(metrics)
             iteration_idx += 1
@@ -659,6 +658,7 @@ async def trading_loop(
             await run_iteration(
                 memory,
                 portfolio,
+                state,
                 runtime_cfg,
                 testnet=testnet,
                 dry_run=dry_run,
@@ -676,9 +676,9 @@ async def trading_loop(
                 strategy_manager=strategy_manager,
                 agent_manager=agent_manager,
             )
-            if _LAST_TOKENS:
+            if state.last_tokens:
                 metrics = await fetch_dex_metrics_async(
-                    _LAST_TOKENS[0], os.getenv("METRICS_BASE_URL")
+                    state.last_tokens[0], os.getenv("METRICS_BASE_URL")
                 )
                 adjust_delay(metrics)
             iteration_idx += 1
