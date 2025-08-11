@@ -3,5 +3,5 @@ set -euo pipefail
 # macOS launcher wrapper.
 
 cd "$(dirname "$0")" || exit 1
-exec ./start.py --non-interactive "$@" || exit 1
+exec python3 -m solhunter_zero.launcher "$@" || exit 1
 

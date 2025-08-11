@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
         if platform.system() == "Darwin" and platform.machine() == "x86_64":
             print(
                 f"Failed to launch {script} via 'arch -arm64': {exc}\n"
-                "Please use 'python start.py'.",
+                "Please use 'python -m solhunter_zero.launcher'.",
                 file=sys.stderr,
             )
         else:

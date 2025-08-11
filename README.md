@@ -25,13 +25,14 @@ verifies that the demo produces those values.
 The default workflow is intentionally simple:
 
 1. Send SOL to the desired wallet. A default keypair (`keypairs/default.json`) **and** configuration (`config.toml`) are bundled for out-of-the-box runs and can be funded directly.
-2. Run `python start.py` from any directory for a fully automated launch. The
-   script resolves its own location, adjusts the working directory and `sys.path`,
-   and delegates to `solhunter_zero.launcher.main`. On macOS double-click
-   `start.command` for a one-click, non-interactive start (it passes
-   `--non-interactive`).
-   The launcher auto-selects the sole keypair and active configuration, validates RPC endpoints,
-   and warns if the wallet balance is below `min_portfolio_value`.
+2. Run `python -m solhunter_zero.launcher` from any directory for a fully
+   automated launch. The launcher resolves its own location, adjusts the
+   working directory and `sys.path`, and delegates to
+   `solhunter_zero.launcher.main`. On macOS double-click `start.command` for a
+   one-click start.
+   The launcher auto-selects the sole keypair and active configuration,
+   validates RPC endpoints, and warns if the wallet balance is below
+   `min_portfolio_value`.
    All startup output is also appended to `startup.log` in the project directory for later inspection.
    Output from environment preflight checks is written to `preflight.log`, which is truncated
    before each run and rotated to `preflight.log.1` once it exceeds 1 MB so the previous run
@@ -156,7 +157,7 @@ profit calculation so routes are ranked based on the borrowed size.
     mkdir -p keypairs
     cp ~/my-keypair.json keypairs/main.json
     ```
-    Set `AUTO_SELECT_KEYPAIR=1` so `start.py` and the Web UI pick the only
+    Set `AUTO_SELECT_KEYPAIR=1` so the launcher and the Web UI pick the only
     available keypair automatically. When there is just one keypair in the
     `keypairs/` directory it will be selected on start. The `--one-click`
     option for `scripts/startup.py` sets `AUTO_SELECT_KEYPAIR=1` automatically.
@@ -168,7 +169,7 @@ profit calculation so routes are ranked based on the borrowed size.
     solhunter-wallet select mywallet
     ```
     Placing the resulting file in `keypairs/` and setting `AUTO_SELECT_KEYPAIR=1`
-      lets `start.py` load it automatically.
+      lets the launcher load it automatically.
 
     To set up a default wallet non-interactively, export `MNEMONIC` (and
     optional `PASSPHRASE`) then run:
@@ -215,7 +216,7 @@ profit calculation so routes are ranked based on the borrowed size.
     ```
 15. **Run the bot**
    ```bash
-  python start.py --auto
+   python -m solhunter_zero.launcher --auto
    ```
 16. **External event bus**
     Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
@@ -268,15 +269,15 @@ profit calculation so routes are ranked based on the borrowed size.
    The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
 
 Running `scripts/startup.py` handles these steps interactively and forwards any options to the cross-platform entry point
-`python start.py` (or `python -m solhunter_zero.main --auto`), which performs a fully automated launch using the bundled defaults.
+`python -m solhunter_zero.launcher --auto`, which performs a fully automated launch using the bundled defaults.
 
    The script ensures the `solhunter-wallet` command-line tool is available, loads the active configuration (falling back to `config/default.toml` when none is chosen) and automatically selects the sole keypair in `keypairs/`. It checks RPC endpoints and prints a warning if the wallet balance is below `min_portfolio_value`. Set `AUTO_SELECT_KEYPAIR=1` so the Web UI matches this behaviour.
 
    You can still run the bot manually with explicit options:
    ```bash
-   python start.py --dry-run
-   # or
-   python -m solhunter_zero.main
+    python -m solhunter_zero.launcher --dry-run
+    # or
+    python -m solhunter_zero.launcher
 
    ```
 ## Usage
@@ -519,7 +520,7 @@ Loading the compiled variant reduces inference latency by roughly 15%.
 You can also launch the built-in RL daemon directly with GPU acceleration:
 
 ```bash
-python start.py --daemon --device cuda
+  python -m solhunter_zero.launcher --daemon --device cuda
 ```
 
 To forward events to a remote bus use the `--event-bus` option when running
@@ -623,10 +624,10 @@ This updates `solhunter_zero/event_pb2.py`, which is required for the event bus.
   service.
 - **Missing keypair** — ensure a valid Solana keypair file is available.
   Set `KEYPAIR_PATH` or `SOLANA_KEYPAIR` to its path or place it in the
-  `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so the launcher
- (`python start.py --auto` or `python -m solhunter_zero.main --auto`) or the Web UI select the
-  sole available key automatically.
-- **Service not running** — `depth_service` starts automatically with `make start` or `python -m solhunter_zero.main --auto`. If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
+    `keypairs/` directory. Use `AUTO_SELECT_KEYPAIR=1` so the launcher
+   (`python -m solhunter_zero.launcher --auto`) or the Web UI select the
+    sole available key automatically.
+  - **Service not running** — `depth_service` starts automatically with `make start` or `python -m solhunter_zero.launcher --auto`. If it isn't responding, check logs and ensure `USE_SERVICE_EXEC`, `USE_RUST_EXEC` and `USE_DEPTH_STREAM` are all set to `True`.
 - **Slow routing** — the Rust service computes paths much faster. Leave
   `USE_SERVICE_ROUTE` enabled unless debugging the Python fallback.
 
