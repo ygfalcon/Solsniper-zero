@@ -320,6 +320,7 @@ def test_mac_startup_prereqs(monkeypatch):
     import types, sys
     from scripts import startup
     from solhunter_zero import bootstrap
+    from solhunter_zero.bootstrap_utils import ensure_venv
 
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
@@ -328,7 +329,7 @@ def test_mac_startup_prereqs(monkeypatch):
     monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
 
     # ensure_venv is a no-op when argv is provided
-    startup.ensure_venv([])
+    ensure_venv([])
 
     monkeypatch.setattr(startup.deps, "check_deps", lambda: ([], []))
     monkeypatch.setattr(
