@@ -313,3 +313,142 @@ def _reset_event_bus():
     event_bus.reset()
     yield
     event_bus.reset()
+
+
+@pytest.fixture
+def stub_startup_prereqs(monkeypatch):
+    """Stub heavy startup prerequisites for fast deterministic tests."""
+    calls: list[str] = []
+
+    import types, sys, importlib.machinery
+
+    # Provide minimal stubs for optional heavy dependencies used during startup
+    class _Console:
+        def print(self, *a, **k):
+            pass
+
+    rich_console = types.ModuleType("rich.console")
+    rich_console.__spec__ = importlib.machinery.ModuleSpec("rich.console", None)
+    rich_console.Console = _Console
+    sys.modules.setdefault("rich.console", rich_console)
+
+    class _Table:
+        def add_column(self, *a, **k):
+            pass
+
+        def add_row(self, *a, **k):
+            pass
+
+    rich_table = types.ModuleType("rich.table")
+    rich_table.__spec__ = importlib.machinery.ModuleSpec("rich.table", None)
+    rich_table.Table = _Table
+    sys.modules.setdefault("rich.table", rich_table)
+
+    class _Panel:
+        @classmethod
+        def fit(cls, *a, **k):
+            return object()
+
+    rich_panel = types.ModuleType("rich.panel")
+    rich_panel.__spec__ = importlib.machinery.ModuleSpec("rich.panel", None)
+    rich_panel.Panel = _Panel
+    sys.modules.setdefault("rich.panel", rich_panel)
+
+    class _Progress:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def add_task(self, *a, **k):
+            return 0
+
+        def advance(self, *a, **k):
+            pass
+
+        def update(self, *a, **k):
+            pass
+
+    rich_progress = types.ModuleType("rich.progress")
+    rich_progress.__spec__ = importlib.machinery.ModuleSpec("rich.progress", None)
+    rich_progress.Progress = _Progress
+    sys.modules.setdefault("rich.progress", rich_progress)
+    rich_pkg = types.ModuleType("rich")
+    rich_pkg.__spec__ = importlib.machinery.ModuleSpec("rich", None)
+    sys.modules.setdefault("rich", rich_pkg)
+
+    pydantic_mod = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    sys.modules.setdefault("pydantic", pydantic_mod)
+
+    dummy_checks = types.SimpleNamespace(
+        ensure_target=lambda *a, **k: None,
+        ensure_wallet_cli=lambda *a, **k: None,
+        run_quick_setup=lambda *a, **k: None,
+        ensure_cargo=lambda *a, **k: None,
+        perform_checks=lambda *a, **k: {"code": 0, "rest": []},
+    )
+    sys.modules.setdefault("solhunter_zero.startup_checks", dummy_checks)
+
+    def _make_stub(name: str):
+        def _stub(*args, **kwargs):  # pragma: no cover - simple prints
+            msg = f"{name} called"
+            print(msg)
+            calls.append(name)
+        return _stub
+
+    monkeypatch.setattr("solhunter_zero.macos_setup.ensure_tools", _make_stub("ensure_tools"))
+    monkeypatch.setattr("solhunter_zero.bootstrap_utils.ensure_venv", _make_stub("ensure_venv"))
+
+    import types as _types
+    monkeypatch.setitem(
+        sys.modules,
+        "solhunter_zero.env_config",
+        _types.SimpleNamespace(configure_startup_env=_make_stub("configure_startup_env")),
+    )
+
+    monkeypatch.setattr("solhunter_zero.device.initialize_gpu", _make_stub("initialize_gpu"))
+    monkeypatch.setattr(
+        "solhunter_zero.system.set_rayon_threads",
+        _make_stub("set_rayon_threads"),
+    )
+    return calls
+
+
+@pytest.fixture
+def stub_run_first_trade(monkeypatch):
+    """Capture startup runner invocation without executing anything."""
+    record: dict[str, object] = {}
+
+    import types, sys
+
+    # Avoid importing heavy preflight module when loading startup_runner
+    sys.modules.setdefault("scripts.preflight", types.SimpleNamespace(CHECKS=[]))
+    sys.modules.setdefault("scripts.healthcheck", types.SimpleNamespace(main=lambda *a, **k: 0))
+
+    def _run(args, ctx, *, log_startup=None, subprocess_module=None):  # pragma: no cover - simple stub
+        cmd = ctx.get("rest", [])
+        msg = f"startup_runner.run {cmd}"
+        print(msg)
+        record["mode"] = "run"
+        record["cmd"] = cmd
+        return 0
+
+    def _launch_only(rest, *, subprocess_module=None):  # pragma: no cover - simple stub
+        msg = f"startup_runner.launch_only {rest}"
+        print(msg)
+        record["mode"] = "launch_only"
+        record["cmd"] = rest
+        return 0
+
+    monkeypatch.setattr("solhunter_zero.startup_runner.run", _run)
+    monkeypatch.setattr("solhunter_zero.startup_runner.launch_only", _launch_only)
+    return record
