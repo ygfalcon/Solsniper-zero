@@ -53,6 +53,15 @@ head reports/trade_history.csv
 python -m json.tool reports/highlights.json
 ```
 
+## Startup integration flow
+
+Verify the launcher and startup script integration without invoking the full
+stack by running:
+
+```bash
+pytest tests/test_startup_sequence.py
+```
+
 To run the static analysis checks used in CI, execute:
 
 ```bash
