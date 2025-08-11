@@ -435,6 +435,7 @@ def perform_checks(
         "summary_rows": summary_rows,
         "rest": rest,
         "config_path": config_path,
+        "config": cfg_data,
         "keypair_path": keypair_path,
         "mnemonic_path": mnemonic_path,
         "active_keypair": active_keypair,

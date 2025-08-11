@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.table import Table
 
 from scripts import preflight  # noqa: E402
-from solhunter_zero.config import load_config
 from solhunter_zero.logging_utils import log_startup, STARTUP_LOG
 
 console = Console()
@@ -42,11 +41,20 @@ def launch_only(rest: List[str], *, subprocess_module=subprocess) -> int:
 def run(args, ctx: Dict[str, Any], *, log_startup=log_startup, subprocess_module=subprocess) -> int:
     """Render summary table and launch start_all."""
     config_path = ctx.get("config_path")
+    config = ctx.get("config")
     if not config_path:
-        from solhunter_zero.config import find_config_file
+        from solhunter_zero.config import find_config_file, load_config
 
         config_path = Path(find_config_file() or "config.toml")
         ctx["config_path"] = config_path
+        if config is None:
+            config = load_config(config_path)
+            ctx["config"] = config
+    elif config is None:
+        from solhunter_zero.config import load_config
+
+        config = load_config(config_path)
+        ctx["config"] = config
 
     log_startup_info(
         config_path=config_path,
@@ -66,7 +74,7 @@ def run(args, ctx: Dict[str, Any], *, log_startup=log_startup, subprocess_module
     from solhunter_zero.agent_manager import AgentManager
 
     try:
-        if AgentManager.from_config(load_config(config_path)) is None:
+        if AgentManager.from_config(config) is None:
             log_startup("AgentManager.from_config returned None")
             print("AgentManager.from_config returned None")
             return 1
