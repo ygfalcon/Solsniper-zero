@@ -32,6 +32,15 @@ FAST_MODE = False
 _PYTHON_CACHE: str | None = None
 
 
+def write_ok_marker(path: Path) -> None:
+    """Write an ``ok`` marker file, creating parent directories."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("ok")
+    except OSError:
+        pass
+
+
 if platform.system() == "Darwin" and platform.machine() == "x86_64":
     arch = shutil.which("arch")
     if arch:
@@ -213,21 +222,13 @@ def main(argv: list[str] | None = None) -> NoReturn:
     else:
         ensure_tools(non_interactive=True)
         if not TOOLS_OK_MARKER.exists():
-            try:
-                TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-                TOOLS_OK_MARKER.write_text("ok")
-            except OSError:
-                pass
+            write_ok_marker(TOOLS_OK_MARKER)
 
     if FAST_MODE and VENV_OK_MARKER.exists():
         log_startup("Fast mode: skipping ensure_venv")
     else:
         ensure_venv(None)
-        try:
-            VENV_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-            VENV_OK_MARKER.write_text("ok")
-        except OSError:
-            pass
+        write_ok_marker(VENV_OK_MARKER)
 
     log_startup(f"Virtual environment: {sys.prefix}")
 
