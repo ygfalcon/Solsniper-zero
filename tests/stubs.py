@@ -7,6 +7,7 @@ import types
 import time
 import importlib
 import importlib.machinery
+import os
 
 
 def stub_numpy() -> None:
@@ -1022,6 +1023,47 @@ def install_stubs() -> None:
     stub_transformers()
     stub_bip_utils()
     stub_faiss()
+
+    if os.getenv("SOLHUNTER_PATCH_INVESTOR_DEMO"):
+        from solhunter_zero.simple_memory import SimpleMemory
+        import solhunter_zero.investor_demo as demo
+
+        class _Mem(SimpleMemory):
+            def __init__(self, *a, **k):
+                super().__init__()
+
+        demo.Memory = _Mem
+
+        async def _fake_arbitrage() -> dict:
+            demo.used_trade_types.add("arbitrage")
+            return {"path": ["dex1", "dex2"], "profit": 1.0}
+
+        async def _fake_flash_loan() -> str:
+            demo.used_trade_types.add("flash_loan")
+            return "sig"
+
+        async def _fake_sniper() -> list[str]:
+            demo.used_trade_types.add("sniper")
+            return ["TKN"]
+
+        async def _fake_dex() -> list[str]:
+            demo.used_trade_types.add("dex_scanner")
+            return ["pool1"]
+
+        async def _fake_route() -> dict:
+            demo.used_trade_types.add("route_ffi")
+            return {"path": ["r1", "r2"], "profit": 0.5}
+
+        async def _fake_jito() -> int:
+            demo.used_trade_types.add("jito_stream")
+            return 0
+
+        demo._demo_arbitrage = _fake_arbitrage
+        demo._demo_flash_loan = _fake_flash_loan
+        demo._demo_sniper = _fake_sniper
+        demo._demo_dex_scanner = _fake_dex
+        demo._demo_route_ffi = _fake_route
+        demo._demo_jito_stream = _fake_jito
 
 
 install_stubs()
