@@ -10,6 +10,7 @@ import sys
 import time
 import threading
 import logging
+import webbrowser
 from pathlib import Path
 from typing import IO
 
@@ -161,7 +162,12 @@ def launch_ui() -> None:
         WS_THREADS = ui.start_websockets()
         app.run()
 
-    threading.Thread(target=_run_ui, daemon=True).start()
+    thread = threading.Thread(target=_run_ui, daemon=True)
+    thread.start()
+    try:
+        webbrowser.open("http://127.0.0.1:5000")
+    except Exception:
+        pass
 
 
 def monitor_processes() -> None:
