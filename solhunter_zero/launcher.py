@@ -160,7 +160,8 @@ def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoRetu
     # Configure Rayon thread count once for all downstream imports
     system.set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
-        device.initialize_gpu()
+        gpu_env = device.initialize_gpu() or {}
+        os.environ.update(gpu_env)
 
     python_exe = sys.executable
     script = "scripts.startup"
