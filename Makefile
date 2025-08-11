@@ -5,7 +5,7 @@ PYTHON ?= python3
 
 .RECIPEPREFIX := >
 
-.PHONY: start run test demo demo-rl demo-multi setup gen-proto
+.PHONY: start run test integration demo demo-rl demo-multi setup gen-proto
 
 start:
 >$(PYTHON) -m solhunter_zero.launcher $(ARGS)
@@ -19,6 +19,9 @@ run:
 
 test:
 >$(PYTHON) -m pytest $(ARGS)
+
+integration:
+>$(PYTHON) -m pytest -m integration $(ARGS)
 
 typecheck:
 >$(PYTHON) -m mypy solhunter_zero tests
