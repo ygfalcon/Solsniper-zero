@@ -951,21 +951,20 @@ def main(
             raise SystemExit(1)
 
     async def loop() -> None:
-        ws_task = None
-        book_task = None
-        arb_task = None
-        depth_task = None
-        watch_task = None
         depth_updates = 0
         prev_count = 0
         prev_ts = time.monotonic()
         nonlocal depth_rate_limit
+
         def _count(_p):
             nonlocal depth_updates
             depth_updates += 1
+
         unsub_counter = event_bus.subscribe("depth_update", _count)
+
         def _record_trade(payload):
             _LAST_TRADE_TIMES[payload.token] = datetime.datetime.utcnow()
+
         unsub_trade = event_bus.subscribe("trade_logged", _record_trade)
         bus_started = False
         if get_event_bus_url() is None:
@@ -986,8 +985,6 @@ def main(
             if not db_path.is_absolute():
                 db_path = ROOT / db_path
             stop_collector = start_depth_snapshot_listener(str(db_path))
-        if proc_ref[0]:
-            watch_task = asyncio.create_task(_depth_service_watchdog(cfg, proc_ref))
         prev_activity = 0.0
         iteration_idx = 0
         startup_reported = False
@@ -999,10 +996,6 @@ def main(
             "yes",
         }
         first_trade_task = None
-        if timeout > 0:
-            first_trade_task = asyncio.create_task(
-                _check_first_trade(timeout, retry_first_trade)
-            )
 
         def _check_timeout() -> None:
             if first_trade_task and first_trade_task.done():
@@ -1033,76 +1026,86 @@ def main(
             prev_ts = now
             arbitrage.DEPTH_RATE_LIMIT = depth_rate_limit
 
-        if market_ws_url:
-
-            async def run_market_ws() -> None:
-                while True:
-                    try:
-                        await listen_and_trade(
-                            market_ws_url,
-                            memory,
-                            portfolio,
-                            testnet=testnet,
-                            dry_run=dry_run,
-                            keypair=keypair,
-                        )
-                    except Exception as exc:  # pragma: no cover - network errors
-                        logging.error("Market websocket failed: %s", exc)
-                        await asyncio.sleep(1.0)
-
-            ws_task = asyncio.create_task(run_market_ws())
-
         use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {
             "1",
             "true",
             "yes",
         }
-        if use_depth_stream:
 
-            async def run_depth_ws() -> None:
-                while True:
-                    try:
-                        await depth_client.listen_depth_ws()
-                    except Exception as exc:  # pragma: no cover - network errors
-                        logging.error("Depth websocket failed: %s", exc)
-                        await asyncio.sleep(1.0)
+        async with asyncio.TaskGroup() as tg:
+            if proc_ref[0]:
+                tg.create_task(_depth_service_watchdog(cfg, proc_ref))
 
-            depth_task = asyncio.create_task(run_depth_ws())
+            if timeout > 0:
+                first_trade_task = tg.create_task(
+                    _check_first_trade(timeout, retry_first_trade)
+                )
 
-        if order_book_ws_url:
+            if market_ws_url:
 
-            async def run_order_book() -> None:
-                while True:
-                    try:
-                        async for _ in order_book_ws.stream_order_book(
-                            order_book_ws_url,
-                            rate_limit=depth_rate_limit
-                        ):
-                            pass
-                    except Exception as exc:  # pragma: no cover - network errors
-                        logging.error("Order book stream failed: %s", exc)
-                        await asyncio.sleep(1.0)
+                async def run_market_ws() -> None:
+                    while True:
+                        try:
+                            await listen_and_trade(
+                                market_ws_url,
+                                memory,
+                                portfolio,
+                                testnet=testnet,
+                                dry_run=dry_run,
+                                keypair=keypair,
+                            )
+                        except Exception as exc:  # pragma: no cover - network errors
+                            logging.error("Market websocket failed: %s", exc)
+                            await asyncio.sleep(1.0)
 
-            book_task = asyncio.create_task(run_order_book())
+                tg.create_task(run_market_ws())
 
-        if arbitrage_tokens:
+            if use_depth_stream:
 
-            async def monitor_arbitrage() -> None:
-                while True:
-                    try:
-                        await arbitrage.detect_and_execute_arbitrage(
-                            arbitrage_tokens,
-                            threshold=arbitrage_threshold,
-                            amount=arbitrage_amount,
-                            testnet=testnet,
-                            dry_run=dry_run,
-                            keypair=keypair,
-                        )
-                    except Exception as exc:  # pragma: no cover - network errors
-                        logging.warning("Arbitrage monitor failed: %s", exc)
-                    await asyncio.sleep(loop_delay)
+                async def run_depth_ws() -> None:
+                    while True:
+                        try:
+                            await depth_client.listen_depth_ws()
+                        except Exception as exc:  # pragma: no cover - network errors
+                            logging.error("Depth websocket failed: %s", exc)
+                            await asyncio.sleep(1.0)
 
-            arb_task = asyncio.create_task(monitor_arbitrage())
+                tg.create_task(run_depth_ws())
+
+            if order_book_ws_url:
+
+                async def run_order_book() -> None:
+                    while True:
+                        try:
+                            async for _ in order_book_ws.stream_order_book(
+                                order_book_ws_url,
+                                rate_limit=depth_rate_limit
+                            ):
+                                pass
+                        except Exception as exc:  # pragma: no cover - network errors
+                            logging.error("Order book stream failed: %s", exc)
+                            await asyncio.sleep(1.0)
+
+                tg.create_task(run_order_book())
+
+            if arbitrage_tokens:
+
+                async def monitor_arbitrage() -> None:
+                    while True:
+                        try:
+                            await arbitrage.detect_and_execute_arbitrage(
+                                arbitrage_tokens,
+                                threshold=arbitrage_threshold,
+                                amount=arbitrage_amount,
+                                testnet=testnet,
+                                dry_run=dry_run,
+                                keypair=keypair,
+                            )
+                        except Exception as exc:  # pragma: no cover - network errors
+                            logging.warning("Arbitrage monitor failed: %s", exc)
+                        await asyncio.sleep(loop_delay)
+
+                tg.create_task(monitor_arbitrage())
 
         if iterations is None:
             while True:
@@ -1204,34 +1207,10 @@ def main(
                 if i < iterations - 1:
                     await asyncio.sleep(loop_delay)
 
-        if ws_task:
-            ws_task.cancel()
-            with contextlib.suppress(Exception):
-                await ws_task
-        if book_task:
-            book_task.cancel()
-            with contextlib.suppress(Exception):
-                await book_task
-        if arb_task:
-            arb_task.cancel()
-            with contextlib.suppress(Exception):
-                await arb_task
-        if depth_task:
-            depth_task.cancel()
-            with contextlib.suppress(Exception):
-                await depth_task
-        if watch_task:
-            watch_task.cancel()
-            with contextlib.suppress(Exception):
-                await watch_task
         if rl_task:
             rl_task.cancel()
             with contextlib.suppress(Exception):
                 await rl_task
-        if first_trade_task:
-            first_trade_task.cancel()
-            with contextlib.suppress(Exception):
-                await first_trade_task
         if stop_collector:
             stop_collector()
         if bus_started:
