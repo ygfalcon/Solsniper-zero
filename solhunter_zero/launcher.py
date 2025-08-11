@@ -22,8 +22,24 @@ from typing import NoReturn
 
 from .paths import ROOT
 from .python_env import find_python
+from .system import set_rayon_threads
 
 FAST_MODE = False
+
+
+class _LazyDevice:
+    """Proxy for :mod:`solhunter_zero.device` imported on demand."""
+
+    _module = None
+
+    def __getattr__(self, name: str):
+        if self._module is None:
+            from . import device as _device
+            self._module = _device
+        return getattr(self._module, name)
+
+
+device = _LazyDevice()
 
 
 def write_ok_marker(path: Path) -> None:
@@ -86,6 +102,21 @@ def configure() -> list[str]:
     return forward_args
 
 
+def _inject_defaults(argv: list[str]) -> list[str]:
+    """Prepend missing default flags to ``argv``.
+
+    The launcher expects ``--one-click`` and ``--full-deps`` unless explicitly
+    provided by the caller.  This helper returns a new list with any missing
+    defaults added at the beginning while preserving the original ``argv``
+    order.
+    """
+
+    defaults = ("--one-click", "--full-deps")
+    argset = set(argv)
+    missing = [flag for flag in defaults if flag not in argset]
+    return [*missing, *argv]
+
+
 def main(argv: list[str] | None = None) -> NoReturn:
     _ensure_arm64_python()
     forward_args = configure()
@@ -121,20 +152,13 @@ def main(argv: list[str] | None = None) -> NoReturn:
     import solhunter_zero.env_config as env_config  # noqa: E402
 
     env_config.configure_startup_env(ROOT)
-    from solhunter_zero import device  # noqa: E402
-
-    from solhunter_zero.system import set_rayon_threads  # noqa: E402
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
 
-    if "--one-click" not in argv:
-        argv.insert(0, "--one-click")
-    if "--full-deps" not in argv:
-        idx = 1 if argv and argv[0] == "--one-click" else 0
-        argv.insert(idx, "--full-deps")
+    argv = _inject_defaults(argv)
 
     python_exe = sys.executable
     script = "scripts.startup"
