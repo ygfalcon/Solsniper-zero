@@ -4,27 +4,47 @@ from __future__ import annotations
 
 import sys
 
-from solhunter_zero import startup_cli, startup_checks, startup_runner
-from solhunter_zero.logging_utils import log_startup, rotate_preflight_log
-from solhunter_zero.config import apply_env_overrides, load_config
-from solhunter_zero.bootstrap_utils import ensure_deps, ensure_endpoints
-from solhunter_zero.rpc_utils import ensure_rpc
-from solhunter_zero import device  # noqa: F401
-from scripts import preflight  # noqa: F401
-from scripts import deps  # noqa: F401
-import solhunter_zero.bootstrap_utils as bootstrap_utils  # noqa: F401
+from solhunter_zero import startup_cli
+
+
+def _startup_checks():
+    from solhunter_zero import startup_checks
+
+    return startup_checks
+
 
 # Re-export helpers for tests and external users
-ensure_target = startup_checks.ensure_target
-ensure_wallet_cli = startup_checks.ensure_wallet_cli
-run_quick_setup = startup_checks.run_quick_setup
-ensure_cargo = startup_checks.ensure_cargo
+def ensure_target(*args, **kwargs):
+    return _startup_checks().ensure_target(*args, **kwargs)
 
-log_startup("startup launched")
-rotate_preflight_log()
+
+def ensure_wallet_cli(*args, **kwargs):
+    return _startup_checks().ensure_wallet_cli(*args, **kwargs)
+
+
+def run_quick_setup(*args, **kwargs):
+    return _startup_checks().run_quick_setup(*args, **kwargs)
+
+
+def ensure_cargo(*args, **kwargs):
+    return _startup_checks().ensure_cargo(*args, **kwargs)
 
 
 def _main_impl(argv: list[str] | None = None) -> int:
+    from solhunter_zero import startup_runner, device  # noqa: F401
+    from solhunter_zero.logging_utils import log_startup, rotate_preflight_log
+    from solhunter_zero.config import apply_env_overrides, load_config
+    from solhunter_zero.bootstrap_utils import ensure_deps, ensure_endpoints
+    from solhunter_zero.rpc_utils import ensure_rpc
+    from scripts import preflight  # noqa: F401
+    from scripts import deps  # noqa: F401
+    import solhunter_zero.bootstrap_utils as bootstrap_utils  # noqa: F401
+
+    startup_checks = _startup_checks()
+
+    log_startup("startup launched")
+    rotate_preflight_log()
+
     startup_cli.render_banner()
     args, rest = startup_cli.parse_args(argv)
     if args.non_interactive:
