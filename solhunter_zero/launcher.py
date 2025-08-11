@@ -34,6 +34,9 @@ _parsed_args, _forward_args = _parser.parse_known_args(sys.argv[1:])
 
 FAST_MODE = _parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
 
+# In-memory cache for the resolved interpreter path
+_PYTHON_CACHE: str | None = None
+
 
 def _check_python(exe: str) -> bool:
     """Return ``True`` if ``exe`` is a Python >=3.11 interpreter."""
@@ -65,12 +68,22 @@ def find_python(repair: bool = False) -> str:
     cache_dir = ROOT / ".cache"
     cache_file = cache_dir / "python-exe"
 
+    global _PYTHON_CACHE
     repair = repair or bool(os.environ.get("SOLHUNTER_REPAIR"))
+
     if repair:
+        _PYTHON_CACHE = None
         try:
             cache_file.unlink()
         except FileNotFoundError:
             pass
+    else:
+        if _PYTHON_CACHE is not None:
+            return _PYTHON_CACHE
+        env_path = os.environ.get(cache_env)
+        if env_path and _check_python(env_path):
+            _PYTHON_CACHE = env_path
+            return env_path
 
     def _finalize(path: str) -> str:
         os.environ[cache_env] = path
@@ -79,23 +92,20 @@ def find_python(repair: bool = False) -> str:
             cache_file.write_text(path)
         except OSError:
             pass
+        _PYTHON_CACHE = path
         return path
 
     if _check_python(sys.executable):
         return _finalize(sys.executable)
 
-    if not repair:
-        env_path = os.environ.get(cache_env)
-        if env_path and _check_python(env_path):
-            return _finalize(env_path)
-        if cache_file.exists():
-            cached = cache_file.read_text().strip()
-            if _check_python(cached):
-                return _finalize(cached)
-            try:
-                cache_file.unlink()
-            except FileNotFoundError:
-                pass
+    if not repair and cache_file.exists():
+        cached = cache_file.read_text().strip()
+        if _check_python(cached):
+            return _finalize(cached)
+        try:
+            cache_file.unlink()
+        except FileNotFoundError:
+            pass
 
     candidates: list[str] = []
 
