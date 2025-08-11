@@ -366,8 +366,7 @@ def perform_checks(
         with temporary_env("SOLHUNTER_SKIP_SETUP", "1"):
             bootstrap(one_click=args.one_click)
 
-        gpu_env = device.initialize_gpu()
-        gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
+        gpu_device = os.environ.get("SOLHUNTER_GPU_DEVICE", "unknown")
         rpc_url = os.environ.get(
             "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
         )
@@ -392,4 +391,5 @@ def perform_checks(
         "keypair_path": keypair_path,
         "mnemonic_path": mnemonic_path,
         "active_keypair": active_keypair,
+        "gpu_device": gpu_device,
     }
