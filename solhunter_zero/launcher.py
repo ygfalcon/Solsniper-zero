@@ -130,12 +130,6 @@ def main(argv: list[str] | None = None) -> NoReturn:
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
 
-    if "--one-click" not in argv:
-        argv.insert(0, "--one-click")
-    if "--full-deps" not in argv:
-        idx = 1 if argv and argv[0] == "--one-click" else 0
-        argv.insert(idx, "--full-deps")
-
     python_exe = sys.executable
     script = "scripts.startup"
     cmd = [python_exe, "-m", script, *argv]

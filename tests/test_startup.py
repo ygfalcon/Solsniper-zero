@@ -390,7 +390,7 @@ def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
     assert result.stdout.startswith("RAYON_NUM_THREADS=")
 
 
-def test_launcher_injects_one_click_once(monkeypatch):
+def test_launcher_passes_args_unchanged(monkeypatch):
     import os, sys, importlib
 
     monkeypatch.setenv("SOLHUNTER_TESTING", "1")
@@ -398,10 +398,18 @@ def test_launcher_injects_one_click_once(monkeypatch):
     monkeypatch.setattr(os, "execv", lambda *a, **k: None)
     monkeypatch.setattr("solhunter_zero.bootstrap_utils.ensure_venv", lambda argv: None)
 
+    import types
+
+    monkeypatch.setitem(
+        sys.modules,
+        "solhunter_zero.env_config",
+        types.SimpleNamespace(configure_startup_env=lambda root: None),
+    )
+
     launcher = importlib.import_module("solhunter_zero.launcher")
 
-    monkeypatch.setattr(launcher.device, "initialize_gpu", lambda: None)
-    monkeypatch.setattr(launcher, "set_rayon_threads", lambda: None)
+    monkeypatch.setattr("solhunter_zero.device.initialize_gpu", lambda: None)
+    monkeypatch.setattr("solhunter_zero.system.set_rayon_threads", lambda: None)
 
     captured = {}
 
@@ -415,7 +423,16 @@ def test_launcher_injects_one_click_once(monkeypatch):
         launcher.main(["--skip-preflight"])
 
     cmd = captured.get("cmd", [])
-    assert cmd.count("--one-click") == 1
+    assert "--one-click" not in cmd
+    assert "--full-deps" not in cmd
+
+
+def test_startup_cli_defaults():
+    from solhunter_zero import startup_cli
+
+    args, _ = startup_cli.parse_args([])
+    assert args.one_click is True
+    assert args.full_deps is True
 
 
 def test_cluster_setup_assemble(tmp_path):

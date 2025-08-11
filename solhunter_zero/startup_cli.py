@@ -37,7 +37,7 @@ def parse_args(argv: List[str] | None = None) -> Tuple[argparse.Namespace, List[
     parser.add_argument("--skip-preflight", action="store_true", help="Skip environment preflight checks")
     parser.add_argument("--self-test", action="store_true", help="Run bootstrap and preflight checks then exit")
     parser.add_argument("--one-click", action="store_true", help="Enable fully automated non-interactive startup")
-    parser.set_defaults(one_click=True)
+    parser.set_defaults(one_click=True, full_deps=True)
     parser.add_argument(
         "--allow-rosetta",
         action="store_true",
