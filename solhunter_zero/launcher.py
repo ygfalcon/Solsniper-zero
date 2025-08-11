@@ -107,13 +107,9 @@ def configure() -> tuple[list[str], bool]:
 
 def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoReturn:
     _ensure_arm64_python()
-    if argv is None or fast_mode is None:
-        forward_args, detected_fast = configure()
-        if argv is None:
-            argv = forward_args
-        if fast_mode is None:
-            fast_mode = detected_fast
-    argv = list(argv)
+    forward_args, detected_fast = configure()
+    argv = forward_args if argv is None else list(argv)
+    fast_mode = detected_fast if fast_mode is None else fast_mode
 
     from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
     from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
