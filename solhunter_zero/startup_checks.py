@@ -63,6 +63,177 @@ def _disk_space_required_bytes(apply_env_overrides, load_config) -> int:
     return int(limit_gb * (1024 ** 3))
 
 
+@contextlib.contextmanager
+def temporary_env(key: str, value: str):
+    """Temporarily set an environment variable."""
+    original = os.environ.get(key)
+    os.environ[key] = value
+    try:
+        yield
+    finally:
+        if original is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = original
+
+
+def check_disk_space(disk_required: int, log_startup) -> str:
+    """Check available disk space."""
+    with Progress(console=console, transient=True) as progress:
+        task = progress.add_task("Checking disk space...", total=1)
+        ok, msg = preflight_utils.check_disk_space(disk_required)
+        progress.advance(task)
+    console.print(f"[green]{msg}[/]" if ok else f"[red]{msg}[/]")
+    if not ok:
+        log_startup("Disk space check failed")
+        raise SystemExit(1)
+    log_startup("Disk space check passed")
+    return "passed"
+
+
+def check_network(args, log_startup) -> str:
+    """Check internet connectivity unless skipped."""
+    if args.offline or args.skip_rpc_check:
+        log_startup("Internet connectivity check skipped")
+        return "skipped"
+    console.print("Checking internet connectivity...")
+    ok, msg = preflight_utils.check_internet()
+    console.print(msg)
+    if not ok:
+        log_startup("Internet connectivity check failed")
+        raise SystemExit(1)
+    log_startup("Internet connectivity check passed")
+    return "passed"
+
+
+def ensure_configuration_and_wallet(args, ensure_wallet_cli, run_quick_setup):
+    """Ensure configuration file and wallet CLI exist and select a keypair."""
+    if args.skip_setup:
+        return None, {}, None, None, None, "skipped", "skipped"
+    from scripts.quick_setup import _is_placeholder
+    from solhunter_zero.config_bootstrap import ensure_config
+    from solhunter_zero.config_utils import select_active_keypair
+    from solhunter_zero import wallet
+
+    def _has_placeholder(value: object) -> bool:
+        if isinstance(value, str):
+            return _is_placeholder(value)
+        if isinstance(value, dict):
+            return any(_has_placeholder(v) for v in value.values())
+        if isinstance(value, list):
+            return any(_has_placeholder(v) for v in value)
+        return False
+
+    cfg_data: dict = {}
+    config_path: Path | None = None
+    keypair_path: Path | None = None
+    mnemonic_path: Path | None = None
+    active_keypair: str | None = None
+    ran_quick_setup = False
+    with Progress(console=console, transient=True) as progress:
+        cfg_task = progress.add_task("Ensuring configuration...", total=1)
+        try:
+            config_path, cfg_data = ensure_config()
+        except (Exception, SystemExit):
+            cfg_new = run_quick_setup()
+            if not cfg_new:
+                console.print("[red]Failed to create configuration via quick setup[/]")
+                raise SystemExit(1)
+            config_path, cfg_data = ensure_config(cfg_new)
+            ran_quick_setup = True
+        progress.advance(cfg_task)
+
+        if _has_placeholder(cfg_data):
+            cfg_new = run_quick_setup()
+            if not cfg_new:
+                console.print("[red]Failed to populate configuration via quick setup[/]")
+                raise SystemExit(1)
+            config_path, cfg_data = ensure_config(cfg_new)
+            ran_quick_setup = True
+            if _has_placeholder(cfg_data):
+                console.print("[red]Configuration still contains placeholder values[/]")
+                raise SystemExit(1)
+
+        wallet_task = progress.add_task("Ensuring wallet CLI...", total=1)
+        ensure_wallet_cli()
+        progress.advance(wallet_task)
+
+        key_task = progress.add_task("Selecting active keypair...", total=1)
+        info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
+        active_keypair = info.name
+        keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
+        mnemonic_path = info.mnemonic_path
+        progress.advance(key_task)
+    console.print("[green]Configuration complete[/]")
+    return (
+        config_path,
+        cfg_data,
+        keypair_path,
+        mnemonic_path,
+        active_keypair,
+        str(config_path),
+        active_keypair,
+    )
+
+
+def check_endpoints(args, cfg_data, ensure_endpoints) -> str:
+    """Verify HTTP endpoints unless skipped."""
+    if args.offline:
+        return "offline"
+    if args.skip_endpoint_check or args.skip_setup:
+        return "skipped"
+    with Progress(console=console, transient=True) as progress:
+        ep_task = progress.add_task("Checking HTTP endpoints...", total=1)
+        ensure_endpoints(cfg_data)
+        progress.advance(ep_task)
+    console.print("[green]HTTP endpoints reachable[/]")
+    return "reachable"
+
+
+def install_dependencies(args, ensure_deps, ensure_target) -> None:
+    """Install required dependencies unless skipped."""
+    if args.skip_deps:
+        return
+    with Progress(console=console, transient=True) as progress:
+        with ThreadPoolExecutor() as executor:
+            task_map = {
+                executor.submit(ensure_deps, install_optional=args.full_deps): progress.add_task("Installing dependencies...", total=1),
+                executor.submit(ensure_target, "protos"): progress.add_task("Generating protos...", total=1),
+                executor.submit(ensure_target, "route_ffi"): progress.add_task("Building route FFI...", total=1),
+                executor.submit(ensure_target, "depth_service"): progress.add_task("Building depth service...", total=1),
+            }
+            for future in as_completed(task_map):
+                task_id = task_map[future]
+                task_desc = progress.tasks[task_id].description
+                try:
+                    future.result()
+                    progress.advance(task_id)
+                except Exception as exc:
+                    progress.update(task_id, description=f"{task_desc} [failed]", advance=1)
+                    console.print(f"[red]{task_desc} failed: {exc}[/]")
+                    raise SystemExit(1)
+    console.print("[green]Dependencies installed[/]")
+
+
+def run_preflight(args, log_startup) -> None:
+    """Run preflight checks unless skipped."""
+    if args.skip_preflight:
+        return
+    results = preflight.run_preflight()
+    failures: List[tuple[str, str]] = []
+    for name, ok, msg in results:
+        status = "OK" if ok else "FAIL"
+        line = f"{name}: {status} - {msg}"
+        sys.stdout.write(line + "\n")
+        if not ok:
+            failures.append((name, msg))
+    if failures:
+        summary = "; ".join(f"{n}: {m}" for n, m in failures)
+        print(f"Preflight checks failed: {summary}")
+        log_startup(f"Preflight checks failed: {summary}")
+        raise SystemExit(1)
+
+
 def perform_checks(
     args,
     rest: List[str],
@@ -81,112 +252,20 @@ def perform_checks(
     """Run startup checks prior to launching."""
     disk_required = _disk_space_required_bytes(apply_env_overrides, load_config)
 
-    disk_status = "unknown"
-    internet_status = "skipped" if args.offline or args.skip_rpc_check else "unknown"
-    config_status = "skipped" if args.skip_setup else "unknown"
-    wallet_status = "skipped" if args.skip_setup else "unknown"
+    disk_status = check_disk_space(disk_required, log_startup)
+    internet_status = check_network(args, log_startup)
 
-    with Progress(console=console, transient=True) as progress:
-        disk_task = progress.add_task("Checking disk space...", total=1)
-        ok, msg = preflight_utils.check_disk_space(disk_required)
-        progress.advance(disk_task)
-    disk_status = "passed" if ok else "failed"
-    console.print(f"[green]{msg}[/]" if ok else f"[red]{msg}[/]")
-    if not ok:
-        log_startup("Disk space check failed")
-        raise SystemExit(1)
-    log_startup("Disk space check passed")
+    (
+        config_path,
+        cfg_data,
+        keypair_path,
+        mnemonic_path,
+        active_keypair,
+        config_status,
+        wallet_status,
+    ) = ensure_configuration_and_wallet(args, ensure_wallet_cli, run_quick_setup)
 
-    if args.offline or args.skip_rpc_check:
-        internet_status = "skipped"
-        log_startup("Internet connectivity check skipped")
-    else:
-        console.print("Checking internet connectivity...")
-        ok, msg = preflight_utils.check_internet()
-        console.print(msg)
-        if not ok:
-            internet_status = "failed"
-            log_startup("Internet connectivity check failed")
-            raise SystemExit(1)
-        internet_status = "passed"
-        log_startup("Internet connectivity check passed")
-
-    from solhunter_zero.config_bootstrap import ensure_config
-    from solhunter_zero.config_utils import select_active_keypair
-    from solhunter_zero import wallet
-
-    cfg_data: dict = {}
-    config_path: Path | None = None
-    keypair_path: Path | None = None
-    mnemonic_path: Path | None = None
-    active_keypair: str | None = None
-    ran_quick_setup = False
-
-    if not args.skip_setup:
-        from scripts.quick_setup import _is_placeholder
-
-        def _has_placeholder(value: object) -> bool:
-            if isinstance(value, str):
-                return _is_placeholder(value)
-            if isinstance(value, dict):
-                return any(_has_placeholder(v) for v in value.values())
-            if isinstance(value, list):
-                return any(_has_placeholder(v) for v in value)
-            return False
-
-        with Progress(console=console, transient=True) as progress:
-            cfg_task = progress.add_task("Ensuring configuration...", total=1)
-            try:
-                config_path, cfg_data = ensure_config()
-            except (Exception, SystemExit):
-                cfg_new = run_quick_setup()
-                if not cfg_new:
-                    console.print("[red]Failed to create configuration via quick setup[/]")
-                    return {"rest": rest, "summary_rows": []}
-                config_path, cfg_data = ensure_config(cfg_new)
-                ran_quick_setup = True
-            progress.advance(cfg_task)
-
-            if _has_placeholder(cfg_data):
-                cfg_new = run_quick_setup()
-                if not cfg_new:
-                    console.print("[red]Failed to populate configuration via quick setup[/]")
-                    return {"rest": rest, "summary_rows": []}
-                config_path, cfg_data = ensure_config(cfg_new)
-                ran_quick_setup = True
-                if _has_placeholder(cfg_data):
-                    console.print("[red]Configuration still contains placeholder values[/]")
-                    return {"rest": rest, "summary_rows": []}
-
-            config_status = str(config_path)
-
-            wallet_task = progress.add_task("Ensuring wallet CLI...", total=1)
-            try:
-                ensure_wallet_cli()
-            except SystemExit as exc:
-                return {"rest": rest, "summary_rows": [], "code": exc.code if isinstance(exc.code, int) else 1}
-            progress.advance(wallet_task)
-
-            key_task = progress.add_task("Selecting active keypair...", total=1)
-            info = select_active_keypair(auto=True if ran_quick_setup else args.one_click)
-            active_keypair = info.name
-            keypair_path = Path(wallet.KEYPAIR_DIR) / f"{active_keypair}.json"
-            mnemonic_path = info.mnemonic_path
-            progress.advance(key_task)
-            wallet_status = active_keypair
-        console.print("[green]Configuration complete[/]")
-
-    if args.offline:
-        endpoint_status = "offline"
-    elif args.skip_endpoint_check or args.skip_setup:
-        endpoint_status = "skipped"
-    else:
-        with Progress(console=console, transient=True) as progress:
-            ep_task = progress.add_task("Checking HTTP endpoints...", total=1)
-            ensure_endpoints(cfg_data)
-            progress.advance(ep_task)
-        console.print("[green]HTTP endpoints reachable[/]")
-        endpoint_status = "reachable"
+    endpoint_status = check_endpoints(args, cfg_data, ensure_endpoints)
 
     if args.repair and platform.system() == "Darwin":
         from solhunter_zero import macos_setup
@@ -249,90 +328,54 @@ def perform_checks(
     if args.one_click:
         rest = ["--non-interactive", *rest]
 
-    if not args.skip_deps:
-        with Progress(console=console, transient=True) as progress:
-            with ThreadPoolExecutor() as executor:
-                task_map = {
-                    executor.submit(ensure_deps, install_optional=args.full_deps): progress.add_task("Installing dependencies...", total=1),
-                    executor.submit(ensure_target, "protos"): progress.add_task("Generating protos...", total=1),
-                    executor.submit(ensure_target, "route_ffi"): progress.add_task("Building route FFI...", total=1),
-                    executor.submit(ensure_target, "depth_service"): progress.add_task("Building depth service...", total=1),
-                }
-                for future in as_completed(task_map):
-                    task_id = task_map[future]
-                    task_desc = progress.tasks[task_id].description
-                    try:
-                        future.result()
-                        progress.advance(task_id)
-                    except Exception as exc:
-                        progress.update(task_id, description=f"{task_desc} [failed]", advance=1)
-                        console.print(f"[red]{task_desc} failed: {exc}[/]")
-                        return {"rest": rest, "summary_rows": [], "code": 1}
-        console.print("[green]Dependencies installed[/]")
-    os.environ["SOLHUNTER_SKIP_DEPS"] = "1"
-    if args.skip_setup or args.one_click:
-        os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(temporary_env("SOLHUNTER_SKIP_DEPS", "1"))
+        if args.skip_setup or args.one_click:
+            stack.enter_context(temporary_env("SOLHUNTER_SKIP_SETUP", "1"))
+        if args.skip_preflight:
+            stack.enter_context(temporary_env("SOLHUNTER_SKIP_PREFLIGHT", "1"))
+        if args.no_diagnostics:
+            stack.enter_context(temporary_env("SOLHUNTER_NO_DIAGNOSTICS", "1"))
 
-    if sys.version_info < (3, 11):
-        print(
-            "Python 3.11 or higher is required. "
-            "Please install Python 3.11 following the instructions in README.md."
+        install_dependencies(args, ensure_deps, ensure_target)
+
+        if sys.version_info < (3, 11):
+            print(
+                "Python 3.11 or higher is required. "
+                "Please install Python 3.11 following the instructions in README.md."
+            )
+            return {"rest": rest, "summary_rows": [], "code": 1}
+
+        if platform.system() == "Darwin" and platform.machine() == "x86_64":
+            print("Warning: running under Rosetta; Metal acceleration unavailable.")
+            if not args.allow_rosetta:
+                print("Use '--allow-rosetta' to continue anyway.")
+                return {"rest": rest, "summary_rows": [], "code": 1}
+
+        run_preflight(args, log_startup)
+
+        if args.offline:
+            rpc_status = "offline"
+        elif args.skip_rpc_check:
+            rpc_status = "skipped"
+        else:
+            ensure_rpc(warn_only=args.one_click)
+            rpc_status = "reachable"
+        from solhunter_zero.bootstrap import bootstrap
+
+        with temporary_env("SOLHUNTER_SKIP_SETUP", "1"):
+            bootstrap(one_click=args.one_click)
+
+        gpu_env = device.initialize_gpu()
+        gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
+        rpc_url = os.environ.get(
+            "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
         )
-        return {"rest": rest, "summary_rows": [], "code": 1}
 
-    if platform.system() == "Darwin" and platform.machine() == "x86_64":
-        print("Warning: running under Rosetta; Metal acceleration unavailable.")
-        if not args.allow_rosetta:
-            print("Use '--allow-rosetta' to continue anyway.")
-            return {"rest": rest, "summary_rows": [], "code": 1}
+        log_startup(f"GPU device: {gpu_device}")
+        log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
 
-    if args.skip_preflight:
-        os.environ["SOLHUNTER_SKIP_PREFLIGHT"] = "1"
-    else:
-        results = preflight.run_preflight()
-        failures: List[tuple[str, str]] = []
-        for name, ok, msg in results:
-            status = "OK" if ok else "FAIL"
-            line = f"{name}: {status} - {msg}"
-            sys.stdout.write(line + "\n")
-            if not ok:
-                failures.append((name, msg))
-        if failures:
-            summary = "; ".join(f"{n}: {m}" for n, m in failures)
-            print(f"Preflight checks failed: {summary}")
-            log_startup(f"Preflight checks failed: {summary}")
-            return {"rest": rest, "summary_rows": [], "code": 1}
-
-    if args.offline:
-        rpc_status = "offline"
-    elif args.skip_rpc_check:
-        rpc_status = "skipped"
-    else:
-        ensure_rpc(warn_only=args.one_click)
-        rpc_status = "reachable"
-    from solhunter_zero.bootstrap import bootstrap
-
-    os.environ["SOLHUNTER_SKIP_SETUP"] = "1"
-    if args.no_diagnostics:
-        os.environ["SOLHUNTER_NO_DIAGNOSTICS"] = "1"
-
-    try:
-        bootstrap(one_click=args.one_click)
-    finally:
-        os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
-
-    gpu_env = device.initialize_gpu()
-    gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
-    rpc_url = os.environ.get(
-        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
-    )
-
-    log_startup(f"GPU device: {gpu_device}")
-    log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
-
-    os.environ.pop("SOLHUNTER_SKIP_DEPS", None)
-
-    ensure_cargo()
+        ensure_cargo()
 
     summary_rows = [
         ("Disk space", disk_status),
