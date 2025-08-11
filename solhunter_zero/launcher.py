@@ -35,24 +35,26 @@ def write_ok_marker(path: Path) -> None:
         pass
 
 
-if platform.system() == "Darwin" and platform.machine() == "x86_64":
-    arch = shutil.which("arch")
-    if arch:
-        try:
-            os.execvp(arch, [arch, "-arm64", sys.executable, *sys.argv])
-        except OSError as exc:  # pragma: no cover - hard failure
+def _ensure_arm64_python() -> None:
+    """Re-exec via ``arch -arm64`` when running under Rosetta on macOS."""
+    if platform.system() == "Darwin" and platform.machine() == "x86_64":
+        arch = shutil.which("arch")
+        if arch:
+            try:
+                os.execvp(arch, [arch, "-arm64", sys.executable, *sys.argv])
+            except OSError as exc:  # pragma: no cover - hard failure
+                print(
+                    f"Failed to re-exec via 'arch -arm64': {exc}\n"
+                    "Please run with an arm64 Python interpreter.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
+        else:  # pragma: no cover - hard failure
             print(
-                f"Failed to re-exec via 'arch -arm64': {exc}\n"
-                "Please run with an arm64 Python interpreter.",
+                "The 'arch' command was not found; unable to launch arm64 Python.",
                 file=sys.stderr,
             )
             raise SystemExit(1)
-    else:  # pragma: no cover - hard failure
-        print(
-            "The 'arch' command was not found; unable to launch arm64 Python.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
 
 
 def configure() -> list[str]:
@@ -85,6 +87,7 @@ def configure() -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
+    _ensure_arm64_python()
     forward_args = configure()
     argv = list(forward_args) if argv is None else list(argv)
 
