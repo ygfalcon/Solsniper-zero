@@ -41,8 +41,15 @@ def launch_only(rest: List[str], *, subprocess_module=subprocess) -> int:
 
 def run(args, ctx: Dict[str, Any], *, log_startup=log_startup, subprocess_module=subprocess) -> int:
     """Render summary table and launch start_all."""
+    config_path = ctx.get("config_path")
+    if not config_path:
+        from solhunter_zero.config import find_config_file
+
+        config_path = Path(find_config_file() or "config.toml")
+        ctx["config_path"] = config_path
+
     log_startup_info(
-        config_path=ctx.get("config_path"),
+        config_path=config_path,
         keypair_path=ctx.get("keypair_path"),
         mnemonic_path=ctx.get("mnemonic_path"),
         active_keypair=ctx.get("active_keypair"),
@@ -59,7 +66,7 @@ def run(args, ctx: Dict[str, Any], *, log_startup=log_startup, subprocess_module
     from solhunter_zero.agent_manager import AgentManager
 
     try:
-        if AgentManager.from_config(load_config("config.toml")) is None:
+        if AgentManager.from_config(load_config(config_path)) is None:
             log_startup("AgentManager.from_config returned None")
             print("AgentManager.from_config returned None")
             return 1
