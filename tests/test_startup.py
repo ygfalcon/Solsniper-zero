@@ -94,6 +94,19 @@ def test_check_network(startup_stubs, monkeypatch):
         sc.check_network(args, lambda m: None)
 
 
+def test_disk_and_network_checks(startup_stubs, monkeypatch):
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setattr(sc, "_disk_space_required_bytes", lambda a, b: 5)
+    monkeypatch.setattr(sc, "check_disk_space", lambda req, log: "disk")
+    monkeypatch.setattr(sc, "check_network", lambda args, log: "net")
+
+    args = SimpleNamespace()
+    result = sc.disk_and_network_checks(args, lambda m: None, lambda c: c, lambda: {})
+    assert result == (5, "disk", "net")
+
+
 def test_ensure_configuration_and_wallet(startup_stubs, monkeypatch, tmp_path):
     import types
     from types import SimpleNamespace
@@ -123,6 +136,23 @@ def test_ensure_configuration_and_wallet(startup_stubs, monkeypatch, tmp_path):
     result = sc.ensure_configuration_and_wallet(args, lambda: None, lambda: None)
     assert result[5] == "skipped"
     assert result[6] == "skipped"
+
+
+def test_setup_configuration(startup_stubs, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from solhunter_zero import startup_checks as sc
+
+    cfg_path = tmp_path / "cfg.json"
+    monkeypatch.setattr(
+        sc,
+        "ensure_configuration_and_wallet",
+        lambda *a: (cfg_path, {}, Path("kp"), Path("mn"), "ak", "cfg", "wallet"),
+    )
+    monkeypatch.setattr(sc, "check_endpoints", lambda *a: "ep")
+
+    result = sc.setup_configuration(SimpleNamespace(), lambda: None, lambda: None, lambda cfg: None)
+    assert result[-1] == "ep"
+    assert result[0] == cfg_path
 
 
 def test_check_endpoints(startup_stubs, monkeypatch):
@@ -160,15 +190,15 @@ def test_install_dependencies(startup_stubs, monkeypatch):
     assert calls == []
 
 
-def test_run_preflight(startup_stubs, monkeypatch):
+def test_perform_preflight(startup_stubs, monkeypatch):
     from types import SimpleNamespace
     from solhunter_zero import startup_checks as sc
 
     monkeypatch.setattr(sc.preflight, "run_preflight", lambda: [("a", True, "ok")])
-    sc.run_preflight(SimpleNamespace(skip_preflight=False), lambda m: None)
+    sc.perform_preflight(SimpleNamespace(skip_preflight=False), lambda m: None)
     monkeypatch.setattr(sc.preflight, "run_preflight", lambda: [("a", False, "bad")])
     with pytest.raises(SystemExit):
-        sc.run_preflight(SimpleNamespace(skip_preflight=False), lambda m: None)
+        sc.perform_preflight(SimpleNamespace(skip_preflight=False), lambda m: None)
     called = {"called": False}
 
     def fake_run():
@@ -176,8 +206,45 @@ def test_run_preflight(startup_stubs, monkeypatch):
         return []
 
     monkeypatch.setattr(sc.preflight, "run_preflight", fake_run)
-    sc.run_preflight(SimpleNamespace(skip_preflight=True), lambda m: None)
+    sc.perform_preflight(SimpleNamespace(skip_preflight=True), lambda m: None)
     assert called["called"] is False
+
+
+def test_perform_bootstrap(monkeypatch):
+    from types import SimpleNamespace, ModuleType
+    from solhunter_zero import startup_checks as sc
+
+    monkeypatch.setenv("SOLHUNTER_GPU_DEVICE", "gpu")
+    monkeypatch.setenv("SOLANA_RPC_URL", "url")
+
+    calls = {}
+
+    def fake_rpc(warn_only=False):
+        calls["rpc"] = warn_only
+
+    def fake_bootstrap(one_click=False):
+        calls["bootstrap"] = one_click
+
+    def fake_cargo():
+        calls["cargo"] = True
+
+    dummy_bootstrap_mod = ModuleType("solhunter_zero.bootstrap")
+    dummy_bootstrap_mod.bootstrap = fake_bootstrap
+    monkeypatch.setitem(sys.modules, "solhunter_zero.bootstrap", dummy_bootstrap_mod)
+
+    args = SimpleNamespace(offline=False, skip_rpc_check=False, one_click=True)
+    gpu, status, url = sc.perform_bootstrap(args, fake_rpc, fake_cargo, lambda m: None)
+    assert calls == {"rpc": True, "bootstrap": True, "cargo": True}
+    assert status == "reachable"
+    assert gpu == "gpu"
+    assert url == "url"
+
+
+def test_build_summary():
+    from solhunter_zero import startup_checks as sc
+
+    rows = sc.build_summary("d", "i", "c", "w", "e")
+    assert rows[0] == ("Disk space", "d")
 
 
 def test_startup_task_failure(monkeypatch, capsys):

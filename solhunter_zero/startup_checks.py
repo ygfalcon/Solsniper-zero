@@ -106,6 +106,14 @@ def check_network(args, log_startup) -> str:
     return "passed"
 
 
+def disk_and_network_checks(args, log_startup, apply_env_overrides, load_config):
+    """Run disk space and network connectivity checks."""
+    disk_required = _disk_space_required_bytes(apply_env_overrides, load_config)
+    disk_status = check_disk_space(disk_required, log_startup)
+    internet_status = check_network(args, log_startup)
+    return disk_required, disk_status, internet_status
+
+
 def ensure_configuration_and_wallet(args, ensure_wallet_cli, run_quick_setup):
     """Ensure configuration file and wallet CLI exist and select a keypair."""
     if args.skip_setup:
@@ -190,6 +198,30 @@ def check_endpoints(args, cfg_data, ensure_endpoints) -> str:
     return "reachable"
 
 
+def setup_configuration(args, ensure_wallet_cli, run_quick_setup, ensure_endpoints):
+    """Configure application and verify HTTP endpoints."""
+    (
+        config_path,
+        cfg_data,
+        keypair_path,
+        mnemonic_path,
+        active_keypair,
+        config_status,
+        wallet_status,
+    ) = ensure_configuration_and_wallet(args, ensure_wallet_cli, run_quick_setup)
+    endpoint_status = check_endpoints(args, cfg_data, ensure_endpoints)
+    return (
+        config_path,
+        cfg_data,
+        keypair_path,
+        mnemonic_path,
+        active_keypair,
+        config_status,
+        wallet_status,
+        endpoint_status,
+    )
+
+
 def install_dependencies(args, ensure_deps, ensure_target) -> None:
     """Install required dependencies unless skipped."""
     if args.skip_deps:
@@ -215,7 +247,7 @@ def install_dependencies(args, ensure_deps, ensure_target) -> None:
     console.print("[green]Dependencies installed[/]")
 
 
-def run_preflight(args, log_startup) -> None:
+def perform_preflight(args, log_startup) -> None:
     """Run preflight checks unless skipped."""
     if args.skip_preflight:
         return
@@ -234,6 +266,45 @@ def run_preflight(args, log_startup) -> None:
         raise SystemExit(1)
 
 
+def perform_bootstrap(args, ensure_rpc, ensure_cargo, log_startup):
+    """Run bootstrap sequence and log environment details."""
+    if args.offline:
+        rpc_status = "offline"
+    elif args.skip_rpc_check:
+        rpc_status = "skipped"
+    else:
+        ensure_rpc(warn_only=args.one_click)
+        rpc_status = "reachable"
+
+    from solhunter_zero.bootstrap import bootstrap
+
+    with temporary_env("SOLHUNTER_SKIP_SETUP", "1"):
+        bootstrap(one_click=args.one_click)
+
+    gpu_device = os.environ.get("SOLHUNTER_GPU_DEVICE", "unknown")
+    rpc_url = os.environ.get(
+        "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+    )
+
+    log_startup(f"GPU device: {gpu_device}")
+    log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
+
+    ensure_cargo()
+
+    return gpu_device, rpc_status, rpc_url
+
+
+def build_summary(disk_status, internet_status, config_status, wallet_status, endpoint_status):
+    """Build summary rows for final reporting."""
+    return [
+        ("Disk space", disk_status),
+        ("Internet", internet_status),
+        ("Configuration", str(config_status)),
+        ("Wallet", str(wallet_status)),
+        ("HTTP endpoints", endpoint_status),
+    ]
+
+
 def perform_checks(
     args,
     rest: List[str],
@@ -250,10 +321,9 @@ def perform_checks(
     load_config,
 ) -> Dict[str, Any]:
     """Run startup checks prior to launching."""
-    disk_required = _disk_space_required_bytes(apply_env_overrides, load_config)
-
-    disk_status = check_disk_space(disk_required, log_startup)
-    internet_status = check_network(args, log_startup)
+    disk_required, disk_status, internet_status = disk_and_network_checks(
+        args, log_startup, apply_env_overrides, load_config
+    )
 
     (
         config_path,
@@ -263,9 +333,8 @@ def perform_checks(
         active_keypair,
         config_status,
         wallet_status,
-    ) = ensure_configuration_and_wallet(args, ensure_wallet_cli, run_quick_setup)
-
-    endpoint_status = check_endpoints(args, cfg_data, ensure_endpoints)
+        endpoint_status,
+    ) = setup_configuration(args, ensure_wallet_cli, run_quick_setup, ensure_endpoints)
 
     if args.repair and platform.system() == "Darwin":
         from solhunter_zero import macos_setup
@@ -352,37 +421,15 @@ def perform_checks(
                 print("Use '--allow-rosetta' to continue anyway.")
                 return {"rest": rest, "summary_rows": [], "code": 1}
 
-        run_preflight(args, log_startup)
+        perform_preflight(args, log_startup)
 
-        if args.offline:
-            rpc_status = "offline"
-        elif args.skip_rpc_check:
-            rpc_status = "skipped"
-        else:
-            ensure_rpc(warn_only=args.one_click)
-            rpc_status = "reachable"
-        from solhunter_zero.bootstrap import bootstrap
-
-        with temporary_env("SOLHUNTER_SKIP_SETUP", "1"):
-            bootstrap(one_click=args.one_click)
-
-        gpu_device = os.environ.get("SOLHUNTER_GPU_DEVICE", "unknown")
-        rpc_url = os.environ.get(
-            "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
+        gpu_device, rpc_status, rpc_url = perform_bootstrap(
+            args, ensure_rpc, ensure_cargo, log_startup
         )
 
-        log_startup(f"GPU device: {gpu_device}")
-        log_startup(f"RPC endpoint: {rpc_url} ({rpc_status})")
-
-        ensure_cargo()
-
-    summary_rows = [
-        ("Disk space", disk_status),
-        ("Internet", internet_status),
-        ("Configuration", str(config_status)),
-        ("Wallet", str(wallet_status)),
-        ("HTTP endpoints", endpoint_status),
-    ]
+    summary_rows = build_summary(
+        disk_status, internet_status, config_status, wallet_status, endpoint_status
+    )
 
     return {
         "summary_rows": summary_rows,
