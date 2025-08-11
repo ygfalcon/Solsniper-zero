@@ -27,10 +27,11 @@ from .config import (
 )
 from . import wallet
 from . import metrics_aggregator
+from . import arbitrage
 from .bootstrap import bootstrap
 from .config_runtime import Config
-from .startup import prepare_environment
-from .services import start_depth_service
+from .connectivity import ensure_connectivity_async, ensure_connectivity
+from .services import start_depth_service as _start_depth_service
 from .loop import (
     place_order_async,
     trading_loop,
@@ -48,6 +49,48 @@ from . import event_bus
 install_uvloop()
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
+
+
+async def perform_startup_async(
+    config_path: str | None,
+    *,
+    offline: bool = False,
+    dry_run: bool = False,
+) -> tuple[dict, Config, subprocess.Popen | None]:
+    """Load configuration, verify connectivity and start services."""
+    start = time.perf_counter()
+    cfg = apply_env_overrides(load_config(config_path))
+    set_env_from_config(cfg)
+    runtime_cfg = Config.from_env(cfg)
+    metrics_aggregator.publish(
+        "startup_config_load_duration", time.perf_counter() - start
+    )
+
+    start = time.perf_counter()
+    await ensure_connectivity_async(offline=offline or dry_run)
+    metrics_aggregator.publish(
+        "startup_connectivity_check_duration", time.perf_counter() - start
+    )
+
+    start = time.perf_counter()
+    proc = _start_depth_service(cfg)
+    metrics_aggregator.publish(
+        "startup_depth_service_start_duration", time.perf_counter() - start
+    )
+
+    return cfg, runtime_cfg, proc
+
+
+def perform_startup(
+    config_path: str | None,
+    *,
+    offline: bool = False,
+    dry_run: bool = False,
+) -> tuple[dict, Config, subprocess.Popen | None]:
+    """Synchronous wrapper for :func:`perform_startup_async`."""
+    return asyncio.run(
+        perform_startup_async(config_path, offline=offline, dry_run=dry_run)
+    )
 
 
 def main(
@@ -97,10 +140,9 @@ def main(
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     try:
-        cfg, runtime_cfg = prepare_environment(
+        cfg, runtime_cfg, proc = perform_startup(
             config_path, offline=offline, dry_run=dry_run
         )
-        proc = start_depth_service(cfg)
     except Exception as exc:
         logging.error("Failed to start depth_service: %s", exc)
         cfg = {"depth_service": False}
