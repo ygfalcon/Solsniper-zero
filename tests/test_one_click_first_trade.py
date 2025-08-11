@@ -63,6 +63,7 @@ sys.modules.setdefault("pydantic", pydantic_mod)
 
 main_mod = types.ModuleType("solhunter_zero.main")
 
+
 class _Trade:
     def __init__(self, token, side, amount, price):
         self.token = token
@@ -94,9 +95,10 @@ def load_launcher():
     globals_dict = {
         "__name__": "scripts.launcher",
         "__file__": str(Path("scripts/launcher.py")),
-        "find_python": lambda: sys.executable,
     }
     runpy.run_path("scripts/launcher.py", globals_dict)
+    import solhunter_zero.python_env as pyenv
+    pyenv.find_python = lambda repair=False: sys.executable
     return sys.modules["solhunter_zero.launcher"]
 
 
@@ -118,9 +120,11 @@ def test_one_click_first_trade(monkeypatch, tmp_path):
 
     def fake_run_auto(*, memory_path, portfolio_path, **kwargs):
         mem = main_module.Memory(memory_path)
+
         async def _do():
             await mem.log_trade(token="TOK", side="buy", amount=1, price=0)
             return await mem.list_trades()
+
         recorded.extend(asyncio.run(_do()))
         return 0
 
