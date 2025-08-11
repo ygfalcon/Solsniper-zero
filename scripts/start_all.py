@@ -10,6 +10,7 @@ import sys
 import time
 import threading
 import logging
+import asyncio
 from pathlib import Path
 from typing import IO
 
@@ -31,6 +32,7 @@ from solhunter_zero.config import (  # noqa: E402
     ensure_config_file,
     validate_env,
     REQUIRED_ENV_VARS,
+    get_event_bus_url,
 )
 from solhunter_zero import data_sync  # noqa: E402
 from solhunter_zero.service_launcher import (  # noqa: E402
@@ -40,6 +42,7 @@ from solhunter_zero.service_launcher import (  # noqa: E402
 )
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
+from solhunter_zero import event_bus  # noqa: E402
 
 PROCS: list[subprocess.Popen] = []
 WS_THREADS: dict[str, threading.Thread] = {}
@@ -164,12 +167,49 @@ def launch_ui() -> None:
     threading.Thread(target=_run_ui, daemon=True).start()
 
 
-def monitor_processes() -> None:
+def monitor_processes(timeout: float = 60.0) -> None:
+    trade_seen = threading.Event()
+
+    def _record_trade(_payload: object) -> None:
+        if trade_seen.is_set():
+            return
+        logging.info("first trade observed")
+        print("First trade observed", flush=True)
+        trade_seen.set()
+
+    unsub = event_bus.subscribe("trade_logged", _record_trade)
+
+    url = get_event_bus_url() or "ws://localhost:8787"
+
+    def _run_bus() -> None:
+        async def _runner() -> None:
+            try:
+                await event_bus.connect_ws(url)
+                await asyncio.Event().wait()
+            except Exception:
+                logging.exception("event bus connection failed")
+
+        asyncio.run(_runner())
+
+    threading.Thread(target=_run_bus, daemon=True).start()
+
+    deadline = time.monotonic() + timeout
     try:
         while any(p.poll() is None for p in PROCS):
+            if not trade_seen.is_set() and time.monotonic() > deadline:
+                logging.error("no trades observed within %.1f seconds", timeout)
+                break
             time.sleep(1)
     finally:
-        stop_all()
+        unsub()
+        try:
+            stop_all()
+        except SystemExit as exc:
+            if not trade_seen.is_set():
+                raise SystemExit(1) from exc
+            raise
+        if not trade_seen.is_set():
+            sys.exit(1)
 
 
 def main() -> None:
