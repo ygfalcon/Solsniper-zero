@@ -415,7 +415,7 @@ def perform_checks(
             )
             return {"rest": rest, "summary_rows": [], "code": 1}
 
-        if platform.system() == "Darwin" and platform.machine() == "x86_64":
+        if os.environ.get("SOLHUNTER_SKIP_ARM64") == "1" and platform.system() == "Darwin" and platform.machine() == "x86_64":
             print("Warning: running under Rosetta; Metal acceleration unavailable.")
             if not args.allow_rosetta:
                 print("Use '--allow-rosetta' to continue anyway.")

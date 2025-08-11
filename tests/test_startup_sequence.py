@@ -83,7 +83,7 @@ def test_startup_sequence(monkeypatch, caplog):
     monkeypatch.setattr(macos_setup, "ensure_tools", lambda *a, **k: log("tools check"))
     monkeypatch.setattr(bootstrap_utils, "ensure_venv", lambda arg: log("venv setup"))
     monkeypatch.setattr(env_config, "configure_startup_env", lambda root: log("env config"))
-    monkeypatch.setattr(launcher, "set_rayon_threads", lambda: log("Rayon threads"))
+    monkeypatch.setattr(launcher.system, "set_rayon_threads", lambda: log("Rayon threads"))
     monkeypatch.setattr(device, "initialize_gpu", lambda: log("GPU init"))
 
     monkeypatch.setattr(startup_cli.console, "print", lambda *a, **k: None)

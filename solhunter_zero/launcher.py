@@ -106,7 +106,8 @@ def configure() -> tuple[list[str], bool]:
 
 
 def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoReturn:
-    _ensure_arm64_python()
+    if os.environ.get("SOLHUNTER_SKIP_ARM64") != "1":
+        _ensure_arm64_python()
     forward_args, detected_fast = configure()
     argv = forward_args if argv is None else list(argv)
     fast_mode = detected_fast if fast_mode is None else fast_mode

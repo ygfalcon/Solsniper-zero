@@ -156,6 +156,7 @@ This document lists environment variables recognized by the project.
 | `SOLHUNTER_GPU_DEVICE` | `` | Configures solhunter gpu device |
 | `SOLHUNTER_INSTALL_OPTIONAL` | `` | Configures solhunter install optional |
 | `SOLHUNTER_NO_DIAGNOSTICS` | `` | Configures solhunter no diagnostics |
+| `SOLHUNTER_SKIP_ARM64` | `` | Skip enforcing arm64 Python on macOS |
 | `SOLHUNTER_SKIP_DEPS` | `` | Configures solhunter skip deps |
 | `SOLHUNTER_SKIP_PREFLIGHT` | `` | Configures solhunter skip preflight |
 | `SOLHUNTER_SKIP_SETUP` | `` | Configures solhunter skip setup |
