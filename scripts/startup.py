@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from solhunter_zero import startup_cli
 
@@ -33,7 +34,7 @@ def ensure_cargo(*args, **kwargs):
 def _main_impl(argv: list[str] | None = None) -> int:
     from solhunter_zero import startup_runner, device  # noqa: F401
     from solhunter_zero.logging_utils import log_startup, rotate_preflight_log
-    from solhunter_zero.config import apply_env_overrides, load_config
+    from solhunter_zero.config import apply_env_overrides, load_config, find_config_file
     from solhunter_zero.bootstrap_utils import ensure_deps, ensure_endpoints
     from solhunter_zero.rpc_utils import ensure_rpc
     from scripts import preflight  # noqa: F401
@@ -66,6 +67,9 @@ def _main_impl(argv: list[str] | None = None) -> int:
     code = ctx.pop("code", 0)
     if code:
         return code
+    if ctx.get("config_path") is None:
+        cfg = find_config_file() or "config.toml"
+        ctx["config_path"] = Path(cfg)
     return startup_runner.run(args, ctx, log_startup=log_startup)
 
 
