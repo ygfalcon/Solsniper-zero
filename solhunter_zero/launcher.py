@@ -18,7 +18,7 @@ import platform
 import shutil
 import sys
 from pathlib import Path
-from typing import NoReturn
+from typing import Callable, NoReturn
 
 from .paths import ROOT
 from .python_env import find_python
@@ -33,6 +33,21 @@ def write_ok_marker(path: Path) -> None:
         path.write_text("ok")
     except OSError:
         pass
+
+
+def run_step(marker: Path, skip_message: str, callback: Callable[[], None]) -> None:
+    """Run a startup step unless ``FAST_MODE`` and ``marker`` exists.
+
+    When the step runs successfully a marker file is written to ``marker``.
+    """
+    from .logging_utils import log_startup
+
+    if FAST_MODE and marker.exists():
+        log_startup(skip_message)
+        return
+
+    callback()
+    write_ok_marker(marker)
 
 
 def _ensure_arm64_python() -> None:
@@ -103,18 +118,16 @@ def main(argv: list[str] | None = None) -> NoReturn:
     )
 
     setup_logging("startup")
-    if FAST_MODE and TOOLS_OK_MARKER.exists():
-        log_startup("Fast mode: skipping ensure_tools")
-    else:
-        ensure_tools(non_interactive=True)
-        if not TOOLS_OK_MARKER.exists():
-            write_ok_marker(TOOLS_OK_MARKER)
-
-    if FAST_MODE and VENV_OK_MARKER.exists():
-        log_startup("Fast mode: skipping ensure_venv")
-    else:
-        ensure_venv(None)
-        write_ok_marker(VENV_OK_MARKER)
+    run_step(
+        TOOLS_OK_MARKER,
+        "Fast mode: skipping ensure_tools",
+        lambda: ensure_tools(non_interactive=True),
+    )
+    run_step(
+        VENV_OK_MARKER,
+        "Fast mode: skipping ensure_venv",
+        lambda: ensure_venv(None),
+    )
 
     log_startup(f"Virtual environment: {sys.prefix}")
 
