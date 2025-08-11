@@ -106,7 +106,11 @@ def main(argv: list[str] | None = None) -> NoReturn:
     if FAST_MODE and TOOLS_OK_MARKER.exists():
         log_startup("Fast mode: skipping ensure_tools")
     else:
-        ensure_tools(non_interactive=True)
+        report = ensure_tools(non_interactive=True)
+        if not report.get("success"):
+            log_startup("mac setup failed")
+            raise SystemExit(1)
+        log_startup("mac setup succeeded")
         if not TOOLS_OK_MARKER.exists():
             write_ok_marker(TOOLS_OK_MARKER)
 

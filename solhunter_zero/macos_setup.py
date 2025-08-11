@@ -446,6 +446,9 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
             print(f"{step}: {info['status']}")
     missing_after = missing()
     report["missing"] = missing_after
+    if missing_after:
+        report["success"] = False
+
     if report.get("success") and not missing_after:
         TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
         TOOLS_OK_MARKER.write_text("ok")

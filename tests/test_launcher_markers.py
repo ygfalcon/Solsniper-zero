@@ -21,7 +21,7 @@ def test_launcher_writes_ok_markers(monkeypatch, tmp_path):
     monkeypatch.setattr(lu, "setup_logging", lambda *a, **k: None)
     monkeypatch.setattr(lu, "log_startup", lambda *a, **k: None)
     import solhunter_zero.macos_setup as ms
-    monkeypatch.setattr(ms, "ensure_tools", lambda **k: None)
+    monkeypatch.setattr(ms, "ensure_tools", lambda **k: {"success": True})
     import solhunter_zero.bootstrap_utils as bu
     monkeypatch.setattr(bu, "ensure_venv", lambda *a, **k: None)
     import solhunter_zero.device as device
@@ -45,3 +45,34 @@ def test_launcher_writes_ok_markers(monkeypatch, tmp_path):
 
     assert tools_marker.exists() and tools_marker.read_text() == "ok"
     assert venv_marker.exists() and venv_marker.read_text() == "ok"
+
+
+def test_launcher_aborts_on_macos_setup_failure(monkeypatch, tmp_path):
+    monkeypatch.setenv("SOLHUNTER_TESTING", "1")
+    monkeypatch.setenv("SOLHUNTER_PYTHON", sys.executable)
+
+    tools_marker = tmp_path / "cache" / "tools_ok"
+    venv_marker = tmp_path / "cache" / "venv_ok"
+
+    import solhunter_zero.cache_paths as cp
+    monkeypatch.setattr(cp, "TOOLS_OK_MARKER", tools_marker)
+    monkeypatch.setattr(cp, "VENV_OK_MARKER", venv_marker)
+
+    launcher = importlib.import_module("solhunter_zero.launcher")
+
+    import solhunter_zero.logging_utils as lu
+    logs: list[str] = []
+    monkeypatch.setattr(lu, "setup_logging", lambda *a, **k: None)
+    monkeypatch.setattr(lu, "log_startup", lambda msg: logs.append(msg))
+
+    import solhunter_zero.macos_setup as ms
+    monkeypatch.setattr(ms, "ensure_tools", lambda **k: {"success": False})
+    import solhunter_zero.bootstrap_utils as bu
+    called = {"venv": False}
+    monkeypatch.setattr(bu, "ensure_venv", lambda *a, **k: called.__setitem__("venv", True))
+
+    with pytest.raises(SystemExit):
+        launcher.main(["--skip-preflight"])
+
+    assert "mac setup failed" in logs
+    assert not called["venv"]

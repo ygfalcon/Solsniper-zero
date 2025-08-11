@@ -9,7 +9,7 @@ import pytest
 
 # Stub modules to avoid heavy side effects during import
 macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
-macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+macos_setup_mod.ensure_tools = lambda non_interactive=True: {"success": True}
 sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
 
 bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")

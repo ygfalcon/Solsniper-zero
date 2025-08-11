@@ -64,6 +64,28 @@ def test_ensure_tools_runs_setup_and_marks(monkeypatch, tmp_path):
     assert marker.exists()
 
 
+def test_ensure_tools_reports_failure_when_missing(monkeypatch, tmp_path):
+    marker = tmp_path / ".cache" / "macos_tools_ok"
+    monkeypatch.setattr(ms, "TOOLS_OK_MARKER", marker)
+    monkeypatch.setattr(ms, "REPORT_PATH", tmp_path / "report.json")
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(ms, "mac_setup_completed", lambda: False)
+    monkeypatch.setattr(ms, "prepare_macos_env", lambda **k: {"steps": {}, "success": True})
+    monkeypatch.setattr(ms.shutil, "which", lambda cmd: None)
+
+    class DummyCompleted:
+        def __init__(self, returncode=1):
+            self.returncode = returncode
+
+    monkeypatch.setattr(ms.subprocess, "run", lambda *a, **k: DummyCompleted(1))
+
+    report = ms.ensure_tools()
+    assert report["success"] is False
+    assert report["missing"]
+    assert not marker.exists()
+
+
 def test_prepare_macos_env_auto_fix(monkeypatch, tmp_path):
     marker = tmp_path / "marker"
     monkeypatch.setattr(ms, "MAC_SETUP_MARKER", marker)
