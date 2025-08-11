@@ -24,7 +24,7 @@ log_startup("startup launched")
 rotate_preflight_log()
 
 
-def _main_impl(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args, rest = startup_cli.parse_args(argv)
     if args.non_interactive:
         return startup_runner.launch_only(rest)
@@ -48,27 +48,23 @@ def _main_impl(argv: list[str] | None = None) -> int:
     return startup_runner.run(args, ctx, log_startup=log_startup)
 
 
-def main(argv: list[str] | None = None) -> int:
-    return _main_impl(argv)
-
-
 def run(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
     try:
-        code = main(args_list)
+        exit_code = main(args_list)
     except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 1
+        exit_code = exc.code if isinstance(exc.code, int) else 1
     except Exception:
         if "--no-diagnostics" not in args_list:
             from scripts import diagnostics
 
             diagnostics.main()
         raise
-    if code and "--no-diagnostics" not in args_list:
+    if exit_code and "--no-diagnostics" not in args_list:
         from scripts import diagnostics
 
         diagnostics.main()
-    return code or 0
+    return exit_code or 0
 
 
 if __name__ == "__main__":  # pragma: no cover
