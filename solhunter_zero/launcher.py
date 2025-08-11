@@ -23,9 +23,6 @@ from typing import NoReturn
 
 from .paths import ROOT
 
-os.chdir(ROOT)
-sys.path.insert(0, str(ROOT))
-
 FAST_MODE = False
 
 # In-memory cache for the resolved interpreter path

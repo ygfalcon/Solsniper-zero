@@ -5,12 +5,9 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 from typing import Callable, List, Tuple
 import json
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
 from solhunter_zero.preflight_utils import (
     Check,

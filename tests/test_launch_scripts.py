@@ -58,11 +58,14 @@ def test_startup_non_interactive(monkeypatch, tmp_path):
 def test_demo_script_generates_reports(tmp_path: Path) -> None:
     """demo.py runs end-to-end and produces report artifacts."""
     snippet = (
-        "import runpy, sys, pathlib;"
+        "import runpy, sys, pathlib, importlib.util, importlib.resources as res;"
         f"repo=pathlib.Path(r'{REPO_ROOT}');"
-        "sys.path.insert(0, str(repo));"
-        "import tests.stubs as s; s.stub_torch();"
-        "path=repo / 'demo.py';"
+        "spec_pkg=importlib.util.spec_from_file_location('solhunter_zero', repo/'solhunter_zero'/'__init__.py');"
+        "pkg=importlib.util.module_from_spec(spec_pkg); spec_pkg.loader.exec_module(pkg); sys.modules['solhunter_zero']=pkg;"
+        "spec=importlib.util.spec_from_file_location('tests.stubs', repo/'tests'/'stubs.py');"
+        "s=importlib.util.module_from_spec(spec); spec.loader.exec_module(s);"
+        "s.stub_torch();"
+        "path=res.files('solhunter_zero').parent/'demo.py';"
         "sys.argv=[str(path)];"
         "runpy.run_path(str(path), run_name='__main__')"
     )

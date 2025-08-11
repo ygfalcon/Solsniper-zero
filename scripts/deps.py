@@ -6,16 +6,12 @@ from __future__ import annotations
 import argparse
 import pkgutil
 import re
-from pathlib import Path
-import sys
 
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - should not happen
     import tomli as tomllib  # type: ignore
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT))
 from solhunter_zero.paths import ROOT
 
 OPTIONAL_DEPS = [

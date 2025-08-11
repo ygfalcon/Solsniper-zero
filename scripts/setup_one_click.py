@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.resources as resources
 import os
 import sys
 
@@ -22,8 +23,7 @@ def main(argv: list[str] | None = None) -> None:
     ensure_deps(install_optional=True)
     device.initialize_gpu()
 
-    os.chdir(ROOT)
-    start_all = ROOT / "scripts" / "start_all.py"
+    start_all = resources.files("scripts") / "start_all.py"
     cmd = [sys.executable, str(start_all), "autopilot"]
     os.execvp(cmd[0], cmd)
 

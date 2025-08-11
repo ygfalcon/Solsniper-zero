@@ -83,7 +83,6 @@ def _get_config() -> tuple[str | None, dict]:
 
 
 def main() -> None:
-    os.chdir(ROOT)
     signal.signal(signal.SIGINT, _stop_all)
     signal.signal(signal.SIGTERM, _stop_all)
 
@@ -101,15 +100,18 @@ def main() -> None:
             os.getenv("OFFLINE_DATA_INTERVAL", "3600"),
         )
     )
-    db_path = cfg.get("rl_db_path", "offline_data.db")
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    db_path_val = cfg.get("rl_db_path", "offline_data.db")
+    db_path = Path(db_path_val)
+    if not db_path.is_absolute():
+        db_path = ROOT / db_path
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(db_path, "a"):
             pass
     except OSError as exc:
         print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
         sys.exit(1)
-    data_sync.start_scheduler(interval=interval, db_path=db_path)
+    data_sync.start_scheduler(interval=interval, db_path=str(db_path))
 
     try:
         depth_proc = start_depth_service(cfg_path)
