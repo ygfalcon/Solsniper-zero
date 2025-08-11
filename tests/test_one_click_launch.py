@@ -10,9 +10,11 @@ import pytest
 # Stub out the startup module so launching avoids real network activity
 fake_startup = types.ModuleType("scripts.startup")
 
+
 def _fake_run(argv):
     print("SolHunter Zero launch complete – system ready.")
     return 0
+
 
 fake_startup.run = _fake_run
 sys.modules["scripts.startup"] = fake_startup
@@ -53,9 +55,10 @@ def load_launcher():
     globals_dict = {
         "__name__": "scripts.launcher",
         "__file__": str(Path("scripts/launcher.py")),
-        "find_python": lambda: sys.executable,
     }
     runpy.run_path("scripts/launcher.py", globals_dict)
+    import solhunter_zero.python_env as pyenv
+    pyenv.find_python = lambda repair=False: sys.executable
     return sys.modules["solhunter_zero.launcher"]
 
 
