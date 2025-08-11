@@ -18,7 +18,7 @@ import platform
 import shutil
 import sys
 from pathlib import Path
-from typing import NoReturn
+from typing import Callable, NoReturn
 
 from .paths import ROOT
 from .python_env import find_python
@@ -103,18 +103,23 @@ def main(argv: list[str] | None = None) -> NoReturn:
     )
 
     setup_logging("startup")
-    if FAST_MODE and TOOLS_OK_MARKER.exists():
-        log_startup("Fast mode: skipping ensure_tools")
-    else:
-        ensure_tools(non_interactive=True)
-        if not TOOLS_OK_MARKER.exists():
-            write_ok_marker(TOOLS_OK_MARKER)
 
-    if FAST_MODE and VENV_OK_MARKER.exists():
-        log_startup("Fast mode: skipping ensure_venv")
-    else:
-        ensure_venv(None)
-        write_ok_marker(VENV_OK_MARKER)
+    def _ensure_once(
+        marker: Path, action: Callable[[], None], description: str
+    ) -> None:
+        if FAST_MODE and marker.exists():
+            log_startup(f"Fast mode: skipping {description}")
+            return
+        action()
+        if not marker.exists():
+            write_ok_marker(marker)
+
+    _ensure_once(
+        TOOLS_OK_MARKER,
+        lambda: ensure_tools(non_interactive=True),
+        "ensure_tools",
+    )
+    _ensure_once(VENV_OK_MARKER, lambda: ensure_venv(None), "ensure_venv")
 
     log_startup(f"Virtual environment: {sys.prefix}")
 
