@@ -7,6 +7,7 @@ import os
 
 from .logging_utils import log_startup
 from .paths import ROOT
+from .console_utils import console_print, console_warning
 
 TEMPLATE_PATH = ROOT / "solhunter_zero" / "static" / "env.template"
 
@@ -33,11 +34,12 @@ def load_env_file(path: Path) -> None:
                 f"Created default environment file at {path}. "
                 "Please update it with your settings."
             )
+            console_print(msg)
         except OSError:
             msg = (
                 f"Warning: environment file {path} not found and could not be created"
             )
-        print(msg)
+            console_warning(msg)
         log_startup(msg)
         return
     for raw_line in path.read_text().splitlines():
