@@ -1,12 +1,8 @@
-"""Integration-like test for the synchronous `main` trading loop.
+"""Integration test for the synchronous ``main`` trading loop.
 
-This test launches the trading loop with all network and exchange layers
-mocked using utilities from :mod:`tests.test_live_trading`. It waits up to
-``timeout`` seconds for a trade to be recorded and verifies that either a trade
-has been logged or the ``_first_trade_recorded`` flag has been set.
-
-Expected runtime: <2s. The test relies on stubbed dependencies and runs in
-dry-run mode to avoid external network calls.
+The trading loop is executed with all external services patched out via
+:func:`tests.test_live_trading.setup_live_trading_env`. The function waits up to
+``timeout`` seconds for completion and verifies that a mock trade was logged.
 """
 
 from __future__ import annotations
@@ -34,4 +30,5 @@ def test_main_loop_records_trade(monkeypatch):
         thread.start()
         thread.join(timeout=timeout)
 
-        assert trades or main_module._first_trade_recorded
+        assert not thread.is_alive()
+        assert trades
