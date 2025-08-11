@@ -47,8 +47,10 @@ def write_ok_marker(path: Path) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("ok")
-    except OSError:
-        pass
+    except OSError as exc:
+        from .logging_utils import log_startup
+        log_startup(f"Failed to write ok marker {path}: {exc}")
+        return
 
 
 def _ensure_arm64_python() -> None:
