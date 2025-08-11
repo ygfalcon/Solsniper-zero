@@ -12,12 +12,12 @@ script so that all entry points invoke the same Python-based logic.
 """
 from __future__ import annotations
 
+import argparse
 import os
 import platform
 import shutil
 import subprocess
 import sys
-import argparse
 from pathlib import Path
 from typing import NoReturn
 
@@ -26,13 +26,7 @@ from .paths import ROOT
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
-# Parse launcher-specific arguments early to avoid mutating ``sys.argv`` later
-_parser = argparse.ArgumentParser(add_help=False)
-_parser.add_argument("--repair", action="store_true")
-_parser.add_argument("--fast", action="store_true")
-_parsed_args, _forward_args = _parser.parse_known_args(sys.argv[1:])
-
-FAST_MODE = _parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
+FAST_MODE = False
 
 # In-memory cache for the resolved interpreter path
 _PYTHON_CACHE: str | None = None
@@ -155,53 +149,74 @@ def find_python(repair: bool = False) -> str:
     raise SystemExit(1)
 
 
-PYTHON_EXE = find_python(repair=_parsed_args.repair)
-if Path(PYTHON_EXE).resolve() != Path(sys.executable).resolve():
-    launcher = Path(__file__).resolve()
-    try:
-        os.execv(PYTHON_EXE, [PYTHON_EXE, str(launcher), *_forward_args])
-    except OSError as exc:  # pragma: no cover - hard failure
-        print(f"Failed to re-exec launcher via {PYTHON_EXE}: {exc}", file=sys.stderr)
-        raise SystemExit(1)
-from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
-from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
-from solhunter_zero.cache_paths import TOOLS_OK_MARKER, VENV_OK_MARKER  # noqa: E402
+def configure() -> list[str]:
+    """Parse launcher arguments and ensure a suitable interpreter.
 
-setup_logging("startup")
-if FAST_MODE and TOOLS_OK_MARKER.exists():
-    log_startup("Fast mode: skipping ensure_tools")
-else:
-    ensure_tools(non_interactive=True)
-    if not TOOLS_OK_MARKER.exists():
+    Returns the remaining arguments to forward to ``scripts.startup``.
+    """
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--repair", action="store_true")
+    parser.add_argument("--fast", action="store_true")
+    parsed_args, forward_args = parser.parse_known_args(sys.argv[1:])
+
+    global FAST_MODE
+    FAST_MODE = parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
+
+    python_exe = find_python(repair=parsed_args.repair)
+    if Path(python_exe).resolve() != Path(sys.executable).resolve():
+        launcher = Path(__file__).resolve()
         try:
-            TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-            TOOLS_OK_MARKER.write_text("ok")
-        except OSError:
-            pass
+            os.execv(python_exe, [python_exe, str(launcher), *forward_args])
+        except OSError as exc:  # pragma: no cover - hard failure
+            print(
+                f"Failed to re-exec launcher via {python_exe}: {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
-if FAST_MODE and VENV_OK_MARKER.exists():
-    log_startup("Fast mode: skipping ensure_venv")
-else:
-    ensure_venv(None)
-    try:
-        VENV_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
-        VENV_OK_MARKER.write_text("ok")
-    except OSError:
-        pass
-
-log_startup(f"Virtual environment: {sys.prefix}")
-
-import solhunter_zero.env_config as env_config  # noqa: E402
-
-env_config.configure_startup_env(ROOT)
-from solhunter_zero import device  # noqa: E402
-
-from solhunter_zero.system import set_rayon_threads  # noqa: E402
+    return forward_args
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
-    argv = list(_forward_args) if argv is None else list(argv)
+    forward_args = configure()
+    argv = list(forward_args) if argv is None else list(argv)
+
+    from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
+    from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
+    from solhunter_zero.logging_utils import log_startup, setup_logging  # noqa: E402
+    from solhunter_zero.cache_paths import TOOLS_OK_MARKER, VENV_OK_MARKER  # noqa: E402
+
+    setup_logging("startup")
+    if FAST_MODE and TOOLS_OK_MARKER.exists():
+        log_startup("Fast mode: skipping ensure_tools")
+    else:
+        ensure_tools(non_interactive=True)
+        if not TOOLS_OK_MARKER.exists():
+            try:
+                TOOLS_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+                TOOLS_OK_MARKER.write_text("ok")
+            except OSError:
+                pass
+
+    if FAST_MODE and VENV_OK_MARKER.exists():
+        log_startup("Fast mode: skipping ensure_venv")
+    else:
+        ensure_venv(None)
+        try:
+            VENV_OK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+            VENV_OK_MARKER.write_text("ok")
+        except OSError:
+            pass
+
+    log_startup(f"Virtual environment: {sys.prefix}")
+
+    import solhunter_zero.env_config as env_config  # noqa: E402
+
+    env_config.configure_startup_env(ROOT)
+    from solhunter_zero import device  # noqa: E402
+
+    from solhunter_zero.system import set_rayon_threads  # noqa: E402
 
     # Configure Rayon thread count once for all downstream imports
     set_rayon_threads()
