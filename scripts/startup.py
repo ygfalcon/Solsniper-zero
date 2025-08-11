@@ -32,9 +32,7 @@ from solhunter_zero.rpc_utils import ensure_rpc
 
 from solhunter_zero.logging_utils import (
     log_startup,
-    setup_logging,
     rotate_preflight_log,
-    STARTUP_LOG,
 )  # noqa: E402
 
 from rich.console import Console
@@ -50,8 +48,8 @@ def ensure_target(name: str) -> None:
 
     _ensure_target(name)
 
-setup_logging("startup", path=STARTUP_LOG)
-setup_logging("preflight")
+log_startup("startup launched")
+rotate_preflight_log()
 from solhunter_zero import device  # noqa: E402
 
 
