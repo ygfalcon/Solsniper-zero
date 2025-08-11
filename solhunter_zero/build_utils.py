@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .paths import ROOT
 from .logging_utils import log_startup
+from .console_utils import console_print, console_warning, console_error
 
 
 def build_rust_component(
@@ -65,8 +66,8 @@ def build_rust_component(
         try:
             subprocess.check_call(["codesign", "--force", "--sign", "-", str(output)])
         except subprocess.CalledProcessError as exc:
-            print(
-                f"WARNING: failed to codesign {output}: {exc}. "
+            console_warning(
+                f"failed to codesign {output}: {exc}. "
                 "Please codesign the binary manually if required."
             )
 
@@ -95,8 +96,8 @@ def ensure_target(name: str) -> None:
                 libpath,
             )
         except Exception as exc:  # pragma: no cover - build errors are rare
-            print(f"Failed to build route_ffi: {exc}")
-            print(
+            console_error(f"Failed to build route_ffi: {exc}")
+            console_print(
                 "To retry the build, run 'cargo build --manifest-path route_ffi/Cargo.toml --release' "
                 "and re-run this program."
             )
@@ -119,8 +120,8 @@ def ensure_target(name: str) -> None:
             hint = ""
             if platform.system() == "Darwin":
                 hint = " Hint: run 'scripts/mac_setup.py' to install macOS build tools."
-            print(f"Failed to build depth_service: {exc}.{hint}")
-            print(
+            console_error(f"Failed to build depth_service: {exc}.{hint}")
+            console_print(
                 "You can retry by running 'cargo build --manifest-path depth_service/Cargo.toml --release' "
                 "and then re-running this program."
             )
@@ -133,17 +134,17 @@ def ensure_target(name: str) -> None:
         if result.returncode == 0:
             return
 
-        print("event_pb2.py is stale. Regenerating...")
+        console_print("event_pb2.py is stale. Regenerating...")
         try:
             regen = ROOT / "scripts" / "gen_proto.py"
             subprocess.check_call([sys.executable, str(regen)], cwd=ROOT)
         except subprocess.CalledProcessError as exc:  # pragma: no cover - rare
-            print(f"Failed to regenerate event_pb2.py: {exc}")
+            console_error(f"Failed to regenerate event_pb2.py: {exc}")
             log_startup(f"Failed to regenerate event_pb2.py: {exc}")
             raise SystemExit(1)
 
         msg = "Regenerated event_pb2.py from proto/event.proto"
-        print(msg)
+        console_print(msg)
         log_startup(msg)
         return
 

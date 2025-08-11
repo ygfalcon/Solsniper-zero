@@ -20,6 +20,7 @@ from scripts.deps import check_deps
 from solhunter_zero.config_utils import ensure_default_config, select_active_keypair
 from solhunter_zero import wallet
 from solhunter_zero.paths import ROOT
+from .console_utils import console_print
 
 Check = Tuple[bool, str]
 
@@ -331,10 +332,10 @@ def run_basic_checks(min_bytes: int = 1 << 30, url: str | None = None) -> None:
     """
 
     ok, msg = check_disk_space(min_bytes)
-    print(msg)
+    console_print(msg)
     if not ok:
         raise SystemExit(1)
     ok, msg = check_internet(url)
-    print(msg)
+    console_print(msg)
     if not ok:
         raise SystemExit(1)
