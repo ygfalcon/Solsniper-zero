@@ -75,7 +75,9 @@ def _inspect_python(p: Path) -> tuple[str | None, tuple[int, int, int]]:
         data = json.loads(info)
         return data.get("machine"), tuple(data.get("version", []))
     except Exception as exc:  # pragma: no cover - hard failure
-        print(f"Failed to inspect virtual environment interpreter: {exc}")
+        msg = f"Failed to inspect virtual environment interpreter: {exc}"
+        print(msg)
+        log_startup(msg)
         return None, (0, 0, 0)
 
 
@@ -88,8 +90,45 @@ def _create_venv(python_exe: str) -> None:
     try:
         subprocess.check_call([python_exe, "-m", "venv", str(VENV_DIR)])
     except (subprocess.CalledProcessError, OSError) as exc:
-        print(f"Failed to create .venv with {python_exe}: {exc}")
+        msg = f"Failed to create .venv with {python_exe}: {exc}"
+        print(msg)
+        log_startup(msg)
         raise SystemExit(1)
+
+
+def _venv_needs_recreation() -> tuple[str | None, str]:
+    """Return ``(python_exe, reason)`` if the venv must be recreated."""
+
+    python = _venv_python()
+
+    if not VENV_DIR.exists():
+        return sys.executable, "initial setup"
+
+    if not python.exists() or not os.access(str(python), os.X_OK):
+        return sys.executable, "missing interpreter"
+
+    machine, version = _inspect_python(python)
+    if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
+        brew_python = shutil.which("python3.11")
+        if not brew_python:
+            msg = (
+                "python3.11 from Homebrew not found. "
+                "Install it with 'brew install python@3.11'."
+            )
+            print(msg)
+            log_startup(msg)
+            raise SystemExit(1)
+        return brew_python, "Homebrew python3.11"
+    if version < (3, 11):
+        return sys.executable, "current interpreter"
+    return None, ""
+
+
+def _recreate_venv(python_exe: str) -> None:
+    """Remove any existing venv and create a new one using *python_exe*."""
+
+    shutil.rmtree(VENV_DIR, ignore_errors=True)
+    _create_venv(python_exe)
 
 
 def ensure_venv(argv: list[str] | None) -> None:
@@ -105,40 +144,19 @@ def ensure_venv(argv: list[str] | None) -> None:
         # to skip virtual environment creation, e.g. during tests.
         return
 
+    python_exe, reason = _venv_needs_recreation()
+    if python_exe:
+        if reason == "initial setup":
+            msg = "Creating virtual environment in .venv..."
+        elif reason == "missing interpreter":
+            msg = "Virtual environment missing interpreter; recreating .venv..."
+        else:
+            msg = f"Recreating .venv using {reason}..."
+        print(msg)
+        log_startup(msg)
+        _recreate_venv(python_exe)
+
     python = _venv_python()
-
-    if VENV_DIR.exists():
-        if not python.exists() or not os.access(str(python), os.X_OK):
-            print("Virtual environment missing interpreter; recreating .venv...")
-            shutil.rmtree(VENV_DIR)
-
-    if not VENV_DIR.exists():
-        print("Creating virtual environment in .venv...")
-        _create_venv(sys.executable)
-
-    machine, version = _inspect_python(python)
-    required_python: str | None = None
-    reason = ""
-
-    if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
-        brew_python = shutil.which("python3.11")
-        if not brew_python:
-            print(
-                "python3.11 from Homebrew not found. "
-                "Install it with 'brew install python@3.11'."
-            )
-            raise SystemExit(1)
-        required_python = brew_python
-        reason = "Homebrew python3.11"
-    elif version < (3, 11):
-        required_python = sys.executable
-        reason = "current interpreter"
-
-    if required_python:
-        print(f"Recreating .venv using {reason}...")
-        shutil.rmtree(VENV_DIR, ignore_errors=True)
-        _create_venv(required_python)
-        python = _venv_python()
 
     if Path(sys.prefix) != VENV_DIR:
         try:
@@ -152,8 +170,11 @@ def ensure_venv(argv: list[str] | None) -> None:
 
 
 
+
+
 def _pip_install(*args: str, retries: int = 3) -> None:
     """Run ``pip install`` with retries and exponential backoff."""
+
     errors: list[str] = []
     cmd: list[str] = []
     for attempt in range(1, retries + 1):
@@ -176,13 +197,17 @@ def _pip_install(*args: str, retries: int = 3) -> None:
         errors.append(result.stderr.strip() or result.stdout.strip())
         if attempt < retries:
             wait = 2 ** (attempt - 1)
-            print(
+            msg = (
                 f"pip install {' '.join(args)} failed (attempt {attempt}/{retries}). Retrying in {wait} seconds..."
             )
+            print(msg)
+            log_startup(msg)
             time.sleep(wait)
     msg = f"Failed to install {' '.join(args)} after {retries} attempts"
     retry_cmd = " ".join(cmd)
-    print(f"{msg}. To retry manually, run: {retry_cmd}")
+    end_msg = f"{msg}. To retry manually, run: {retry_cmd}"
+    print(end_msg)
+    log_startup(end_msg)
     log_startup(
         json.dumps({
             "event": "pip_install_failed",
