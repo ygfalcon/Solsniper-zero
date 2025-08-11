@@ -105,24 +105,6 @@ def configure() -> tuple[list[str], bool]:
     return forward_args, fast_mode
 
 
-def _inject_defaults(argv: list[str]) -> list[str]:
-    """Prepend missing default flags to ``argv``.
-
-    The launcher expects ``--one-click`` and ``--full-deps`` unless explicitly
-    provided by the caller.  This helper returns a new list with any missing
-    defaults added at the beginning while preserving the original ``argv``
-    order.
-    """
-    defaults = ("--one-click", "--full-deps")
-    present: set[str] = set()
-    for arg in argv:
-        for flag in defaults:
-            if arg == flag or arg.startswith(f"{flag}="):
-                present.add(flag)
-    missing = [flag for flag in defaults if flag not in present]
-    return [*missing, *argv]
-
-
 def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoReturn:
     _ensure_arm64_python()
     if argv is None or fast_mode is None:
@@ -179,8 +161,6 @@ def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoRetu
     system.set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
-
-    argv = _inject_defaults(argv)
 
     python_exe = sys.executable
     script = "scripts.startup"
