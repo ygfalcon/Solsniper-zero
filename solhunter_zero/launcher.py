@@ -57,21 +57,31 @@ def _ensure_arm64_python() -> None:
             raise SystemExit(1)
 
 
-def configure() -> list[str]:
-    """Parse launcher arguments and ensure a suitable interpreter.
+def parse_launcher_args() -> tuple[argparse.Namespace, list[str]]:
+    """Parse command line arguments for the launcher.
 
-    Returns the remaining arguments to forward to ``scripts.startup``.
+    Returns the parsed ``Namespace`` along with arguments that should be
+    forwarded to ``scripts.startup``.
     """
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--repair", action="store_true")
     parser.add_argument("--fast", action="store_true")
-    parsed_args, forward_args = parser.parse_known_args(sys.argv[1:])
+    args, forward_args = parser.parse_known_args(sys.argv[1:])
 
     global FAST_MODE
-    FAST_MODE = parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
+    FAST_MODE = args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
 
-    python_exe = find_python(repair=parsed_args.repair)
+    return args, forward_args
+
+
+def ensure_interpreter(args: argparse.Namespace, forward_args: list[str]) -> None:
+    """Ensure ``sys.executable`` matches the requested interpreter.
+
+    Re-execs the launcher with the resolved interpreter when necessary.
+    """
+
+    python_exe = find_python(repair=args.repair)
     if Path(python_exe).resolve() != Path(sys.executable).resolve():
         launcher = Path(__file__).resolve()
         try:
@@ -83,12 +93,11 @@ def configure() -> list[str]:
             )
             raise SystemExit(1)
 
-    return forward_args
-
 
 def main(argv: list[str] | None = None) -> NoReturn:
     _ensure_arm64_python()
-    forward_args = configure()
+    args, forward_args = parse_launcher_args()
+    ensure_interpreter(args, forward_args)
     argv = list(forward_args) if argv is None else list(argv)
 
     from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
