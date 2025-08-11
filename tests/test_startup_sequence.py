@@ -113,7 +113,7 @@ def test_startup_sequence(monkeypatch, caplog):
     monkeypatch.setattr(os, "execvp", fake_execvp)
 
     with pytest.raises(SystemExit) as exc:
-        launcher.main([])
+        launcher.main([], False)
     assert exc.value.code == 0
 
     messages = [rec.getMessage() for rec in caplog.records]

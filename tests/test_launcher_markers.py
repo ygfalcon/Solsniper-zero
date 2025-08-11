@@ -41,7 +41,7 @@ def test_launcher_writes_ok_markers(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher.os, "execvp", stop)
 
     with pytest.raises(RuntimeError):
-        launcher.main(["--skip-preflight"])
+        launcher.main(["--skip-preflight"], False)
 
     assert tools_marker.exists() and tools_marker.read_text() == "ok"
     assert venv_marker.exists() and venv_marker.read_text() == "ok"

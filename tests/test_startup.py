@@ -401,7 +401,7 @@ def test_launcher_injects_one_click_once(monkeypatch):
     launcher = importlib.import_module("solhunter_zero.launcher")
 
     monkeypatch.setattr(launcher.device, "initialize_gpu", lambda: None)
-    monkeypatch.setattr(launcher, "set_rayon_threads", lambda: None)
+    monkeypatch.setattr(launcher.system, "set_rayon_threads", lambda: None)
 
     captured = {}
 
@@ -412,7 +412,7 @@ def test_launcher_injects_one_click_once(monkeypatch):
     monkeypatch.setattr(launcher.os, "execvp", fake_execvp)
 
     with pytest.raises(RuntimeError):
-        launcher.main(["--skip-preflight"])
+        launcher.main(["--skip-preflight"], False)
 
     cmd = captured.get("cmd", [])
     assert cmd.count("--one-click") == 1
