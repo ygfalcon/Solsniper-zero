@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 # Launcher wrapper.
 
 cd "$(dirname "$0")" || exit 1
