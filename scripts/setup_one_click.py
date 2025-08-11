@@ -11,7 +11,7 @@ import solhunter_zero.env_config as env_config
 from solhunter_zero.paths import ROOT
 from scripts import quick_setup
 from solhunter_zero.bootstrap_utils import ensure_deps
-from solhunter_zero import device
+from solhunter_zero import runtime_init
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
     ensure_deps(install_optional=True)
-    device.initialize_gpu()
+    runtime_init.initialize_gpu()
 
     os.chdir(ROOT)
     start_all = ROOT / "scripts" / "start_all.py"

@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from scripts import deps
-from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
 from .paths import ROOT
@@ -352,7 +351,9 @@ def ensure_deps(
 
     if cfg.install_optional and extra_index:
         try:
-            device.initialize_gpu()
+            from . import runtime_init
+
+            runtime_init.initialize_gpu()
         except Exception as exc:
             print(str(exc))
             raise SystemExit(str(exc))

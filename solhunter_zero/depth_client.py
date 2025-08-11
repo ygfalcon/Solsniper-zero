@@ -1,11 +1,6 @@
 import os
 import mmap
 
-from .system import set_rayon_threads
-
-# Ensure Rayon thread pool is configured for the Rust FFI
-set_rayon_threads()
-
 import asyncio
 import time
 import atexit

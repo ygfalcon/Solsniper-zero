@@ -235,14 +235,12 @@ def main(argv: list[str] | None = None) -> NoReturn:
     import solhunter_zero.env_config as env_config  # noqa: E402
 
     env_config.configure_startup_env(ROOT)
-    from solhunter_zero import device  # noqa: E402
+    from solhunter_zero import runtime_init  # noqa: E402
 
-    from solhunter_zero.system import set_rayon_threads  # noqa: E402
-
-    # Configure Rayon thread count once for all downstream imports
-    set_rayon_threads()
+    # Configure Rayon thread count and GPU environment once for all downstream imports
+    runtime_init.set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
-        device.initialize_gpu()
+        runtime_init.initialize_gpu()
 
     if "--one-click" not in argv:
         argv.insert(0, "--one-click")

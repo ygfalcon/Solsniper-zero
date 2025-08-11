@@ -92,7 +92,6 @@ def bootstrap(one_click: bool = False) -> None:
     making it self-contained regarding environment setup.
     """
     env.load_env_file(Path(__file__).resolve().parent.parent / ".env")
-    device.initialize_gpu()
 
     if one_click:
         os.environ.setdefault("AUTO_SELECT_KEYPAIR", "1")

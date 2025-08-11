@@ -6,11 +6,6 @@ import logging
 import time
 import platform
 
-from .system import set_rayon_threads
-
-# Ensure Rayon thread count is configured for FFI
-set_rayon_threads()
-
 logger = logging.getLogger(__name__)
 
 LIB = None

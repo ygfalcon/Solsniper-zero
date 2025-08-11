@@ -20,7 +20,6 @@ from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
 from solhunter_zero import preflight_utils  # noqa: E402
-from solhunter_zero import device  # noqa: E402
 
 console = Console()
 
@@ -321,8 +320,7 @@ def perform_checks(
     finally:
         os.environ.pop("SOLHUNTER_SKIP_SETUP", None)
 
-    gpu_env = device.initialize_gpu()
-    gpu_device = gpu_env.get("SOLHUNTER_GPU_DEVICE", "unknown")
+    gpu_device = os.environ.get("SOLHUNTER_GPU_DEVICE", "unknown")
     rpc_url = os.environ.get(
         "SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"
     )

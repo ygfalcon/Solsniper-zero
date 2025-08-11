@@ -237,9 +237,29 @@ def test_launcher_injects_one_click_once(monkeypatch):
     monkeypatch.setattr("solhunter_zero.bootstrap_utils.ensure_venv", lambda argv: None)
 
     launcher = importlib.import_module("solhunter_zero.launcher")
+    runtime_init = importlib.import_module("solhunter_zero.runtime_init")
 
-    monkeypatch.setattr(launcher.device, "initialize_gpu", lambda: None)
-    monkeypatch.setattr(launcher, "set_rayon_threads", lambda: None)
+    monkeypatch.setattr(runtime_init, "initialize_gpu", lambda: None)
+    monkeypatch.setattr(runtime_init, "set_rayon_threads", lambda: None)
+
+    import types
+    dummy_pydantic = types.SimpleNamespace(
+        BaseModel=object,
+        AnyUrl=str,
+        ValidationError=Exception,
+        root_validator=lambda *a, **k: (lambda f: f),
+        validator=lambda *a, **k: (lambda f: f),
+        field_validator=lambda *a, **k: (lambda f: f),
+        model_validator=lambda *a, **k: (lambda f: f),
+    )
+    monkeypatch.setitem(sys.modules, "pydantic", dummy_pydantic)
+
+    dummy_rich = types.ModuleType("rich")
+    dummy_console_mod = types.ModuleType("rich.console")
+    dummy_console_mod.Console = lambda *a, **k: types.SimpleNamespace(print=lambda *a, **k: None)
+    dummy_rich.console = dummy_console_mod
+    monkeypatch.setitem(sys.modules, "rich", dummy_rich)
+    monkeypatch.setitem(sys.modules, "rich.console", dummy_console_mod)
 
     captured = {}
 

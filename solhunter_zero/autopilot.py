@@ -88,9 +88,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _stop_all)
 
     logging.basicConfig(level=logging.INFO)
-    from . import device
+    from . import runtime_init
 
-    device.initialize_gpu()
+    runtime_init.set_rayon_threads()
+    runtime_init.initialize_gpu()
 
     _ensure_keypair()
 
