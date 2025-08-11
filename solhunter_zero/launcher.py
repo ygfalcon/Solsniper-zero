@@ -23,8 +23,6 @@ from typing import NoReturn
 from .paths import ROOT
 from .python_env import find_python
 
-FAST_MODE = False
-
 
 def write_ok_marker(path: Path) -> None:
     """Write an ``ok`` marker file, creating parent directories."""
@@ -57,10 +55,13 @@ def _ensure_arm64_python() -> None:
             raise SystemExit(1)
 
 
-def configure() -> list[str]:
+def configure() -> tuple[list[str], bool]:
     """Parse launcher arguments and ensure a suitable interpreter.
 
-    Returns the remaining arguments to forward to ``scripts.startup``.
+    Returns a tuple ``(forward_args, fast_mode)`` where ``forward_args`` are
+    the remaining arguments to forward to ``scripts.startup`` and ``fast_mode``
+    reflects whether fast mode was requested via ``--fast`` or the
+    ``SOLHUNTER_FAST`` environment variable.
     """
 
     parser = argparse.ArgumentParser(add_help=False)
@@ -68,8 +69,7 @@ def configure() -> list[str]:
     parser.add_argument("--fast", action="store_true")
     parsed_args, forward_args = parser.parse_known_args(sys.argv[1:])
 
-    global FAST_MODE
-    FAST_MODE = parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
+    fast_mode = parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
 
     python_exe = find_python(repair=parsed_args.repair)
     if Path(python_exe).resolve() != Path(sys.executable).resolve():
@@ -83,13 +83,30 @@ def configure() -> list[str]:
             )
             raise SystemExit(1)
 
-    return forward_args
+    return forward_args, fast_mode
 
 
-def main(argv: list[str] | None = None) -> NoReturn:
+def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoReturn:
+    """Entry point for the SolHunter Zero launcher.
+
+    Parameters
+    ----------
+    argv:
+        Optional argument list to forward to ``scripts.startup``. When ``None``
+        the arguments returned from :func:`configure` are used.
+    fast_mode:
+        Flag indicating whether to skip certain setup steps. If ``None`` the
+        value is determined by :func:`configure`.
+    """
+
     _ensure_arm64_python()
-    forward_args = configure()
-    argv = list(forward_args) if argv is None else list(argv)
+    if argv is None or fast_mode is None:
+        forward_args, parsed_fast_mode = configure()
+        if argv is None:
+            argv = forward_args
+        if fast_mode is None:
+            fast_mode = parsed_fast_mode
+    argv = list(argv)
 
     from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
     from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
@@ -103,14 +120,14 @@ def main(argv: list[str] | None = None) -> NoReturn:
     )
 
     setup_logging("startup")
-    if FAST_MODE and TOOLS_OK_MARKER.exists():
+    if fast_mode and TOOLS_OK_MARKER.exists():
         log_startup("Fast mode: skipping ensure_tools")
     else:
         ensure_tools(non_interactive=True)
         if not TOOLS_OK_MARKER.exists():
             write_ok_marker(TOOLS_OK_MARKER)
 
-    if FAST_MODE and VENV_OK_MARKER.exists():
+    if fast_mode and VENV_OK_MARKER.exists():
         log_startup("Fast mode: skipping ensure_venv")
     else:
         ensure_venv(None)
