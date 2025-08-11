@@ -4,7 +4,7 @@ import asyncio
 import time
 
 from solhunter_zero import simulation, http
-from solhunter_zero.simulation import SimulationResult
+from solhunter_zero.simulation import SimulationResult, predict_price_movement
 
 
 # reset global state before each test
@@ -14,6 +14,22 @@ def setup_function(_):
         maxsize=256, ttl=simulation.TOKEN_METRICS_CACHE_TTL
     )
     simulation.invalidate_simulation_models()
+
+
+def test_predict_price_movement_delegates(monkeypatch):
+    captured = {}
+
+    def fake_run(token, count=1, days=1, **_):
+        captured["count"] = count
+        captured["days"] = days
+        return [SimulationResult(success_prob=1.0, expected_roi=0.12)]
+
+    monkeypatch.setattr(simulation, "run_simulations", fake_run)
+
+    val = predict_price_movement("tok")
+    assert val == pytest.approx(0.12)
+    assert captured["count"] == 1
+    assert captured["days"] == 1
 
 
 def test_run_simulations_uses_metrics(monkeypatch):

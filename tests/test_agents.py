@@ -17,11 +17,13 @@ from solhunter_zero.agents.memory import MemoryAgent
 from solhunter_zero.agents.meta_conviction import MetaConvictionAgent
 from solhunter_zero.agents.portfolio_agent import PortfolioAgent
 from solhunter_zero.agents.swarm import AgentSwarm
+from solhunter_zero.agents.dqn import DQNAgent
 from solhunter_zero.memory import Memory
 from solhunter_zero.advanced_memory import AdvancedMemory
 
 from solhunter_zero.agent_manager import AgentManager, AgentManagerConfig
 from solhunter_zero.portfolio import Portfolio, Position
+from solhunter_zero.simulation import SimulationResult
 
 
 class DummyPortfolio(Portfolio):
@@ -66,6 +68,22 @@ def test_conviction_agent_threshold(monkeypatch):
     assert actions and actions[0]['side'] == 'buy'
 
 
+def test_conviction_agent_uses_prediction(monkeypatch):
+    agent = ConvictionAgent(threshold=0.05, count=1)
+
+    monkeypatch.setattr(
+        'solhunter_zero.agents.conviction.run_simulations',
+        lambda t, count=1, **_: [SimulationResult(success_prob=1.0, expected_roi=0.06)],
+    )
+    monkeypatch.setattr(
+        'solhunter_zero.agents.conviction.predict_price_movement',
+        lambda t, *, sentiment=None, model_path=None: 0.04,
+    )
+
+    actions = asyncio.run(agent.propose_trade('tok', DummyPortfolio()))
+    assert actions == []
+
+
 async def fake_feed_low(token):
     return 1.0
 
@@ -81,6 +99,33 @@ def test_arbitrage_agent(monkeypatch):
     assert {"side": "sell"} in [{"side": a['side']} for a in actions]
     venues = {a['venue'] for a in actions}
     assert len(venues) == 2
+
+
+def test_dqn_arbitrage_memory_integration(tmp_path):
+    async def _feed_low(token: str) -> float:
+        return 0.6
+
+    async def _feed_high(token: str) -> float:
+        return 0.8
+
+    mem = Memory("sqlite:///:memory:")
+    mem_agent = MemoryAgent(mem)
+    dqn = DQNAgent(memory_agent=mem_agent, epsilon=0.0, model_path=tmp_path / "dqn.pt")
+    pf = DummyPortfolio()
+
+    first = asyncio.run(dqn.propose_trade("tok", pf))
+    assert first and first[0]["side"] == "buy"
+    asyncio.run(mem_agent.log({"token": "tok", "side": "buy", "amount": 1.0, "price": 1.0, "agent": "dqn"}))
+    pf.balances["tok"] = Position("tok", 1.0, 1.0, 1.0)
+
+    arb_agent = ArbitrageAgent(threshold=0.0, amount=1.0, feeds=[_feed_low, _feed_high])
+    arb_actions = asyncio.run(arb_agent.propose_trade("tok", pf))
+    assert {a["side"] for a in arb_actions} == {"buy", "sell"}
+    for action in arb_actions:
+        asyncio.run(mem_agent.log(action))
+
+    second = asyncio.run(dqn.propose_trade("tok", pf))
+    assert second
 
 
 def test_exit_agent_trailing(monkeypatch):
