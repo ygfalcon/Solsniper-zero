@@ -131,6 +131,7 @@ def test_start_and_stop(monkeypatch):
 
     ui.start_all_thread.join(timeout=1)
     assert not ui.start_all_thread.is_alive()
+    ui.start_all_thread.join()
     assert "term" in events
 
 
@@ -183,6 +184,8 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
     )
     thread.start()
     thread.join(timeout=1)
+    assert not thread.is_alive()
+    thread.join()
 
     assert calls
 
@@ -223,6 +226,8 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     )
     thread.start()
     thread.join(timeout=1)
+    assert not thread.is_alive()
+    thread.join()
 
     assert used["keypair"] is sentinel
     assert "envpath" in used.get("paths", [])
@@ -368,6 +373,8 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     resp = client.post("/start")
     assert resp.get_json()["status"] == "started"
     ui.trading_thread.join(timeout=1)
+    assert not ui.trading_thread.is_alive()
+    ui.trading_thread.join()
     assert (tmp_path / "active").read_text() == "only"
 
 
@@ -647,3 +654,6 @@ def test_autostart(monkeypatch):
     assert resp.get_json()["status"] == "already running"
     done.set()
     ui.trading_thread.join(timeout=1)
+    assert not ui.trading_thread.is_alive()
+    ui.trading_thread.join()
+

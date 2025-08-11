@@ -568,3 +568,6 @@ class AdvancedMemory(BaseMemory):
         if self._sync_thread is not None and self._sync_stop is not None:
             self._sync_stop.set()
             self._sync_thread.join(timeout=1)
+            assert not self._sync_thread.is_alive()
+            self._sync_thread.join()
+

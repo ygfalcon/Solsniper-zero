@@ -33,5 +33,7 @@ def test_main_loop_records_trade(monkeypatch):
         )
         thread.start()
         thread.join(timeout=timeout)
+        assert not thread.is_alive()
+        thread.join()
 
         assert trades or main_module._first_trade_recorded

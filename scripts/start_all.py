@@ -78,6 +78,8 @@ class ProcessManager:
                 loop.call_soon_threadsafe(loop.stop)
         for thread in self.ws_threads.values():
             thread.join(timeout=1)
+            assert not thread.is_alive()
+            thread.join()
         for p in self.procs:
             if p.poll() is None:
                 p.terminate()
@@ -191,3 +193,4 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         main()
+

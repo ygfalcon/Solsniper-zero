@@ -605,6 +605,8 @@ def stop_all_route() -> dict:
             start_all_proc.kill()
     if start_all_thread:
         start_all_thread.join(timeout=5)
+        assert not start_all_thread.is_alive()
+        start_all_thread.join()
     return jsonify({"status": "stopped"})
 
 
@@ -1512,7 +1514,10 @@ if __name__ == "__main__":
                 loop.call_soon_threadsafe(loop.stop)
         for t in threads.values():
             t.join(timeout=1)
+            assert not t.is_alive()
+            t.join()
         for loop in (rl_ws_loop, event_ws_loop, log_ws_loop):
             if loop is not None:
                 loop.close()
         asyncio.run(close_session())
+
