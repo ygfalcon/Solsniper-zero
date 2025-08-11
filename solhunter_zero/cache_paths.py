@@ -11,6 +11,7 @@ MPS_SENTINEL = CACHE_DIR / "torch_mps_ready"
 MAC_SETUP_MARKER = CACHE_DIR / "mac_setup_complete"
 TOOLS_OK_MARKER = CACHE_DIR / "macos_tools_ok"
 CARGO_MARKER = CACHE_DIR / "cargo-installed"
+VENV_OK_MARKER = CACHE_DIR / "venv_ok"
 
 __all__ = [
     "CACHE_DIR",
@@ -18,4 +19,5 @@ __all__ = [
     "MAC_SETUP_MARKER",
     "TOOLS_OK_MARKER",
     "CARGO_MARKER",
+    "VENV_OK_MARKER",
 ]

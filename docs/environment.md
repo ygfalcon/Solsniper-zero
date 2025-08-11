@@ -160,6 +160,7 @@ This document lists environment variables recognized by the project.
 | `SOLHUNTER_SKIP_PREFLIGHT` | `` | Configures solhunter skip preflight |
 | `SOLHUNTER_SKIP_SETUP` | `` | Configures solhunter skip setup |
 | `SOLHUNTER_SKIP_VENV` | `` | Configures solhunter skip venv |
+| `SOLHUNTER_FAST` | `` | Skip repeated environment checks when markers exist |
 | `SOLHUNTER_TESTING` | `` | Configures solhunter testing |
 | `STOP_LOSS` | `0` | Configures stop loss |
 | `STRATEGIES` | `` | Configures strategies |
