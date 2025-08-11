@@ -22,9 +22,10 @@ from typing import Callable, NoReturn
 
 from .paths import ROOT
 from .python_env import find_python
-from .system import set_rayon_threads
-
-FAST_MODE = False
+# Importing the module instead of the function makes it easier to monkeypatch
+# during testing.
+from . import system
+set_rayon_threads = system.set_rayon_threads
 
 
 class _LazyDevice:
@@ -75,10 +76,11 @@ def _ensure_arm64_python() -> None:
             raise SystemExit(1)
 
 
-def configure() -> list[str]:
+def configure() -> tuple[list[str], bool]:
     """Parse launcher arguments and ensure a suitable interpreter.
 
-    Returns the remaining arguments to forward to ``scripts.startup``.
+    Returns a tuple of remaining arguments to forward to ``scripts.startup``
+    and whether fast mode should be enabled.
     """
 
     parser = argparse.ArgumentParser(add_help=False)
@@ -86,8 +88,7 @@ def configure() -> list[str]:
     parser.add_argument("--fast", action="store_true")
     parsed_args, forward_args = parser.parse_known_args(sys.argv[1:])
 
-    global FAST_MODE
-    FAST_MODE = parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
+    fast_mode = parsed_args.fast or bool(os.environ.get("SOLHUNTER_FAST"))
 
     python_exe = find_python(repair=parsed_args.repair)
     if Path(python_exe).resolve() != Path(sys.executable).resolve():
@@ -101,7 +102,7 @@ def configure() -> list[str]:
             )
             raise SystemExit(1)
 
-    return forward_args
+    return forward_args, fast_mode
 
 
 def _inject_defaults(argv: list[str]) -> list[str]:
@@ -122,10 +123,15 @@ def _inject_defaults(argv: list[str]) -> list[str]:
     return [*missing, *argv]
 
 
-def main(argv: list[str] | None = None) -> NoReturn:
+def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoReturn:
     _ensure_arm64_python()
-    forward_args = configure()
-    argv = list(forward_args) if argv is None else list(argv)
+    if argv is None or fast_mode is None:
+        forward_args, detected_fast = configure()
+        if argv is None:
+            argv = forward_args
+        if fast_mode is None:
+            fast_mode = detected_fast
+    argv = list(argv)
 
     from solhunter_zero.macos_setup import ensure_tools  # noqa: E402
     from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
@@ -141,9 +147,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
     setup_logging("startup")
 
     def _ensure_once(
-        marker: Path, action: Callable[[], None], description: str
+        marker: Path, action: Callable[[], None], description: str, fast: bool
     ) -> None:
-        if FAST_MODE and marker.exists():
+        if fast and marker.exists():
             log_startup(f"Fast mode: skipping {description}")
             return
         action()
@@ -154,8 +160,14 @@ def main(argv: list[str] | None = None) -> NoReturn:
         TOOLS_OK_MARKER,
         lambda: ensure_tools(non_interactive=True),
         "ensure_tools",
+        fast_mode,
     )
-    _ensure_once(VENV_OK_MARKER, lambda: ensure_venv(None), "ensure_venv")
+    _ensure_once(
+        VENV_OK_MARKER,
+        lambda: ensure_venv(None),
+        "ensure_venv",
+        fast_mode,
+    )
 
     log_startup(f"Virtual environment: {sys.prefix}")
 
@@ -164,7 +176,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
     env_config.configure_startup_env(ROOT)
 
     # Configure Rayon thread count once for all downstream imports
-    set_rayon_threads()
+    system.set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
 

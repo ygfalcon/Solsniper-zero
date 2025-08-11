@@ -86,7 +86,7 @@ def test_one_click_launch(monkeypatch, capsys):
     monkeypatch.setattr(os, "execvp", fake_execvp)
 
     with pytest.raises(SystemExit) as exc:
-        launcher.main(["--one-click", "--skip-deps", "--skip-preflight"])
+        launcher.main(["--one-click", "--skip-deps", "--skip-preflight"], False)
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "SolHunter Zero launch complete – system ready." in out
