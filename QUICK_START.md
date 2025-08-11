@@ -22,7 +22,7 @@ summary files to the default `reports/` directory.
 Run a small rolling backtest and produce reports:
 
 ```bash
-python scripts/investor_demo.py --reports reports
+python demo.py --reports reports
 ```
 
 This writes `summary.json`, `trade_history.csv` and `highlights.json` to the
@@ -31,17 +31,25 @@ specified directory and prints brief snippets to the console.
 Enable a lightweight reinforcement‑learning stub:
 
 ```bash
-python scripts/investor_demo.py --rl-demo --reports reports
+python demo.py --rl-demo --reports reports
 ```
 
 Exercise the full system with heavier dependencies:
 
 ```bash
-python scripts/investor_demo.py --full-system --reports reports
+python demo.py --full-system --reports reports
 ```
 
 All modes emit the same report files and console snippets. The `reports/`
 directory is ignored by Git so these generated files remain local.
+
+## Paper Trading Simulation
+
+Replay a bundled tick dataset and analyse the resulting ROI:
+
+```bash
+python paper.py --reports reports
+```
 
 ## Strategy Showcase Test
 
@@ -49,15 +57,6 @@ Run the default strategies against a fixed price feed:
 
 ```bash
 pytest tests/staging/test_investor_showcase.py
-```
-
-## One-Click Trading Demo
-
-Simulate the investor staging "double click" by running all default strategies
-with deterministic inputs:
-
-```bash
-pytest tests/test_one_click_trading_all_strategies.py::test_one_click_all_strategies
 ```
 
 ## Troubleshooting Preflight Checks

@@ -14,7 +14,7 @@ done
 
 pip install "$EXTRA"
 
-python scripts/investor_demo.py "$@"
+python demo.py "$@"
 
 echo "Summary tail:"
 tail reports/summary.json

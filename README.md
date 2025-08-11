@@ -638,10 +638,10 @@ with `pip install -e .[dev]` before running the tests. The complete test suite
 requires heavy packages such as `torch`, `transformers` and `faiss`.
 
 After setting up the environment you can run a short paper-trading simulation
-which executes the main loop in dry-run mode and reports ROI statistics:
+which replays bundled data and reports ROI statistics:
 
 ```bash
-python scripts/paper_test.py --config config.toml --iterations 100
+python paper.py --reports reports
 ```
 
 ## License
