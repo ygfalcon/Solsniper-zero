@@ -112,10 +112,13 @@ def _inject_defaults(argv: list[str]) -> list[str]:
     defaults added at the beginning while preserving the original ``argv``
     order.
     """
-
     defaults = ("--one-click", "--full-deps")
-    argset = set(argv)
-    missing = [flag for flag in defaults if flag not in argset]
+    present: set[str] = set()
+    for arg in argv:
+        for flag in defaults:
+            if arg == flag or arg.startswith(f"{flag}="):
+                present.add(flag)
+    missing = [flag for flag in defaults if flag not in present]
     return [*missing, *argv]
 
 
