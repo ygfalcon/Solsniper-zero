@@ -360,7 +360,7 @@ def load_selected_config() -> dict:
 def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
     """Return :class:`DEXConfig` populated from ``config`` and environment."""
 
-    cfg = apply_env_overrides(config)
+    cfg = apply_env_overrides(config or {})
 
     base = str(cfg.get("dex_base_url", "https://quote-api.jup.ag"))
     testnet = str(cfg.get("dex_testnet_url", base))
