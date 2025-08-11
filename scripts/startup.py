@@ -25,6 +25,7 @@ rotate_preflight_log()
 
 
 def _main_impl(argv: list[str] | None = None) -> int:
+    startup_cli.render_banner()
     args, rest = startup_cli.parse_args(argv)
     if args.non_interactive:
         return startup_runner.launch_only(rest)

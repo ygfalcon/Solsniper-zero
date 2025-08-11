@@ -12,9 +12,15 @@ from rich.console import Console
 
 console = Console()
 
+
+def render_banner() -> None:
+    """Render the startup banner when running in a TTY."""
+    if sys.stdout.isatty():
+        console.print(Panel.fit("[bold cyan]SolHunter Zero Startup[/]"), justify="center")
+
+
 def parse_args(argv: List[str] | None = None) -> Tuple[argparse.Namespace, List[str]]:
     """Parse command line arguments for startup."""
-    console.print(Panel.fit("[bold cyan]SolHunter Zero Startup[/]"), justify="center")
     parser = argparse.ArgumentParser(description="Guided setup and launch")
     parser.add_argument("--skip-deps", action="store_true", help="Skip dependency check")
     parser.add_argument("--full-deps", action="store_true", help="Install optional dependencies")
