@@ -165,7 +165,6 @@ env_config.configure_startup_env(ROOT)
 from solhunter_zero import device  # noqa: E402
 
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
-from solhunter_zero.rpc_utils import ensure_rpc  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
@@ -175,9 +174,6 @@ def main(argv: list[str] | None = None) -> NoReturn:
     set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         device.initialize_gpu()
-
-    if "--skip-preflight" not in argv:
-        ensure_rpc()
 
     if "--one-click" not in argv:
         argv.insert(0, "--one-click")
