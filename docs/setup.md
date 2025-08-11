@@ -55,7 +55,7 @@
    pip install .[fastcompress]
    ```
 
-For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
+For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
 On macOS, double-click `start.command` to launch, or run `python -m solhunter_zero.launcher` from Terminal for the same entry point.
 
@@ -74,7 +74,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
 
 ### One-Click macOS M1 Setup
 
-1. **Launch** — From Terminal, run `python -m solhunter_zero.launcher --one-click` to begin the automated setup.
+1. **Launch** — From Terminal, run `python -m solhunter_zero.launcher` to begin the automated setup.
    Alternatively, run `make setup` from Terminal to invoke the same command directly.
 2. **Prompts** — The script verifies Python 3.11+, Homebrew and `rustup`.  
    Missing components trigger guided installers that may prompt for your password or the Xcode Command Line Tools.
@@ -85,7 +85,7 @@ The helper wraps the dependency checks and keypair/setup logic used by
     Output from environment preflight checks is written to `preflight.log`, which rotates to
     `preflight.log.1` once it exceeds 1 MB so you can review the previous run.
     Older logs rotate with timestamps for easy troubleshooting.
-5. **Troubleshooting** — If the script exits early, open Terminal and run `python -m solhunter_zero.launcher --one-click` to view errors.
+5. **Troubleshooting** — If the script exits early, open Terminal and run `python -m solhunter_zero.launcher` to view errors.
    Common issues include missing network access, Homebrew not on `PATH`, or stale permissions on the script.
 
 3. **Create a configuration file**

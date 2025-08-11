@@ -152,7 +152,7 @@ def test_one_click_first_trade(monkeypatch, tmp_path):
     monkeypatch.setattr(os, "execvp", fake_execvp)
 
     with pytest.raises(SystemExit) as exc:
-        launcher.main(["--one-click", "--skip-deps", "--skip-preflight"])
+        launcher.main(["--skip-deps", "--skip-preflight"])
     assert exc.value.code == 0
 
     assert len(recorded) == 1

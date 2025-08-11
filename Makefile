@@ -11,7 +11,7 @@ start:
 >$(PYTHON) -m solhunter_zero.launcher $(ARGS)
 
 setup:
->$(PYTHON) -m solhunter_zero.launcher --one-click $(ARGS)
+>$(PYTHON) -m solhunter_zero.launcher $(ARGS)
 
 # Launch directly without the shell script (works on all platforms)
 run:

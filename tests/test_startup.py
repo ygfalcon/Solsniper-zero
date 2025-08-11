@@ -390,7 +390,7 @@ def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
     assert result.stdout.startswith("RAYON_NUM_THREADS=")
 
 
-def test_launcher_injects_one_click_once(monkeypatch):
+def test_launcher_does_not_inject_one_click(monkeypatch):
     import os, sys, importlib
 
     monkeypatch.setenv("SOLHUNTER_TESTING", "1")
@@ -415,7 +415,12 @@ def test_launcher_injects_one_click_once(monkeypatch):
         launcher.main(["--skip-preflight"])
 
     cmd = captured.get("cmd", [])
-    assert cmd.count("--one-click") == 1
+    assert "--one-click" not in cmd
+
+    from solhunter_zero import startup_cli
+
+    args, _ = startup_cli.parse_args([])
+    assert args.one_click is True
 
 
 def test_cluster_setup_assemble(tmp_path):
@@ -1075,7 +1080,6 @@ def test_main_preflight_success(monkeypatch):
 
     with pytest.raises(SystemExit) as exc:
         startup.main([
-            "--one-click",
             "--skip-setup",
             "--skip-deps",
         ])
@@ -1118,7 +1122,6 @@ def test_main_preflight_failure(monkeypatch, capsys):
         log_file.unlink()
 
     ret = startup.main([
-        "--one-click",
         "--skip-deps",
         "--skip-setup",
     ])
@@ -1347,7 +1350,6 @@ def test_main_runs_quick_setup_when_config_missing(monkeypatch, tmp_path, capsys
     monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
 
     ret = startup.main([
-        "--one-click",
         "--skip-deps",
         "--skip-rpc-check",
         "--skip-endpoint-check",
@@ -1414,7 +1416,6 @@ def test_main_runs_quick_setup_on_invalid_config(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(healthcheck, "main", lambda *a, **k: 0)
 
     ret = startup.main([
-        "--one-click",
         "--skip-deps",
         "--skip-rpc-check",
         "--skip-endpoint-check",

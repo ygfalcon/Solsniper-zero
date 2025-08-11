@@ -99,7 +99,7 @@ def test_startup_diagnostics_flag(capsys):
 def test_startup_runs_diagnostics_on_failure(monkeypatch, capsys):
     monkeypatch.setattr(startup, "main", lambda args: (_ for _ in ()).throw(SystemExit(2)))
     monkeypatch.setattr("scripts.diagnostics.main", lambda: print("python"))
-    code = startup.run(["--one-click"])
+    code = startup.run([])
     out = capsys.readouterr().out.lower()
     assert code == 2
     assert "python" in out
