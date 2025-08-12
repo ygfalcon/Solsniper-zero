@@ -208,9 +208,11 @@ across runs. Environment variables such as `SOLANA_RPC_URL` and `BIRDEYE_API_KEY
 are loaded from a `.env` file.
 
 ```bash
-cp .env.example .env  # edit values as needed
-docker-compose up
+make compose
 ```
+
+The `compose` target creates `.env` automatically if missing before running
+`docker-compose up`.
 
 Logs stream to the terminal. To run in the background and follow logs:
 
