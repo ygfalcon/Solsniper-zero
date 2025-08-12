@@ -17,6 +17,24 @@ async def test_load_keypair_async(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_load_keypair_async_invalid_length(tmp_path):
+    path = tmp_path / "kp.json"
+    path.write_text(json.dumps([1] * 10))
+    with pytest.raises(ValueError, match="64"):
+        await wallet.load_keypair_async(str(path))
+
+
+@pytest.mark.asyncio
+async def test_load_keypair_async_invalid_value(tmp_path):
+    path = tmp_path / "kp.json"
+    data = [1] * 64
+    data[0] = 256
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="0 and 255"):
+        await wallet.load_keypair_async(str(path))
+
+
+@pytest.mark.asyncio
 async def test_portfolio_async_operations_responsive(tmp_path):
     pf = Portfolio(path=str(tmp_path / "pf.json"))
 
