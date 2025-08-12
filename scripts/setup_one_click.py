@@ -90,6 +90,34 @@ def main(argv: list[str] | None = None) -> None:
                 ],
                 cwd=ROOT,
             )
+
+            target = ROOT / "route_ffi" / "target" / "release"
+            if sys.platform == "darwin":
+                libname = "libroute_ffi.dylib"
+            elif os.name == "nt":
+                libname = "route_ffi.dll"
+            else:
+                libname = "libroute_ffi.so"
+            src = target / libname
+            dest = ROOT / "solhunter_zero" / libname
+            if src.exists():
+                try:
+                    shutil.copy2(src, dest)
+                    os.environ["ROUTE_FFI_LIB"] = str(dest)
+                    msg = f"Route FFI library available at {dest}"
+                except OSError as exc:
+                    os.environ["ROUTE_FFI_LIB"] = str(src)
+                    msg = (
+                        "Failed to copy route FFI library; using "
+                        f"{src} ({exc})"
+                    )
+            else:
+                msg = (
+                    "Route FFI build artifact not found; "
+                    "set ROUTE_FFI_LIB manually."
+                )
+            print(msg)
+            log_startup(msg)
         except subprocess.CalledProcessError as exc:
             msg = "Failed to build route_ffi with parallel feature"
             print(f"{msg}: {exc}")
