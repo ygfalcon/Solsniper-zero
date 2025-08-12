@@ -70,7 +70,8 @@ def _ensure_arm64_python() -> None:
                 raise SystemExit(1)
         else:  # pragma: no cover - hard failure
             print(
-                "The 'arch' command was not found; unable to launch arm64 Python.",
+                "The 'arch' command was not found; unable to launch "
+                "arm64 Python.",
                 file=sys.stderr,
             )
             raise SystemExit(1)
@@ -105,7 +106,10 @@ def configure() -> tuple[list[str], bool]:
     return forward_args, fast_mode
 
 
-def main(argv: list[str] | None = None, fast_mode: bool | None = None) -> NoReturn:
+def main(
+    argv: list[str] | None = None,
+    fast_mode: bool | None = None,
+) -> NoReturn:
     _ensure_arm64_python()
     forward_args, detected_fast = configure()
     argv = forward_args if argv is None else list(argv)

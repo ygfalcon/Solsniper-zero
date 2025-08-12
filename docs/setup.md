@@ -9,53 +9,10 @@
 
 2. **Install dependencies**
    ```bash
-   pip install .[uvloop]
+   python -m solhunter_zero.launcher --one-click
    ```
-   This installs all required Python packages as defined in
-   `pyproject.toml`, which now pins each dependency to a specific version
-   range for reproducible installs. It includes
-   [PyYAML](https://pyyaml.org/) and
-   [solders](https://pypi.org/project/solders/) which are necessary when using
-   YAML configuration files and Solana keypair functionality.
-   The dependency [watchfiles](https://pypi.org/project/watchfiles/) is
-   also installed and is used by the order book utilities to watch the
-   depth mmap for changes. The project now requires the
-   [protobuf](https://pypi.org/project/protobuf/) runtime for event
-   serialization; it installs automatically with the main package.
-
-  Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
-  install automatically with `pip install .[uvloop]`. Running
-    `python -m solhunter_zero.launcher` performs the same installation
-    when dependencies are missing. On Apple Silicon machines the script
-    also installs the Metal PyTorch wheel if it isn't already present.
-
-  The `uvloop` dependency is optional but recommended for reduced event
-  loop latency on Unix-like systems. When installed it lowers asyncio
-  overhead by roughly 20% and is enabled automatically at startup via
-  `solhunter_zero.util.install_uvloop()`.
-
-  The optional `fastjson` group installs [orjson](https://pypi.org/project/orjson/)
-  for faster JSON serialization and parsing. When installed, all HTTP helpers
-  and the event bus return JSON as bytes via `orjson`, improving throughput by
-  roughly 25%:
-
-  ```bash
-  pip install .[fastjson]
-  ```
-
-  Set `EVENT_SERIALIZATION=msgpack` to enable [msgpack](https://msgpack.org/)
-  encoding for event payloads when the library is installed. Run
-  `python scripts/benchmark_serialization.py` to compare throughput which was
-  around 820k ops/s for msgpack versus 870k ops/s with `orjson` on our test
-  machine.
-
-   The optional `fastcompress` group installs [lz4](https://pypi.org/project/lz4/)
-   and [zstandard](https://pypi.org/project/zstandard/) for faster event
-   compression:
-
-   ```bash
-   pip install .[fastcompress]
-   ```
+   The one-click launcher automatically installs any missing Python packages by
+   invoking the internal `ensure_deps` helper.
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
