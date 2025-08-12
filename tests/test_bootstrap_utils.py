@@ -1,4 +1,5 @@
 import platform
+import pytest
 from solhunter_zero import bootstrap_utils
 
 
@@ -122,3 +123,15 @@ def test_force_env_var_reinstalls(monkeypatch):
 
     assert calls
     marker.unlink(missing_ok=True)
+
+
+def test_redis_broker_requires_server(monkeypatch, capsys):
+    marker = bootstrap_utils.DEPS_MARKER
+    marker.unlink(missing_ok=True)
+    monkeypatch.setenv("BROKER_URL", "redis://localhost")
+    monkeypatch.setattr(bootstrap_utils.shutil, "which", lambda cmd: None)
+    with pytest.raises(SystemExit):
+        bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
+    out = capsys.readouterr().out
+    assert "redis-server" in out
+    assert "BROKER_URL=memory://" in out
