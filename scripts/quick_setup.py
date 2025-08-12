@@ -35,6 +35,7 @@ PROMPTS = [
     ("dex_testnet_url", "DEX_TESTNET_URL", "DEX testnet URL"),
     ("orca_dex_url", "ORCA_DEX_URL", "Orca DEX URL"),
     ("raydium_dex_url", "RAYDIUM_DEX_URL", "Raydium DEX URL"),
+    ("event_bus_url", "EVENT_BUS_URL", "Event bus URL"),
 ]
 
 DEFAULT_AGENTS = ["simulation"]
@@ -49,6 +50,7 @@ AUTO_DEFAULTS = {
     "dex_testnet_url": "https://quote-api.jup.ag",
     "orca_dex_url": "",
     "raydium_dex_url": "",
+    "event_bus_url": "ws://0.0.0.0:8787",
 }
 
 
