@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import paper
+import solhunter_zero.reports as report_schema
 
 from tests.market_data import load_live_prices
 from tests.test_investor_demo import assert_demo_reports
@@ -24,10 +25,14 @@ def test_paper_investor_demo_equivalence(tmp_path: Path, monkeypatch, capsys) ->
     data_path = tmp_path / "ticks.json"
     data_path.write_text(json.dumps(ticks))
 
-    reports = tmp_path / "reports"
     monkeypatch.setenv("SOLHUNTER_PATCH_INVESTOR_DEMO", "1")
+    from tests import stubs
 
-    paper.run(["--reports", str(reports), "--ticks", str(data_path)])
+    stubs.install_stubs()
+    import solhunter_zero.investor_demo as demo
+
+    paper_reports = tmp_path / "paper_reports"
+    paper.run(["--reports", str(paper_reports), "--ticks", str(data_path)])
     captured = capsys.readouterr().out
     assert "Capital Summary:" in captured
 
@@ -37,9 +42,19 @@ def test_paper_investor_demo_equivalence(tmp_path: Path, monkeypatch, capsys) ->
     assert isinstance(results.get("flash_loan_signature"), str)
     assert isinstance(results.get("arbitrage_path"), list)
 
-    highlights = json.loads((reports / "highlights.json").read_text())
-    assert "top_strategy" in highlights
+    from paper import _ticks_to_price_file
 
-    summary = json.loads((reports / "summary.json").read_text())
-    trade_hist = json.loads((reports / "trade_history.json").read_text())
-    assert_demo_reports(summary, trade_hist)
+    demo_reports = tmp_path / "demo_reports"
+    price_file = _ticks_to_price_file(ticks)
+    demo.main(["--data", str(price_file), "--reports", str(demo_reports)])
+
+    paper_files = {p.name for p in paper_reports.glob("*.json")}
+    demo_files = {p.name for p in demo_reports.glob("*.json")}
+    assert paper_files == demo_files
+    assert report_schema.REQUIRED_JSON.issubset(paper_files)
+
+    p_summary, p_hist, p_high = report_schema.load_reports(paper_reports)
+    d_summary, d_hist, d_high = report_schema.load_reports(demo_reports)
+    assert_demo_reports(p_summary, p_hist)
+    assert_demo_reports(d_summary, d_hist)
+    assert p_high.top_strategy and d_high.top_strategy

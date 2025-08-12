@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import paper
+import solhunter_zero.reports as report_schema
 
 
 def test_paper_generates_reports(tmp_path, monkeypatch):
@@ -22,20 +23,12 @@ def test_paper_generates_reports(tmp_path, monkeypatch):
     monkeypatch.setenv("SOLHUNTER_PATCH_INVESTOR_DEMO", "1")
     paper.run(["--reports", str(reports), "--ticks", str(data_path)])
 
-    summary_path = reports / "summary.json"
-    trade_path = reports / "trade_history.json"
-    highlight_path = reports / "highlights.json"
-    assert summary_path.exists()
-    assert trade_path.exists()
-    assert highlight_path.exists()
-
-    summary = json.loads(summary_path.read_text())
-    momentum = next(r for r in summary if r["config"] == "momentum")
-    assert momentum["roi"] == pytest.approx(1.0)
-
-    trades = json.loads(trade_path.read_text())
+    summary, trade_hist, highlights = report_schema.load_reports(reports)
+    momentum = next(r for r in summary if r.config == "momentum")
+    assert momentum.roi == pytest.approx(1.0)
     momentum_actions = [
-        t["action"] for t in trades if t["strategy"] == "momentum"
+        t.action for t in trade_hist if t.strategy == "momentum"
     ]
     assert momentum_actions == ["buy", "buy", "hold"]
+    assert highlights.top_strategy
 
