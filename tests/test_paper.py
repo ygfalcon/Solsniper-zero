@@ -7,7 +7,7 @@ import pytest
 import paper
 
 
-def test_paper_generates_reports(tmp_path):
+def test_paper_generates_reports(tmp_path, monkeypatch):
     """Running the paper CLI should emit summaries based on strategy returns."""
 
     ticks = [
@@ -19,15 +19,18 @@ def test_paper_generates_reports(tmp_path):
     data_path.write_text(json.dumps(ticks))
 
     reports = tmp_path / "reports"
+    monkeypatch.setenv("SOLHUNTER_PATCH_INVESTOR_DEMO", "1")
     paper.run(["--reports", str(reports), "--ticks", str(data_path)])
 
     summary_path = reports / "summary.json"
     trade_path = reports / "trade_history.json"
+    highlight_path = reports / "highlights.json"
     assert summary_path.exists()
     assert trade_path.exists()
+    assert highlight_path.exists()
 
     summary = json.loads(summary_path.read_text())
-    momentum = next(r for r in summary if r["strategy"] == "momentum")
+    momentum = next(r for r in summary if r["config"] == "momentum")
     assert momentum["roi"] == pytest.approx(1.0)
 
     trades = json.loads(trade_path.read_text())
