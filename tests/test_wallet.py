@@ -29,6 +29,22 @@ def test_load_keypair(tmp_path):
     assert loaded.to_bytes() == kp.to_bytes()
 
 
+def test_load_keypair_invalid_length(tmp_path):
+    path = tmp_path / "kp.json"
+    path.write_text(json.dumps([1] * 10))
+    with pytest.raises(ValueError, match="64"):
+        wallet.load_keypair(str(path))
+
+
+def test_load_keypair_invalid_value(tmp_path):
+    path = tmp_path / "kp.json"
+    data = [1] * 64
+    data[0] = 256
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="0 and 255"):
+        wallet.load_keypair(str(path))
+
+
 def test_save_and_list_keypairs(tmp_path, monkeypatch):
     setup_wallet(tmp_path, monkeypatch)
     data = [1, 2, 3]
