@@ -6,15 +6,13 @@ import types
 
 import pytest
 
+os.environ.setdefault("TORCH_METAL_VERSION", "2.8.0")
+os.environ.setdefault("TORCHVISION_METAL_VERSION", "0.23.0")
+
 dummy_config = types.SimpleNamespace(load_config=lambda: {})
-orig_config = sys.modules.get("solhunter_zero.config")
 sys.modules["solhunter_zero.config"] = dummy_config
 from solhunter_zero import device as device_module
 from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
-if orig_config is not None:
-    sys.modules["solhunter_zero.config"] = orig_config
-else:
-    sys.modules.pop("solhunter_zero.config", None)
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
@@ -65,7 +63,8 @@ def test_load_torch_metal_versions_logs(monkeypatch, caplog):
 
     monkeypatch.setattr(sys.modules["solhunter_zero.config"], "load_config", fail)
     with caplog.at_level("ERROR"):
-        assert device_module.load_torch_metal_versions() == ("", "")
+        with pytest.raises(RuntimeError):
+            device_module.load_torch_metal_versions()
     assert "Failed to load torch Metal versions from config" in caplog.text
 
 

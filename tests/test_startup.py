@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+os.environ.setdefault("TORCH_METAL_VERSION", "2.8.0")
+os.environ.setdefault("TORCHVISION_METAL_VERSION", "0.23.0")
+
 from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()

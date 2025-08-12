@@ -43,7 +43,13 @@ def load_torch_metal_versions() -> tuple[str, str]:
             vision_ver = vision_ver or torch_cfg.get("torchvision_metal_version")
         except Exception:
             logger.exception("Failed to load torch Metal versions from config")
-    return torch_ver or "", vision_ver or ""
+
+    if not (torch_ver and vision_ver):
+        raise RuntimeError(
+            "PyTorch Metal versions must be specified via environment variables or config.toml"
+        )
+
+    return torch_ver, vision_ver
 
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
