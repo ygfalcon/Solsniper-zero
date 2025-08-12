@@ -273,6 +273,16 @@ def ensure_deps(
     elif full is not None:
         cfg.install_optional = full
 
+    broker_url = os.getenv("BROKER_URL", "")
+    if broker_url.startswith("redis://") and shutil.which("redis-server") is None:
+        msg = (
+            "BROKER_URL is set to use Redis but 'redis-server' was not found. "
+            "Install/start Redis or set BROKER_URL=memory://."
+        )
+        print(msg)
+        log_startup(msg)
+        raise SystemExit(1)
+
     if platform.system() == "Darwin":
         from . import macos_setup
 
