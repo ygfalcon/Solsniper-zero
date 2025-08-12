@@ -44,20 +44,24 @@ def test_paper_test_flag(tmp_path, monkeypatch):
     )
     sys.modules.setdefault("pydantic", pydantic_stub)
 
-    from solhunter_zero import wallet, routeffi, depth_client
+    from solhunter_zero import wallet, routeffi, depth_client, investor_demo
 
-    calls = {"wallet": False, "route": False, "depth": False}
+    calls = {"wallet": False}
+    route_args = ()
+    snapshot_token = None
 
     def fake_load_keypair(path: str):
         calls["wallet"] = True
         return object()
 
     async def fake_best_route(*args, **kwargs):
-        calls["route"] = True
+        nonlocal route_args
+        route_args = args
         return {"path": ["A", "B"]}
 
     async def fake_snapshot(token: str):
-        calls["depth"] = True
+        nonlocal snapshot_token
+        snapshot_token = token
         return {}, 0.0
 
     monkeypatch.setattr(wallet, "load_keypair", fake_load_keypair)
@@ -72,11 +76,16 @@ def test_paper_test_flag(tmp_path, monkeypatch):
     paper.run(["--test"])
 
     assert calls["wallet"], "wallet.load_keypair not called"
-    assert calls["route"], "routeffi.best_route not called"
-    assert calls["depth"], "depth_client.snapshot not called"
+    assert route_args == ({}, 1.0), route_args
+    assert snapshot_token == "FAKE", snapshot_token
 
     trade_path = Path("reports/trade_history.json")
     assert trade_path.exists(), "trade history not written"
     data = json.loads(trade_path.read_text())
-    assert data and data[0]["price"] == 1.0
+    expected_len = 2 * len(investor_demo.DEFAULT_STRATEGIES)
+    assert len(data) == expected_len
+    for name, _ in investor_demo.DEFAULT_STRATEGIES:
+        buys = [t for t in data if t["token"] == name and t["side"] == "buy"]
+        sells = [t for t in data if t["token"] == name and t["side"] == "sell"]
+        assert len(buys) == 1 and len(sells) == 1
 

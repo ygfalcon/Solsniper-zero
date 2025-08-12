@@ -39,19 +39,24 @@ def test_paper_live_flow(tmp_path, monkeypatch):
     )
     sys.modules.setdefault("pydantic", pydantic_stub)
 
-    from solhunter_zero import wallet, routeffi, depth_client
-    flags = {"wallet": False, "route": False, "depth": False}
+    from solhunter_zero import wallet, routeffi, depth_client, investor_demo
+
+    flags = {"wallet": False}
+    route_args = ()
+    snapshot_token = None
 
     def fake_load_keypair(path: str):
         flags["wallet"] = True
         return object()
 
     async def fake_best_route(*args, **kwargs):
-        flags["route"] = True
+        nonlocal route_args
+        route_args = args
         return {"path": ["A", "B"], "amount": kwargs.get("amount", 0)}
 
     async def fake_snapshot(token: str):
-        flags["depth"] = True
+        nonlocal snapshot_token
+        snapshot_token = token
         return {}, 0.0
 
     monkeypatch.setattr(wallet, "load_keypair", fake_load_keypair)
@@ -66,10 +71,16 @@ def test_paper_live_flow(tmp_path, monkeypatch):
     paper.run(["--live-flow", "--fetch-live", "--reports", str(reports)])
 
     assert flags["wallet"], "wallet.load_keypair not called"
-    assert flags["route"], "routeffi.best_route not called"
-    assert flags["depth"], "depth_client.snapshot not called"
+    assert route_args == ({}, 1.0), route_args
+    assert snapshot_token == "FAKE", snapshot_token
 
     trade_path = reports / "trade_history.json"
     assert trade_path.exists()
     data = json.loads(trade_path.read_text())
-    assert data and all(k in data[0] for k in ("token", "side", "amount", "price"))
+    expected_len = 2 * len(investor_demo.DEFAULT_STRATEGIES)
+    assert len(data) == expected_len
+    for name, _ in investor_demo.DEFAULT_STRATEGIES:
+        buys = [t for t in data if t["token"] == name and t["side"] == "buy"]
+        sells = [t for t in data if t["token"] == name and t["side"] == "sell"]
+        assert len(buys) == 1 and len(sells) == 1
+
