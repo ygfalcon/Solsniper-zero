@@ -16,7 +16,10 @@ def run(argv: list[str] | None = None) -> None:
     ``demo.py`` now mirrors :mod:`paper` by delegating to the shared
     :func:`solhunter_zero.simple_bot.run` helper.  The script accepts an
     optional preset name or URL to supply price data.  When no dataset source is
-    provided the demo falls back to the short built-in dataset.
+    provided the demo falls back to the short built-in dataset.  Reports are
+    written to ``summary.json``, ``trade_history.json`` and ``highlights.json`` in
+    the supplied ``--reports`` directory so tests can validate a common output
+    schema across both entry points.
     """
 
     parser = argparse.ArgumentParser(description="Run the investor demo")
