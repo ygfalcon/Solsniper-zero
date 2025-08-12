@@ -96,20 +96,50 @@ async def _live_flow(dataset: Path, reports: Path) -> None:
     from solhunter_zero import wallet, routeffi, depth_client
     from solhunter_zero.memory import Memory
 
-    # Use the first price from the dataset for the synthetic trade
+    # Load price data for synthetic trades
     data = json.loads(dataset.read_text())
-    price = float(data[0]["price"]) if data else 0.0
+    prices = [float(d.get("price", 0.0)) for d in data]
 
     memory = Memory("sqlite:///:memory:")
-    wallet.load_keypair("dummy")
+
+    # Prefer bundled keypair; fall back to a temporary random keypair
+    kp_path = Path(__file__).with_name("keypairs") / "default.json"
+    if kp_path.exists():
+        wallet.load_keypair(str(kp_path))
+    else:  # pragma: no cover - safeguard for missing keypair
+        from solders.keypair import Keypair
+
+        tmp = tempfile.NamedTemporaryFile("w", delete=False, suffix=".json")
+        json.dump(list(Keypair.random().to_bytes()), tmp)
+        tmp.close()
+        wallet.load_keypair(tmp.name)
+
     await routeffi.best_route({}, 1.0)
     await depth_client.snapshot("FAKE")
-    trade = {"token": "FAKE", "side": "buy", "amount": 1.0, "price": price}
-    await memory.log_trade(**trade)
+
+    trades: List[Dict[str, Any]] = []
+    for i, (name, _strat) in enumerate(investor_demo.DEFAULT_STRATEGIES):
+        buy_price = prices[min(2 * i, len(prices) - 1)] if prices else 0.0
+        sell_price = prices[min(2 * i + 1, len(prices) - 1)] if prices else buy_price
+        buy_trade = {
+            "token": name,
+            "side": "buy",
+            "amount": 1.0,
+            "price": buy_price,
+        }
+        sell_trade = {
+            "token": name,
+            "side": "sell",
+            "amount": 1.0,
+            "price": sell_price,
+        }
+        await memory.log_trade(**buy_trade)
+        await memory.log_trade(**sell_trade)
+        trades.extend([buy_trade, sell_trade])
 
     reports.mkdir(parents=True, exist_ok=True)
-    (reports / "trade_history.json").write_text(json.dumps([trade]))
-    (reports / "summary.json").write_text(json.dumps({"trades": 1}))
+    (reports / "trade_history.json").write_text(json.dumps(trades))
+    (reports / "summary.json").write_text(json.dumps({"trades": len(trades)}))
     (reports / "highlights.json").write_text(json.dumps({}))
 
 
