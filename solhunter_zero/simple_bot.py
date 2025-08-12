@@ -24,7 +24,13 @@ from urllib.request import urlopen
 import solhunter_zero.investor_demo as investor_demo
 
 
-def run(dataset: str | Path | None, reports: Path) -> None:
+def run(
+    dataset: str | Path | None,
+    reports: Path,
+    capital: float = 100.0,
+    fee: float = 0.0,
+    slippage: float = 0.0,
+) -> None:
     """Invoke :func:`investor_demo.main` with the given dataset.
 
     Parameters
@@ -37,6 +43,12 @@ def run(dataset: str | Path | None, reports: Path) -> None:
         is forwarded as a preset name.
     reports:
         Directory where investor_demo will write its output.
+    capital:
+        Starting USD balance for the simulation.
+    fee:
+        Per-trade fee expressed as a fractional cost.
+    slippage:
+        Per-trade slippage expressed as a fractional cost.
     """
 
     reports.mkdir(parents=True, exist_ok=True)
@@ -51,7 +63,16 @@ def run(dataset: str | Path | None, reports: Path) -> None:
         except Exception:
             pass
 
-    forwarded = ["--reports", str(reports)]
+    forwarded = [
+        "--reports",
+        str(reports),
+        "--capital",
+        str(capital),
+        "--fee",
+        str(fee),
+        "--slippage",
+        str(slippage),
+    ]
 
     if dataset:
         ds = str(dataset)

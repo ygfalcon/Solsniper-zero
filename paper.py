@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 from urllib.request import urlopen
 
+from solhunter_zero.cli_shared import add_shared_arguments
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from solhunter_zero.simple_bot import run as run_simple_bot
 
@@ -77,12 +78,7 @@ def run(argv: List[str] | None = None) -> None:
     """Execute a lightweight paper trading simulation."""
 
     parser = argparse.ArgumentParser(description="Run simple paper trading")
-    parser.add_argument(
-        "--reports",
-        type=Path,
-        default=Path("reports"),
-        help="Directory to write summary and trade history reports",
-    )
+    add_shared_arguments(parser)
     parser.add_argument(
         "--ticks",
         type=Path,
@@ -104,7 +100,13 @@ def run(argv: List[str] | None = None) -> None:
         ticks = load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
         dataset = _ticks_to_price_file(ticks)
 
-    run_simple_bot(dataset, args.reports)
+    run_simple_bot(
+        dataset,
+        args.reports,
+        capital=args.capital,
+        fee=args.fee,
+        slippage=args.slippage,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

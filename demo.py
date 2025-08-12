@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
+from solhunter_zero.cli_shared import add_shared_arguments
 from solhunter_zero.simple_bot import run as run_simple_bot
 import solhunter_zero.investor_demo as investor_demo
 
@@ -20,12 +20,7 @@ def run(argv: list[str] | None = None) -> None:
     """
 
     parser = argparse.ArgumentParser(description="Run the investor demo")
-    parser.add_argument(
-        "--reports",
-        type=Path,
-        default=Path("reports"),
-        help="Directory where demo reports will be written",
-    )
+    add_shared_arguments(parser)
     parser.add_argument(
         "--preset",
         choices=sorted(investor_demo.PRESET_DATA_FILES.keys()),
@@ -44,7 +39,13 @@ def run(argv: list[str] | None = None) -> None:
         raise ValueError("Provide only one of --url or --preset")
 
     dataset = args.url or args.preset
-    run_simple_bot(dataset, args.reports)
+    run_simple_bot(
+        dataset,
+        args.reports,
+        capital=args.capital,
+        fee=args.fee,
+        slippage=args.slippage,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
