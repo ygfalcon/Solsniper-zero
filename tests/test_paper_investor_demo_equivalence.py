@@ -57,4 +57,16 @@ def test_paper_investor_demo_equivalence(tmp_path: Path, monkeypatch, capsys) ->
     d_summary, d_hist, d_high = report_schema.load_reports(demo_reports)
     assert_demo_reports(p_summary, p_hist)
     assert_demo_reports(d_summary, d_hist)
+    p_map = {s.config: s for s in p_summary}
+    d_map = {s.config: s for s in d_summary}
+    assert p_map.keys() == d_map.keys()
+    for strat in p_map:
+        p_row = p_map[strat]
+        d_row = d_map[strat]
+        assert p_row.roi == d_row.roi
+        assert p_row.trades == d_row.trades
+        p_actions = [t.action for t in p_hist if t.strategy == strat]
+        d_actions = [t.action for t in d_hist if t.strategy == strat]
+        assert len(p_actions) == len(d_actions)
+        assert p_actions == d_actions
     assert p_high.top_strategy and d_high.top_strategy
