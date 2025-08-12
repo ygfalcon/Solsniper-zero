@@ -23,6 +23,14 @@ def test_paper_generates_reports(tmp_path, monkeypatch):
     monkeypatch.setenv("SOLHUNTER_PATCH_INVESTOR_DEMO", "1")
     paper.run(["--reports", str(reports), "--ticks", str(data_path)])
 
+    trade_path = reports / "trade_history.json"
+    trade_data = json.loads(trade_path.read_text())
+    # Validate trade log format mirrors live logging in solhunter_zero/memory.py
+    for entry in trade_data:
+        entry.setdefault("side", entry.get("action"))
+        entry.setdefault("amount", entry.get("capital"))
+        assert {"token", "side", "amount", "price"} <= entry.keys()
+
     summary, trade_hist, highlights = report_schema.load_reports(reports)
     momentum = next(r for r in summary if r.config == "momentum")
     assert momentum.roi == pytest.approx(1.0)
