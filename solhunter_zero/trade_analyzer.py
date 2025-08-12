@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable
+from typing import Any, Dict, Iterable, List
 
 from .memory import Memory
 
@@ -27,6 +27,58 @@ class TradeAnalyzer:
             if spent > 0:
                 rois[name] = (revenue - spent) / spent
         return rois
+
+    # --------------------------------------------------------------
+    @staticmethod
+    def performance_from_history(
+        history: Iterable[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, float]]:
+        """Derive ROI and max drawdown from trade history entries.
+
+        Parameters
+        ----------
+        history:
+            Iterable of trade history records as produced by the demo and paper
+            workflows. Each entry should contain ``strategy`` and ``capital``
+            fields. Records for the same strategy are expected to be ordered by
+            time.
+
+        Returns
+        -------
+        Dict[str, Dict[str, float]]
+            Mapping of strategy name to a dictionary containing ``roi`` and
+            ``max_drawdown``.
+        """
+
+        grouped: Dict[str, List[float]] = {}
+        for entry in history:
+            strat = str(entry.get("strategy", ""))
+            if not strat:
+                continue
+            capital = entry.get("capital")
+            if capital is None:
+                continue
+            grouped.setdefault(strat, []).append(float(capital))
+
+        metrics: Dict[str, Dict[str, float]] = {}
+        for strat, caps in grouped.items():
+            if not caps:
+                continue
+            start = caps[0]
+            end = caps[-1]
+            roi = (end - start) / start if start else 0.0
+            peak = caps[0]
+            max_dd = 0.0
+            for c in caps:
+                if c > peak:
+                    peak = c
+                if peak:
+                    dd = (peak - c) / peak
+                    if dd > max_dd:
+                        max_dd = dd
+            metrics[strat] = {"roi": roi, "max_drawdown": max_dd}
+
+        return metrics
 
     # --------------------------------------------------------------
     def recommend_weights(

@@ -21,6 +21,7 @@ from urllib.request import urlopen
 
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from solhunter_zero.simple_bot import run as run_simple_bot
+from solhunter_zero.trade_analyzer import TradeAnalyzer
 
 
 # Public Codex endpoint providing recent SOL/USD candles.  The exact source is
@@ -105,6 +106,17 @@ def run(argv: List[str] | None = None) -> None:
         dataset = _ticks_to_price_file(ticks)
 
     run_simple_bot(dataset, args.reports)
+
+    # Analyze the resulting trade history to report ROI and drawdown metrics
+    history_path = args.reports / "trade_history.json"
+    if history_path.exists():
+        with open(history_path, "r", encoding="utf-8") as fh:
+            history = json.load(fh)
+        metrics = TradeAnalyzer.performance_from_history(history)
+        analysis_path = args.reports / "analysis.json"
+        with open(analysis_path, "w", encoding="utf-8") as af:
+            json.dump(metrics, af, indent=2)
+        print("Trade analysis:", json.dumps(metrics))
 
 
 if __name__ == "__main__":  # pragma: no cover

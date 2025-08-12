@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
-import paper
+from solhunter_zero.trade_analyzer import TradeAnalyzer
+from tests import stubs
 
 
 def test_paper_generates_reports(tmp_path, monkeypatch):
@@ -20,6 +21,21 @@ def test_paper_generates_reports(tmp_path, monkeypatch):
 
     reports = tmp_path / "reports"
     monkeypatch.setenv("SOLHUNTER_PATCH_INVESTOR_DEMO", "1")
+    stubs.install_stubs()
+    import paper
+    import solhunter_zero.investor_demo as demo
+
+    async def _fake_flash() -> str:
+        demo.used_trade_types.add("flash_loan")
+        return "sig"
+
+    async def _fake_dex() -> list[str]:
+        demo.used_trade_types.add("dex_scanner")
+        return ["pool1"]
+
+    demo._demo_flash_loan = _fake_flash
+    demo._demo_dex_scanner = _fake_dex
+
     paper.run(["--reports", str(reports), "--ticks", str(data_path)])
 
     summary_path = reports / "summary.json"
@@ -38,4 +54,8 @@ def test_paper_generates_reports(tmp_path, monkeypatch):
         t["action"] for t in trades if t["strategy"] == "momentum"
     ]
     assert momentum_actions == ["buy", "buy", "hold"]
+
+    metrics = TradeAnalyzer.performance_from_history(trades)
+    assert metrics["momentum"]["roi"] == pytest.approx(1.0)
+    assert metrics["momentum"]["max_drawdown"] == pytest.approx(0.0)
 
