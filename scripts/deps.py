@@ -23,6 +23,8 @@ IMPORT_NAME_MAP = {
     "faiss-cpu": "faiss",
     "opencv-python": "cv2",
     "beautifulsoup4": "bs4",
+    "pytest-asyncio": "pytest_asyncio",
+    "grpcio-tools": "grpc_tools",
 }
 
 OPTIONAL_DEPS = [
@@ -44,15 +46,17 @@ def check_deps() -> tuple[list[str], list[str]]:
     missing_required: list[str] = []
     for dep in deps:
         dist_name = re.split("[<=>]", dep)[0]
-        mod = IMPORT_NAME_MAP.get(dist_name, dist_name).replace("-", "_")
-        if pkgutil.find_loader(mod) is None:
-            missing_required.append(mod)
+        import_name = IMPORT_NAME_MAP.get(dist_name, dist_name)
+        import_name = import_name.replace("-", "_")
+        if pkgutil.find_loader(import_name) is None:
+            missing_required.append(import_name)
 
-    missing_optional = []
+    missing_optional: list[str] = []
     for dep in OPTIONAL_DEPS:
-        mod = IMPORT_NAME_MAP.get(dep, dep).replace("-", "_")
-        if pkgutil.find_loader(mod) is None:
-            missing_optional.append(mod)
+        import_name = IMPORT_NAME_MAP.get(dep, dep)
+        import_name = import_name.replace("-", "_")
+        if pkgutil.find_loader(import_name) is None:
+            missing_optional.append(import_name)
 
     return missing_required, missing_optional
 
