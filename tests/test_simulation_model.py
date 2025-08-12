@@ -93,3 +93,22 @@ def test_predict_price_movement_returns_rate(monkeypatch):
     roi, rate = simulation.predict_price_movement("tok", return_tx_rate=True)
     assert roi == pytest.approx(0.1)
     assert rate == pytest.approx(2.0)
+
+
+def test_predict_token_activity_warning(monkeypatch, caplog):
+    class BadModel:
+        def predict(self, _feat):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(simulation, "get_activity_model", lambda _p=None: BadModel())
+    metrics = {
+        "depth_change": 0.0,
+        "tx_rate": 0.0,
+        "whale_activity": 0.0,
+        "avg_swap_size": 0.0,
+    }
+
+    with caplog.at_level("WARNING"):
+        val = simulation.predict_token_activity("tok", metrics=metrics)
+    assert val == 0.0
+    assert any("predict_token_activity failed" in r.message for r in caplog.records)
