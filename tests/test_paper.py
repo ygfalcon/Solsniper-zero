@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import paper
 import solhunter_zero.reports as report_schema
+import solhunter_zero.investor_demo as investor_demo
 
 
 def test_paper_generates_reports(tmp_path, monkeypatch):
@@ -32,11 +33,19 @@ def test_paper_generates_reports(tmp_path, monkeypatch):
         assert {"token", "side", "amount", "price"} <= entry.keys()
 
     summary, trade_hist, highlights = report_schema.load_reports(reports)
+
+    prices = [t["price"] for t in ticks]
+    strategy_names = {entry["strategy"] for entry in trade_data}
+    for name, strat in investor_demo.DEFAULT_STRATEGIES:
+        assert name in strategy_names
+        actual_actions = [t.action for t in trade_hist if t.strategy == name]
+        returns = strat(prices)
+        expected_actions = ["buy"] + [
+            "buy" if r > 0 else "sell" if r < 0 else "hold" for r in returns
+        ]
+        assert actual_actions == expected_actions
+
     momentum = next(r for r in summary if r.config == "momentum")
     assert momentum.roi == pytest.approx(1.0)
-    momentum_actions = [
-        t.action for t in trade_hist if t.strategy == "momentum"
-    ]
-    assert momentum_actions == ["buy", "buy", "hold"]
     assert highlights.top_strategy
 
