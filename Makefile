@@ -45,3 +45,6 @@ demo-rl:
 paper:
 >$(PYTHON) paper.py --reports reports $(ARGS)
 
+paper-test:
+>$(PYTHON) scripts/paper_test.py $(ARGS)
+
