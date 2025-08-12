@@ -11,6 +11,7 @@ from solhunter_zero.macos_setup import ensure_tools
 import solhunter_zero.env_config as env_config
 from solhunter_zero.paths import ROOT
 from scripts import quick_setup
+from scripts.deps import ensure_route_ffi_lib
 from solhunter_zero.bootstrap_utils import ensure_deps
 from solhunter_zero import device
 
@@ -21,6 +22,7 @@ def main(argv: list[str] | None = None) -> None:
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
     ensure_deps(install_optional=True)
+    ensure_route_ffi_lib()
     device.initialize_gpu()
 
     start_all = resources.files("scripts") / "start_all.py"

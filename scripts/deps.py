@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import os
+import platform
 import pkgutil
 import re
+import shutil
+from pathlib import Path
 
 try:
     import tomllib  # Python 3.11+
@@ -62,6 +66,46 @@ def check_deps() -> tuple[list[str], list[str]]:
     return missing_required, missing_optional
 
 
+def ensure_route_ffi_lib() -> Path | None:
+    """Ensure the route_ffi dynamic library is discoverable.
+
+    The build process places the compiled library in
+    ``route_ffi/target/release``.  This helper copies it into the
+    ``solhunter_zero`` package directory so the Python bindings can load it.
+    When copying fails, ``ROUTE_FFI_LIB`` is set to point at the build
+    artifact instead.  The resolved path is printed so users can verify the
+    location.
+    """
+
+    libname = "libroute_ffi.dylib" if platform.system() == "Darwin" else "libroute_ffi.so"
+    dest = ROOT / "solhunter_zero" / libname
+    if dest.exists():
+        os.environ.setdefault("ROUTE_FFI_LIB", str(dest))
+        print(f"route_ffi library: {dest}")
+        return dest
+
+    src = ROOT / "route_ffi" / "target" / "release" / libname
+    if src.exists():
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            os.environ.setdefault("ROUTE_FFI_LIB", str(dest))
+            print(f"route_ffi library: {dest}")
+            return dest
+        except OSError as exc:
+            os.environ["ROUTE_FFI_LIB"] = str(src)
+            print(f"route_ffi library: {src} (copy failed: {exc})")
+            return src
+
+    env_path = os.environ.get("ROUTE_FFI_LIB")
+    if env_path:
+        print(f"route_ffi library: {env_path}")
+        return Path(env_path)
+
+    print("route_ffi library not found")
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Install project dependencies")
     parser.add_argument(
@@ -83,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         extras=args.extras if args.extras else ("uvloop",),
     )
     ensure_deps(cfg)
+    ensure_route_ffi_lib()
     return 0
 
 
