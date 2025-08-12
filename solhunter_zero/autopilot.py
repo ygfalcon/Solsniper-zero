@@ -24,7 +24,7 @@ from .paths import ROOT
 PROCS: list[subprocess.Popen] = []
 
 
-def _stop_all(*_: object) -> None:
+def _stop_all(*_: object, exit_code: int = 0) -> None:
     data_sync.stop_scheduler()
     for p in PROCS:
         if p.poll() is None:
@@ -36,7 +36,7 @@ def _stop_all(*_: object) -> None:
                 p.wait(deadline - time.time())
             except Exception:
                 p.kill()
-    sys.exit(0)
+    sys.exit(exit_code)
 
 
 def _ensure_keypair() -> None:
@@ -124,10 +124,16 @@ def main() -> None:
         wait_for_depth_ws(addr, port, deadline, depth_proc)
     except Exception as exc:
         logging.error(str(exc))
-        _stop_all()
+        _stop_all(exit_code=1)
 
-    main_module.run_auto()
-    _stop_all()
+    exit_code = 0
+    try:
+        main_module.run_auto()
+    except Exception:
+        logging.exception("run_auto failed")
+        exit_code = 1
+    finally:
+        _stop_all(exit_code=exit_code)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation
