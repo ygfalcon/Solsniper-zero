@@ -46,9 +46,13 @@ def check_dependencies() -> Check:
                 "missing required: " + ", ".join(sorted(missing_required))
             )
         if missing_optional:
-            parts.append(
-                "missing optional: " + ", ".join(sorted(missing_optional))
-            )
+            formatted = []
+            for opt in sorted(missing_optional):
+                if opt == "psutil":
+                    formatted.append("psutil (resource monitoring disabled)")
+                else:
+                    formatted.append(opt)
+            parts.append("missing optional: " + ", ".join(formatted))
         return False, "; ".join(parts)
     return True, "All dependencies available"
 

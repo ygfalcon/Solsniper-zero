@@ -34,6 +34,7 @@ OPTIONAL_DEPS = [
     "lz4",
     "zstandard",
     "msgpack",
+    "psutil",
 ]
 
 

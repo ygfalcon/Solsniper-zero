@@ -302,8 +302,14 @@ def ensure_deps(
     if req:
         print("Missing required modules: " + ", ".join(req))
     if opt:
+        formatted = [
+            "psutil (resource monitoring disabled)" if m == "psutil" else m
+            for m in opt
+        ]
         print(
-            "Optional modules missing: " + ", ".join(opt) + " (features disabled).",
+            "Optional modules missing: "
+            + ", ".join(formatted)
+            + " (features disabled).",
         )
 
     # Filter out packages that are already satisfied according to pip.
@@ -433,9 +439,13 @@ def ensure_deps(
 
         missing_opt = [m for m in opt if importlib.util.find_spec(m) is None]
         if missing_opt:
+            formatted = [
+                "psutil (resource monitoring disabled)" if m == "psutil" else m
+                for m in missing_opt
+            ]
             print(
                 "Optional modules missing: "
-                + ", ".join(missing_opt)
+                + ", ".join(formatted)
                 + " (features disabled)."
             )
 
