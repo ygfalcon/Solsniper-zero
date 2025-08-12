@@ -395,6 +395,33 @@ async def test_event_bus_peers(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_reload_bus_requires_ws_urls(monkeypatch):
+    import importlib
+    import solhunter_zero.event_bus as ev
+
+    await ev.disconnect_ws()
+    importlib.reload(ev)
+
+    monkeypatch.setattr(
+        "solhunter_zero.config.get_event_bus_peers", lambda *_: ["http://bad"]
+    )
+    monkeypatch.setattr("solhunter_zero.config.get_event_bus_url", lambda *_: "")
+
+    with pytest.raises(
+        RuntimeError, match="BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
+    ):
+        ev._reload_bus(None)
+
+    monkeypatch.setattr("solhunter_zero.config.get_event_bus_peers", lambda *_: [])
+    with pytest.raises(
+        RuntimeError, match="BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
+    ):
+        ev._reload_bus(None)
+
+    importlib.reload(ev)
+
+
+@pytest.mark.asyncio
 async def test_multiple_broker_publish(monkeypatch):
     import importlib
     sent = []

@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover - optional dependency
     _ZSTD_DECOMPRESSOR = None
 from contextlib import contextmanager
 from collections import defaultdict
-from typing import Any, Awaitable, Callable, Dict, Generator, List, Set, Sequence, cast
+from typing import Any, Awaitable, Callable, Dict, Generator, Iterable, List, Set, Sequence, cast
 
 try:
     import msgpack
@@ -1509,6 +1509,16 @@ async def _watch_ws(url: str) -> None:
 _ENV_PEERS: Set[str] = set()
 
 
+def _validate_ws_urls(urls: Iterable[str]) -> Set[str]:
+    """Ensure ``urls`` contains at least one valid websocket URI."""
+    urls_set = {u.strip() for u in urls if u and u.strip()}
+    if not urls_set or any(not u.startswith(("ws://", "wss://")) for u in urls_set):
+        raise RuntimeError(
+            "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
+        )
+    return urls_set
+
+
 def _reload_bus(cfg) -> None:
     global _ENV_PEERS
     from .config import get_event_bus_peers
@@ -1517,10 +1527,7 @@ def _reload_bus(cfg) -> None:
     single = _get_bus_url(cfg)
     if single:
         urls.add(single)
-    if not urls or any(not u.startswith(("ws://", "wss://")) for u in urls):
-        raise RuntimeError(
-            "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
-        )
+    urls = _validate_ws_urls(urls)
     if urls == _ENV_PEERS:
         return
 
