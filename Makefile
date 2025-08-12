@@ -46,5 +46,5 @@ paper:
 >$(PYTHON) paper.py --reports reports $(ARGS)
 
 paper-test:
->$(PYTHON) scripts/paper_test.py $(ARGS)
+>SOLHUNTER_TESTING=1 $(PYTHON) scripts/paper_test.py $(ARGS)
 

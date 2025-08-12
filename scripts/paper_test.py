@@ -10,12 +10,85 @@ and the script exits with a non-zero status on failure.
 
 import argparse
 import json
+import os
 import sys
+import types
+import importlib.machinery
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # pragma: no cover - simple path fix
     sys.path.insert(0, str(ROOT))
+os.environ.setdefault("SOLHUNTER_TESTING", "1")
+try:  # pragma: no cover - ensure stubs are installed
+    import sitecustomize  # type: ignore  # noqa: F401
+except Exception:  # pragma: no cover - ignore missing module
+    pass
+else:
+    try:  # pragma: no cover - install broader test stubs
+        from tests import stubs as _stubs
+        sys.modules.pop("sqlalchemy", None)
+        _stubs.install_stubs()
+    except Exception:  # pragma: no cover - ignore stub errors
+        pass
+
+try:  # pragma: no cover - provide minimal solders stub
+    import solders.keypair  # type: ignore  # noqa: F401
+except Exception:  # pragma: no cover
+    solders = types.ModuleType("solders")
+    solders.__spec__ = importlib.machinery.ModuleSpec("solders", None)
+    keypair_mod = types.ModuleType("solders.keypair")
+    keypair_mod.__spec__ = importlib.machinery.ModuleSpec("solders.keypair", None)
+
+    class Keypair:
+        def __init__(self, data: bytes | None = None) -> None:
+            self._data = data or bytes(64)
+
+        @classmethod
+        def from_bytes(cls, data: bytes) -> "Keypair":
+            return cls(data)
+
+        @staticmethod
+        def random() -> "Keypair":
+            return Keypair()
+
+        def to_bytes(self) -> bytes:
+            return self._data
+
+        def to_bytes_array(self) -> list[int]:
+            return list(self._data)
+
+    keypair_mod.Keypair = Keypair
+    solders.keypair = keypair_mod
+    sys.modules.setdefault("solders", solders)
+    sys.modules.setdefault("solders.keypair", keypair_mod)
+
+try:  # pragma: no cover - provide minimal cryptography stub
+    import cryptography.fernet  # type: ignore  # noqa: F401
+except Exception:  # pragma: no cover
+    crypto = types.ModuleType("cryptography")
+    crypto.__spec__ = importlib.machinery.ModuleSpec("cryptography", None)
+    fernet_mod = types.ModuleType("cryptography.fernet")
+    fernet_mod.__spec__ = importlib.machinery.ModuleSpec("cryptography.fernet", None)
+
+    class InvalidToken(Exception):
+        pass
+
+    class Fernet:
+        def __init__(self, key: bytes):
+            self._key = key
+
+        def encrypt(self, data: bytes) -> bytes:
+            return data
+
+        def decrypt(self, token: bytes) -> bytes:
+            return token
+
+    fernet_mod.Fernet = Fernet
+    fernet_mod.InvalidToken = InvalidToken
+    crypto.fernet = fernet_mod
+    sys.modules.setdefault("cryptography", crypto)
+    sys.modules.setdefault("cryptography.fernet", fernet_mod)
 
 import paper  # noqa: E402
 

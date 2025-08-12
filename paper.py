@@ -93,14 +93,14 @@ async def _live_flow(dataset: Path, reports: Path) -> None:
     transaction is submitted.
     """
 
-    from solhunter_zero import wallet, routeffi, depth_client
-    from solhunter_zero.memory import Memory
+    from solhunter_zero import wallet, routeffi
+    from solhunter_zero.simple_memory import SimpleMemory as Memory
 
     # Load price data for synthetic trades
     data = json.loads(dataset.read_text())
     prices = [float(d.get("price", 0.0)) for d in data]
 
-    memory = Memory("sqlite:///:memory:")
+    memory = Memory()
 
     # Prefer bundled keypair; fall back to a temporary random keypair
     kp_path = Path(__file__).with_name("keypairs") / "default.json"
@@ -114,8 +114,7 @@ async def _live_flow(dataset: Path, reports: Path) -> None:
         tmp.close()
         wallet.load_keypair(tmp.name)
 
-    await routeffi.best_route({}, 1.0)
-    await depth_client.snapshot("FAKE")
+    routeffi.best_route({}, 1.0)
 
     trades: List[Dict[str, Any]] = []
     for i, (name, _strat) in enumerate(investor_demo.DEFAULT_STRATEGIES):
