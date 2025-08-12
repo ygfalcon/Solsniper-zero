@@ -24,6 +24,21 @@ OPTIONAL_DEPS = [
     "msgpack",
 ]
 
+# Mapping of distribution names to importable module names when they differ.
+# Keys are normalised to lowercase for case-insensitive lookups.
+DIST_TO_MODULE = {
+    "scikit-learn": "sklearn",
+    "pyyaml": "yaml",
+    "pillow": "PIL",
+    "opencv-python": "cv2",
+    "beautifulsoup4": "bs4",
+    "python-dateutil": "dateutil",
+    "python-dotenv": "dotenv",
+    "grpcio": "grpc",
+    "psycopg2-binary": "psycopg2",
+    "mysqlclient": "MySQLdb",
+}
+
 
 def check_deps() -> tuple[list[str], list[str]]:
     """Return lists of missing required and optional modules."""
@@ -32,15 +47,22 @@ def check_deps() -> tuple[list[str], list[str]]:
     deps = data.get("project", {}).get("dependencies", [])
     missing_required: list[str] = []
     for dep in deps:
-        mod = re.split("[<=>]", dep)[0].replace("-", "_")
+        dist_name = re.split("[<=>]", dep)[0]
+        mod = DIST_TO_MODULE.get(
+            dist_name.lower(), dist_name
+        ).replace("-", "_")
         if pkgutil.find_loader(mod) is None:
             missing_required.append(mod)
-    missing_optional = [m for m in OPTIONAL_DEPS if pkgutil.find_loader(m) is None]
+    missing_optional = [
+        m for m in OPTIONAL_DEPS if pkgutil.find_loader(m) is None
+    ]
     return missing_required, missing_optional
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Install project dependencies")
+    parser = argparse.ArgumentParser(
+        description="Install project dependencies"
+    )
     parser.add_argument(
         "--install-optional",
         action="store_true",
