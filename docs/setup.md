@@ -17,9 +17,11 @@
    [PyYAML](https://pyyaml.org/) and
    [solders](https://pypi.org/project/solders/) which are necessary when using
    YAML configuration files and Solana keypair functionality.
-  The dependency [watchfiles](https://pypi.org/project/watchfiles/) is
-  also installed and is used by the order book utilities to watch the
-  depth mmap for changes.
+   The dependency [watchfiles](https://pypi.org/project/watchfiles/) is
+   also installed and is used by the order book utilities to watch the
+   depth mmap for changes. The project now requires the
+   [protobuf](https://pypi.org/project/protobuf/) runtime for event
+   serialization; it installs automatically with the main package.
 
   Heavy packages like `numpy`, `aiohttp`, `solana`, `torch` and `faiss`
   install automatically with `pip install .[uvloop]`. Running

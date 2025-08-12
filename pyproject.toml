@@ -25,6 +25,7 @@ dependencies = [
     "pydantic>=1.10,<3.0",
     "cryptography>=41,<44",
     "rich>=13,<14",
+    "protobuf>=6.31,<7",
 ]
 
 [project.optional-dependencies]

@@ -28,6 +28,7 @@ IMPORT_NAME_MAP = {
     "opencv-python": "cv2",
     "beautifulsoup4": "bs4",
     "grpcio-tools": "grpc_tools",
+    "protobuf": "google.protobuf",
 }
 
 OPTIONAL_DEPS = [
