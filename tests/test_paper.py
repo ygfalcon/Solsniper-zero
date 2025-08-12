@@ -1,100 +1,62 @@
-"""Test the paper trading CLI using live price data."""
+"""Tests for the paper trading CLI wrapper."""
 
 from __future__ import annotations
 
 import json
-from collections import Counter
 from pathlib import Path
 
-import pytest
-
-from solhunter_zero.util import run_coro
-from tests import stubs
-from tests.market_data import load_live_prices
-import solhunter_zero.investor_demo as demo
+import paper
 
 
-@pytest.mark.timeout(30)
-def test_paper_cli(tmp_path: Path, monkeypatch, capsys) -> None:
-    """Run ``paper.run`` with real price data and verify ROI output.
+def test_paper_fetches_url_and_forwards(tmp_path, monkeypatch):
+    """``paper.run`` should download data and forward arguments."""
 
-    The ``paper`` CLI ultimately delegates to :mod:`solhunter_zero.trading_demo`
-    which writes a ``paper_roi.json`` report.  This test feeds a deterministic
-    price series and confirms that ROI is computed for all default strategies
-    and that each strategy recorded the expected number of trades.
-    """
+    dataset = json.dumps([
+        {"date": "2024-01-01", "price": 1.0},
+        {"date": "2024-01-02", "price": 2.0},
+    ])
+
+    class DummyResp:
+        def __enter__(self):  # pragma: no cover - trivial
+            return self
+
+        def __exit__(self, *exc):  # pragma: no cover - trivial
+            return False
+
+        def read(self) -> bytes:
+            return dataset.encode("utf-8")
+
+    monkeypatch.setattr(paper, "urlopen", lambda *a, **k: DummyResp())
+
+    called: dict[str, list[str]] = {}
+
+    def fake_main(args: list[str]) -> None:
+        called["args"] = list(args)
+
+    monkeypatch.setattr(paper.investor_demo, "main", fake_main)
 
     reports = tmp_path / "reports"
-    stubs.stub_sqlalchemy()
-    import paper
+    paper.run(["--reports", str(reports), "--url", "http://example"])
 
-    prices, dates = load_live_prices()
+    forwarded = called["args"]
+    assert forwarded[:2] == ["--reports", str(reports)]
+    assert "--data" in forwarded
+    data_path = Path(forwarded[forwarded.index("--data") + 1])
+    assert json.loads(data_path.read_text()) == json.loads(dataset)
 
-    # Pre-compute expected ROI for the demo strategies using the real
-    # ``investor_demo`` strategy implementations.
-    expected_roi: dict[str, float] = {}
-    for name, strat in demo.DEFAULT_STRATEGIES:
-        rets = strat(prices)
-        total = 1.0
-        for r in rets:
-            total *= 1 + r
-        expected_roi[name] = total - 1
 
-    # Patch the price loader to avoid touching the network and feed deterministic
-    # data to the CLI.  ``paper`` historically relied on ``load_sample_ticks``
-    # but newer versions may expose a ``load_prices`` helper.  Handle both.
-    if hasattr(paper, "load_prices"):
-        monkeypatch.setattr(paper, "load_prices", lambda *a, **k: (prices, dates))
-    else:
-        monkeypatch.setattr(
-            paper, "load_sample_ticks", lambda: [{"price": p} for p in prices]
-        )
+def test_paper_forwards_preset(tmp_path, monkeypatch):
+    """Providing ``--preset`` should be forwarded to the demo."""
 
-    class TrackingMemory(paper.SyncMemory):
-        """Memory that records synthetic trades for each strategy."""
+    called: dict[str, list[str]] = {}
 
-        def __init__(self) -> None:  # pragma: no cover - trivial
-            super().__init__()
-            self._seeded = False
+    def fake_main(args: list[str]) -> None:
+        called["args"] = list(args)
 
-        def log_trade(self, **kwargs):  # type: ignore[override]
-            # Seed trades for each strategy the first time ``log_trade`` is
-            # invoked.  We ignore the trade requested by ``run_demo`` and instead
-            # inject buys and sells that result in the desired ROI values for the
-            # demo strategies.  This keeps the test focused on the reporting
-            # pipeline rather than the trading logic.
-            if not self._seeded:
-                self._seeded = True
-                for name, roi in expected_roi.items():
-                    super().log_trade(
-                        token="DEMO",
-                        direction="buy",
-                        amount=1.0,
-                        price=1.0,
-                        reason=name,
-                    )
-                    super().log_trade(
-                        token="DEMO",
-                        direction="sell",
-                        amount=1.0,
-                        price=1.0 * (1.0 + roi),
-                        reason=name,
-                    )
-            return None
+    monkeypatch.setattr(paper.investor_demo, "main", fake_main)
 
-    mem = TrackingMemory()
-    monkeypatch.setattr(paper, "SyncMemory", lambda: mem)
+    reports = tmp_path / "out"
+    paper.run(["--reports", str(reports), "--preset", "short"])
 
-    paper.run(["--reports", str(reports)])
-    out = capsys.readouterr().out
-    assert "ROI by agent" in out
+    assert called["args"] == ["--reports", str(reports), "--preset", "short"]
 
-    data = json.loads((reports / "paper_roi.json").read_text())
-    assert set(data) == set(expected_roi)
-    for name, roi in expected_roi.items():
-        assert data[name] == pytest.approx(roi)
-
-    # Trades were logged via the memory path for every strategy
-    trades = run_coro(mem.list_trades(limit=1000))
-    counts = Counter(t.reason for t in trades)
-    assert counts == {name: 2 for name in expected_roi}

@@ -55,16 +55,16 @@ python -m json.tool reports/highlights.json
 
 ## Paper Trading
 
-Execute the lightweight paper trading workflow and verify ROI calculation:
+Execute the lightweight paper trading workflow which wraps the investor demo:
 
 ```bash
 pytest tests/test_paper.py
 ```
 
-Run the CLI directly to generate a simple ROI summary:
+Run the CLI directly with live prices:
 
 ```bash
-python paper.py --reports reports
+python paper.py --reports reports --url https://example.com/prices.json
 ```
 
 ## Startup integration flow

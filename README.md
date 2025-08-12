@@ -638,11 +638,13 @@ with `pip install -e .[dev]` before running the tests. The complete test suite
 requires heavy packages such as `torch`, `transformers` and `faiss`.
 
 After setting up the environment you can run a short paper-trading simulation
-which replays bundled data and reports ROI statistics:
+which mirrors the investor demo and can source live prices:
 
 ```bash
-python paper.py --reports reports
+python paper.py --reports reports --url https://example.com/prices.json
 ```
+
+Omit ``--url`` to reuse one of the bundled preset datasets.
 
 ## License
 
