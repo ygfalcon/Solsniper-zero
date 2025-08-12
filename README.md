@@ -15,6 +15,7 @@ verifies that the demo produces those values.
 ## Table of Contents
 
 - [Setup](docs/setup.md)
+- [Configuration](#configuration)
 - [Usage](docs/usage.md)
 - [Architecture](docs/architecture.md)
 - [Environment Variables](docs/environment.md)
@@ -57,6 +58,28 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 
 ## Setup
 See [docs/setup.md](docs/setup.md) for comprehensive setup instructions, including quick start, macOS details, Docker Compose, environment configuration, paper trading, and the Rust depth service.
+
+## Configuration
+
+The bot reads its settings from `config.toml`. Ensure the following keys are defined before starting:
+
+- `solana_rpc_url` – RPC endpoint for Solana
+- `dex_base_url` – base URL of the DEX API
+- `agents` – list of agent names to enable
+- `agent_weights` – table mapping each agent to a weight
+
+A minimal example looks like:
+
+```toml
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
+dex_base_url = "https://quote-api.jup.ag"
+agents = ["simulation"]
+
+[agent_weights]
+simulation = 1.0
+```
+
+The `scripts/setup_one_click.py` helper validates these fields after writing `config.toml` and exits with guidance if any are missing.
 
 ## Flash-Loan Arbitrage
 
