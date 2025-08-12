@@ -238,18 +238,17 @@ preserved.
 ## Paper Trading
 
 Before committing real SOL, you can evaluate strategies using the paper
-trading harness. It replays built-in historical datasets entirely offline and
-reports the return on investment (ROI) for simulated trades.
+trading CLI. It mirrors the investor demo workflow but can source real market
+data via HTTP. By default a bundled preset is used, however passing ``--url``
+allows the run to pull live prices.
 
 ```bash
-python paper.py --reports reports
+python paper.py --reports reports --url https://example.com/prices.json
 ```
 
-Run the command above to generate a simple ROI summary using bundled tick
-data. The final ROI output indicates performance: positive values represent
-profit, while negative values show a loss. Because the demo uses only bundled
-data, it runs without network access so you can validate performance before
-risking real funds.
+The command above generates the standard demo reports using prices fetched
+from the given URL. Omit ``--url`` or use ``--preset`` to replay the bundled
+datasets without touching the network.
 
 ## Rust Depth Service
 

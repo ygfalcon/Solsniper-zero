@@ -45,11 +45,13 @@ directory is ignored by Git so these generated files remain local.
 
 ## Paper Trading Simulation
 
-Replay a bundled tick dataset and analyse the resulting ROI:
+Run the investor demo against live prices or bundled presets:
 
 ```bash
-python paper.py --reports reports
+python paper.py --reports reports --url https://example.com/prices.json
 ```
+
+Omit ``--url`` or supply ``--preset`` to use packaged datasets offline.
 
 ## Strategy Showcase Test
 

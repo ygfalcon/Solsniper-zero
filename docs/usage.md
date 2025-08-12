@@ -43,11 +43,13 @@ All modes emit the same report files along with console summaries.
 
 ### Paper Trading
 
-Replay a bundled tick dataset and report ROI:
+Mirror the investor demo while optionally fetching live price data:
 
 ```bash
-python paper.py --reports reports
+python paper.py --reports reports --url https://example.com/prices.json
 ```
+
+Omit ``--url`` or pass ``--preset`` to use one of the bundled datasets.
 
 ## MEV Bundles
 
