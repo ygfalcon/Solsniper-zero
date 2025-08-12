@@ -11,6 +11,25 @@ import pytest
 from tests.market_data import load_live_prices
 
 
+def assert_demo_reports(summary: list[dict], trade_hist: list[dict]) -> None:
+    """Common assertions for demo and paper investor outputs.
+
+    Ensures all expected default strategies are present with positive ROI and
+    that corresponding trade history entries exist.
+    """
+
+    expected = {"buy_hold", "momentum", "mean_reversion"}
+
+    for strat in expected:
+        row = next((r for r in summary if r["config"] == strat), None)
+        assert row is not None
+        assert row["trades"] > 0
+        assert row["roi"] > 0
+
+    recorded = {t["strategy"] for t in trade_hist}
+    assert expected.issubset(recorded)
+
+
 pytestmark = pytest.mark.timeout(30)
 
 
@@ -46,13 +65,4 @@ def test_investor_demo(tmp_path: Path, monkeypatch, capsys) -> None:
 
     summary = json.loads((reports / "summary.json").read_text())
     trade_hist = json.loads((reports / "trade_history.json").read_text())
-    expected = {"buy_hold", "momentum", "mean_reversion"}
-
-    for strat in expected:
-        row = next((r for r in summary if r["config"] == strat), None)
-        assert row is not None
-        assert row["trades"] > 0
-        assert row["roi"] > 0
-
-    recorded = {t["strategy"] for t in trade_hist}
-    assert expected.issubset(recorded)
+    assert_demo_reports(summary, trade_hist)
