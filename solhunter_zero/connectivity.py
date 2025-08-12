@@ -7,6 +7,8 @@ import contextlib
 import logging
 import os
 
+from .util import parse_bool_env
+
 
 async def ensure_connectivity_async(*, offline: bool = False) -> None:
     """Verify Solana RPC and DEX websocket connectivity asynchronously."""
@@ -22,11 +24,7 @@ async def ensure_connectivity_async(*, offline: bool = False) -> None:
     if not url:
         return
 
-    raise_on_ws_fail = os.getenv("RAISE_ON_WS_FAIL", "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    raise_on_ws_fail = parse_bool_env("RAISE_ON_WS_FAIL", False)
 
     gen = stream_listed_tokens(url)
     try:

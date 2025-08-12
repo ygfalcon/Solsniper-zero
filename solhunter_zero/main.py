@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Sequence
 import cProfile
 
-from .util import install_uvloop
+from .util import install_uvloop, parse_bool_env
 from .paths import ROOT
 from .config import (
     load_config,
@@ -154,17 +154,14 @@ def main(
 
     if not asyncio.run(event_bus.verify_broker_connection()):
         logging.error("Message broker verification failed")
-        if os.getenv("BROKER_VERIFY_ABORT", "").lower() not in (
-            "",
-            "0",
-            "false",
-            "no",
-        ):
+        if parse_bool_env("BROKER_VERIFY_ABORT", False):
             raise SystemExit(1)
 
-    use_bundles = str(
-        cfg.get("use_mev_bundles") or os.getenv("USE_MEV_BUNDLES", "false")
-    ).lower() in {"1", "true", "yes"}
+    cfg_val = cfg.get("use_mev_bundles")
+    if cfg_val is not None:
+        use_bundles = str(cfg_val).strip().lower() in {"1", "true", "yes"}
+    else:
+        use_bundles = parse_bool_env("USE_MEV_BUNDLES", False)
     if use_bundles and (not os.getenv("JITO_RPC_URL") or not os.getenv("JITO_AUTH")):
         logging.warning("MEV bundles enabled but JITO_RPC_URL or JITO_AUTH is missing")
 

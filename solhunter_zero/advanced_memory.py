@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover - torch is optional
     torch = None  # type: ignore
 
 from .device import detect_gpu, get_gpu_backend
+from .util import parse_bool_env
 
 _HAS_FAISS_GPU = bool(faiss and hasattr(faiss, "StandardGpuResources"))
 
@@ -40,11 +41,10 @@ def _detect_gpu() -> bool:
 
 def _gpu_index_enabled() -> bool:
     """Return ``True`` if the FAISS index should use GPU acceleration."""
-    if os.getenv("FORCE_CPU_INDEX", "").lower() in {"1", "true", "yes"}:
+    if parse_bool_env("FORCE_CPU_INDEX", False):
         return False
-    env = os.getenv("GPU_MEMORY_INDEX")
-    if env is not None:
-        return env.lower() in {"1", "true", "yes"}
+    if os.getenv("GPU_MEMORY_INDEX") is not None:
+        return parse_bool_env("GPU_MEMORY_INDEX", False)
     if not _HAS_FAISS_GPU:
         return False
     try:

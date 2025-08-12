@@ -8,7 +8,6 @@ import logging
 from . import BaseAgent
 from .portfolio_optimizer import PortfolioOptimizer
 from .execution import ExecutionAgent
-import os
 from ..depth_client import snapshot
 from ..event_bus import subscribe
 from ..arbitrage import (
@@ -21,6 +20,7 @@ from ..arbitrage import (
 from .. import routeffi as _routeffi
 from ..mev_executor import MEVExecutor
 from ..portfolio import Portfolio
+from ..util import parse_bool_env
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +50,9 @@ class CrossDEXRebalancer(BaseAgent):
         self.latency_weight = float(latency_weight)
         self.fee_weight = float(fee_weight)
         self._last = 0.0
-        stream_enabled = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
+        stream_enabled = parse_bool_env("USE_DEPTH_STREAM", True)
         if use_depth_feed is None:
-            use_depth_feed = stream_enabled or (
-                os.getenv("USE_DEPTH_FEED", "0").lower() in {"1", "true", "yes"}
-            )
+            use_depth_feed = stream_enabled or parse_bool_env("USE_DEPTH_FEED", False)
         else:
             use_depth_feed = bool(use_depth_feed) or stream_enabled
         self.use_depth_feed = bool(use_depth_feed)

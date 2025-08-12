@@ -14,8 +14,9 @@ from .depth_client import (
     auto_exec as service_auto_exec,
     DEPTH_SERVICE_SOCKET,
 )
+from .util import parse_bool_env
 
-USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
+USE_DEPTH_STREAM = parse_bool_env("USE_DEPTH_STREAM", True)
 
 
 class EventExecutor:

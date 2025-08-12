@@ -17,6 +17,7 @@ from .paths import ROOT
 from .services import depth_service_watchdog
 from .system import detect_cpu_count
 from .main_state import TradingState
+from .util import parse_bool_env
 
 
 _PROCESS_START_TIME = time.perf_counter()
@@ -465,9 +466,11 @@ async def trading_loop(
     rl_task = await _init_rl_training(
         cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
     )
-    collect_data = str(
-        cfg.get("collect_offline_data") or os.getenv("COLLECT_OFFLINE_DATA", "false")
-    ).lower() in {"1", "true", "yes"}
+    cfg_val = cfg.get("collect_offline_data")
+    if cfg_val is not None:
+        collect_data = str(cfg_val).strip().lower() in {"1", "true", "yes"}
+    else:
+        collect_data = parse_bool_env("COLLECT_OFFLINE_DATA", False)
     stop_collector = None
     if collect_data:
         db_val = cfg.get("rl_db_path", "offline_data.db")
@@ -480,11 +483,7 @@ async def trading_loop(
     startup_reported = False
 
     timeout = float(os.getenv("FIRST_TRADE_TIMEOUT", "0") or 0)
-    retry_first_trade = os.getenv("FIRST_TRADE_RETRY", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    retry_first_trade = parse_bool_env("FIRST_TRADE_RETRY", False)
     first_trade_task = None
 
     def _check_timeout() -> None:
@@ -518,11 +517,7 @@ async def trading_loop(
         prev_ts = now
         arbitrage.DEPTH_RATE_LIMIT = depth_rate_limit
 
-    use_depth_stream = os.getenv("USE_DEPTH_STREAM", "1").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    use_depth_stream = parse_bool_env("USE_DEPTH_STREAM", True)
 
     async with asyncio.TaskGroup() as tg:
         if proc_ref[0]:

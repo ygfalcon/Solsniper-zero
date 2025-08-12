@@ -65,6 +65,7 @@ from .hierarchical_rl import (
 from .resource_monitor import get_cpu_usage
 from .dynamic_limit import _step_limit
 from .device import get_default_device
+from .util import parse_bool_env
 
 logger = logging.getLogger(__name__)
 
@@ -500,11 +501,7 @@ class RLDaemon:
                     TransformerPolicy() if self.policy == "transformer" else _PPO()
                 )
 
-        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {
-            "0",
-            "false",
-            "no",
-        }
+        use_compile = parse_bool_env("USE_TORCH_COMPILE", True)
         if use_compile:
             try:
                 if (

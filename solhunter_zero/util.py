@@ -7,8 +7,33 @@ from typing import Any, Coroutine, TypeVar
 import asyncio
 import importlib
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+
+_TRUE_VALUES = {"1", "true", "yes"}
+_FALSE_VALUES = {"0", "false", "no"}
+
+
+def parse_bool_env(name: str, default: bool = False) -> bool:
+    """Return the boolean value for environment variable ``name``.
+
+    The lookup falls back to ``default`` when the variable is unset or when
+    the value does not match any known true/false strings.  Comparisons are
+    performed on ``strip().lower()`` forms to tolerate whitespace and case
+    variations.
+    """
+
+    val = os.getenv(name)
+    if val is None:
+        return default
+    norm = val.strip().lower()
+    if norm in _TRUE_VALUES:
+        return True
+    if norm in _FALSE_VALUES:
+        return False
+    return default
 
 
 def install_uvloop() -> None:
