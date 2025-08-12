@@ -34,6 +34,10 @@ def test_save_and_list_keypairs(tmp_path, monkeypatch):
     data = [1, 2, 3]
     wallet.save_keypair("a", data)
     wallet.save_keypair("b", data)
+    assert ((tmp_path / "a.json").stat().st_mode & 0o777) == 0o600
+    os.chmod(tmp_path / "a.json", 0o644)
+    wallet.save_keypair("a", data)
+    assert ((tmp_path / "a.json").stat().st_mode & 0o777) == 0o600
     # create unrelated file
     (tmp_path / "other.txt").write_text("x")
     assert set(wallet.list_keypairs()) == {"a", "b"}

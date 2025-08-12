@@ -110,8 +110,19 @@ def save_keypair(name: str, data: list[int]) -> None:
     ):
         raise ValueError("invalid keypair name")
     path = os.path.join(KEYPAIR_DIR, name + ".json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f)
+    tmp_path = path + ".tmp"
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp_path, path)
+        os.chmod(path, 0o600)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def select_keypair(name: str) -> None:
