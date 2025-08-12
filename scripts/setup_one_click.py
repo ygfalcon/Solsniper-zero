@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> None:
     device.initialize_gpu()
 
     start_all = resources.files("scripts") / "start_all.py"
-    cmd = [sys.executable, str(start_all), "autopilot"]
+    cmd = [sys.executable, str(start_all)]
     os.execvp(cmd[0], cmd)
 
 

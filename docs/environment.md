@@ -35,7 +35,7 @@ This document lists environment variables recognized by the project.
 | `DEPTH_SERVICE_SOCKET` | `/tmp/depth_service.sock` | Configures depth service socket |
 | `DEPTH_START_TIMEOUT` | `5` | Configures depth start timeout |
 | `DEPTH_WS_ADDR` | `127.0.0.1` | Address for depth ws |
-| `DEPTH_WS_PORT` | `8765` | Port for depth ws |
+| `DEPTH_WS_PORT` | `8766` | Port for depth ws |
 | `DEX_LATENCY_CACHE_TTL` | `30` | TTL for dex latency cache cache |
 | `DEX_LATENCY_REFRESH_INTERVAL` | `60` | Interval for dex latency refresh |
 | `DEX_LISTING_WS_URL` | `` | URL for dex listing ws |

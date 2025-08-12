@@ -151,7 +151,7 @@ def launch_services(pm: ProcessManager) -> None:
     rl_proc = start_rl_daemon()
     pm.procs.append(rl_proc)
     addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
-    port = int(os.getenv("DEPTH_WS_PORT", "8765"))
+    port = int(os.getenv("DEPTH_WS_PORT", "8766"))
     deadline = time.monotonic() + 30.0
     wait_for_depth_ws(addr, port, deadline, depth_proc)
     _wait_for_rl_daemon(rl_proc)

@@ -53,7 +53,7 @@ if not _EVENT_SERIALIZATION:
 _EVENT_SERIALIZATION = _EVENT_SERIALIZATION.lower()
 _USE_MSGPACK = msgpack is not None and _EVENT_SERIALIZATION == "msgpack"
 
-DEFAULT_WS_URL = "ws://127.0.0.1:8765"
+DEFAULT_WS_URL = "ws://127.0.0.1:8766"
 
 try:  # optional redis / nats support
     import redis.asyncio as aioredis  # type: ignore
@@ -1287,7 +1287,7 @@ async def verify_broker_connection(
     return ok
 
 
-async def start_ws_server(host: str = "localhost", port: int = 8765):
+async def start_ws_server(host: str = "localhost", port: int = 8766):
     """Start websocket server broadcasting published events."""
     if not websockets:
         raise RuntimeError("websockets library required")
@@ -1580,7 +1580,7 @@ def _reload_bus(cfg) -> None:
             if urls == {DEFAULT_WS_URL}:
                 parsed = urlparse(DEFAULT_WS_URL)
                 host = parsed.hostname or "127.0.0.1"
-                port = parsed.port or 8765
+                port = parsed.port or 8766
                 await start_ws_server(host, port)
                 reachable = {DEFAULT_WS_URL}
             else:
