@@ -344,6 +344,12 @@ async def test_event_bus_url_connect(monkeypatch):
     )
 
     ev = importlib.reload(ev)
+
+    async def fake_reachable(urls, timeout=1.0):
+        return set(urls)
+
+    monkeypatch.setattr(ev, "_reachable_ws_urls", fake_reachable)
+
     ev._reload_bus(None)
     await asyncio.sleep(0)
 
@@ -385,6 +391,12 @@ async def test_event_bus_peers(monkeypatch):
     monkeypatch.setattr("solhunter_zero.config.get_event_bus_url", lambda *_: "")
 
     ev = importlib.reload(ev)
+
+    async def fake_reachable(urls, timeout=1.0):
+        return set(urls)
+
+    monkeypatch.setattr(ev, "_reachable_ws_urls", fake_reachable)
+
     ev._reload_bus(None)
     await asyncio.sleep(0)
 
