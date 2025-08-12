@@ -76,6 +76,11 @@ def main(argv: list[str] | None = None) -> None:
         _validate_config(cfg_path)
     ensure_deps(install_optional=True)
 
+    event_pb2 = ROOT / "solhunter_zero" / "event_pb2.py"
+    event_proto = ROOT / "proto" / "event.proto"
+    if (not event_pb2.exists() or event_pb2.stat().st_mtime < event_proto.stat().st_mtime):
+        subprocess.check_call([sys.executable, str(ROOT / "scripts" / "gen_proto.py")])
+
     if "PYTEST_CURRENT_TEST" not in os.environ:
         METAL_INDEX = (
             device.METAL_EXTRA_INDEX[1]
