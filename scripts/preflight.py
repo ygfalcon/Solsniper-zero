@@ -17,6 +17,7 @@ from solhunter_zero.preflight_utils import (
     check_keypair,
     check_libroute_ffi,
     check_depth_service,
+    check_internet,
     check_network,
     check_python_version,
     check_required_env,
@@ -42,6 +43,7 @@ CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Config", check_config_file),
     ("Keypair", check_keypair),
     ("Environment", check_required_env),
+    ("Internet", check_internet),
     (
         "Network",
         lambda: check_network(
