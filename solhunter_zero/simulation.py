@@ -477,14 +477,15 @@ def predict_token_activity(
 
     feat = [
         float(metrics.get("depth_change", 0.0)),
-        float(metrics.get("tx_rate", 0.0)),
-        float(metrics.get("whale_activity", 0.0)),
-        float(metrics.get("avg_swap_size", 0.0)),
+       float(metrics.get("tx_rate", 0.0)),
+       float(metrics.get("whale_activity", 0.0)),
+       float(metrics.get("avg_swap_size", 0.0)),
     ]
 
     try:
         return model.predict(feat)
     except Exception:
+        logger.warning("predict_token_activity failed", exc_info=True)
         return 0.0
 
 
