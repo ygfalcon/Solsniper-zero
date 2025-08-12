@@ -1,73 +1,47 @@
 from __future__ import annotations
 
-"""Run a dry-run trading loop and report ROI statistics.
+"""Run the paper trading smoke test.
 
-The script executes the automated trading agent in offline dry-run mode.
-Use the ``--capital`` argument to specify the starting USD balance.
+The script invokes :func:`paper.run` with the ``--test`` flag, which fetches a
+small slice of live market data and exercises the live trading path in dry-run
+mode.  Reports are written to the specified directory (``reports/`` by default)
+and the script exits with a non-zero status on failure.
 """
 
 import argparse
-import asyncio
-import os
+import sys
+from pathlib import Path
 
-from solhunter_zero.http import close_session
-from solhunter_zero.main import run_auto
-from solhunter_zero.memory import Memory
-from solhunter_zero.trade_analyzer import TradeAnalyzer
-from solhunter_zero.util import run_coro
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:  # pragma: no cover - simple path fix
+    sys.path.insert(0, str(ROOT))
+
+import paper
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run a dry-run trading loop")
-    parser.add_argument("--config", help="Configuration file path")
+    parser = argparse.ArgumentParser(description="Run paper trading smoke test")
     parser.add_argument(
-        "--iterations",
-        type=int,
-        default=100,
-        help="Number of loop iterations to execute",
-    )
-    parser.add_argument(
-        "--memory",
-        default="sqlite:///memory.db",
-        help="Memory database URL",
-    )
-    parser.add_argument(
-        "--capital",
-        type=float,
-        default=20.0,
-        help="Initial USD balance for the trading simulation",
+        "--reports",
+        type=Path,
+        default=Path("reports"),
+        help="Directory to write reports",
     )
     args = parser.parse_args(argv)
 
-    if args.config:
-        os.environ["SOLHUNTER_CONFIG"] = args.config
+    try:
+        paper.run(["--test", "--reports", str(args.reports)])
+    except Exception as exc:  # pragma: no cover - exercised in tests
+        print(f"paper test failed: {exc}", file=sys.stderr)
+        return 1
 
-    os.environ["MIN_PORTFOLIO_VALUE"] = str(args.capital)
+    if not (args.reports / "trade_history.json").exists():
+        print("paper test failed: trade_history.json not produced", file=sys.stderr)
+        return 1
 
-    run_auto(
-        memory_path=args.memory,
-        iterations=args.iterations,
-        dry_run=True,
-        offline=True,
-    )
-
-    mem = Memory(args.memory)
-    analyzer = TradeAnalyzer(mem)
-    roi_by_agent = analyzer.roi_by_agent()
-    print("ROI by agent:", roi_by_agent)
-
-    trades = run_coro(mem.list_trades(limit=1000))
-    spent = sum(float(t.amount) * float(t.price) for t in trades if t.direction == "buy")
-    revenue = sum(float(t.amount) * float(t.price) for t in trades if t.direction == "sell")
-    roi = (revenue - spent) / spent if spent > 0 else 0.0
-    print(f"Overall ROI: {roi:.4f}")
-
-    run_coro(mem.close())
     return 0
 
 
-if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    finally:
-        asyncio.run(close_session())
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
+

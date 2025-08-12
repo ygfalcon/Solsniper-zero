@@ -12,6 +12,10 @@ The ``--live-flow`` flag triggers a lightweight dry-run of the main trading
 loop.  It executes a minimal trading sequence that logs trades but skips
 submitting transactions so that tests can exercise the live code paths without
 touching the network.
+
+The ``--test`` flag combines ``--fetch-live`` and ``--live-flow`` so that a
+quick smoke check fetches recent market data, exercises the live trading path
+and writes reports to ``reports/`` by default.
 """
 
 from __future__ import annotations
@@ -151,7 +155,19 @@ def run(argv: List[str] | None = None) -> None:
         action="store_true",
         help="Exercise the core trading loop in dry-run mode",
     )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help=(
+            "Fetch live data and run the dry-run trading loop; "
+            "shorthand for --fetch-live --live-flow"
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.test:
+        args.fetch_live = True
+        args.live_flow = True
 
     if args.preset and (args.ticks or args.fetch_live):
         raise ValueError("Cannot combine --preset with --ticks/--fetch-live")

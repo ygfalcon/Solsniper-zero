@@ -91,6 +91,17 @@ Run the CLI directly with live prices:
 python paper.py --reports reports --fetch-live
 ```
 
+For a quick pre-flight smoke test before enabling live trading run:
+
+```bash
+python paper.py --test
+# or
+make paper-test
+```
+
+This downloads a slice of live data, exercises the trading loop in dry-run
+mode and writes reports to ``reports/`` by default.
+
 ## Startup integration flow
 
 Verify the launcher and startup script integration without invoking the full

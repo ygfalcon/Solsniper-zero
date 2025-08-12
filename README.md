@@ -646,6 +646,17 @@ python paper.py --reports reports --url https://example.com/prices.json
 
 Omit ``--url`` to reuse one of the bundled preset datasets.
 
+For a quick pre-flight smoke check before enabling live trading run:
+
+```bash
+python paper.py --test
+# or
+make paper-test
+```
+
+This command fetches a small slice of live market data, executes the trading
+loop in dry-run mode and writes reports to ``reports/`` by default.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
