@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import os
 import pkgutil
 import re
+import subprocess
+import sys
 
 try:
     import tomllib  # Python 3.11+
@@ -13,6 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover - should not happen
     import tomli as tomllib  # type: ignore
 
 from solhunter_zero.paths import ROOT
+from solhunter_zero import device
 
 # Map distribution names to the module names they provide when imported. This is
 # necessary for packages whose import name differs from the name used on PyPI.
@@ -84,6 +88,25 @@ def main(argv: list[str] | None = None) -> int:
         extras=args.extras if args.extras else ("uvloop",),
     )
     ensure_deps(cfg)
+
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        METAL_INDEX = (
+            device.METAL_EXTRA_INDEX[1]
+            if len(getattr(device, "METAL_EXTRA_INDEX", [])) > 1
+            else "https://download.pytorch.org/whl/metal"
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                ".[fastjson,fastcompress,msgpack]",
+                "--extra-index-url",
+                METAL_INDEX,
+            ]
+        )
+
     return 0
 
 
