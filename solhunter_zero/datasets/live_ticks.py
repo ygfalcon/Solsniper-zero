@@ -1,30 +1,35 @@
 from __future__ import annotations
 
-"""Loader for small slice of live market data used in CI tests.
+"""Fetch a small slice of recent SOL/USD market data.
 
-The data is fetched from a public GitHub-hosted CSV containing historical
-Apple stock prices.  The first ``limit`` closing prices are returned as a
-list of tick dictionaries with ``timestamp`` and ``price`` keys.  The
-dataset is static and therefore deterministic across runs.
+The loader retrieves hourly candles from the same public Codex (Coingecko)
+endpoint used by :mod:`paper`.  Results are cached for the duration of the
+process so repeat calls avoid additional network traffic.  When the request
+fails – for example due to missing network access – an empty list is returned
+so callers can gracefully skip live-data scenarios.
 """
 
 from typing import Any, Dict, List
 from urllib.error import URLError
 from urllib.request import urlopen
-import csv
+import json
 
-URL = (
-    "https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv"
+# Public endpoint providing recent SOL/USD candles.  The fetch is best-effort
+# and consumers are expected to fall back to local samples when unavailable.
+CODEX_URL = (
+    "https://api.coingecko.com/api/v3/coins/solana/market_chart"
+    "?vs_currency=usd&days=1&interval=hourly"
 )
 
 _cache: List[Dict[str, Any]] | None = None
 
 
 def load_live_ticks(limit: int = 120) -> List[Dict[str, Any]]:
-    """Fetch a deterministic slice of real market data.
+    """Return up to ``limit`` recent SOL/USD candles.
 
-    Returns an empty list when the data cannot be retrieved (e.g. due to
-    lack of network access).
+    When the endpoint cannot be reached or returns no data an empty list is
+    returned.  Entries contain ``timestamp`` (seconds since the epoch) and
+    ``price`` fields matching the format expected by strategy tests.
     """
 
     global _cache
@@ -32,22 +37,27 @@ def load_live_ticks(limit: int = 120) -> List[Dict[str, Any]]:
         return _cache[:limit]
 
     try:
-        with urlopen(URL, timeout=10) as resp:
-            text = resp.read().decode("utf-8").splitlines()
-    except (URLError, OSError):
+        with urlopen(CODEX_URL, timeout=10) as resp:
+            data = json.load(resp)
+    except (URLError, OSError, json.JSONDecodeError):
         _cache = []
         return _cache
 
-    reader = csv.DictReader(text)
+    prices = data.get("prices") or []
     ticks: List[Dict[str, Any]] = []
-    for row in reader:
+    for p in prices:
         try:
-            price = float(row["AAPL.Close"])
-        except (KeyError, TypeError, ValueError):
+            ts = int(p[0] // 1000)
+            price = float(p[1])
+        except Exception:
             continue
-        ticks.append({"timestamp": row.get("Date", ""), "price": price})
+        ticks.append({"timestamp": ts, "price": price})
         if len(ticks) >= limit:
             break
 
     _cache = ticks
     return ticks
+
+
+__all__ = ["load_live_ticks"]
+

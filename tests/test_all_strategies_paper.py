@@ -11,7 +11,12 @@ from solhunter_zero.datasets.live_ticks import load_live_ticks
 
 
 def test_all_strategies_paper():
-    """Run all strategies against a small slice of real market data."""
+    """Run all strategies against recent SOL/USD candles.
+
+    Fetches live data from a public Codex (Coingecko) endpoint via
+    :func:`load_live_ticks`.  When the request fails the loader returns an
+    empty list and the test is skipped.
+    """
     ticks = load_live_ticks()
     if not ticks:
         warnings.warn("live market data unavailable, skipping")

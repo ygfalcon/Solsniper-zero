@@ -50,6 +50,11 @@ are unavailable so that lightweight stubs are used instead.  Offline
 environments may omit `--fetch-live` or supply `--ticks`/`--preset` to run
 entirely on local data.
 
+The test suite can fetch a tiny slice of these candles via
+``solhunter_zero.datasets.live_ticks.load_live_ticks``.  When the network is
+unreachable the loader returns an empty list and dependent tests skip
+automatically.
+
 ## Investor demo
 
 The investor demo performs a small rolling backtest and writes lightweight
