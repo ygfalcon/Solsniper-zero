@@ -79,12 +79,15 @@ def test_paper_live_smoke(tmp_path, monkeypatch):
     monkeypatch.setattr(paper, "_fetch_live_dataset", lambda: dataset)
 
     reports = tmp_path / "reports"
-    paper.run(["--fetch-live", "--reports", str(reports)])
-
-    trade_path = reports / "trade_history.json"
-    assert flags["wallet"], "wallet.load_keypair not called"
-    assert flags["route"], "routeffi.best_route not called"
-    assert flags["depth"], "depth_client.snapshot not called"
-    assert trade_path.exists()
-    data = json.loads(trade_path.read_text())
-    assert data and isinstance(data, list)
+    try:
+        paper.run(["--fetch-live", "--reports", str(reports)])
+        assert "arbitrage" in investor_demo.used_trade_types
+        trade_path = reports / "trade_history.json"
+        assert flags["wallet"], "wallet.load_keypair not called"
+        assert flags["route"], "routeffi.best_route not called"
+        assert flags["depth"], "depth_client.snapshot not called"
+        assert trade_path.exists()
+        data = json.loads(trade_path.read_text())
+        assert data and isinstance(data, list)
+    finally:
+        investor_demo.used_trade_types.clear()
