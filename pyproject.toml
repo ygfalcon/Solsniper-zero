@@ -44,6 +44,9 @@ full = [
     "psutil>=5.9,<6.0",
 ]
 uvloop = ["uvloop"]
+extras = [
+    "psutil>=5.9,<6.0",
+]
 dev = [
     "pytest",
     "pytest-asyncio",
