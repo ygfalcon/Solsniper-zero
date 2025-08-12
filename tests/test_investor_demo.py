@@ -8,11 +8,13 @@ from pathlib import Path
 
 import pytest
 
+from tests.market_data import load_live_prices
+
 
 pytestmark = pytest.mark.timeout(30)
 
 
-def test_investor_demo(tmp_path: Path, monkeypatch, capsys, shared_prices) -> None:
+def test_investor_demo(tmp_path: Path, monkeypatch, capsys) -> None:
     """Run the demo and verify strategy ROI and trade history."""
 
     reports = tmp_path / "reports"
@@ -22,10 +24,11 @@ def test_investor_demo(tmp_path: Path, monkeypatch, capsys, shared_prices) -> No
     stubs.install_stubs()
     import solhunter_zero.investor_demo as demo
 
+    prices, dates = load_live_prices()
     monkeypatch.setattr(
         demo,
         "load_prices",
-        lambda path=None, preset=None: (shared_prices, [str(i) for i in range(len(shared_prices))]),
+        lambda path=None, preset=None: (prices, dates),
     )
 
     demo.main(["--preset", "short", "--reports", str(reports)])
