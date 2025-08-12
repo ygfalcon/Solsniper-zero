@@ -10,6 +10,23 @@ import subprocess
 import shutil
 import tomllib
 
+try:
+    import solhunter_zero  # noqa: F401
+except ModuleNotFoundError:
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    sys.path.append(str(repo_root))
+    try:
+        import solhunter_zero  # noqa: F401
+    except ModuleNotFoundError:
+        print(
+            "Could not import solhunter_zero. Run this script from the project root "
+            "or install the package with 'pip install -e .'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
 from solhunter_zero.macos_setup import ensure_tools
 import solhunter_zero.env_config as env_config
 from solhunter_zero.paths import ROOT
