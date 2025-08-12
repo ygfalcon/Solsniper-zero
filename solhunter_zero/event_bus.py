@@ -1373,6 +1373,10 @@ async def connect_ws(url: str):
     """Connect to external websocket bus at ``url``."""
     if not websockets:
         raise RuntimeError("websockets library required")
+    if not url or not url.startswith(("ws://", "wss://")):
+        raise RuntimeError(
+            "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
+        )
 
     if _WS_COMPRESSION is None:
         ws = await websockets.connect(
@@ -1513,6 +1517,10 @@ def _reload_bus(cfg) -> None:
     single = _get_bus_url(cfg)
     if single:
         urls.add(single)
+    if not urls or any(not u.startswith(("ws://", "wss://")) for u in urls):
+        raise RuntimeError(
+            "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
+        )
     if urls == _ENV_PEERS:
         return
 
