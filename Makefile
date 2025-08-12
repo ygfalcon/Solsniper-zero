@@ -5,7 +5,7 @@ PYTHON ?= python3
 
 .RECIPEPREFIX := >
 
-.PHONY: start run test integration demo demo-rl demo-multi setup gen-proto
+.PHONY: start run test integration demo demo-rl demo-multi setup gen-proto compose
 
 start:
 >$(PYTHON) -m solhunter_zero.launcher $(ARGS)
@@ -47,4 +47,9 @@ paper:
 
 paper-test:
 >SOLHUNTER_TESTING=1 $(PYTHON) scripts/paper_test.py $(ARGS)
+
+# Prepare environment and run docker-compose
+compose:
+>$(PYTHON) scripts/prepare_env.py
+>docker-compose up $(ARGS)
 
