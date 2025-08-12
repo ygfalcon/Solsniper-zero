@@ -31,6 +31,11 @@ from solhunter_zero.preflight_utils import check_internet
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
 VENV_DIR = ROOT / ".venv"
 
+PY_MAJOR, PY_MINOR = sys.version_info[:2]
+PY_VERSION = f"{PY_MAJOR}.{PY_MINOR}"
+PYTHON_NAME = f"python{PY_VERSION}"
+BREW_FORMULA = f"python@{PY_VERSION}"
+
 
 @dataclass
 class DepsConfig:
@@ -109,18 +114,18 @@ def _venv_needs_recreation() -> tuple[str | None, str]:
         return sys.executable, "missing interpreter"
 
     machine, version = _inspect_python(python)
-    if platform.system() == "Darwin" and (machine != "arm64" or version < (3, 11)):
-        brew_python = shutil.which("python3.11")
+    if platform.system() == "Darwin" and (machine != "arm64" or version < (PY_MAJOR, PY_MINOR)):
+        brew_python = shutil.which(PYTHON_NAME)
         if not brew_python:
             msg = (
-                "python3.11 from Homebrew not found. "
-                "Install it with 'brew install python@3.11'."
+                f"{PYTHON_NAME} from Homebrew not found. "
+                f"Install it with 'brew install {BREW_FORMULA}'."
             )
             print(msg)
             log_startup(msg)
             raise SystemExit(1)
-        return brew_python, "Homebrew python3.11"
-    if version < (3, 11):
+        return brew_python, f"Homebrew {PYTHON_NAME}"
+    if version < (PY_MAJOR, PY_MINOR):
         return sys.executable, "current interpreter"
     return None, ""
 

@@ -1,9 +1,10 @@
 """Utilities for locating a Python interpreter.
 
-This module encapsulates the logic for discovering a suitable Python 3.11
-interpreter.  Results are cached in-memory using :func:`functools.lru_cache`
-and persisted across runs via the ``SOLHUNTER_PYTHON`` environment variable
-and ``.cache/python-exe`` file.
+This module encapsulates the logic for discovering a suitable Python
+interpreter matching the current runtime's major and minor version. Results
+are cached in-memory using :func:`functools.lru_cache` and persisted across
+runs via the ``SOLHUNTER_PYTHON`` environment variable and
+``.cache/python-exe`` file.
 """
 
 from __future__ import annotations
@@ -17,13 +18,18 @@ import sys
 
 from .paths import ROOT
 
+PY_MAJOR, PY_MINOR = sys.version_info[:2]
+PY_VERSION = f"{PY_MAJOR}.{PY_MINOR}"
+PYTHON_NAME = f"python{PY_VERSION}"
+BREW_FORMULA = f"python@{PY_VERSION}"
+
 cache_env = "SOLHUNTER_PYTHON"
 cache_dir = ROOT / ".cache"
 cache_file = cache_dir / "python-exe"
 
 
 def _check_python(exe: str) -> bool:
-    """Return ``True`` if ``exe`` is a Python >=3.11 interpreter."""
+    """Return ``True`` if ``exe`` is a Python interpreter of sufficient version."""
 
     try:
         out = subprocess.check_output(
@@ -35,7 +41,7 @@ def _check_python(exe: str) -> bool:
             text=True,
         ).strip()
         major, minor = map(int, out.split(".")[:2])
-        return (major, minor) >= (3, 11)
+        return (major, minor) >= (PY_MAJOR, PY_MINOR)
     except Exception:  # pragma: no cover - defensive
         return False
 
@@ -77,13 +83,13 @@ def _find_python_impl() -> str:
     # Existing virtual environment interpreters
     venv = ROOT / ".venv"
     bin_dir = venv / ("Scripts" if os.name == "nt" else "bin")
-    for name in ("python3.11", "python3", "python"):
+    for name in (PYTHON_NAME, "python3", "python"):
         p = bin_dir / name
         if p.exists():
             candidates.append(str(p))
 
     # Interpreters on PATH
-    for name in ("python3.11", "python3", "python"):
+    for name in (PYTHON_NAME, "python3", "python"):
         path = shutil.which(name)
         if path:
             candidates.append(path)
@@ -101,29 +107,30 @@ def _find_python_impl() -> str:
             prepare_macos_env = None  # type: ignore
         if prepare_macos_env is not None:
             print(
-                "Python 3.11 not found; running macOS setup...",
+                f"Python {PY_VERSION} not found; running macOS setup...",
                 file=sys.stderr,
             )
             prepare_macos_env(non_interactive=True)
-            for name in ("python3.11", "python3", "python"):
+            for name in (PYTHON_NAME, "python3", "python"):
                 path = shutil.which(name)
                 if path and _check_python(path):
                     return _finalize(path)
 
-    message = "Python 3.11 or higher is required."
+    message = f"Python {PY_VERSION} or higher is required."
     if platform.system() == "Darwin":
         message += (
             " Run 'python -c \"from solhunter_zero.macos_setup import "
-            "prepare_macos_env; prepare_macos_env()\"' to install Python 3.11."
+            "prepare_macos_env; prepare_macos_env()\"' to install "
+            f"Python {PY_VERSION} (Homebrew formula {BREW_FORMULA})."
         )
     else:
-        message += " Please install Python 3.11 and try again."
+        message += f" Please install Python {PY_VERSION} and try again."
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
 
 def find_python(repair: bool = False) -> str:
-    """Locate a suitable Python 3.11 interpreter.
+    """Locate a suitable Python interpreter.
 
     ``repair`` forces the resolver to ignore any cached values and recompute
     the interpreter path.  The result is cached for subsequent calls.
