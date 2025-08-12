@@ -3,7 +3,7 @@
 
 This script bootstraps a development environment by ensuring a
 virtual environment is active, installing dependencies and tooling,
-building the Rust FFI extension, and reporting next‑steps to the user.
+building the Rust FFI extension, and launching services when complete.
 """
 
 from __future__ import annotations
@@ -159,10 +159,6 @@ def print_summary() -> None:
         except PackageNotFoundError:
             ver = "not installed"
         print(f"  {pkg}: {ver}")
-    print("\nNext steps:")
-    print("  - export BROKER_WS_URLS")
-    print("  - export BIRDEYE_API_KEY")
-    print("  - run scripts/start_all.py")
 
 
 def generate_config() -> dict:
@@ -198,6 +194,17 @@ def main() -> None:
     configure_pytorch(cfg)
     build_route_ffi()
     print_summary()
+
+    start_all = ROOT / "scripts" / "start_all.py"
+    print(f"Launching services via {start_all}...")
+    result = subprocess.run([sys.executable, str(start_all)])
+    if result.returncode == 0:
+        print("Service launch completed successfully.")
+    else:
+        print(
+            f"Service launch exited with code {result.returncode}",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
