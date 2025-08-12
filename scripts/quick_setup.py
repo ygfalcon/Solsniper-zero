@@ -95,9 +95,10 @@ def main(argv: list[str] | None = None) -> None:
             if key in cfg:
                 cfg.pop(key, None)
                 updated = True
-            if args.auto and key in AUTO_DEFAULTS:
-                cfg[key] = AUTO_DEFAULTS[key]
-                updated = True
+            if args.auto:
+                if key in AUTO_DEFAULTS:
+                    cfg[key] = AUTO_DEFAULTS[key]
+                    updated = True
                 continue
             if args.non_interactive:
                 continue
@@ -126,7 +127,8 @@ def main(argv: list[str] | None = None) -> None:
                 cfg["agent_weights"][m] = 1.0
             updated = True
 
-    if updated:
+    needs_save = updated or args.auto
+    if needs_save:
         try:
             validate_config(cfg)
         except ValueError as exc:  # pragma: no cover - unlikely interactive failure

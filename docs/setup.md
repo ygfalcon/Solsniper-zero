@@ -91,7 +91,9 @@ The helper wraps the dependency checks and keypair/setup logic used by
    Common issues include missing network access, Homebrew not on `PATH`, or stale permissions on the script.
 
 3. **Create a configuration file**
-   Create a `config.yaml` or `config.toml` file in the project directory with
+   Run `scripts/quick_setup.py --auto` to generate a `config.toml` with public
+   endpoint defaults. The script populates required keys and writes the file
+   without prompting. Edit the resulting `config.toml` or `config.yaml` to add
    your API keys, RPC URL and DEX endpoints:
 
    ```yaml
