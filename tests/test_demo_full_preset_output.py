@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 
@@ -8,9 +9,11 @@ import pytest
 @pytest.mark.timeout(60)
 def test_demo_full_preset_output(tmp_path):
     report_dir = tmp_path / "reports"
+    env = dict(os.environ, SOLHUNTER_PATCH_INVESTOR_DEMO="1")
     subprocess.run(
         [sys.executable, "demo.py", "--preset", "full", "--reports", str(report_dir)],
         check=True,
+        env=env,
     )
 
     agg = json.loads((report_dir / "aggregate_summary.json").read_text())

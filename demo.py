@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Run the minimal trading demo with a configurable price source."""
+"""Run the investor demo using the shared simple bot runner."""
 
 from __future__ import annotations
 
@@ -7,44 +6,47 @@ import argparse
 import sys
 from pathlib import Path
 
-from solhunter_zero.datasets.sample_ticks import load_sample_ticks
-from solhunter_zero.trading_demo import run_demo
+from solhunter_zero.simple_bot import run as run_simple_bot
+import solhunter_zero.investor_demo as investor_demo
 
 
 def run(argv: list[str] | None = None) -> None:
-    """Execute the trading demo.
+    """Execute the investor demo.
 
-    The demo expects a sequence of prices either provided via the ``--prices``
-    argument or loaded from the built-in sample dataset.  The price list is
-    forwarded to :func:`solhunter_zero.trading_demo.run_demo` which performs the
-    simplified trading loop and writes the ROI report to the specified
-    ``--reports`` directory.
+    ``demo.py`` now mirrors :mod:`paper` by delegating to the shared
+    :func:`solhunter_zero.simple_bot.run` helper.  The script accepts an
+    optional preset name or URL to supply price data.  When no dataset source is
+    provided the demo falls back to the short built-in dataset.
     """
 
-    parser = argparse.ArgumentParser(description="Run the trading demo")
+    parser = argparse.ArgumentParser(description="Run the investor demo")
     parser.add_argument(
         "--reports",
         type=Path,
         default=Path("reports"),
-        help="Directory where reports will be written",
+        help="Directory where demo reports will be written",
     )
     parser.add_argument(
-        "--prices",
+        "--preset",
+        choices=sorted(investor_demo.PRESET_DATA_FILES.keys()),
+        default=None,
+        help="Bundled price dataset to use",
+    )
+    parser.add_argument(
+        "--url",
         type=str,
         default=None,
-        help="Comma-separated list of prices to use instead of the sample dataset",
+        help="HTTP URL returning JSON price data; overrides --preset",
     )
     args = parser.parse_args(argv)
-    args.reports.mkdir(parents=True, exist_ok=True)
 
-    if args.prices:
-        prices = [float(p) for p in args.prices.split(",") if p]
-    else:
-        ticks = load_sample_ticks()
-        prices = [t["price"] for t in ticks]
+    if args.url and args.preset:
+        raise ValueError("Provide only one of --url or --preset")
 
-    run_demo(prices, args.reports)
+    dataset = args.url or args.preset
+    run_simple_bot(dataset, args.reports)
 
 
 if __name__ == "__main__":  # pragma: no cover
     run(sys.argv[1:])
+

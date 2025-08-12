@@ -70,7 +70,8 @@ def test_demo_script_generates_reports(tmp_path: Path) -> None:
         "runpy.run_path(str(path), run_name='__main__')"
     )
 
-    subprocess.run([sys.executable, "-c", snippet], cwd=tmp_path, check=True)
+    env = dict(os.environ, SOLHUNTER_PATCH_INVESTOR_DEMO="1")
+    subprocess.run([sys.executable, "-c", snippet], cwd=tmp_path, check=True, env=env)
 
     reports = tmp_path / "reports"
     highlights = json.loads((reports / "highlights.json").read_text())
