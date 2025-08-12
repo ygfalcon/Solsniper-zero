@@ -124,7 +124,21 @@ def preflight(cfg: dict) -> None:
     broker_url = os.environ.get("BROKER_URL") or cfg.get("broker_url") or cfg.get("broker_urls")
     if broker_url and "redis" in broker_url:
         if not shutil.which("redis-server"):
-            raise SystemExit("Redis broker configured but redis-server not found.")
+            if sys.platform == "darwin":
+                print("redis-server not found. Installing via Homebrew.")
+                try:
+                    run(["brew", "install", "redis"])
+                    run(["brew", "services", "start", "redis"])
+                except Exception as exc:
+                    raise SystemExit("Failed to install redis via Homebrew.") from exc
+                if not shutil.which("redis-server"):
+                    raise SystemExit(
+                        "Redis broker configured but redis-server still not found."
+                    )
+            else:
+                print("redis-server not found; using in-memory broker.")
+                os.environ["BROKER_URL"] = "memory://"
+                cfg["broker_url"] = "memory://"
 
 
 def print_summary() -> None:
