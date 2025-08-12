@@ -1519,15 +1519,26 @@ def _validate_ws_urls(urls: Iterable[str]) -> Set[str]:
     return urls_set
 
 
-def _reload_bus(cfg) -> None:
-    global _ENV_PEERS
+def _resolve_ws_urls(cfg) -> Set[str]:
+    """Return validated websocket broker URLs from env or config."""
     from .config import get_event_bus_peers
 
-    urls = set(get_event_bus_peers(cfg))
+    urls: Set[str] = set()
+    env_val = os.getenv("BROKER_WS_URLS")
+    if env_val:
+        urls.update(u.strip() for u in env_val.split(",") if u.strip())
+
+    urls.update(get_event_bus_peers(cfg))
     single = _get_bus_url(cfg)
     if single:
         urls.add(single)
-    urls = _validate_ws_urls(urls)
+    return _validate_ws_urls(urls)
+
+
+def _reload_bus(cfg) -> None:
+    global _ENV_PEERS
+
+    urls = _resolve_ws_urls(cfg)
     if urls == _ENV_PEERS:
         return
 
