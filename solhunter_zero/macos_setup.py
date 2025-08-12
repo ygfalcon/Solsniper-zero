@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -14,22 +15,72 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib import request
 
+import requests
+from packaging import version
+
+try:  # Python 3.11+
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - fallback for older versions
+    import tomli as tomllib  # type: ignore
+
+import tomli_w
+
 from .bootstrap_utils import ensure_deps
 from .cache_paths import MAC_SETUP_MARKER, TOOLS_OK_MARKER
 from .logging_utils import log_startup
 from .paths import ROOT
 
-try:
-    from solhunter_zero.device import (
-        METAL_EXTRA_INDEX,
-        load_torch_metal_versions,
-    )
+METAL_INDEX = "https://download.pytorch.org/whl/metal"
+METAL_EXTRA_INDEX = ["--extra-index-url", METAL_INDEX]
+CONFIG_PATH = ROOT / "config.toml"
+
+
+def _available_versions(pkg: str, py_tag: str) -> list[version.Version]:
+    """Return sorted Metal wheel versions for *pkg* matching *py_tag*."""
+
+    url = f"{METAL_INDEX}/{pkg}/"
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    pattern = rf"{pkg}-(\\d+\\.\\d+(?:\\.\\d+)?)" rf"[^\s]*-{py_tag}"
+    return sorted(version.parse(m.group(1)) for m in re.finditer(pattern, resp.text))
+
+
+def _resolve_metal_versions() -> tuple[str, str]:
+    """Resolve torch and torchvision Metal wheel versions for this Python."""
+
+    py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    torch_versions = _available_versions("torch", py_tag)
+    vision_versions = _available_versions("torchvision", py_tag)
+    if not torch_versions or not vision_versions:
+        raise RuntimeError(f"No Metal wheels found for Python {py_tag}")
+    return str(torch_versions[-1]), str(vision_versions[-1])
+
+
+def _write_versions_to_config(torch_ver: str, vision_ver: str) -> None:
+    """Write resolved versions back to ``config.toml``."""
+
+    cfg = {}
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH, "rb") as f:
+            cfg = tomllib.load(f)
+    torch_cfg = cfg.setdefault("torch", {})
+    torch_cfg["torch_metal_version"] = torch_ver
+    torch_cfg["torchvision_metal_version"] = vision_ver
+    with open(CONFIG_PATH, "wb") as f:
+        tomli_w.dump(cfg, f)
+
+
+try:  # pragma: no cover - optional import for CI
+    from solhunter_zero.device import load_torch_metal_versions
 
     TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
-except Exception:  # pragma: no cover - optional import for CI
-    METAL_EXTRA_INDEX = []
-    TORCH_METAL_VERSION = ""
-    TORCHVISION_METAL_VERSION = ""
+except Exception:  # pragma: no cover - network best effort
+    try:
+        TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = _resolve_metal_versions()
+        _write_versions_to_config(TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION)
+    except Exception:
+        TORCH_METAL_VERSION = ""
+        TORCHVISION_METAL_VERSION = ""
 
 REPORT_PATH = ROOT / "macos_setup_report.json"
 

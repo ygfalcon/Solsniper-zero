@@ -170,5 +170,5 @@ artifact_math = 1.0
 [torch]
 # These fields are populated automatically by ``scripts/mac_setup.py``
 # when running on macOS to ensure compatible Metal wheels are used.
-torch_metal_version = ""
-torchvision_metal_version = ""
+torch_metal_version = "2.8.0"
+torchvision_metal_version = "0.23.0"
