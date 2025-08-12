@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from typing import (
     List,
@@ -29,6 +28,7 @@ from ..arbitrage import (
 from ..event_bus import subscribe
 from .. import routeffi as _routeffi
 from ..portfolio import Portfolio
+from ..util import parse_bool_env
 
 PriceFeed = Callable[[str], Awaitable[float]]
 
@@ -70,7 +70,7 @@ class CrossDEXArbitrage(BaseAgent):
         self._latency_updates: Dict[str, float] = {}
         self._latency_unsub = subscribe("dex_latency_update", self._handle_latency)
 
-        stream_env = os.getenv("USE_PRICE_STREAMS", "0").lower() in {"1", "true", "yes"}
+        stream_env = parse_bool_env("USE_PRICE_STREAMS", False)
         if use_price_streams is None:
             use_price_streams = stream_env
         else:

@@ -4,14 +4,15 @@ import logging
 from typing import Optional, Dict, Any
 import asyncio
 from contextlib import asynccontextmanager, suppress
+import os
 
-from .util import install_uvloop
+from .util import install_uvloop, parse_bool_env
 
 import aiohttp
 from .http import get_session, loads, dumps
 
 IPC_SOCKET = os.getenv("DEPTH_SERVICE_SOCKET", "/tmp/depth_service.sock")
-USE_RUST_EXEC = os.getenv("USE_RUST_EXEC", "True").lower() in {"1", "true", "yes"}
+USE_RUST_EXEC = parse_bool_env("USE_RUST_EXEC", True)
 
 from solders.keypair import Keypair
 from solders.transaction import VersionedTransaction

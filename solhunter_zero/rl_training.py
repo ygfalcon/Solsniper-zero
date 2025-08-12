@@ -12,6 +12,7 @@ import time
 from collections import deque
 
 from .optional_imports import try_import
+from .util import parse_bool_env
 
 psutil = try_import("psutil", stub=None)
 if psutil is None:  # pragma: no cover - psutil optional
@@ -150,8 +151,7 @@ def _calc_num_workers(
             pass
     base = min(detect_cpu_count(), max(1, size // 100))
     if dynamic:
-        cluster_env = os.getenv("RL_CLUSTER_WORKERS", "1").lower()
-        use_cluster = cluster_env not in {"0", "false", "no"}
+        use_cluster = parse_bool_env("RL_CLUSTER_WORKERS", True)
         if cpu_callback is None:
             if use_cluster:
                 usage_fn = _get_cpu_usage
@@ -188,8 +188,7 @@ def _ensure_mmap_dataset(db_url: str, out_path: Path) -> None:
     """Create ``out_path`` using ``build_mmap_dataset`` if it doesn't exist."""
     if out_path.exists():
         return
-    env = os.getenv("RL_BUILD_MMAP_DATASET", "1").lower()
-    if env in {"0", "false", "no"}:
+    if not parse_bool_env("RL_BUILD_MMAP_DATASET", True):
         return
     try:
         from scripts import build_mmap_dataset
@@ -617,7 +616,7 @@ class TradeDataModule(pl.LightningDataModule):
             return self._prefetch_task
         if self.mmap_path and Path(self.mmap_path).exists():
             return None
-        if os.getenv("RL_BUILD_MMAP_DATASET", "1").lower() not in {"0", "false", "no"}:
+        if parse_bool_env("RL_BUILD_MMAP_DATASET", True):
             return None
         self._prefetch_queue = asyncio.Queue(maxsize=max(1, self.prefetch_buffer))
 
@@ -1186,11 +1185,7 @@ def _train_model(
         with suppress(Exception):
             model.load_state_dict(state_dict)
 
-    use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {
-        "0",
-        "false",
-        "no",
-    }
+    use_compile = parse_bool_env("USE_TORCH_COMPILE", True)
     if use_compile:
         try:
             if (

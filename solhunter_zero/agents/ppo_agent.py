@@ -38,6 +38,7 @@ import logging
 
 from . import BaseAgent
 from .memory import MemoryAgent
+from ..util import parse_bool_env
 from ..offline_data import OfflineData
 from ..order_book_ws import snapshot
 from ..portfolio import Portfolio
@@ -101,7 +102,7 @@ class PPOAgent(BaseAgent):
         )
         self.actor.to(self.device)
         self.critic.to(self.device)
-        use_compile = os.getenv("USE_TORCH_COMPILE", "1").lower() not in {"0", "false", "no"}
+        use_compile = parse_bool_env("USE_TORCH_COMPILE", True)
         if use_compile:
             try:
                 if getattr(torch, "compile", None) and int(torch.__version__.split(".")[0]) >= 2:

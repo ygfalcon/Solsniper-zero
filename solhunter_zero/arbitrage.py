@@ -22,6 +22,7 @@ import contextlib
 
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
+from .util import parse_bool_env
 
 try:  # pragma: no cover - optional dependency
     from numba import njit as _numba_njit
@@ -130,9 +131,9 @@ DEX_PRIORITIES = [
     if n.strip()
 ]
 
-USE_DEPTH_STREAM = os.getenv("USE_DEPTH_STREAM", "1").lower() in {"1", "true", "yes"}
-USE_SERVICE_EXEC = os.getenv("USE_SERVICE_EXEC", "True").lower() in {"1", "true", "yes"}
-USE_SERVICE_ROUTE = os.getenv("USE_SERVICE_ROUTE", "1").lower() in {"1", "true", "yes"}
+USE_DEPTH_STREAM = parse_bool_env("USE_DEPTH_STREAM", True)
+USE_SERVICE_EXEC = parse_bool_env("USE_SERVICE_EXEC", True)
+USE_SERVICE_ROUTE = parse_bool_env("USE_SERVICE_ROUTE", True)
 
 _ffi_env = os.getenv("USE_FFI_ROUTE")
 if _ffi_env is not None:
@@ -171,11 +172,7 @@ EXTRA_API_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_API_URLS").
 EXTRA_WS_URLS = {str(k): str(v) for k, v in _parse_mapping_env("DEX_WS_URLS").items()}
 
 # Measure DEX latency on import unless disabled via environment variable
-MEASURE_DEX_LATENCY = os.getenv("MEASURE_DEX_LATENCY", "1").lower() not in {
-    "0",
-    "false",
-    "no",
-}
+MEASURE_DEX_LATENCY = parse_bool_env("MEASURE_DEX_LATENCY", True)
 
 # Interval in seconds between latency refreshes
 DEX_LATENCY_REFRESH_INTERVAL = float(
@@ -390,16 +387,16 @@ def stop_latency_refresh() -> None:
 
 
 # Flash loan configuration
-USE_FLASH_LOANS = os.getenv("USE_FLASH_LOANS", "0").lower() in {"1", "true", "yes"}
+USE_FLASH_LOANS = parse_bool_env("USE_FLASH_LOANS", False)
 MAX_FLASH_AMOUNT = float(os.getenv("MAX_FLASH_AMOUNT", "0") or 0)
 FLASH_LOAN_RATIO = float(os.getenv("FLASH_LOAN_RATIO", "0") or 0)
-USE_MEV_BUNDLES = os.getenv("USE_MEV_BUNDLES", "0").lower() in {"1", "true", "yes"}
+USE_MEV_BUNDLES = parse_bool_env("USE_MEV_BUNDLES", False)
 
 # Path search configuration
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3") or 3)
 PATH_ALGORITHM = os.getenv("PATH_ALGORITHM", "graph")
-USE_NUMBA_ROUTE = os.getenv("USE_NUMBA_ROUTE", "0").lower() in {"1", "true", "yes"}
-USE_GNN_ROUTING = os.getenv("USE_GNN_ROUTING", "0").lower() in {"1", "true", "yes"}
+USE_NUMBA_ROUTE = parse_bool_env("USE_NUMBA_ROUTE", False)
+USE_GNN_ROUTING = parse_bool_env("USE_GNN_ROUTING", False)
 GNN_MODEL_PATH = os.getenv("GNN_MODEL_PATH", "route_gnn.pt")
 ROUTE_GENERATOR_PATH = os.getenv("ROUTE_GENERATOR_PATH", "route_generator.pt")
 
