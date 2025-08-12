@@ -65,7 +65,6 @@ buffer_handler: logging.Handler | None = None
 _SUBSCRIPTIONS: list[Any] = []
 
 # Ensure event bus subscriptions are cleaned up when the application context ends
-@bp.teardown_appcontext
 def _clear_subscriptions(_exc: Exception | None) -> None:
     """Terminate all active event bus subscriptions."""
     for sub in _SUBSCRIPTIONS:
@@ -74,6 +73,12 @@ def _clear_subscriptions(_exc: Exception | None) -> None:
         except Exception:
             pass
     _SUBSCRIPTIONS.clear()
+
+
+@bp.record_once
+def _register_clear_subscriptions(state: Any) -> None:
+    """Register teardown to clear event bus subscriptions once app is ready."""
+    state.app.teardown_appcontext(_clear_subscriptions)
 
 # websocket state for streaming log lines
 log_ws_clients: set[Any] = set()
