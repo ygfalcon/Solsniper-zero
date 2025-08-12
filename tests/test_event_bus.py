@@ -389,6 +389,9 @@ async def test_event_bus_peers(monkeypatch):
         "solhunter_zero.config.get_event_bus_peers", lambda *_: ["ws://a", "ws://b"]
     )
     monkeypatch.setattr("solhunter_zero.config.get_event_bus_url", lambda *_: "")
+    monkeypatch.setattr(
+        "solhunter_zero.resource_monitor.start_monitor", lambda *a, **k: None
+    )
 
     ev = importlib.reload(ev)
 
@@ -425,12 +428,32 @@ async def test_reload_bus_requires_ws_urls(monkeypatch):
         ev._reload_bus(None)
 
     monkeypatch.setattr("solhunter_zero.config.get_event_bus_peers", lambda *_: [])
-    with pytest.raises(
-        RuntimeError, match="BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
-    ):
-        ev._reload_bus(None)
+    called = {}
+
+    async def fake_start(host, port):
+        called["host"] = host
+        called["port"] = port
+
+    async def fake_reachable(urls, timeout=1.0):
+        return set()
+
+    connected: list[str] = []
+
+    async def fake_connect(url):
+        connected.append(url)
+
+    monkeypatch.setattr(ev, "start_ws_server", fake_start)
+    monkeypatch.setattr(ev, "_reachable_ws_urls", fake_reachable)
+    monkeypatch.setattr(ev, "connect_ws", fake_connect)
+
+    ev._reload_bus(None)
+    await asyncio.sleep(0)
+
+    assert called == {"host": "127.0.0.1", "port": 8765}
+    assert connected == [ev.DEFAULT_WS_URL]
 
     importlib.reload(ev)
+
 
 
 @pytest.mark.asyncio

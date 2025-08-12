@@ -156,7 +156,7 @@ def generate_config() -> dict:
 
     cfg_path, cfg = ensure_config()
     defaults = {
-        "BROKER_WS_URLS": "",
+        "BROKER_WS_URLS": "ws://127.0.0.1:8765",
         "solana_rpc_url": "https://api.mainnet-beta.solana.com",
         "dex_base_url": "https://quote-api.jup.ag",
     }
