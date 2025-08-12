@@ -30,6 +30,8 @@ from solhunter_zero.preflight_utils import (
 )
 from solhunter_zero.logging_utils import log_startup
 
+__all__ = ["CHECKS", "run_preflight", "main", "check_internet"]
+
 
 CHECKS: List[Tuple[str, Callable[[], Check]]] = [
     ("Python", check_python_version),
