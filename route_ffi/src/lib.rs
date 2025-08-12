@@ -345,7 +345,7 @@ pub extern "C" fn free_cstring(ptr: *mut c_char) {
 
 #[no_mangle]
 pub extern "C" fn route_parallel_enabled() -> bool {
-    false
+    cfg!(feature = "parallel")
 }
 
 #[derive(Serialize, Deserialize)]
