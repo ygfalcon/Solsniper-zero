@@ -33,6 +33,10 @@ except Exception:  # pragma: no cover - optional import for CI
 
 REPORT_PATH = ROOT / "macos_setup_report.json"
 
+PY_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
+PY_CMD = Path(sys.executable).name
+PY_FORMULA = f"python@{PY_VERSION}"
+
 
 def _write_report(report: dict[str, object]) -> None:
     """Persist the macOS setup report to ``REPORT_PATH``."""
@@ -63,7 +67,7 @@ def _detect_missing_tools() -> list[str]:
             missing.append("xcode-select")
     except FileNotFoundError:
         missing.append("xcode-select")
-    for cmd in ("brew", "python3.11", "rustup"):
+    for cmd in ("brew", PY_CMD, "rustup"):
         if shutil.which(cmd) is None:
             missing.append(cmd)
     return missing
@@ -187,7 +191,7 @@ def install_brew_packages() -> None:
         [
             "brew",
             "install",
-            "python@3.11",
+            PY_FORMULA,
             "rustup-init",
             "pkg-config",
             "cmake",
@@ -235,14 +239,15 @@ def ensure_profile() -> None:
 
 
 def upgrade_pip_and_torch() -> None:
-    if shutil.which("python3.11") is None:
+    py = sys.executable
+    if shutil.which(py) is None:
         return
-    _run_with_retry(["python3.11", "-m", "pip", "install", "--upgrade", "pip"])
+    _run_with_retry([py, "-m", "pip", "install", "--upgrade", "pip"])
     if not TORCH_METAL_VERSION or not TORCHVISION_METAL_VERSION:
         return
     _run_with_retry(
         [
-            "python3.11",
+            py,
             "-m",
             "pip",
             "install",
@@ -255,7 +260,7 @@ def upgrade_pip_and_torch() -> None:
 
 def verify_tools() -> None:
     missing = []
-    for tool in ["python3.11", "brew", "rustup"]:
+    for tool in [sys.executable, "brew", "rustup"]:
         if shutil.which(tool) is None:
             missing.append(tool)
     if missing:
@@ -280,10 +285,10 @@ def install_deps() -> None:
 MANUAL_FIXES = {
     "xcode": "Install Xcode command line tools with 'xcode-select --install' and rerun the script.",
     "homebrew": "Install Homebrew from https://brew.sh and ensure it is on your PATH.",
-    "brew_packages": "Run 'brew install python@3.11 rustup-init pkg-config cmake protobuf'.",
+    "brew_packages": f"Run 'brew install {PY_FORMULA} rustup-init pkg-config cmake protobuf'.",
     "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
     "pip_torch": (
-        "Ensure python3.11 is installed then run 'python3.11 -m pip install --upgrade pip '"
+        f"Ensure {PY_CMD} is installed then run '{PY_CMD} -m pip install --upgrade pip '"
         f"'torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} {' '.join(METAL_EXTRA_INDEX)}'."
     ),
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
@@ -310,7 +315,7 @@ AUTO_FIXES: dict[str, Callable[[], None]] = {
         [
             "brew",
             "install",
-            "python@3.11",
+            PY_FORMULA,
             "rustup-init",
             "pkg-config",
             "cmake",
@@ -407,7 +412,7 @@ def ensure_tools(*, non_interactive: bool = True) -> dict[str, object]:
     """Ensure essential macOS development tools are present.
 
     On Apple Silicon Macs this checks for Homebrew, Xcode command line tools,
-    Python 3.11 and rustup.  If any are missing ``prepare_macos_env`` is
+    Python and rustup.  If any are missing ``prepare_macos_env`` is
     invoked to install them.  A report dictionary is returned mirroring
     ``prepare_macos_env``'s output and listing any missing components.
     """
