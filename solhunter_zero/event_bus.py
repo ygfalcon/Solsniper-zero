@@ -4,6 +4,8 @@ import asyncio
 import inspect
 import logging
 
+from urllib.parse import urlparse
+
 from .util import install_uvloop
 
 install_uvloop()
@@ -1518,6 +1520,28 @@ def _validate_ws_urls(urls: Iterable[str]) -> Set[str]:
         )
     return urls_set
 
+async def _reachable_ws_urls(
+    urls: Iterable[str], timeout: float = 1.0
+) -> Set[str]:
+    """Return subset of ``urls`` that respond to a TCP connection."""
+    reachable: Set[str] = set()
+    for u in urls:
+        try:
+            parsed = urlparse(u)
+            host = parsed.hostname
+            if not host:
+                continue
+            port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout
+            )
+            writer.close()
+            await writer.wait_closed()
+            reachable.add(u)
+        except Exception:
+            continue
+    return reachable
+
 
 def _resolve_ws_urls(cfg) -> Set[str]:
     """Return validated websocket broker URLs from env or config."""
@@ -1544,7 +1568,13 @@ def _reload_bus(cfg) -> None:
 
     async def _reconnect() -> None:
         await disconnect_ws()
-        for u in urls:
+        reachable = await _reachable_ws_urls(urls)
+        if not reachable:
+            raise RuntimeError(
+                "No websocket brokers responded at BROKER_WS_URLS. "
+                "Start the broker (e.g. via start.command) or set BROKER_WS_URLS to a running ws:// URL."
+            )
+        for u in reachable:
             await connect_ws(u)
 
     try:
