@@ -8,6 +8,7 @@ import os
 import sys
 import subprocess
 import shutil
+import tomllib
 
 from solhunter_zero.macos_setup import ensure_tools
 import solhunter_zero.env_config as env_config
@@ -18,11 +19,42 @@ from solhunter_zero import device
 from solhunter_zero.logging_utils import log_startup
 
 
+REQUIRED_CFG_KEYS = {
+    "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+    "dex_base_url": "https://quote-api.jup.ag",
+    "agents": ["simulation"],
+    "agent_weights": {"simulation": 1.0},
+}
+
+
+def _validate_config(path: os.PathLike[str]) -> None:
+    """Ensure the configuration file contains required settings."""
+    with open(path, "rb") as fh:
+        cfg = tomllib.load(fh)
+
+    missing = [k for k in REQUIRED_CFG_KEYS if k not in cfg or not cfg[k]]
+    if missing:
+        print(
+            f"Missing required keys in {path}: {', '.join(missing)}",
+            file=sys.stderr,
+        )
+        example = (
+            "solana_rpc_url = \"https://api.mainnet-beta.solana.com\"\n"
+            "dex_base_url = \"https://quote-api.jup.ag\"\n"
+            "agents = [\"simulation\"]\n\n"
+            "[agent_weights]\n"
+            "simulation = 1.0\n"
+        )
+        print("Example configuration:\n\n" + example, file=sys.stderr)
+        sys.exit(1)
+
+
 def main(argv: list[str] | None = None) -> None:
     """Execute the automated setup steps then run the autopilot."""
     ensure_tools(non_interactive=True)
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
+    _validate_config(quick_setup.CONFIG_PATH)
     ensure_deps(install_optional=True)
 
     if shutil.which("cargo") and shutil.which("rustup"):
