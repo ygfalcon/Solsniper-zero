@@ -19,6 +19,11 @@ def test_start_command_invokes_launcher():
     assert any("solhunter_zero.launcher" in line for line in lines)
 
 
+def test_paper_command_invokes_script() -> None:
+    lines = _script_lines("paper.command")
+    assert any("exec ./paper.py \"$@\"" in line for line in lines)
+
+
 
 def test_startup_non_interactive(monkeypatch, tmp_path):
     from scripts import startup
