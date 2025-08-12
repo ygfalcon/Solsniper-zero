@@ -21,6 +21,7 @@ from urllib.request import urlopen
 
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from solhunter_zero.simple_bot import run as run_simple_bot
+import solhunter_zero.investor_demo as investor_demo
 
 
 # Public Codex endpoint providing recent SOL/USD candles.  The exact source is
@@ -94,17 +95,40 @@ def run(argv: List[str] | None = None) -> None:
         action="store_true",
         help="Fetch live market data via Codex, falling back to sample ticks",
     )
+    parser.add_argument(
+        "--preset",
+        choices=sorted(investor_demo.PRESET_DATA_FILES.keys()),
+        default=None,
+        help="Bundled price dataset to use",
+    )
+    parser.add_argument(
+        "--learn",
+        action="store_true",
+        help="Run a tiny learning loop that rotates strategy weights",
+    )
+    parser.add_argument(
+        "--rl-demo",
+        action="store_true",
+        help="Run a lightweight RL demo using a tiny pre-trained stub",
+    )
     args = parser.parse_args(argv)
 
-    dataset: Path | None = None
-    if args.fetch_live:
-        dataset = _fetch_live_dataset()
+    if args.preset and (args.ticks or args.fetch_live):
+        raise ValueError("Cannot combine --preset with --ticks/--fetch-live")
 
-    if dataset is None:
-        ticks = load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
-        dataset = _ticks_to_price_file(ticks)
+    dataset: str | Path | None = None
+    if args.preset:
+        dataset = args.preset
+    else:
+        if args.fetch_live:
+            dataset = _fetch_live_dataset()
+        if dataset is None:
+            ticks = (
+                load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
+            )
+            dataset = _ticks_to_price_file(ticks)
 
-    run_simple_bot(dataset, args.reports)
+    run_simple_bot(dataset, args.reports, learn=args.learn, rl_demo=args.rl_demo)
 
 
 if __name__ == "__main__":  # pragma: no cover
