@@ -54,8 +54,28 @@ def main(argv: list[str] | None = None) -> None:
     ensure_tools(non_interactive=True)
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
-    _validate_config(quick_setup.CONFIG_PATH)
+    cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
+    if cfg_path:
+        _validate_config(cfg_path)
     ensure_deps(install_optional=True)
+
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        METAL_INDEX = (
+            device.METAL_EXTRA_INDEX[1]
+            if len(getattr(device, "METAL_EXTRA_INDEX", [])) > 1
+            else "https://download.pytorch.org/whl/metal"
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                ".[fastjson,fastcompress,msgpack]",
+                "--extra-index-url",
+                METAL_INDEX,
+            ]
+        )
 
     if shutil.which("cargo") and shutil.which("rustup"):
         try:
