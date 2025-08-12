@@ -19,6 +19,7 @@ from solhunter_zero.paths import ROOT
 from scripts import preflight  # noqa: E402
 from scripts import deps  # noqa: E402
 import solhunter_zero.bootstrap_utils as bootstrap_utils
+from solhunter_zero.bootstrap_utils import ensure_deps
 from solhunter_zero import preflight_utils  # noqa: E402
 from solhunter_zero import device  # noqa: E402
 
