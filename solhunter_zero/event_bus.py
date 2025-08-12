@@ -53,6 +53,8 @@ if not _EVENT_SERIALIZATION:
 _EVENT_SERIALIZATION = _EVENT_SERIALIZATION.lower()
 _USE_MSGPACK = msgpack is not None and _EVENT_SERIALIZATION == "msgpack"
 
+DEFAULT_WS_URL = "ws://127.0.0.1:8765"
+
 try:  # optional redis / nats support
     import redis.asyncio as aioredis  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -1512,9 +1514,14 @@ _ENV_PEERS: Set[str] = set()
 
 
 def _validate_ws_urls(urls: Iterable[str]) -> Set[str]:
-    """Ensure ``urls`` contains at least one valid websocket URI."""
+    """Ensure ``urls`` contains at least one valid websocket URI.
+
+    If no URLs are provided, default to the embedded broker URL.
+    """
     urls_set = {u.strip() for u in urls if u and u.strip()}
-    if not urls_set or any(not u.startswith(("ws://", "wss://")) for u in urls_set):
+    if not urls_set:
+        urls_set = {DEFAULT_WS_URL}
+    if any(not u.startswith(("ws://", "wss://")) for u in urls_set):
         raise RuntimeError(
             "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
         )
@@ -1570,10 +1577,17 @@ def _reload_bus(cfg) -> None:
         await disconnect_ws()
         reachable = await _reachable_ws_urls(urls)
         if not reachable:
-            raise RuntimeError(
-                "No websocket brokers responded at BROKER_WS_URLS. "
-                "Start the broker (e.g. via start.command) or set BROKER_WS_URLS to a running ws:// URL."
-            )
+            if urls == {DEFAULT_WS_URL}:
+                parsed = urlparse(DEFAULT_WS_URL)
+                host = parsed.hostname or "127.0.0.1"
+                port = parsed.port or 8765
+                await start_ws_server(host, port)
+                reachable = {DEFAULT_WS_URL}
+            else:
+                raise RuntimeError(
+                    "No websocket brokers responded at BROKER_WS_URLS. "
+                    "Start the broker (e.g. via start.command) or set BROKER_WS_URLS to a running ws:// URL."
+                )
         for u in reachable:
             await connect_ws(u)
 
