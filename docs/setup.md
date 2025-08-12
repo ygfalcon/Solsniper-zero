@@ -175,20 +175,16 @@ forwards to the Python launcher for a fully automated start.
    ```
    The run writes a machine-readable summary to `macos_setup_report.json` so you can review each step's result without scanning the full log.
 2. The startup script automatically installs the Metal-enabled PyTorch build on Apple Silicon. To install manually, run:
-   ```bash
-   pip install torch==2.8.0 torchvision==0.23.0 \
-     --extra-index-url https://download.pytorch.org/whl/metal
-   ```
-   The default `config.toml` sets `torch_metal_version = "2.8.0"` and
-   `torchvision_metal_version = "0.23.0"`. Adjust these in the `[torch]`
-   section or via the `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION`
-   environment variables if newer compatible builds are available.
+    ```bash
+    pip install torch==2.8.0 torchvision==0.23.0 \
+      --extra-index-url https://download.pytorch.org/whl/metal
+    ```
+    The default `config.toml` sets `torch_metal_version = "2.8.0"` and
+    `torchvision_metal_version = "0.23.0"`. Adjust these in the `[torch]`
+    section or via the `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION`
+    environment variables if newer compatible builds are available.
 
-3. Enable CPU fallback for unsupported MPS operations:
-   ```bash
-   export PYTORCH_ENABLE_MPS_FALLBACK=1
-   ```
-   Add this to your shell profile to persist across sessions.
+Note: `solhunter_zero.device.initialize_gpu` automatically exports `PYTORCH_ENABLE_MPS_FALLBACK=1` so unsupported MPS operations fall back to the CPU. Set `PYTORCH_ENABLE_MPS_FALLBACK=0` before calling `initialize_gpu` to disable the fallback.
 
 ### Troubleshooting
 
