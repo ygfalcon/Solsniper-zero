@@ -23,6 +23,7 @@ IMPORT_NAME_MAP = {
     "faiss-cpu": "faiss",
     "opencv-python": "cv2",
     "beautifulsoup4": "bs4",
+    "grpcio-tools": "grpc_tools",
 }
 
 OPTIONAL_DEPS = [
@@ -41,6 +42,10 @@ def check_deps() -> tuple[list[str], list[str]]:
     with open(ROOT / "pyproject.toml", "rb") as fh:
         data = tomllib.load(fh)
     deps = data.get("project", {}).get("dependencies", [])
+    build_deps = data.get("build-system", {}).get("requires", [])
+    for dep in build_deps:
+        if dep.startswith("grpcio-tools"):
+            deps.append(dep)
     missing_required: list[str] = []
     for dep in deps:
         dist_name = re.split("[<=>]", dep)[0]
