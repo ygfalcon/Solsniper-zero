@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from solhunter_zero.util import run_coro
@@ -45,6 +46,8 @@ def test_paper_cli(tmp_path: Path, monkeypatch, capsys, shared_prices) -> None:
     assert all(v > 0 for v in data.values())
     # Trades were logged via the asynchronous memory path for every strategy
     trades = run_coro(mem.list_trades(limit=1000))
-    reasons = {t.reason for t in trades}
-    assert reasons == expected
-    assert len(trades) == len(expected) * 2
+    counts = Counter(t.reason for t in trades)
+    # Each strategy should have exactly two trades (buy and sell)
+    assert set(counts) == expected
+    for strat in expected:
+        assert counts[strat] == 2
