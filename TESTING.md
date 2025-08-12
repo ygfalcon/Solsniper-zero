@@ -23,6 +23,33 @@ Then run the tests from the project root:
 pytest
 ```
 
+## Demo and paper CLI
+
+`demo.py` and `paper.py` now delegate to the same
+`solhunter_zero.simple_bot.run` helper so both workflows share a compact
+reporting pipeline.  The demo consumes bundled price presets while the paper
+CLI can optionally fetch live data before running the identical investor
+engine.
+
+Run the demo against the bundled dataset:
+
+```bash
+python demo.py --reports reports --preset short
+```
+
+Run the paper CLI and fetch recent prices from Codex:
+
+```bash
+python paper.py --reports reports --fetch-live
+```
+
+The `--fetch-live` flag downloads SOL/USD candles from a public Codex
+endpoint and falls back to bundled samples when the request fails.  Set
+`SOLHUNTER_PATCH_INVESTOR_DEMO=1` when heavy dependencies such as `torch`
+are unavailable so that lightweight stubs are used instead.  Offline
+environments may omit `--fetch-live` or supply `--ticks`/`--preset` to run
+entirely on local data.
+
 ## Investor demo
 
 The investor demo performs a small rolling backtest and writes lightweight
@@ -32,24 +59,16 @@ reports for each strategy. Run its test directly to generate these files:
 pytest tests/test_investor_demo.py
 ```
 
-The test stores `summary.json`, `summary.csv`, `trade_history.csv` and
+The test stores `summary.json`, `summary.csv`, `trade_history.json` and
 `highlights.json` in a temporary reports directory. Each entry lists the
 configuration name along with metrics such as ROI, Sharpe ratio, maximum
 drawdown and final capital for strategies like `buy_hold`, `momentum` and
 `mixed`. Inspect any of the files to compare strategy performance.
 
-To run the demo from the command line specify an output folder. It is designed
-to run quickly even in restricted environments and accepts additional options to
-control the input data and starting capital:
+After running the CLI, inspect the generated reports as needed:
 
 ```bash
-python demo.py --reports reports --data data.csv --capital 1000
-```
-
-After it finishes, inspect the generated reports:
-
-```bash
-head reports/trade_history.csv
+head reports/trade_history.json
 python -m json.tool reports/highlights.json
 ```
 
@@ -64,7 +83,7 @@ pytest tests/test_paper.py
 Run the CLI directly with live prices:
 
 ```bash
-python paper.py --reports reports --url https://example.com/prices.json
+python paper.py --reports reports --fetch-live
 ```
 
 ## Startup integration flow
