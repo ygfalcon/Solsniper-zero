@@ -65,8 +65,8 @@ def main(argv: list[str] | None = None) -> None:
                     "build",
                     "--release",
                     "--features=parallel",
-                    "-p",
-                    "route_ffi",
+                    "--manifest-path",
+                    "route_ffi/Cargo.toml",
                 ],
                 cwd=ROOT,
             )
