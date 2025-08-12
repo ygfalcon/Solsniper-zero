@@ -24,7 +24,13 @@ from urllib.request import urlopen
 import solhunter_zero.investor_demo as investor_demo
 
 
-def run(dataset: str | Path | None, reports: Path) -> None:
+def run(
+    dataset: str | Path | None,
+    reports: Path,
+    *,
+    learn: bool = False,
+    rl_demo: bool = False,
+) -> None:
     """Invoke :func:`investor_demo.main` with the given dataset.
 
     Parameters
@@ -36,7 +42,13 @@ def run(dataset: str | Path | None, reports: Path) -> None:
         existing path on disk the file is used directly.  Otherwise the value
         is forwarded as a preset name.
     reports:
-        Directory where investor_demo will write its output.
+        Directory where :mod:`investor_demo` will write its output.
+    learn:
+        When ``True`` the tiny learning loop in :mod:`investor_demo` is
+        executed.
+    rl_demo:
+        When ``True`` the lightweight reinforcement learning demo is run and
+        metrics are written.
     """
 
     reports.mkdir(parents=True, exist_ok=True)
@@ -52,6 +64,10 @@ def run(dataset: str | Path | None, reports: Path) -> None:
             pass
 
     forwarded = ["--reports", str(reports)]
+    if rl_demo:
+        forwarded.append("--rl-demo")
+    if learn:
+        forwarded.append("--learn")
 
     if dataset:
         ds = str(dataset)
