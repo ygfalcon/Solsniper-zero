@@ -101,7 +101,20 @@ async def _live_flow(dataset: Path, reports: Path) -> None:
     price = float(data[0]["price"]) if data else 0.0
 
     memory = Memory("sqlite:///:memory:")
-    wallet.load_keypair("dummy")
+    try:
+        wallet.load_keypair("dummy")
+    except FileNotFoundError:
+        stub = Path("keypairs/default.json")
+        if stub.exists():
+            wallet.load_keypair(str(stub))
+        else:  # pragma: no cover - temporary keypair generation
+            from solders.keypair import Keypair
+
+            kp = Keypair()
+            tmp = tempfile.NamedTemporaryFile("w", delete=False, suffix=".json")
+            json.dump(list(kp.to_bytes()), tmp)
+            tmp.close()
+            wallet.load_keypair(tmp.name)
     await routeffi.best_route({}, 1.0)
     await depth_client.snapshot("FAKE")
     trade = {"token": "FAKE", "side": "buy", "amount": 1.0, "price": price}
