@@ -317,5 +317,9 @@ def _reset_event_bus():
 
 @pytest.fixture
 def shared_prices() -> list[float]:
-    """Deterministic price series shared across demo tests."""
+    """Deterministic price series used by both demo paths.
+
+    The paper trading CLI and the investor demo share this fixture so that the
+    underlying trading engine receives identical inputs in tests.
+    """
     return [100.0, 90.0, 95.0, 105.0]

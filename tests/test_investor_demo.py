@@ -44,10 +44,12 @@ def test_investor_demo(tmp_path: Path, monkeypatch, capsys, shared_prices) -> No
     summary = json.loads((reports / "summary.json").read_text())
     trade_hist = json.loads((reports / "trade_history.json").read_text())
     expected = {"buy_hold", "momentum", "mean_reversion"}
+
     for strat in expected:
         row = next((r for r in summary if r["config"] == strat), None)
         assert row is not None
         assert row["trades"] > 0
-        assert "roi" in row
+        assert row["roi"] > 0
+
     recorded = {t["strategy"] for t in trade_hist}
     assert expected.issubset(recorded)
