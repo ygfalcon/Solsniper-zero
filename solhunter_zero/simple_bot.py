@@ -24,7 +24,13 @@ from urllib.request import urlopen
 import solhunter_zero.investor_demo as investor_demo
 
 
-def run(dataset: str | Path | None, reports: Path) -> None:
+def run(
+    dataset: str | Path | None,
+    reports: Path,
+    *,
+    price_streams: dict[str, str] | None = None,
+    tokens: list[str] | None = None,
+) -> None:
     """Invoke :func:`investor_demo.main` with the given dataset.
 
     Parameters
@@ -37,6 +43,13 @@ def run(dataset: str | Path | None, reports: Path) -> None:
         is forwarded as a preset name.
     reports:
         Directory where investor_demo will write its output.
+    price_streams:
+        Optional mapping of ``venue`` to websocket ``url`` specifying live price
+        streams.  When provided the underlying demo attaches a
+        :class:`solhunter_zero.price_stream_manager.PriceStreamManager` which
+        feeds price updates into the event bus.
+    tokens:
+        Explicit list of tokens to subscribe to in the provided price streams.
     """
 
     reports.mkdir(parents=True, exist_ok=True)
@@ -68,6 +81,12 @@ def run(dataset: str | Path | None, reports: Path) -> None:
                 forwarded.extend(["--data", str(path)])
             else:
                 forwarded.extend(["--preset", ds])
+
+    if price_streams:
+        spec = ",".join(f"{k}={v}" for k, v in price_streams.items())
+        forwarded.extend(["--price-streams", spec])
+        if tokens:
+            forwarded.extend(["--tokens", ",".join(tokens)])
 
     investor_demo.main(forwarded)
 

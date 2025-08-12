@@ -638,13 +638,22 @@ with `pip install -e .[dev]` before running the tests. The complete test suite
 requires heavy packages such as `torch`, `transformers` and `faiss`.
 
 After setting up the environment you can run a short paper-trading simulation
-which mirrors the investor demo and can source live prices:
+which mirrors the investor demo.  Fetch recent prices or reuse bundled
+samples:
 
 ```bash
-python paper.py --reports reports --url https://example.com/prices.json
+python paper.py --reports reports --fetch-live
 ```
 
-Omit ``--url`` to reuse one of the bundled preset datasets.
+Live websocket streams may also be supplied.  Missing websocket dependencies
+or connection errors are ignored so the script still functions without
+external services:
+
+```bash
+python paper.py --reports reports --price-streams demo=wss://example.com/price --tokens SOL
+```
+
+Omit these flags to reuse one of the bundled preset datasets.
 
 ## License
 

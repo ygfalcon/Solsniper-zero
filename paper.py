@@ -1,12 +1,16 @@
 """Minimal paper trading CLI using :mod:`solhunter_zero` strategies.
 
-This script delegates to :func:`solhunter_zero.simple_bot.run`, the same
-helper used by ``demo.py``.  It accepts either a local tick dataset or, when
+This script delegates to :func:`solhunter_zero.simple_bot.run`, the same helper
+used by ``demo.py``.  It accepts either a local tick dataset or, when
 ``--fetch-live`` is supplied, attempts to download recent market data via a
 Codex endpoint.  If the live fetch fails the bundled sample ticks are used
-instead.  The underlying :mod:`solhunter_zero.investor_demo` engine writes
-``summary.json``, ``trade_history.json`` and ``highlights.json`` reports so
-that downstream tests can compare results across the demo and paper workflows.
+instead.  When ``--price-streams`` is provided the CLI subscribes to live
+websocket feeds using :class:`solhunter_zero.price_stream_manager.PriceStreamManager`.
+Missing websocket dependencies or connection errors are ignored so the script
+remains runnable in Codex without external services.  The underlying
+:mod:`solhunter_zero.investor_demo` engine writes ``summary.json``,
+``trade_history.json`` and ``highlights.json`` reports so that downstream tests
+can compare results across the demo and paper workflows.
 """
 
 from __future__ import annotations
@@ -94,6 +98,16 @@ def run(argv: List[str] | None = None) -> None:
         action="store_true",
         help="Fetch live market data via Codex, falling back to sample ticks",
     )
+    parser.add_argument(
+        "--price-streams",
+        default=None,
+        help="Comma-separated venue=url pairs for live price streams",
+    )
+    parser.add_argument(
+        "--tokens",
+        default=None,
+        help="Comma-separated tokens to subscribe to in price streams",
+    )
     args = parser.parse_args(argv)
 
     dataset: Path | None = None
@@ -104,7 +118,23 @@ def run(argv: List[str] | None = None) -> None:
         ticks = load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
         dataset = _ticks_to_price_file(ticks)
 
-    run_simple_bot(dataset, args.reports)
+    streams = None
+    if args.price_streams:
+        streams = {}
+        for spec in str(args.price_streams).split(','):
+            if not spec:
+                continue
+            if '=' not in spec:
+                parser.error("--price-streams requires venue=url pairs")
+            venue, url = spec.split('=', 1)
+            streams[venue.strip()] = url.strip()
+    tokens = (
+        [t.strip() for t in str(args.tokens).split(',') if t.strip()]
+        if args.tokens
+        else None
+    )
+
+    run_simple_bot(dataset, args.reports, price_streams=streams, tokens=tokens)
 
 
 if __name__ == "__main__":  # pragma: no cover
