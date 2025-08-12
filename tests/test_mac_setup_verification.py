@@ -49,6 +49,6 @@ fi
     result = subprocess.run([sys.executable, str(mac_setup), '--non-interactive'], cwd=tmp_path, env=env, capture_output=True, text=True)
 
     assert result.returncode != 0
-    assert 'Missing python3.11' in result.stdout
+    assert 'Missing rustup' in result.stdout
     profile = tmp_path / '.bash_profile'
     assert not profile.exists()
