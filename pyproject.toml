@@ -68,7 +68,11 @@ solhunter-start = "solhunter_zero.launcher:main"
 solhunter-one-click = "scripts.setup_one_click:main"
 
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = [
+    "setuptools>=61",
+    "wheel",
+    "grpcio-tools>=1.60,<2.0",
+]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
