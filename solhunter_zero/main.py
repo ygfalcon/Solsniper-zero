@@ -413,6 +413,7 @@ def run_auto(**kwargs) -> None:
     cfg = apply_env_overrides(cfg)
     prev_agents = os.environ.get("AGENTS")
     prev_weights = os.environ.get("AGENT_WEIGHTS")
+    prev_keypair_path = os.environ.get("KEYPAIR_PATH")
     set_env_from_config(cfg)
 
     try:
@@ -439,6 +440,10 @@ def run_auto(**kwargs) -> None:
             os.environ.pop("AGENT_WEIGHTS", None)
         else:
             os.environ["AGENT_WEIGHTS"] = prev_weights
+        if prev_keypair_path is None:
+            os.environ.pop("KEYPAIR_PATH", None)
+        else:
+            os.environ["KEYPAIR_PATH"] = prev_keypair_path
 
 
 if __name__ == "__main__":
