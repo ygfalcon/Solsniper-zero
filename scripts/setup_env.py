@@ -17,11 +17,6 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 import venv
 
-try:  # Python 3.11+
-    import tomllib  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore
-
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -55,6 +50,8 @@ def install_project() -> None:
         "grpcio-tools",
         "scikit-learn",
         "PyYAML",
+        "redis",
+        "psutil",
     ]
     pip_install(["-e", *packages])
 
@@ -91,7 +88,16 @@ def build_route_ffi() -> None:
     crate_dir = ROOT / "route_ffi"
     if not crate_dir.exists():
         return
-    run(["cargo", "build", "--release", "--features=parallel"], cwd=crate_dir)
+    run(
+        [
+            "cargo",
+            "build",
+            "--release",
+            "--features=parallel",
+            "--manifest-path",
+            str(crate_dir / "Cargo.toml"),
+        ]
+    )
     target = crate_dir / "target" / "release"
     if sys.platform == "darwin":
         libname = "libroute_ffi.dylib"
@@ -127,6 +133,8 @@ def print_summary() -> None:
         "grpcio-tools",
         "scikit-learn",
         "PyYAML",
+        "redis",
+        "psutil",
         "torch",
         "torchvision",
     ]
@@ -140,14 +148,28 @@ def print_summary() -> None:
     print("\nNext steps:")
     print("  - export BROKER_WS_URLS")
     print("  - export BIRDEYE_API_KEY")
+    print("  - run scripts/start_all.py")
 
 
-def load_config() -> dict:
-    cfg_path = ROOT / "config.toml"
-    if cfg_path.exists():
-        with cfg_path.open("rb") as f:
-            return tomllib.load(f)
-    return {}
+def generate_config() -> dict:
+    from solhunter_zero.config_bootstrap import ensure_config, _ensure_tomli_w
+
+    cfg_path, cfg = ensure_config()
+    defaults = {
+        "BROKER_WS_URLS": "",
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+    }
+    updated = False
+    for key, val in defaults.items():
+        if not cfg.get(key):
+            cfg[key] = val
+            updated = True
+    if updated:
+        tomli_w = _ensure_tomli_w()
+        with cfg_path.open("wb") as fh:
+            fh.write(tomli_w.dumps(cfg).encode("utf-8"))
+    return cfg
 
 
 def main() -> None:
@@ -155,7 +177,7 @@ def main() -> None:
     print(f"Platform: {platform.platform()}")
 
     ensure_venv()
-    cfg = load_config()
+    cfg = generate_config()
     install_brew_packages()
     preflight(cfg)
     install_project()
