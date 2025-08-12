@@ -261,6 +261,14 @@ working entirely with simulated data, but must be running for live trading.
 
 ### Build
 
+`solhunter_zero.service_launcher.start_depth_service` automatically compiles the
+Rust depth service when the binary is missing, so most setups do not require
+manual steps.
+
+#### Advanced/Custom build
+
+If you need to build manually (for custom paths or optimizations):
+
 1. Install the Rust toolchain if it is not already available.  The service is
    built with [`cargo`](https://doc.rust-lang.org/cargo/).
 2. From the project root run:
