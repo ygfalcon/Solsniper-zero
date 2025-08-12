@@ -1,24 +1,23 @@
-"""Paper trading CLI mirroring the investor demo with live data support."""
+"""Paper trading CLI delegating to :mod:`solhunter_zero.simple_bot`."""
 
 from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
 from pathlib import Path
-from urllib.request import urlopen
 
+from solhunter_zero.simple_bot import run as run_simple_bot
 import solhunter_zero.investor_demo as investor_demo
 
 
 def run(argv: list[str] | None = None) -> None:
     """Execute the investor demo using either preset or live price data.
 
-    This lightweight wrapper simply forwards arguments to
-    :func:`solhunter_zero.investor_demo.main`.  When ``--url`` is provided the
-    JSON response is downloaded and passed to the demo as a temporary data file
-    so that the run uses up-to-date market information.  Otherwise the selected
-    preset dataset is used.
+    ``paper.py`` previously reimplemented a small wrapper around
+    :func:`solhunter_zero.investor_demo.main`.  The logic now lives in
+    :mod:`solhunter_zero.simple_bot` so that both the standalone demo and this
+    CLI share a common implementation.  The function simply parses the dataset
+    options and forwards them to :func:`simple_bot.run`.
     """
 
     parser = argparse.ArgumentParser(description="Run the investor demo with optional live prices")
@@ -43,19 +42,11 @@ def run(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     args.reports.mkdir(parents=True, exist_ok=True)
 
-    forwarded = ["--reports", str(args.reports)]
+    if args.url and args.preset:
+        raise ValueError("Provide only one of --url or --preset")
 
-    if args.url:
-        with urlopen(args.url, timeout=10) as resp:
-            data = resp.read().decode("utf-8")
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as fh:
-            fh.write(data)
-            tmp_path = fh.name
-        forwarded.extend(["--data", tmp_path])
-    elif args.preset:
-        forwarded.extend(["--preset", args.preset])
-
-    investor_demo.main(forwarded)
+    dataset = args.url or args.preset
+    run_simple_bot(dataset, args.reports)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import paper
+import solhunter_zero.simple_bot as simple_bot
 
 
 def test_paper_fetches_url_and_forwards(tmp_path, monkeypatch):
@@ -26,14 +27,14 @@ def test_paper_fetches_url_and_forwards(tmp_path, monkeypatch):
         def read(self) -> bytes:
             return dataset.encode("utf-8")
 
-    monkeypatch.setattr(paper, "urlopen", lambda *a, **k: DummyResp())
+    monkeypatch.setattr(simple_bot, "urlopen", lambda *a, **k: DummyResp())
 
     called: dict[str, list[str]] = {}
 
     def fake_main(args: list[str]) -> None:
         called["args"] = list(args)
 
-    monkeypatch.setattr(paper.investor_demo, "main", fake_main)
+    monkeypatch.setattr(simple_bot.investor_demo, "main", fake_main)
 
     reports = tmp_path / "reports"
     paper.run(["--reports", str(reports), "--url", "http://example"])
@@ -53,7 +54,7 @@ def test_paper_forwards_preset(tmp_path, monkeypatch):
     def fake_main(args: list[str]) -> None:
         called["args"] = list(args)
 
-    monkeypatch.setattr(paper.investor_demo, "main", fake_main)
+    monkeypatch.setattr(simple_bot.investor_demo, "main", fake_main)
 
     reports = tmp_path / "out"
     paper.run(["--reports", str(reports), "--preset", "short"])
