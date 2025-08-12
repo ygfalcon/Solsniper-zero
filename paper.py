@@ -1,47 +1,80 @@
 """Minimal paper trading CLI using :mod:`solhunter_zero` strategies.
 
-This script loads a price history, runs the demo strategies from
-``solhunter_zero.investor_demo`` and emits summary and trade history reports
-similar to :func:`investor_demo.main`.  It serves as a lightweight example of
-how the live bot evaluates strategies against historical data.
+This script delegates to :func:`solhunter_zero.simple_bot.run`, the same
+helper used by ``demo.py``.  It accepts either a local tick dataset or, when
+``--fetch-live`` is supplied, attempts to download recent market data via a
+Codex endpoint.  If the live fetch fails the bundled sample ticks are used
+instead.  The underlying :mod:`solhunter_zero.investor_demo` engine writes
+``summary.json``, ``trade_history.json`` and ``highlights.json`` reports so
+that downstream tests can compare results across the demo and paper workflows.
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import sys
+import tempfile
 from pathlib import Path
-from typing import List, Dict
+from typing import Any, Dict, List
+from urllib.request import urlopen
 
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
-from solhunter_zero.investor_demo import (
-    DEFAULT_STRATEGIES,
-    compute_weighted_returns,
-    max_drawdown,
+from solhunter_zero.simple_bot import run as run_simple_bot
+
+
+# Public Codex endpoint providing recent SOL/USD candles.  The exact source is
+# not critical; the fetch is best-effort and falls back to bundled samples when
+# unavailable.
+CODEX_URL = (
+    "https://api.coingecko.com/api/v3/coins/solana/market_chart"
+    "?vs_currency=usd&days=1&interval=hourly"
 )
 
 
-def _load_prices(path: Path | None) -> tuple[List[float], List[str]]:
-    """Return ``(prices, dates)`` from a tick dataset."""
+def _ticks_to_price_file(ticks: List[Dict[str, Any]]) -> Path:
+    """Convert tick entries to a temporary JSON price dataset."""
 
-    ticks = load_sample_ticks(path) if path is not None else load_sample_ticks()
-    if not ticks:
+    entries: List[Dict[str, Any]] = []
+    for i, tick in enumerate(ticks):
+        if "price" not in tick:
+            continue
+        try:
+            price = float(tick["price"])
+        except Exception:
+            continue
+        date = str(tick.get("timestamp", i))
+        entries.append({"date": date, "price": price})
+    if not entries:
         raise ValueError("tick dataset is empty")
-    prices: List[float] = []
-    dates: List[str] = []
-    for i, entry in enumerate(ticks):
-        if "price" in entry:
-            prices.append(float(entry["price"]))
-            dates.append(str(entry.get("timestamp", i)))
-    if not prices:
-        raise ValueError("tick dataset missing 'price' entries")
-    return prices, dates
+    tmp = tempfile.NamedTemporaryFile("w", delete=False, suffix=".json")
+    json.dump(entries, tmp)
+    tmp.close()
+    return Path(tmp.name)
+
+
+def _fetch_live_dataset() -> Path | None:
+    """Fetch recent market data via Codex.
+
+    Returns a path to a temporary JSON file or ``None`` if fetching fails.
+    """
+
+    try:
+        with urlopen(CODEX_URL, timeout=10) as resp:
+            data = json.load(resp)
+        prices = data.get("prices") or []
+        ticks = [
+            {"price": p[1], "timestamp": int(p[0] // 1000)} for p in prices
+        ]
+        if not ticks:
+            return None
+        return _ticks_to_price_file(ticks)
+    except Exception:
+        return None
 
 
 def run(argv: List[str] | None = None) -> None:
-    """Execute a tiny paper trading simulation."""
+    """Execute a lightweight paper trading simulation."""
 
     parser = argparse.ArgumentParser(description="Run simple paper trading")
     parser.add_argument(
@@ -57,132 +90,21 @@ def run(argv: List[str] | None = None) -> None:
         help="Path to JSON tick history (defaults to bundled sample)",
     )
     parser.add_argument(
-        "--capital",
-        type=float,
-        default=100.0,
-        help="Starting capital for the backtest",
+        "--fetch-live",
+        action="store_true",
+        help="Fetch live market data via Codex, falling back to sample ticks",
     )
     args = parser.parse_args(argv)
-    args.reports.mkdir(parents=True, exist_ok=True)
 
-    prices, dates = _load_prices(args.ticks)
+    dataset: Path | None = None
+    if args.fetch_live:
+        dataset = _fetch_live_dataset()
 
-    summary: List[Dict[str, float | int | str]] = []
-    trade_history: List[Dict[str, float | int | str]] = []
+    if dataset is None:
+        ticks = load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
+        dataset = _ticks_to_price_file(ticks)
 
-    for name, _strat in DEFAULT_STRATEGIES:
-        returns = compute_weighted_returns(prices, {name: 1.0})
-        if returns:
-            capital = args.capital
-            cum: List[float] = []
-            trades = wins = losses = 0
-            for r in returns:
-                capital *= 1 + r
-                cum.append(capital / args.capital)
-                if r != 0:
-                    trades += 1
-                    if r > 0:
-                        wins += 1
-                    else:
-                        losses += 1
-            roi = capital / args.capital - 1
-            mean = sum(returns) / len(returns)
-            variance = sum((r - mean) ** 2 for r in returns) / len(returns)
-            vol = variance ** 0.5
-            sharpe = mean / vol if vol else 0.0
-            win_rate = wins / trades if trades else 0.0
-        else:
-            capital = args.capital
-            roi = sharpe = vol = 0.0
-            trades = wins = losses = 0
-            win_rate = 0.0
-            cum = []
-        dd = max_drawdown(returns)
-        metrics: Dict[str, float | int | str] = {
-            "strategy": name,
-            "roi": roi,
-            "sharpe": sharpe,
-            "drawdown": dd,
-            "volatility": vol,
-            "trades": trades,
-            "wins": wins,
-            "losses": losses,
-            "win_rate": win_rate,
-            "final_capital": capital,
-        }
-        summary.append(metrics)
-
-        # Derive a trade log from the strategy returns
-        capital = args.capital
-        trade_history.append(
-            {
-                "strategy": name,
-                "period": 0,
-                "date": dates[0],
-                "action": "buy",
-                "price": prices[0],
-                "capital": capital,
-            }
-        )
-        for i in range(1, len(prices)):
-            r = returns[i - 1] if i - 1 < len(returns) else 0.0
-            capital *= 1 + r
-            action = "buy" if r > 0 else "sell" if r < 0 else "hold"
-            trade_history.append(
-                {
-                    "strategy": name,
-                    "period": i,
-                    "date": dates[i],
-                    "action": action,
-                    "price": prices[i],
-                    "capital": capital,
-                }
-            )
-        for i in range(len(returns) + 1, len(prices)):
-            trade_history.append(
-                {
-                    "strategy": name,
-                    "period": i,
-                    "date": dates[i],
-                    "action": "hold",
-                    "price": prices[i],
-                    "capital": capital,
-                }
-            )
-
-    # Persist reports mirroring investor_demo.main
-    with open(args.reports / "summary.json", "w", encoding="utf-8") as jf:
-        json.dump(summary, jf, indent=2)
-    with open(args.reports / "trade_history.json", "w", encoding="utf-8") as hf:
-        json.dump(trade_history, hf, indent=2)
-
-    with open(args.reports / "summary.csv", "w", newline="", encoding="utf-8") as cf:
-        writer = csv.DictWriter(cf, fieldnames=summary[0].keys())
-        writer.writeheader()
-        for row in summary:
-            writer.writerow(row)
-    with open(args.reports / "trade_history.csv", "w", newline="", encoding="utf-8") as cf:
-        writer = csv.DictWriter(cf, fieldnames=trade_history[0].keys())
-        writer.writeheader()
-        for row in trade_history:
-            writer.writerow(row)
-
-    # Aggregated summary similar to investor_demo.main
-    total_roi = sum(float(r["roi"]) for r in summary)
-    total_sharpes = [float(r["sharpe"]) for r in summary]
-    avg_sharpe = sum(total_sharpes) / len(total_sharpes) if total_sharpes else 0.0
-    best_strategy = max(summary, key=lambda r: float(r["roi"]))["strategy"]
-    worst_strategy = min(summary, key=lambda r: float(r["roi"]))["strategy"]
-    aggregated = {
-        "total_roi": total_roi,
-        "average_sharpe": avg_sharpe,
-        "best_strategy": best_strategy,
-        "worst_strategy": worst_strategy,
-    }
-    with open(
-        args.reports / "aggregated_summary.json", "w", encoding="utf-8"
-    ) as agf:
-        json.dump(aggregated, agf, indent=2)
+    run_simple_bot(dataset, args.reports)
 
 
 if __name__ == "__main__":  # pragma: no cover
