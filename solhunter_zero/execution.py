@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 
@@ -67,12 +68,17 @@ class EventExecutor:
         except asyncio.QueueEmpty:
             return
         self._last = now
-        await submit_raw_tx(
-            tx,
-            socket_path=self.socket_path,
-            priority_rpc=self.priority_rpc,
-        )
-        self._queue.task_done()
+        try:
+            await submit_raw_tx(
+                tx,
+                socket_path=self.socket_path,
+                priority_rpc=self.priority_rpc,
+            )
+        except Exception:
+            logging.exception("submit_raw_tx failed")
+            await self._queue.put(tx)
+        finally:
+            self._queue.task_done()
 
     async def run(self) -> None:
         """Start the event loop."""
