@@ -34,7 +34,8 @@ except Exception:  # pragma: no cover - optional import for CI
 REPORT_PATH = ROOT / "macos_setup_report.json"
 
 PY_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
-PY_CMD = Path(sys.executable).name
+PY_BIN = sys.executable
+PY_NAME = Path(PY_BIN).name
 PY_FORMULA = f"python@{PY_VERSION}"
 
 
@@ -67,9 +68,9 @@ def _detect_missing_tools() -> list[str]:
             missing.append("xcode-select")
     except FileNotFoundError:
         missing.append("xcode-select")
-    for cmd in ("brew", PY_CMD, "rustup"):
+    for cmd in ("brew", PY_BIN, "rustup"):
         if shutil.which(cmd) is None:
-            missing.append(cmd)
+            missing.append(Path(cmd).name)
     return missing
 
 
@@ -288,8 +289,9 @@ MANUAL_FIXES = {
     "brew_packages": f"Run 'brew install {PY_FORMULA} rustup-init pkg-config cmake protobuf'.",
     "rustup": "Run 'rustup-init -y' and ensure '$HOME/.cargo/bin' is on your PATH.",
     "pip_torch": (
-        f"Ensure {PY_CMD} is installed then run '{PY_CMD} -m pip install --upgrade pip '"
-        f"'torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} {' '.join(METAL_EXTRA_INDEX)}'."
+        f"Ensure {PY_NAME} is installed then run "
+        f"'{PY_BIN} -m pip install --upgrade pip "
+        f"torch=={TORCH_METAL_VERSION} torchvision=={TORCHVISION_METAL_VERSION} {' '.join(METAL_EXTRA_INDEX)}'."
     ),
     "verify_tools": "Ensure Homebrew's bin directory is on PATH and re-run this script.",
     "deps": "Install Python dependencies with 'python -m scripts.deps --install-optional'.",
