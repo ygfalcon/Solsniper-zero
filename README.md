@@ -598,8 +598,9 @@ The best weight configuration found is printed as JSON.
 
 ## Protobuf Generation
 
-Protocol buffer classes are generated with `grpcio-tools`. If you modify
-`proto/event.proto`, run:
+Protocol buffer classes are generated with `grpcio-tools`. Ensure the
+package is installed (`pip install grpcio-tools`) before building or when
+regenerating the sources. If you modify `proto/event.proto`, run:
 
 ```bash
 python scripts/gen_proto.py

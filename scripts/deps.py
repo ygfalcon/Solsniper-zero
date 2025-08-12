@@ -23,6 +23,7 @@ IMPORT_NAME_MAP = {
     "faiss-cpu": "faiss",
     "opencv-python": "cv2",
     "beautifulsoup4": "bs4",
+    "grpcio-tools": "grpc_tools",
 }
 
 OPTIONAL_DEPS = [
@@ -40,7 +41,9 @@ def check_deps() -> tuple[list[str], list[str]]:
     """Return lists of missing required and optional modules."""
     with open(ROOT / "pyproject.toml", "rb") as fh:
         data = tomllib.load(fh)
-    deps = data.get("project", {}).get("dependencies", [])
+    deps = list(data.get("project", {}).get("dependencies", []))
+    # build-time dependency for proto generation
+    deps.append("grpcio-tools")
     missing_required: list[str] = []
     for dep in deps:
         dist_name = re.split("[<=>]", dep)[0]

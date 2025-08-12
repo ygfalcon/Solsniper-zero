@@ -68,4 +68,7 @@ class build_ext(_build_ext):
         build_route_ffi(root, Path(self.build_lib) / "solhunter_zero")
         super().run()
 
-setup(cmdclass={"build_py": build_py, "build_ext": build_ext})
+setup(
+    cmdclass={"build_py": build_py, "build_ext": build_ext},
+    setup_requires=["grpcio-tools"],
+)
