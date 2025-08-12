@@ -26,6 +26,7 @@ from . import device
 from .device import METAL_EXTRA_INDEX
 from .logging_utils import log_startup
 from .paths import ROOT
+from solhunter_zero.preflight_utils import check_internet
 
 DEPS_MARKER = ROOT / ".cache" / "deps-installed"
 VENV_DIR = ROOT / ".venv"
@@ -357,14 +358,13 @@ def ensure_deps(
 
     need_install = bool(req) or need_cli or (cfg.install_optional and (opt or extra_index))
     if need_install:
-        from scripts import preflight
         import contextlib
         import io
 
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
         ):
-            ok, _msg = preflight.check_internet()
+            ok, _msg = check_internet()
         if not ok:
             raise SystemExit(
                 "Unable to establish an internet connection; aborting."
