@@ -7,6 +7,11 @@ Codex endpoint.  If the live fetch fails the bundled sample ticks are used
 instead.  The underlying :mod:`solhunter_zero.investor_demo` engine writes
 ``summary.json``, ``trade_history.json`` and ``highlights.json`` reports so
 that downstream tests can compare results across the demo and paper workflows.
+
+The ``--live-flow`` flag triggers a lightweight dry-run of the main trading
+loop.  It executes a minimal trading sequence that logs trades but skips
+submitting transactions so that tests can exercise the live code paths without
+touching the network.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from urllib.request import urlopen
 from solhunter_zero.datasets.sample_ticks import load_sample_ticks
 from solhunter_zero.simple_bot import run as run_simple_bot
 import solhunter_zero.investor_demo as investor_demo
+import asyncio
 
 
 # Public Codex endpoint providing recent SOL/USD candles.  The exact source is
@@ -74,6 +80,35 @@ def _fetch_live_dataset() -> Path | None:
         return None
 
 
+async def _live_flow(dataset: Path, reports: Path) -> None:
+    """Execute a tiny dry-run of the main trading flow.
+
+    The function performs the bare minimum to exercise the real trading
+    machinery: it loads a keypair, queries routing and depth information and
+    records a dummy trade via :class:`solhunter_zero.memory.Memory`.  No
+    transaction is submitted.
+    """
+
+    from solhunter_zero import wallet, routeffi, depth_client
+    from solhunter_zero.memory import Memory
+
+    # Use the first price from the dataset for the synthetic trade
+    data = json.loads(dataset.read_text())
+    price = float(data[0]["price"]) if data else 0.0
+
+    memory = Memory("sqlite:///:memory:")
+    wallet.load_keypair("dummy")
+    await routeffi.best_route({}, 1.0)
+    await depth_client.snapshot("FAKE")
+    trade = {"token": "FAKE", "side": "buy", "amount": 1.0, "price": price}
+    await memory.log_trade(**trade)
+
+    reports.mkdir(parents=True, exist_ok=True)
+    (reports / "trade_history.json").write_text(json.dumps([trade]))
+    (reports / "summary.json").write_text(json.dumps({"trades": 1}))
+    (reports / "highlights.json").write_text(json.dumps({}))
+
+
 def run(argv: List[str] | None = None) -> None:
     """Execute a lightweight paper trading simulation."""
 
@@ -111,6 +146,11 @@ def run(argv: List[str] | None = None) -> None:
         action="store_true",
         help="Run a lightweight RL demo using a tiny pre-trained stub",
     )
+    parser.add_argument(
+        "--live-flow",
+        action="store_true",
+        help="Exercise the core trading loop in dry-run mode",
+    )
     args = parser.parse_args(argv)
 
     if args.preset and (args.ticks or args.fetch_live):
@@ -127,6 +167,15 @@ def run(argv: List[str] | None = None) -> None:
                 load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
             )
             dataset = _ticks_to_price_file(ticks)
+
+    if args.live_flow:
+        if not dataset:
+            ticks = (
+                load_sample_ticks(args.ticks) if args.ticks else load_sample_ticks()
+            )
+            dataset = _ticks_to_price_file(ticks)
+        asyncio.run(_live_flow(Path(dataset), args.reports))
+        return
 
     run_simple_bot(dataset, args.reports, learn=args.learn, rl_demo=args.rl_demo)
 
