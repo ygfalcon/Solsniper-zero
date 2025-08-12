@@ -14,6 +14,17 @@ except ModuleNotFoundError:  # pragma: no cover - should not happen
 
 from solhunter_zero.paths import ROOT
 
+# Map distribution names to the module names they provide when imported. This is
+# necessary for packages whose import name differs from the name used on PyPI.
+IMPORT_NAME_MAP = {
+    "scikit-learn": "sklearn",
+    "pyyaml": "yaml",
+    "pytorch-lightning": "pytorch_lightning",
+    "faiss-cpu": "faiss",
+    "opencv-python": "cv2",
+    "beautifulsoup4": "bs4",
+}
+
 OPTIONAL_DEPS = [
     "faiss",
     "sentence_transformers",
@@ -32,10 +43,17 @@ def check_deps() -> tuple[list[str], list[str]]:
     deps = data.get("project", {}).get("dependencies", [])
     missing_required: list[str] = []
     for dep in deps:
-        mod = re.split("[<=>]", dep)[0].replace("-", "_")
+        dist_name = re.split("[<=>]", dep)[0]
+        mod = IMPORT_NAME_MAP.get(dist_name, dist_name).replace("-", "_")
         if pkgutil.find_loader(mod) is None:
             missing_required.append(mod)
-    missing_optional = [m for m in OPTIONAL_DEPS if pkgutil.find_loader(m) is None]
+
+    missing_optional = []
+    for dep in OPTIONAL_DEPS:
+        mod = IMPORT_NAME_MAP.get(dep, dep).replace("-", "_")
+        if pkgutil.find_loader(mod) is None:
+            missing_optional.append(mod)
+
     return missing_required, missing_optional
 
 
