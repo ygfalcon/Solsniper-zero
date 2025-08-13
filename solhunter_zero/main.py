@@ -465,6 +465,12 @@ if __name__ == "__main__":
         help="Delay between iterations in seconds",
     )
     parser.add_argument(
+        "--min-delay",
+        type=int,
+        default=None,
+        help="Minimum delay between trade iterations",
+    )
+    parser.add_argument(
         "--iterations",
         type=int,
         default=None,
