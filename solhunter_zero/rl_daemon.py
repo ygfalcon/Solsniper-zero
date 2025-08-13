@@ -10,6 +10,7 @@ from typing import Iterable, List, Tuple, Any, Callable, Dict
 import os
 import time
 import types
+from sqlalchemy import select
 
 try:
     import torch
@@ -643,22 +644,30 @@ class RLDaemon:
                 return 0.0
         return self._cpu_usage
 
-    def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
+    async def _fetch_new(self) -> tuple[list[Trade], list[MarketSnapshot]]:
         """Return new trades and snapshots since the last training cycle."""
         if self.live_dataset is not None:
             return self.live_dataset.fetch_new()
         trades: list[Trade] = []
         snaps: list[MarketSnapshot] = []
-        with self.memory.Session() as session:
-            q = session.query(Trade).filter(Trade.id > self._last_trade_id)
-            trades = list(q.order_by(Trade.id))
+        async with self.memory.Session() as session:
+            q = (
+                select(Trade)
+                .filter(Trade.id > self._last_trade_id)
+                .order_by(Trade.id)
+            )
+            result = await session.execute(q)
+            trades = list(result.scalars().all())
             if trades:
                 self._last_trade_id = trades[-1].id
-        with self.data.Session() as session:
-            q = session.query(MarketSnapshot).filter(
-                MarketSnapshot.id > self._last_snap_id
+        async with self.data.Session() as session:
+            q = (
+                select(MarketSnapshot)
+                .filter(MarketSnapshot.id > self._last_snap_id)
+                .order_by(MarketSnapshot.id)
             )
-            snaps = list(q.order_by(MarketSnapshot.id))
+            result = await session.execute(q)
+            snaps = list(result.scalars().all())
             if snaps:
                 self._last_snap_id = snaps[-1].id
         if self.queue is not None:
@@ -721,7 +730,20 @@ class RLDaemon:
             return []
 
     def train(self) -> None:
-        trades, snaps = self._fetch_new()
+        fetch_result = self._fetch_new()
+        if asyncio.iscoroutine(fetch_result):
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                trades, snaps = asyncio.run(fetch_result)
+            else:
+                new_loop = asyncio.new_event_loop()
+                try:
+                    trades, snaps = new_loop.run_until_complete(fetch_result)
+                finally:
+                    new_loop.close()
+        else:
+            trades, snaps = fetch_result
         if not trades and not snaps:
             return
         if self.multi_rl and self.population is not None:
