@@ -37,21 +37,25 @@ def test_load_versions_from_config(tmp_path, monkeypatch):
     assert device_mod.load_torch_metal_versions() == ("1.2.3", "4.5.6")
 
 
-def test_load_versions_missing(monkeypatch):
-    monkeypatch.setenv("TORCH_METAL_VERSION", "0")
-    monkeypatch.setenv("TORCHVISION_METAL_VERSION", "0")
-    cfg_mod = types.SimpleNamespace(load_config=lambda: {})
-    sys.modules["solhunter_zero.config"] = cfg_mod
-    device_mod = importlib.reload(importlib.import_module("solhunter_zero.device"))
+def test_load_versions_missing(monkeypatch, caplog):
     monkeypatch.delenv("TORCH_METAL_VERSION", raising=False)
     monkeypatch.delenv("TORCHVISION_METAL_VERSION", raising=False)
-    monkeypatch.setattr(cfg_mod, "load_config", lambda: {})
-    with pytest.raises(RuntimeError):
-        device_mod.load_torch_metal_versions()
+    cfg_mod = types.SimpleNamespace(load_config=lambda: {})
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", cfg_mod)
+    monkeypatch.setitem(
+        sys.modules,
+        "solhunter_zero.macos_setup",
+        types.SimpleNamespace(_resolve_metal_versions=lambda: ("5.5", "6.6")),
+    )
+    device_mod = importlib.reload(importlib.import_module("solhunter_zero.device"))
+    with caplog.at_level("WARNING"):
+        assert device_mod.load_torch_metal_versions() == ("5.5", "6.6")
+    assert "Torch Metal versions not specified" in caplog.text
 
 
 def test_setup_writes_versions_when_missing(tmp_path, monkeypatch):
     cfg_path = tmp_path / "config.toml"
+    env_path = tmp_path / ".env"
 
     monkeypatch.setenv("TORCH_METAL_VERSION", "0")
     monkeypatch.setenv("TORCHVISION_METAL_VERSION", "0")
@@ -103,7 +107,17 @@ def test_setup_writes_versions_when_missing(tmp_path, monkeypatch):
         ms_mod._write_versions_to_config(
             ms_mod.TORCH_METAL_VERSION, ms_mod.TORCHVISION_METAL_VERSION
         )
+        env_lines = []
+        for prefix, value in (
+            ("TORCH_METAL_VERSION", ms_mod.TORCH_METAL_VERSION),
+            ("TORCHVISION_METAL_VERSION", ms_mod.TORCHVISION_METAL_VERSION),
+        ):
+            env_lines.append(f"{prefix}={value}\n")
+        env_path.write_text("".join(env_lines))
 
     text = cfg_path.read_text()
+    env_text = env_path.read_text()
     assert "torch_metal_version = \"9.9\"" in text
     assert "torchvision_metal_version = \"8.8\"" in text
+    assert "TORCH_METAL_VERSION=9.9" in env_text
+    assert "TORCHVISION_METAL_VERSION=8.8" in env_text

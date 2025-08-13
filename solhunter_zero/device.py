@@ -30,8 +30,8 @@ def load_torch_metal_versions() -> tuple[str, str]:
 
     The versions are read from the ``TORCH_METAL_VERSION`` and
     ``TORCHVISION_METAL_VERSION`` environment variables or from the ``[torch]``
-    section of ``config.toml``. When neither source provides values a
-    ``RuntimeError`` is raised describing how to supply them.
+    section of ``config.toml``.  When neither source provides values the
+    versions are resolved dynamically and a warning is emitted.
     """
 
     torch_ver = os.getenv("TORCH_METAL_VERSION")
@@ -48,12 +48,23 @@ def load_torch_metal_versions() -> tuple[str, str]:
             logger.exception("Failed to load torch Metal versions from config")
 
     if not (torch_ver and vision_ver):
-        raise RuntimeError(
-            "Torch Metal versions not specified. Set TORCH_METAL_VERSION and "
-            "TORCHVISION_METAL_VERSION or add torch_metal_version/"
-            "torchvision_metal_version under the [torch] section in "
-            "config.toml."
-        )
+        try:
+            from .macos_setup import _resolve_metal_versions
+
+            torch_ver, vision_ver = _resolve_metal_versions()
+            logger.warning(
+                "Torch Metal versions not specified; using resolved versions %s/%s",
+                torch_ver,
+                vision_ver,
+            )
+        except Exception:  # pragma: no cover - network failure fallback
+            torch_ver = DEFAULT_TORCH_METAL_VERSION
+            vision_ver = DEFAULT_TORCHVISION_METAL_VERSION
+            logger.warning(
+                "Torch Metal versions not specified; falling back to defaults %s/%s",
+                torch_ver,
+                vision_ver,
+            )
 
     return torch_ver, vision_ver
 
