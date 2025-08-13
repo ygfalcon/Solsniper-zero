@@ -5,6 +5,7 @@ def test_startup_metrics_emitted(monkeypatch):
     monkeypatch.setattr(config, "load_config", lambda path=None: {})
     monkeypatch.setattr(config, "apply_env_overrides", lambda cfg: cfg)
     monkeypatch.setattr(config, "set_env_from_config", lambda cfg: None)
+    monkeypatch.setattr(config, "initialize_event_bus", lambda: None)
 
     main = importlib.reload(importlib.import_module("solhunter_zero.main"))
 

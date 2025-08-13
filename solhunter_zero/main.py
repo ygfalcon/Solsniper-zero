@@ -24,6 +24,7 @@ from .config import (
     load_selected_config,
     get_active_config_name,
     CONFIG_DIR,
+    initialize_event_bus,
 )
 from . import wallet
 from . import metrics_aggregator
@@ -62,6 +63,7 @@ async def perform_startup_async(
     start = time.perf_counter()
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
+    initialize_event_bus()
     runtime_cfg = Config.from_env(cfg)
     metrics_aggregator.publish(
         "startup_config_load_duration", time.perf_counter() - start
@@ -417,6 +419,7 @@ def run_auto(**kwargs) -> None:
     prev_weights = os.environ.get("AGENT_WEIGHTS")
     prev_keypair_path = os.environ.get("KEYPAIR_PATH")
     set_env_from_config(cfg)
+    initialize_event_bus()
 
     try:
         from . import data_sync
