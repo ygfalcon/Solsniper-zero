@@ -39,6 +39,7 @@ from solhunter_zero.service_launcher import (  # noqa: E402
 )
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
+from solhunter_zero import bootstrap  # noqa: E402
 
 
 class ProcessManager:
@@ -126,6 +127,7 @@ def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
 
 
 def launch_services(pm: ProcessManager) -> None:
+    bootstrap.ensure_keypair()
     cfg = ensure_config_file()
     cfg_data = validate_env(config.REQUIRED_ENV_VARS(), cfg)
     set_env_from_config(cfg_data)
