@@ -630,6 +630,14 @@ class RLDaemon:
             self._task.cancel()
         if self._hb_task:
             self._hb_task.cancel()
+        if self._proc:
+            if self._proc.poll() is None:
+                self._proc.terminate()
+                try:
+                    self._proc.wait(timeout=5)
+                except Exception:
+                    pass
+            self._proc = None
         if self.ray_trainer is not None:
             try:
                 self.ray_trainer.close()
