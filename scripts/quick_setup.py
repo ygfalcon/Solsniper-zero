@@ -130,6 +130,18 @@ def main(argv: list[str] | None = None) -> None:
                 cfg["agent_weights"][m] = 1.0
             updated = True
 
+    torch_cfg = cfg.setdefault("torch", {})
+    for key, env in (
+        ("torch_metal_version", "TORCH_METAL_VERSION"),
+        ("torchvision_metal_version", "TORCHVISION_METAL_VERSION"),
+    ):
+        val = torch_cfg.get(key)
+        if _is_placeholder(val) or not val:
+            env_val = os.getenv(env)
+            if env_val:
+                torch_cfg[key] = env_val
+                updated = True
+
     needs_save = updated or args.auto
     if needs_save:
         try:

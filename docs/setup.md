@@ -138,10 +138,17 @@ forwards to the Python launcher for a fully automated start.
     pip install torch==2.8.0 torchvision==0.23.0 \
       --extra-index-url https://download.pytorch.org/whl/metal
     ```
+    Supported version pairs:
+
+    | torch | torchvision |
+    | ----- | ----------- |
+    | 2.8.0 | 0.23.0 |
+
     The default `config.toml` sets `torch_metal_version = "2.8.0"` and
     `torchvision_metal_version = "0.23.0"`. Adjust these in the `[torch]`
     section or via the `TORCH_METAL_VERSION` and `TORCHVISION_METAL_VERSION`
-    environment variables if newer compatible builds are available.
+    environment variables to match a supported pair if newer builds are
+    available.
 
 Note: `solhunter_zero.device.initialize_gpu` automatically exports `PYTORCH_ENABLE_MPS_FALLBACK=1` so unsupported MPS operations fall back to the CPU. Set `PYTORCH_ENABLE_MPS_FALLBACK=0` before calling `initialize_gpu` to disable the fallback.
 
