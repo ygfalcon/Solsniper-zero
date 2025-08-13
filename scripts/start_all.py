@@ -93,7 +93,7 @@ class ProcessManager:
             ).start()
         return proc
 
-    def stop_all(self, *_: object) -> None:
+    def stop_all(self, *_: object, exit_code: int = 0) -> None:
         if self._stopped:
             return
         self._stopped = True
@@ -114,19 +114,28 @@ class ProcessManager:
                     p.wait(deadline - time.time())
                 except Exception:
                     p.kill()
-        sys.exit(0)
+        sys.exit(exit_code)
 
     def monitor_processes(self) -> None:
         try:
-            while any(p.poll() is None for p in self.procs):
+            if not self.procs:
+                logging.error("No child processes were started")
+                self.stop_all(exit_code=1)
+                return
+            while True:
+                running = [p for p in self.procs if p.poll() is None]
+                if not running:
+                    logging.error("All child processes exited")
+                    self.stop_all(exit_code=1)
+                    return
                 time.sleep(1)
-                for p in self.procs:
+                for p in running:
                     rc = p.poll()
                     if rc not in (None, 0):
                         logging.error(
                             "Process %s exited with code %s", p.args, rc
                         )
-                        self.stop_all()
+                        self.stop_all(exit_code=1)
                         return
         finally:
             self.stop_all()
