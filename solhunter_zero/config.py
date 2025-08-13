@@ -145,6 +145,11 @@ REQUIRED_ENV_VARS = (
 )
 
 
+class ConfigFileNotFound(FileNotFoundError):
+    """Raised when a configuration file cannot be located."""
+
+
+
 def _publish(topic: str, payload: Any) -> None:
     """Proxy to :func:`event_bus.publish` imported lazily."""
     ev = import_module("solhunter_zero.event_bus")
@@ -169,8 +174,13 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
     if path is None:
         path = find_config_file()
     if path is None:
-        return {}
-    cfg = _read_config_file(Path(path))
+        raise ConfigFileNotFound(
+            "Configuration file not found. Set SOLHUNTER_CONFIG or create config.toml"
+        )
+    p = Path(path)
+    if not p.exists():
+        raise ConfigFileNotFound(str(p))
+    cfg = _read_config_file(p)
     try:
         model = ConfigModel(**cfg)
         if hasattr(model, "model_dump"):
