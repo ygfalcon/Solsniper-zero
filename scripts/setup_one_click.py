@@ -33,7 +33,6 @@ from solhunter_zero.macos_setup import ensure_tools
 import solhunter_zero.env_config as env_config
 from solhunter_zero.paths import ROOT
 from scripts import quick_setup
-from solhunter_zero.bootstrap_utils import ensure_deps
 from solhunter_zero import device
 from solhunter_zero.logging_utils import log_startup
 
@@ -83,7 +82,9 @@ def main(argv: list[str] | None = None) -> None:
         with open(cfg_path, "wb") as fh:
             fh.write(tomli_w.dumps(cfg).encode("utf-8"))
         _validate_config(cfg_path)
-    ensure_deps(install_optional=True)
+
+    # Dependency installation is deferred to ``bootstrap.bootstrap`` which
+    # runs as part of the autopilot startup sequence.
 
     event_pb2 = ROOT / "solhunter_zero" / "event_pb2.py"
     event_proto = ROOT / "proto" / "event.proto"
