@@ -449,7 +449,7 @@ async def test_reload_bus_requires_ws_urls(monkeypatch):
     ev._reload_bus(None)
     await asyncio.sleep(0)
 
-    assert called == {"host": "127.0.0.1", "port": 8766}
+    assert called == {"host": "127.0.0.1", "port": 8769}
     assert connected == [ev.DEFAULT_WS_URL]
 
     importlib.reload(ev)

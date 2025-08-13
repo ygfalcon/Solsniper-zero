@@ -55,6 +55,9 @@ from .portfolio import Portfolio
 _WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
 _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 
+# event websocket configuration
+_EVENT_WS_PORT = int(os.getenv("EVENT_WS_PORT", "8769") or 8769)
+
 bp = Blueprint("ui", __name__)
 
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
@@ -1472,7 +1475,7 @@ def start_websockets() -> dict[str, threading.Thread]:
             websockets.serve(
                 _event_ws_handler,
                 "localhost",
-                8766,
+                _EVENT_WS_PORT,
                 path="/ws",
                 ping_interval=_WS_PING_INTERVAL,
                 ping_timeout=_WS_PING_TIMEOUT,
