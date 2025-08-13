@@ -37,6 +37,7 @@ from solhunter_zero.service_launcher import (  # noqa: E402
     start_rl_daemon,
     wait_for_depth_ws,
 )
+from solhunter_zero.autopilot import _maybe_start_event_bus  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
 from solhunter_zero import bootstrap  # noqa: E402
@@ -150,6 +151,8 @@ def launch_services(pm: ProcessManager) -> None:
         print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
+
+    _maybe_start_event_bus(cfg_data)
 
     ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)
