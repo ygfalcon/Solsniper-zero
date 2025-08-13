@@ -12,6 +12,8 @@ import pytest
 # Stub modules to avoid heavy side effects during import
 macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
 macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+macos_setup_mod._resolve_metal_versions = lambda: ("1", "1")
+macos_setup_mod._write_versions_to_config = lambda *a, **k: None
 sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
 
 bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")
@@ -198,3 +200,80 @@ def test_single_trading_loop(monkeypatch):
         cmd for cmd in calls if cmd == [sys.executable, "-m", "solhunter_zero.main"]
     ]
     assert len(main_calls) == 1
+
+
+def test_creates_default_resources(tmp_path, monkeypatch):
+    """setup_one_click should populate a fresh repository."""
+
+    # Simulate empty repository structure
+    monkeypatch.chdir(tmp_path)
+    from solhunter_zero import paths
+
+    monkeypatch.setattr(paths, "ROOT", tmp_path)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "default.toml").write_text(
+        "solana_rpc_url=\"https://api.mainnet-beta.solana.com\"\n"
+        "dex_base_url=\"https://quote-api.jup.ag\"\n"
+        "agents=[\"simulation\"]\n"
+        "[agent_weights]\n"
+        "simulation=1.0\n"
+    )
+    (tmp_path / "proto").mkdir()
+    (tmp_path / "proto" / "event.proto").write_text("")
+    (tmp_path / ".env").write_text("")
+
+    # Stub out quick_setup to generate config.toml
+    from scripts import quick_setup
+
+    def fake_quick_setup(argv):
+        cfg = tmp_path / "config.toml"
+        cfg.write_text(
+            "solana_rpc_url=\"https://api.mainnet-beta.solana.com\"\n"
+            "dex_base_url=\"https://quote-api.jup.ag\"\n"
+            "agents=[\"simulation\"]\n"
+            "[agent_weights]\n"
+            "simulation=1.0\n"
+        )
+        quick_setup.CONFIG_PATH = cfg
+
+    monkeypatch.setattr(quick_setup, "main", fake_quick_setup)
+
+    # Wallet stub creates keypair resources
+    from solhunter_zero import wallet
+
+    def fake_setup_default_keypair():
+        kp_dir = tmp_path / "keypairs"
+        kp_dir.mkdir(exist_ok=True)
+        (kp_dir / "default.json").write_text("{}")
+        (kp_dir / "active").write_text("default\n")
+        return types.SimpleNamespace(name="default", mnemonic_path=None)
+
+    monkeypatch.setattr(wallet, "setup_default_keypair", fake_setup_default_keypair)
+
+    # Avoid external commands and generate event_pb2.py
+    def fake_check_call(cmd, *a, **k):
+        out = tmp_path / "solhunter_zero" / "event_pb2.py"
+        out.parent.mkdir(exist_ok=True)
+        out.write_text("# generated")
+        return 0
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: None)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
+
+    import asyncio
+    from scripts import setup_one_click
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    setup_one_click.main(["--dry-run"])
+    pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+    loop.close()
+
+    assert not pending
+    assert (tmp_path / ".env").exists()
+    assert (tmp_path / "config.toml").exists()
+    assert (tmp_path / "keypairs" / "default.json").exists()
+    assert (tmp_path / "solhunter_zero" / "event_pb2.py").exists()
