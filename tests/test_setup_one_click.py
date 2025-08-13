@@ -12,6 +12,8 @@ import pytest
 # Stub modules to avoid heavy side effects during import
 macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
 macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+macos_setup_mod._resolve_metal_versions = lambda: ("1", "1")
+macos_setup_mod._write_versions_to_config = lambda *a, **k: None
 sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
 
 bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")
@@ -198,3 +200,33 @@ def test_single_trading_loop(monkeypatch):
         cmd for cmd in calls if cmd == [sys.executable, "-m", "solhunter_zero.main"]
     ]
     assert len(main_calls) == 1
+
+
+def test_default_ws_urls_written(monkeypatch):
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
+    monkeypatch.delenv("EVENT_BUS_URL", raising=False)
+    monkeypatch.delenv("BROKER_WS_URLS", raising=False)
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    dummy_config = types.ModuleType("solhunter_zero.config")
+    dummy_config.get_event_bus_peers = lambda cfg=None: []
+    dummy_config.get_event_bus_url = lambda cfg=None: os.getenv("EVENT_BUS_URL", "")
+    sys.modules["solhunter_zero.config"] = dummy_config
+    env_path = Path(".env")
+    if env_path.exists():
+        env_path.unlink()
+    env_path.write_text("")
+
+    from scripts import setup_one_click
+
+    setup_one_click.main([])
+
+    lines = env_path.read_text().splitlines()
+    assert "EVENT_BUS_URL=ws://127.0.0.1:8769" in lines
+    assert "BROKER_WS_URLS=ws://127.0.0.1:8769" in lines
+
+    from solhunter_zero import event_bus as ev
+
+    assert ev._resolve_ws_urls(None) == {"ws://127.0.0.1:8769"}
+
+    env_path.unlink()

@@ -106,8 +106,9 @@ def main(argv: list[str] | None = None) -> None:
         device = importlib.import_module("solhunter_zero.device")
 
     bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
+    broker_urls = os.getenv("BROKER_WS_URLS") or DEFAULT_WS_URL
     os.environ["EVENT_BUS_URL"] = bus_url
-    os.environ.setdefault("BROKER_WS_URLS", bus_url)
+    os.environ["BROKER_WS_URLS"] = broker_urls
     lines = env_file.read_text().splitlines(True)
     seen_event = False
     seen_broker = False
@@ -117,7 +118,7 @@ def main(argv: list[str] | None = None) -> None:
             lines[i] = f"EVENT_BUS_URL={bus_url}\n"
             seen_event = True
         elif line.startswith("BROKER_WS_URLS="):
-            lines[i] = f"BROKER_WS_URLS={bus_url}\n"
+            lines[i] = f"BROKER_WS_URLS={broker_urls}\n"
             seen_broker = True
         elif line.startswith("SOLHUNTER_CONFIG=") and cfg_path:
             lines[i] = f"SOLHUNTER_CONFIG={cfg_path}\n"
@@ -125,7 +126,7 @@ def main(argv: list[str] | None = None) -> None:
     if not seen_event:
         lines.append(f"EVENT_BUS_URL={bus_url}\n")
     if not seen_broker:
-        lines.append(f"BROKER_WS_URLS={bus_url}\n")
+        lines.append(f"BROKER_WS_URLS={broker_urls}\n")
     if cfg_path and not seen_cfg:
         lines.append(f"SOLHUNTER_CONFIG={cfg_path}\n")
     with env_file.open("w", encoding="utf-8") as fh:

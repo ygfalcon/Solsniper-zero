@@ -337,11 +337,6 @@ def _mmap_write(data: bytes) -> None:
         except RuntimeError:
             _flush_mmap_buffer()
 
-
-def _get_bus_url(cfg=None):
-    from .config import get_event_bus_url
-    return get_event_bus_url(cfg)
-
 def _get_event_serialization(cfg=None) -> str | None:
     from .config import get_event_serialization
     return get_event_serialization(cfg)
@@ -1567,19 +1562,25 @@ async def _reachable_ws_urls(
 
 def _resolve_ws_urls(cfg) -> Set[str]:
     """Return validated websocket broker URLs from env or config."""
-    from .config import get_event_bus_peers
+    from .config import get_event_bus_peers, get_event_bus_url
 
     urls: Set[str] = set()
     env_val = os.getenv("BROKER_WS_URLS")
     if env_val:
         urls.update(u.strip() for u in env_val.split(",") if u.strip())
     else:
-        single = _get_bus_url(cfg)
+        single = os.getenv("EVENT_BUS_URL") or get_event_bus_url(cfg)
         if single:
             urls.add(single)
 
     urls.update(get_event_bus_peers(cfg))
-    return _validate_ws_urls(urls)
+    try:
+        return _validate_ws_urls(urls)
+    except RuntimeError:
+        logging.warning(
+            "Invalid websocket URLs; falling back to %s", DEFAULT_WS_URL
+        )
+        return {DEFAULT_WS_URL}
 
 
 def _reload_bus(cfg) -> None:
