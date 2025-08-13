@@ -50,6 +50,13 @@ class DepsConfig:
 # Virtual environment helpers
 # ---------------------------------------------------------------------------
 
+
+def prepend_repo_root() -> None:
+    """Prepend the repository root to :data:`sys.path` if missing."""
+    p = str(ROOT)
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 def _venv_python() -> Path:
     """Return the path to the venv's python executable."""
     return (
