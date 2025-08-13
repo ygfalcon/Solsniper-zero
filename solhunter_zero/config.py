@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import sys
 import logging
@@ -198,13 +199,16 @@ def apply_env_overrides(config: Mapping[str, Any] | None) -> dict[str, Any]:
         env_val = os.getenv(env)
         if env_val is not None:
             if isinstance(env_val, str):
+                parsed = None
                 try:
                     parsed = loads(env_val)
                 except ValueError:
-                    pass
-                else:
-                    if isinstance(parsed, (list, dict)):
-                        env_val = parsed
+                    try:
+                        parsed = ast.literal_eval(env_val)
+                    except (ValueError, SyntaxError):
+                        parsed = None
+                if isinstance(parsed, (list, dict)):
+                    env_val = parsed
             cfg[key] = env_val
     return validate_config(cfg)
 
