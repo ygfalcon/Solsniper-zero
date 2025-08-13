@@ -165,13 +165,10 @@ def main(argv: list[str] | None = None) -> None:
     wallet.setup_default_keypair()
     device.initialize_gpu()
 
-    os.environ["AUTO_START"] = "1"
-
     start_all = resources.files("scripts") / "start_all.py"
-    # Launch the full stack including the web UI. ``start_all.py`` will
-    # automatically trigger trading via the UI when ``AUTO_START=1`` is set
-    # in the environment (handled above). The previous "autopilot" argument
-    # bypassed the UI, so omit it here to ensure ``launch_ui`` executes.
+    # Launch the full stack including the web UI. ``start_all.py`` already
+    # starts the trading process, so avoid setting ``AUTO_START`` to prevent
+    # the UI from launching an additional trading thread.
     os.execvp(sys.executable, [sys.executable, str(start_all)])
 
 
