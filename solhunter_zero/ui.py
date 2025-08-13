@@ -35,6 +35,7 @@ from .config import (
     load_config,
     apply_env_overrides,
     set_env_from_config,
+    initialize_event_bus,
     get_event_bus_url,
     get_depth_ws_addr,
     list_configs,
@@ -307,6 +308,7 @@ def ensure_active_config() -> None:
         return
     select_config(configs[0])
     set_env_from_config(load_selected_config())
+    initialize_event_bus()
 
 
 def _missing_required() -> list[str]:
@@ -335,6 +337,7 @@ def create_app() -> Flask:
 
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
+    initialize_event_bus()
 
     try:
         ensure_active_keypair()
@@ -459,6 +462,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+    initialize_event_bus()
     ensure_active_config()
 
     try:
@@ -477,6 +481,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     current_portfolio = portfolio
     set_env_from_config(load_selected_config())
+    initialize_event_bus()
     keypair_path = os.getenv("KEYPAIR_PATH")
     try:
         env_keypair = (
@@ -526,6 +531,7 @@ def start() -> dict:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+    initialize_event_bus()
     ensure_active_config()
 
     try:

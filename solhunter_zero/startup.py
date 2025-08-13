@@ -8,6 +8,7 @@ from .config import (
     apply_env_overrides,
     load_config,
     set_env_from_config,
+    initialize_event_bus,
 )
 from .config_runtime import Config
 from . import metrics_aggregator
@@ -24,6 +25,7 @@ def prepare_environment(
     start = time.perf_counter()
     cfg = apply_env_overrides(load_config(config_path))
     set_env_from_config(cfg)
+    initialize_event_bus()
     runtime_cfg = Config.from_env(cfg)
     metrics_aggregator.publish(
         "startup_config_load_duration", time.perf_counter() - start

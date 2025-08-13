@@ -8,7 +8,9 @@ import importlib.machinery
 import sys
 import pytest
 from solders.keypair import Keypair
-from solhunter_zero import ui, config
+import solhunter_zero.config as config
+config.initialize_event_bus = lambda: None
+import solhunter_zero.ui as ui
 from collections import deque
 from solhunter_zero.portfolio import Position
 import logging

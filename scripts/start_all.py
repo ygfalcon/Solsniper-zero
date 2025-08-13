@@ -29,6 +29,7 @@ from solhunter_zero.config import (  # noqa: E402
     set_env_from_config,
     ensure_config_file,
     validate_env,
+    initialize_event_bus,
 )
 import solhunter_zero.config as config  # noqa: E402
 from solhunter_zero import data_sync  # noqa: E402
@@ -160,6 +161,7 @@ def launch_services(pm: ProcessManager) -> None:
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
 
     _maybe_start_event_bus(cfg_data)
+    initialize_event_bus()
 
     ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)
