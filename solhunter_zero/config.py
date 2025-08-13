@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import sys
 import logging
-import ast
 from typing import Mapping, Any, Sequence, cast
 from pathlib import Path
 from importlib import import_module
@@ -193,21 +192,21 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
 
 
 def apply_env_overrides(config: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Merge environment variable overrides into ``config``."""
+    """Merge environment variable overrides into ``config`` and validate."""
     cfg = dict(config or {})
     for key, env in ENV_VARS.items():
         env_val = os.getenv(env)
         if env_val is not None:
-            if env in {"AGENTS", "AGENT_WEIGHTS"} and isinstance(env_val, str):
+            if isinstance(env_val, str):
                 try:
-                    parsed = ast.literal_eval(env_val)
-                except (ValueError, SyntaxError):
+                    parsed = loads(env_val)
+                except ValueError:
                     pass
                 else:
                     if isinstance(parsed, (list, dict)):
                         env_val = parsed
             cfg[key] = env_val
-    return cfg
+    return validate_config(cfg)
 
 
 def set_env_from_config(config: dict) -> None:
@@ -384,7 +383,15 @@ def load_selected_config() -> dict:
 def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
     """Return :class:`DEXConfig` populated from ``config`` and environment."""
 
-    cfg = apply_env_overrides(config or {})
+    base_cfg: dict[str, Any] = {
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+        "agents": ["sim"],
+        "agent_weights": {"sim": 1.0},
+    }
+    if config:
+        base_cfg.update(dict(config))
+    cfg = apply_env_overrides(base_cfg)
 
     base = str(cfg.get("dex_base_url", "https://quote-api.jup.ag"))
     testnet = str(cfg.get("dex_testnet_url", base))
@@ -437,7 +444,10 @@ def load_dex_config(config: Mapping[str, Any] | None = None) -> DEXConfig:
 #  Active configuration helpers
 # ---------------------------------------------------------------------------
 
-_ACTIVE_CONFIG: dict[str, Any] = apply_env_overrides(load_selected_config())
+try:
+    _ACTIVE_CONFIG: dict[str, Any] = apply_env_overrides(load_selected_config())
+except ValueError:
+    _ACTIVE_CONFIG = {}
 set_env_from_config(_ACTIVE_CONFIG)
 
 

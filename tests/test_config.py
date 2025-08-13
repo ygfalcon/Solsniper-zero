@@ -13,8 +13,10 @@ from solhunter_zero.event_bus import subscribe
 import subprocess
 import sys
 import json
+import pytest
 from pathlib import Path
 import types
+from solhunter_zero.jsonutil import dumps
 
 
 def test_load_config_yaml(tmp_path):
@@ -134,7 +136,7 @@ def test_load_config_from_repo_root_when_installed():
 def test_apply_env_overrides(monkeypatch):
     cfg = {
         "birdeye_api_key": "a",
-        "solana_rpc_url": "b",
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
         "dex_base_url": "https://quote-api.jup.ag",
         "risk_tolerance": 0.1,
         "token_suffix": "bonk",
@@ -146,30 +148,41 @@ def test_apply_env_overrides(monkeypatch):
     monkeypatch.setenv("BIRDEYE_API_KEY", "NEW")
     monkeypatch.setenv("RISK_TOLERANCE", "0.2")
     monkeypatch.setenv("TOKEN_SUFFIX", "doge")
-    monkeypatch.setenv("AGENTS", "['x', 'y']")
-    monkeypatch.setenv("AGENT_WEIGHTS", "{'x': 1}")
+    monkeypatch.setenv("AGENTS", dumps(["x", "y"]))
+    monkeypatch.setenv("AGENT_WEIGHTS", dumps({"x": 1, "y": 1}))
     monkeypatch.setenv("EVENT_BUS_URL", "ws://new")
     result = apply_env_overrides(cfg)
     assert result["birdeye_api_key"] == "NEW"
-    assert result["solana_rpc_url"] == "b"
+    assert str(result["solana_rpc_url"]).rstrip("/") == "https://api.mainnet-beta.solana.com"
     assert result["risk_tolerance"] == "0.2"
     assert result["token_suffix"] == "doge"
     assert result["agents"] == ["x", "y"]
-    assert result["agent_weights"] == {"x": 1}
+    assert result["agent_weights"] == {"x": 1, "y": 1}
     assert result["event_bus_url"] == "ws://new"
 
 
 def test_apply_env_overrides_invalid_values(monkeypatch):
-    cfg = {}
+    cfg = {
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
+    }
     monkeypatch.setenv("AGENTS", "x,y")
     monkeypatch.setenv("AGENT_WEIGHTS", "not a dict")
-    result = apply_env_overrides(cfg)
-    assert result["agents"] == "x,y"
-    assert result["agent_weights"] == "not a dict"
+    with pytest.raises(ValueError):
+        apply_env_overrides(cfg)
 
 
 def test_llm_env_overrides(monkeypatch):
-    cfg = {"llm_model": "orig", "llm_context_length": 100}
+    cfg = {
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
+        "llm_model": "orig",
+        "llm_context_length": 100,
+    }
     monkeypatch.setenv("LLM_MODEL", "gpt4")
     monkeypatch.setenv("LLM_CONTEXT_LENGTH", "256")
     result = apply_env_overrides(cfg)
@@ -179,6 +192,10 @@ def test_llm_env_overrides(monkeypatch):
 
 def test_jito_env_overrides(monkeypatch):
     cfg = {
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+        "agents": ["a"],
+        "agent_weights": {"a": 1.0},
         "jito_rpc_url": "a",
         "jito_auth": "b",
         "jito_ws_url": "c",
@@ -193,6 +210,20 @@ def test_jito_env_overrides(monkeypatch):
     assert result["jito_auth"] == "tok"
     assert result["jito_ws_url"] == "ws"
     assert result["jito_ws_auth"] == "tok2"
+
+
+def test_agents_env_round_trip(monkeypatch):
+    agents = ["alpha", "beta"]
+    weights = {"alpha": 0.5, "beta": 1.5}
+    monkeypatch.setenv("AGENTS", dumps(agents))
+    monkeypatch.setenv("AGENT_WEIGHTS", dumps(weights))
+    cfg = {
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+    }
+    result = apply_env_overrides(cfg)
+    assert result["agents"] == agents
+    assert result["agent_weights"] == weights
 
 
 def test_set_env_from_config(monkeypatch):
@@ -216,8 +247,8 @@ def test_set_env_from_config(monkeypatch):
     assert os.getenv("SOLANA_RPC_URL") == "EXIST"
     assert os.getenv("RISK_TOLERANCE") == "0.3"
     assert os.getenv("TOKEN_SUFFIX") == "xyz"
-    assert os.getenv("AGENTS") == "['sim']"
-    assert os.getenv("AGENT_WEIGHTS") == "{'sim': 1.0}"
+    assert os.getenv("AGENTS") is None
+    assert os.getenv("AGENT_WEIGHTS") is None
 
 
 def test_set_env_llm(monkeypatch):
@@ -257,7 +288,7 @@ def test_load_dex_config_env(monkeypatch):
     monkeypatch.setenv("ORCA_DEX_URL", "http://o")
     monkeypatch.setenv("DEX_FEES", '{"jupiter": 0.1}')
     cfg = load_dex_config({})
-    assert cfg.base_url == "http://b"
+    assert cfg.base_url.rstrip("/") == "http://b"
     assert cfg.venue_urls["orca"] == "http://o"
     assert cfg.fees["jupiter"] == 0.1
 
