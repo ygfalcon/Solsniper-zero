@@ -3,6 +3,7 @@ import types
 import importlib.util
 import importlib.machinery
 from pathlib import Path
+import asyncio
 import pytest
 
 pytest.importorskip("google.protobuf")
@@ -546,7 +547,7 @@ async def test_mmap_created_on_daemon_train(monkeypatch, tmp_path):
         model_path=tmp_path / "model.pt",
     )
 
-    daemon.train()
+    asyncio.run(daemon.train())
 
     assert mmap_path.exists()
     daemon.close()
