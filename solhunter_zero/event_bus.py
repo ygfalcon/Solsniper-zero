@@ -1520,13 +1520,16 @@ def _validate_ws_urls(urls: Iterable[str]) -> Set[str]:
     """
     urls_set = {u.strip() for u in urls if u and u.strip()}
     if not urls_set:
+        logging.warning(
+            "BROKER_WS_URLS is empty; falling back to %s", DEFAULT_WS_URL
+        )
         urls_set = {DEFAULT_WS_URL}
-    if any(not u.startswith(("ws://", "wss://")) for u in urls_set):
+    invalid = {u for u in urls_set if not u.startswith(("ws://", "wss://"))}
+    if invalid:
         raise RuntimeError(
-            "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI"
+            "BROKER_WS_URLS must contain at least one valid ws:// or wss:// URI",
         )
     return urls_set
-
 async def _reachable_ws_urls(
     urls: Iterable[str], timeout: float = 1.0
 ) -> Set[str]:
