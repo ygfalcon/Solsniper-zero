@@ -3,20 +3,33 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Ensure we can import bootstrap utilities even when the repository has not
+# been installed as a package.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from solhunter_zero.bootstrap_utils import ensure_venv, prepend_repo_root  # noqa: E402
+
+# Re-exec inside the local virtual environment if necessary.
+ensure_venv(None)
+
+# When running inside the project's virtual environment, make the repository
+# importable without requiring ``pip install -e .``.
+if Path(sys.prefix).resolve() == REPO_ROOT / ".venv":
+    prepend_repo_root()
+
 import os
 import signal
 import subprocess
-import sys
 import time
 import threading
 import logging
 import webbrowser
-from pathlib import Path
 from typing import IO
-
-from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
-
-ensure_venv(None)
 
 from solhunter_zero.paths import ROOT  # noqa: E402
 from solhunter_zero.logging_utils import log_startup  # noqa: E402
