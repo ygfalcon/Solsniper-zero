@@ -21,7 +21,8 @@ except ModuleNotFoundError:
         import solhunter_zero  # noqa: F401
     except ModuleNotFoundError:
         print(
-            "Could not import solhunter_zero. Run this script from the project root "
+            "Could not import solhunter_zero. "
+            "Run this script from the project root "
             "or install the package with 'pip install -e .'.",
             file=sys.stderr,
         )
@@ -80,8 +81,13 @@ def main(argv: list[str] | None = None) -> None:
 
     event_pb2 = ROOT / "solhunter_zero" / "event_pb2.py"
     event_proto = ROOT / "proto" / "event.proto"
-    if (not event_pb2.exists() or event_pb2.stat().st_mtime < event_proto.stat().st_mtime):
-        subprocess.check_call([sys.executable, str(ROOT / "scripts" / "gen_proto.py")])
+    if (
+        not event_pb2.exists()
+        or event_pb2.stat().st_mtime < event_proto.stat().st_mtime
+    ):
+        subprocess.check_call(
+            [sys.executable, str(ROOT / "scripts" / "gen_proto.py")]
+        )
 
     if "PYTEST_CURRENT_TEST" not in os.environ:
         METAL_INDEX = (
@@ -149,9 +155,14 @@ def main(argv: list[str] | None = None) -> None:
 
     device.initialize_gpu()
 
+    os.environ["AUTO_START"] = "1"
+    os.environ["AUTO_SELECT_KEYPAIR"] = "1"
+
     start_all = resources.files("scripts") / "start_all.py"
-    cmd = [sys.executable, str(start_all)]
-    os.execvp(cmd[0], cmd)
+    os.execvp(
+        sys.executable,
+        [sys.executable, str(start_all), "autopilot"],
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
