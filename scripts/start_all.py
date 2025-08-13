@@ -128,6 +128,9 @@ def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
 
 
 def launch_services(pm: ProcessManager) -> None:
+    # Ensure optional dependencies are installed and environment checks are
+    # performed before launching any additional processes.
+    bootstrap.bootstrap(one_click=True)
     bootstrap.ensure_keypair()
     cfg = ensure_config_file()
     cfg_data = validate_env(config.REQUIRED_ENV_VARS, cfg)
