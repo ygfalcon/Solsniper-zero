@@ -14,7 +14,11 @@ import webbrowser
 from pathlib import Path
 from typing import IO
 
-from solhunter_zero.paths import ROOT
+from solhunter_zero.bootstrap_utils import ensure_venv  # noqa: E402
+
+ensure_venv(None)
+
+from solhunter_zero.paths import ROOT  # noqa: E402
 from solhunter_zero.logging_utils import log_startup  # noqa: E402
 
 log_startup("start_all launched")
