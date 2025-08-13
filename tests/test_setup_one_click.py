@@ -130,3 +130,70 @@ def test_regenerates_proto_when_stale(monkeypatch):
 
     assert "gen_proto.py" in " ".join(called["cmd"])
     os.utime(event_pb2, orig_times)
+
+
+def test_sets_local_event_bus_url(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.delenv("EVENT_BUS_URL", raising=False)
+    cfg_file = tmp_path / "config.toml"
+
+    def fake_quick_setup(argv):
+        cfg_file.write_text(
+            'solana_rpc_url = "https://api.mainnet-beta.solana.com"\n'
+            'dex_base_url = "https://quote-api.jup.ag"\n'
+            'agents = ["simulation"]\n'
+            "\n[agent_weights]\n"
+            'simulation = 1.0\n'
+        )
+
+    qs = types.ModuleType("scripts.quick_setup")
+    qs.main = fake_quick_setup
+    qs.CONFIG_PATH = cfg_file
+    monkeypatch.setitem(sys.modules, "scripts.quick_setup", qs)
+
+    tomli_w_stub = types.ModuleType("tomli_w")
+
+    def dumps(cfg):
+        simple = {}
+        tables = {}
+        for k, v in cfg.items():
+            if isinstance(v, dict):
+                tables[k] = v
+            else:
+                simple[k] = v
+        lines = []
+        for k, v in simple.items():
+            if isinstance(v, list):
+                items = ", ".join(
+                    f'"{i}"' if isinstance(i, str) else str(i) for i in v
+                )
+                lines.append(f"{k} = [{items}]")
+            elif isinstance(v, str):
+                lines.append(f"{k} = \"{v}\"")
+            else:
+                lines.append(f"{k} = {v}")
+        for k, v in tables.items():
+            lines.append(f"[{k}]")
+            for sk, sv in v.items():
+                if isinstance(sv, str):
+                    lines.append(f"{sk} = \"{sv}\"")
+                else:
+                    lines.append(f"{sk} = {sv}")
+        return "\n".join(lines)
+
+    tomli_w_stub.dumps = dumps
+    monkeypatch.setitem(sys.modules, "tomli_w", tomli_w_stub)
+
+    monkeypatch.setattr(sys, "argv", ["scripts/setup_one_click.py"])
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: None)
+
+    runpy.run_path("scripts/setup_one_click.py", run_name="__main__")
+
+    import tomllib
+
+    cfg = tomllib.loads(cfg_file.read_text())
+    assert cfg["event_bus_url"] == "ws://127.0.0.1:8787"
+    assert os.environ["EVENT_BUS_URL"] == "ws://127.0.0.1:8787"

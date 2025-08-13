@@ -74,15 +74,20 @@ def main(argv: list[str] | None = None) -> None:
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
+    event_bus_url = "ws://127.0.0.1:8787"
     if cfg_path:
         with open(cfg_path, "rb") as fh:
             cfg = tomllib.load(fh)
         url = cfg.get("event_bus_url", "").strip()
         if not url or url == "ws://0.0.0.0:8787":
-            cfg.pop("event_bus_url", None)
+            url = event_bus_url
+            cfg["event_bus_url"] = url
+        else:
+            event_bus_url = url
         with open(cfg_path, "wb") as fh:
             fh.write(tomli_w.dumps(cfg).encode("utf-8"))
         _validate_config(cfg_path)
+    os.environ.setdefault("EVENT_BUS_URL", event_bus_url)
     ensure_deps(install_optional=True)
 
     event_pb2 = ROOT / "solhunter_zero" / "event_pb2.py"
