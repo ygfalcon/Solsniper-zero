@@ -587,8 +587,6 @@ _sub.__enter__()
 def initialize_event_bus() -> None:
     """Reload event bus settings after environment variables are configured."""
     try:
-        _event_bus._reload_serialization(None)
-        _event_bus._reload_bus(None)
-        _event_bus._reload_broker(None)
+        _event_bus.initialize_event_bus()
     except Exception:
         logger.exception("Failed to reload event bus settings")
