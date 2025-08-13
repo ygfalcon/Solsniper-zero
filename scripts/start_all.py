@@ -29,6 +29,7 @@ import time
 import threading
 import logging
 import webbrowser
+import socket
 from typing import IO
 
 from solhunter_zero.paths import ROOT  # noqa: E402
@@ -64,10 +65,20 @@ import solhunter_zero.ui as ui  # noqa: E402
 from solhunter_zero import bootstrap  # noqa: E402
 
 
+def _is_port_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.1)
+        try:
+            sock.connect((host, port))
+            return True
+        except OSError:
+            return False
+
 class ProcessManager:
     def __init__(self) -> None:
         self.procs: list[subprocess.Popen] = []
         self.ws_threads: dict[str, threading.Thread] = {}
+        self.redis_proc: subprocess.Popen | None = None
         self._stopped = False
 
     @staticmethod
@@ -107,6 +118,8 @@ class ProcessManager:
         for p in self.procs:
             if p.poll() is None:
                 p.terminate()
+        if self.redis_proc and self.redis_proc.poll() is None:
+            self.redis_proc.terminate()
         deadline = time.time() + 5
         for p in self.procs:
             if p.poll() is None:
@@ -114,6 +127,11 @@ class ProcessManager:
                     p.wait(deadline - time.time())
                 except Exception:
                     p.kill()
+        if self.redis_proc and self.redis_proc.poll() is None:
+            try:
+                self.redis_proc.wait(deadline - time.time())
+            except Exception:
+                self.redis_proc.kill()
         sys.exit(exit_code)
 
     def monitor_processes(self) -> None:
@@ -172,9 +190,9 @@ def launch_services(pm: ProcessManager) -> None:
     bootstrap.bootstrap(one_click=True)
     bootstrap.ensure_keypair()
     cfg = ensure_config_file()
+    import solhunter_zero.config as config  # noqa: E402
     cfg_data = validate_env(config.REQUIRED_ENV_VARS, cfg)
     set_env_from_config(cfg_data)
-    import solhunter_zero.config as config  # noqa: E402
     config.reload_active_config()
     interval = float(
         cfg_data.get(
@@ -193,6 +211,25 @@ def launch_services(pm: ProcessManager) -> None:
         print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
+    urls: list[str] = []
+    url = os.getenv("BROKER_URL")
+    if url:
+        urls.append(url)
+    more = os.getenv("BROKER_URLS")
+    if more:
+        urls.extend(u.strip() for u in more.split(",") if u.strip())
+    needs_redis = any(u.startswith("redis://") for u in urls)
+    if needs_redis and not _is_port_open("127.0.0.1", 6379):
+        pm.redis_proc = subprocess.Popen(["redis-server"])
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if pm.redis_proc.poll() is not None:
+                raise RuntimeError("redis-server exited during startup")
+            if _is_port_open("127.0.0.1", 6379):
+                break
+            time.sleep(0.1)
+        else:
+            raise TimeoutError("redis-server startup timed out")
 
     _maybe_start_event_bus(cfg_data)
     initialize_event_bus()
