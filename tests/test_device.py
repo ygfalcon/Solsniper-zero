@@ -6,13 +6,15 @@ import types
 
 import pytest
 
-os.environ.setdefault("TORCH_METAL_VERSION", "2.8.0")
-os.environ.setdefault("TORCHVISION_METAL_VERSION", "0.23.0")
-
 dummy_config = types.SimpleNamespace(load_config=lambda: {})
 sys.modules["solhunter_zero.config"] = dummy_config
 from solhunter_zero import device as device_module
-from solhunter_zero.device import METAL_EXTRA_INDEX, load_torch_metal_versions
+from solhunter_zero.device import (
+    DEFAULT_TORCH_METAL_VERSION,
+    DEFAULT_TORCHVISION_METAL_VERSION,
+    METAL_EXTRA_INDEX,
+    load_torch_metal_versions,
+)
 
 TORCH_METAL_VERSION, TORCHVISION_METAL_VERSION = load_torch_metal_versions()
 
@@ -53,19 +55,16 @@ def test_load_torch_metal_versions_config(monkeypatch):
     )
     assert device_module.load_torch_metal_versions() == ("7.7", "8.8")
 
-
-def test_load_torch_metal_versions_logs(monkeypatch, caplog):
+def test_load_torch_metal_versions_missing(monkeypatch, caplog):
     monkeypatch.delenv("TORCH_METAL_VERSION", raising=False)
     monkeypatch.delenv("TORCHVISION_METAL_VERSION", raising=False)
-
-    def fail():
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(sys.modules["solhunter_zero.config"], "load_config", fail)
-    with caplog.at_level("ERROR"):
-        with pytest.raises(RuntimeError):
-            device_module.load_torch_metal_versions()
-    assert "Failed to load torch Metal versions from config" in caplog.text
+    monkeypatch.setattr(sys.modules["solhunter_zero.config"], "load_config", lambda: {})
+    with caplog.at_level("WARNING"):
+        assert device_module.load_torch_metal_versions() == (
+            DEFAULT_TORCH_METAL_VERSION,
+            DEFAULT_TORCHVISION_METAL_VERSION,
+        )
+    assert "Torch Metal versions not specified" in caplog.text
 
 
 def test_detect_gpu_and_get_default_device_mps(monkeypatch):
