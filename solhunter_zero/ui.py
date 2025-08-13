@@ -5,6 +5,7 @@ import json
 from dataclasses import asdict, is_dataclass
 import logging
 import socket
+import errno
 from collections import deque
 from typing import Any
 import time
@@ -51,12 +52,14 @@ from .memory import Memory
 from .base_memory import BaseMemory
 from .portfolio import Portfolio
 
+logger = logging.getLogger(__name__)
+
 # websocket ping configuration
 _WS_PING_INTERVAL = float(os.getenv("WS_PING_INTERVAL", "20") or 20)
 _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 
 # event websocket configuration
-_EVENT_WS_PORT = int(os.getenv("EVENT_WS_PORT", "8769") or 8769)
+_EVENT_WS_PORT = int(os.getenv("EVENT_WS_PORT", "8770") or 8770)
 
 bp = Blueprint("ui", __name__)
 
@@ -1457,44 +1460,73 @@ def start_websockets() -> dict[str, threading.Thread]:
     def _start_rl_ws() -> None:
         global rl_ws_loop
         rl_ws_loop = asyncio.new_event_loop()
-        rl_ws_loop.run_until_complete(
-            websockets.serve(
-                _rl_ws_handler,
-                "localhost",
-                8767,
-                ping_interval=_WS_PING_INTERVAL,
-                ping_timeout=_WS_PING_TIMEOUT,
+        try:
+            rl_ws_loop.run_until_complete(
+                websockets.serve(
+                    _rl_ws_handler,
+                    "localhost",
+                    8767,
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                )
             )
-        )
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                logger.error("RL websocket port %s is already in use", 8767)
+            else:
+                logger.error("Failed to start RL websocket on port %s: %s", 8767, e)
+            return
         rl_ws_loop.run_forever()
 
     def _start_event_ws() -> None:
         global event_ws_loop
         event_ws_loop = asyncio.new_event_loop()
-        event_ws_loop.run_until_complete(
-            websockets.serve(
-                _event_ws_handler,
-                "localhost",
-                _EVENT_WS_PORT,
-                path="/ws",
-                ping_interval=_WS_PING_INTERVAL,
-                ping_timeout=_WS_PING_TIMEOUT,
+        try:
+            event_ws_loop.run_until_complete(
+                websockets.serve(
+                    _event_ws_handler,
+                    "localhost",
+                    _EVENT_WS_PORT,
+                    path="/ws",
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                )
             )
-        )
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                logger.error(
+                    "Event websocket port %s is already in use", _EVENT_WS_PORT
+                )
+            else:
+                logger.error(
+                    "Failed to start event websocket on port %s: %s",
+                    _EVENT_WS_PORT,
+                    e,
+                )
+            return
         event_ws_loop.run_forever()
 
     def _start_log_ws() -> None:
         global log_ws_loop
         log_ws_loop = asyncio.new_event_loop()
-        log_ws_loop.run_until_complete(
-            websockets.serve(
-                _log_ws_handler,
-                "localhost",
-                8768,
-                ping_interval=_WS_PING_INTERVAL,
-                ping_timeout=_WS_PING_TIMEOUT,
+        try:
+            log_ws_loop.run_until_complete(
+                websockets.serve(
+                    _log_ws_handler,
+                    "localhost",
+                    8768,
+                    ping_interval=_WS_PING_INTERVAL,
+                    ping_timeout=_WS_PING_TIMEOUT,
+                )
             )
-        )
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                logger.error("Log websocket port %s is already in use", 8768)
+            else:
+                logger.error(
+                    "Failed to start log websocket on port %s: %s", 8768, e
+                )
+            return
         log_ws_loop.run_forever()
 
     for name, target in (
