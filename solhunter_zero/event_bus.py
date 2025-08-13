@@ -1522,6 +1522,7 @@ async def _watch_ws(url: str) -> None:
 
 # Automatically connect to external event bus peers if configured
 _ENV_PEERS: Set[str] = set()
+_reconnect_task: asyncio.Task | None = None
 
 
 def _validate_ws_urls(urls: Iterable[str]) -> Set[str]:
@@ -1581,7 +1582,7 @@ def _resolve_ws_urls(cfg) -> Set[str]:
 
 
 def _reload_bus(cfg) -> None:
-    global _ENV_PEERS
+    global _ENV_PEERS, _reconnect_task
 
     urls = _resolve_ws_urls(cfg)
     if urls == _ENV_PEERS:
@@ -1610,10 +1611,42 @@ def _reload_bus(cfg) -> None:
     except RuntimeError:
         loop = None
     if loop:
-        loop.create_task(_reconnect())
+        async def _runner() -> None:
+            task = asyncio.create_task(_reconnect())
+            try:
+                await task
+            except Exception:
+                task.cancel()
+        _reconnect_task = loop.create_task(_runner())
     else:
         asyncio.run(_reconnect())
     _ENV_PEERS = urls
+
+
+def shutdown_event_bus() -> None:
+    """Best-effort shutdown of background event bus tasks."""
+
+    async def _shutdown() -> None:
+        global _reconnect_task
+        if _reconnect_task is not None:
+            _reconnect_task.cancel()
+            try:
+                await _reconnect_task
+            except Exception:
+                pass
+            _reconnect_task = None
+        await disconnect_ws()
+        try:
+            await stop_ws_server()
+        except Exception:
+            pass
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(_shutdown())
+    else:
+        loop.create_task(_shutdown())
 
 
 subscription("config_updated", _reload_bus).__enter__()
