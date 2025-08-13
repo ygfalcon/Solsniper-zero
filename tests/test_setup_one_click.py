@@ -96,6 +96,25 @@ wallet_mod.setup_default_keypair = lambda: _fake_select_keypair()
 sys.modules["solhunter_zero.wallet"] = wallet_mod
 
 
+def test_ensure_venv_respects_existing(monkeypatch, tmp_path):
+    mod = importlib.reload(importlib.import_module("scripts.setup_env"))
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    monkeypatch.setattr(sys, "prefix", "/usr/python")
+    monkeypatch.setattr(sys, "base_prefix", "/usr/python")
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "custom"))
+
+    called = False
+
+    def fake_execv(*a):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(os, "execv", fake_execv)
+    mod.ensure_venv()
+    assert not called
+    assert not (tmp_path / ".venv").exists()
+
+
 def test_setup_one_click_dry_run(monkeypatch, capsys):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")

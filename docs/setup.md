@@ -14,6 +14,13 @@
    The one-click launcher automatically installs any missing Python packages by
    invoking the internal `ensure_deps` helper.
 
+   The setup script creates a `.venv` directory if no virtual environment is
+   active. If you prefer a custom environment name, create and activate your own
+   virtualenv first (e.g. `python -m venv myenv && source myenv/bin/activate`).
+   When `VIRTUAL_ENV` is set or Python's `sys.prefix` differs from
+   `sys.base_prefix`, the setup reuses the existing environment instead of
+   recreating `.venv`.
+
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
 On macOS, double-click `start.command` to launch, or run `python -m solhunter_zero.launcher` from Terminal for the same entry point.
