@@ -21,6 +21,7 @@ def _load_autopilot(monkeypatch):
     config_stub.get_active_config_name = lambda: None
     config_stub.load_config = lambda p: {}
     config_stub.apply_env_overrides = lambda c: c
+    config_stub.initialize_event_bus = lambda: None
     monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", wallet_stub)
     monkeypatch.setitem(sys.modules, "solhunter_zero.data_sync", data_sync_stub)
     monkeypatch.setitem(sys.modules, "solhunter_zero.main", main_stub)

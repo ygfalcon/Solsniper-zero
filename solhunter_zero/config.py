@@ -544,9 +544,13 @@ from . import event_bus as _event_bus
 
 _sub = _event_bus.subscription("config_updated", _update_active)
 _sub.__enter__()
-try:
-    _event_bus._reload_bus(None)
-    _event_bus._reload_broker(None)
-    _event_bus._reload_serialization(None)
-except Exception:
-    logger.exception("Failed to reload event bus settings")
+
+
+def initialize_event_bus() -> None:
+    """Reload event bus settings after environment variables are configured."""
+    try:
+        _event_bus._reload_serialization(None)
+        _event_bus._reload_bus(None)
+        _event_bus._reload_broker(None)
+    except Exception:
+        logger.exception("Failed to reload event bus settings")

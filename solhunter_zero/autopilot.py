@@ -20,6 +20,7 @@ from .config import (
     get_active_config_name,
     load_config,
     apply_env_overrides,
+    initialize_event_bus,
 )
 from .service_launcher import (
     start_depth_service,
@@ -197,6 +198,7 @@ def main() -> None:
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
     _maybe_start_event_bus(cfg)
+    initialize_event_bus()
 
     try:
         depth_proc = start_depth_service(cfg_path)
