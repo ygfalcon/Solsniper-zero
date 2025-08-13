@@ -13,6 +13,7 @@ from .jito_auth import ensure_jito_auth
 from .config import ENV_VARS
 from .env_defaults import DEFAULTS
 from .paths import ROOT
+from .event_bus import DEFAULT_WS_URL
 
 __all__ = [
     "configure_environment",
@@ -153,6 +154,30 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         if key not in os.environ:
             os.environ[key] = value
         applied[key] = os.environ[key]
+
+    broker_env = os.environ.get("BROKER_WS_URLS", "").strip()
+    urls = [u.strip() for u in broker_env.split(",") if u.strip()]
+    valid = broker_env and all(u.startswith(("ws://", "wss://")) for u in urls)
+    if not valid:
+        os.environ["BROKER_WS_URLS"] = DEFAULT_WS_URL
+        applied["BROKER_WS_URLS"] = DEFAULT_WS_URL
+        lines = env_file.read_text().splitlines(True)
+        updated = False
+        for i, line in enumerate(lines):
+            if line.startswith("BROKER_WS_URLS="):
+                lines[i] = f"BROKER_WS_URLS={DEFAULT_WS_URL}\n"
+                updated = True
+                break
+        if not updated:
+            lines.append(f"BROKER_WS_URLS={DEFAULT_WS_URL}\n")
+        with env_file.open("w", encoding="utf-8") as fh:
+            fh.writelines(lines)
+        log_startup(
+            f"Set default BROKER_WS_URLS to {DEFAULT_WS_URL}"
+        )
+        report_env_changes({"BROKER_WS_URLS": DEFAULT_WS_URL}, env_file)
+    else:
+        applied["BROKER_WS_URLS"] = broker_env
 
     ensure_jito_auth(env_file)
 

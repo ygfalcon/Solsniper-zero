@@ -6,6 +6,7 @@
  - Use `solhunter-start` to launch the same startup routine with `--one-click` by default while still accepting additional flags.
  - Run `python -m solhunter_zero.launcher --auto` for a fully automated launch. On macOS, double-click `start.command` for the same effect. It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
 - `scripts/quick_setup.py --auto` populates `config.toml` with defaults. Use `--non-interactive` to rely on environment variables only. Set `AUTO_SELECT_KEYPAIR=1` to have the sole keypair chosen without prompts.
+- `BROKER_WS_URLS` must be a `ws://` or `wss://` URI for the event bus. When unset or invalid, it defaults to `ws://127.0.0.1:8769`.
 - On macOS, run `scripts/mac_setup.py` to install the Xcode command line tools if needed. The script exits after starting the installation; rerun it once the tools are installed before continuing.
 - Launch the Web UI with `python -m solhunter_zero.ui`.
 - Toggle **Full Auto Mode** in the UI to start trading with the active config.
