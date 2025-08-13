@@ -120,6 +120,14 @@ class ProcessManager:
         try:
             while any(p.poll() is None for p in self.procs):
                 time.sleep(1)
+                for p in self.procs:
+                    rc = p.poll()
+                    if rc not in (None, 0):
+                        logging.error(
+                            "Process %s exited with code %s", p.args, rc
+                        )
+                        self.stop_all()
+                        return
         finally:
             self.stop_all()
 
