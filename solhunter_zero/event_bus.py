@@ -466,6 +466,13 @@ _watch_tasks: Dict[str, Any] = {}
 _ws_server = None
 _flush_task: asyncio.Task | None = None
 _outgoing_queue: Queue | None = None
+_ws_tasks: Set[asyncio.Task] = set()
+
+
+def _track_ws_task(task: asyncio.Task) -> None:
+    """Track websocket-related ``task`` for later cleanup."""
+    _ws_tasks.add(task)
+    task.add_done_callback(lambda t: _ws_tasks.discard(t))
 
 # message broker globals
 _BROKER_URLS: list[str] = []
@@ -1075,7 +1082,7 @@ async def _receiver(ws) -> None:
     finally:
         for url, peer in list(_peer_clients.items()):
             if ws is peer and url in _peer_urls:
-                asyncio.create_task(reconnect_ws(url))
+                _track_ws_task(asyncio.create_task(reconnect_ws(url)))
                 break
 
 
@@ -1429,11 +1436,13 @@ async def connect_ws(url: str):
     if _flush_task is None or _flush_task.done():
         loop = asyncio.get_running_loop()
         _flush_task = loop.create_task(_flush_outgoing())
-    asyncio.create_task(_receiver(ws))
+    _track_ws_task(asyncio.create_task(_receiver(ws)))
     task = _watch_tasks.get(url)
     if task is None or task.done():
         loop = asyncio.get_running_loop()
-        _watch_tasks[url] = loop.create_task(_watch_ws(url))
+        task = loop.create_task(_watch_ws(url))
+        _watch_tasks[url] = task
+        _track_ws_task(task)
     return ws
 
 
@@ -1500,11 +1509,13 @@ async def reconnect_ws(url: str | None = None) -> None:
                 except Exception:  # pragma: no cover - optional psutil failure
                     pass
                 _peer_clients[u] = ws
-                asyncio.create_task(_receiver(ws))
+                _track_ws_task(asyncio.create_task(_receiver(ws)))
                 task = _watch_tasks.get(u)
                 if task is None or task.done():
                     loop = asyncio.get_running_loop()
-                    _watch_tasks[u] = loop.create_task(_watch_ws(u))
+                    task = loop.create_task(_watch_ws(u))
+                    _watch_tasks[u] = task
+                    _track_ws_task(task)
                 break
             except Exception:  # pragma: no cover - connection errors
                 await asyncio.sleep(backoff)
@@ -1648,7 +1659,7 @@ def shutdown_event_bus() -> None:
     """Best-effort shutdown of background event bus tasks."""
 
     async def _shutdown() -> None:
-        global _reconnect_task
+        global _reconnect_task, _ws_tasks
         if _reconnect_task is not None:
             _reconnect_task.cancel()
             try:
@@ -1657,6 +1668,12 @@ def shutdown_event_bus() -> None:
                 pass
             _reconnect_task = None
         await disconnect_ws()
+        tasks = list(_ws_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        _ws_tasks.clear()
         try:
             await stop_ws_server()
         except Exception:
