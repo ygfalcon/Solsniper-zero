@@ -6,6 +6,15 @@ import types
 import pytest
 
 
+def test_load_versions_from_env(monkeypatch):
+    monkeypatch.setenv("TORCH_METAL_VERSION", "1.2.3")
+    monkeypatch.setenv("TORCHVISION_METAL_VERSION", "4.5.6")
+    cfg_mod = types.SimpleNamespace(load_config=lambda: {})
+    sys.modules["solhunter_zero.config"] = cfg_mod
+    device_mod = importlib.reload(importlib.import_module("solhunter_zero.device"))
+    assert device_mod.load_torch_metal_versions() == ("1.2.3", "4.5.6")
+
+
 def test_load_versions_from_config(tmp_path, monkeypatch):
     cfg_path = tmp_path / "config.toml"
     cfg_path.write_text(
@@ -26,6 +35,19 @@ def test_load_versions_from_config(tmp_path, monkeypatch):
 
     device_mod = importlib.reload(importlib.import_module("solhunter_zero.device"))
     assert device_mod.load_torch_metal_versions() == ("1.2.3", "4.5.6")
+
+
+def test_load_versions_missing(monkeypatch):
+    monkeypatch.setenv("TORCH_METAL_VERSION", "0")
+    monkeypatch.setenv("TORCHVISION_METAL_VERSION", "0")
+    cfg_mod = types.SimpleNamespace(load_config=lambda: {})
+    sys.modules["solhunter_zero.config"] = cfg_mod
+    device_mod = importlib.reload(importlib.import_module("solhunter_zero.device"))
+    monkeypatch.delenv("TORCH_METAL_VERSION", raising=False)
+    monkeypatch.delenv("TORCHVISION_METAL_VERSION", raising=False)
+    monkeypatch.setattr(cfg_mod, "load_config", lambda: {})
+    with pytest.raises(RuntimeError):
+        device_mod.load_torch_metal_versions()
 
 
 def test_setup_writes_versions_when_missing(tmp_path, monkeypatch):
