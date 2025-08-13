@@ -471,6 +471,12 @@ if __name__ == "__main__":
         help="Minimum delay between trade iterations",
     )
     parser.add_argument(
+        "--max-delay",
+        type=int,
+        default=None,
+        help="Maximum delay between trade iterations",
+    )
+    parser.add_argument(
         "--iterations",
         type=int,
         default=None,
