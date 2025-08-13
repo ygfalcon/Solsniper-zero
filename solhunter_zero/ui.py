@@ -1497,6 +1497,8 @@ def start_websockets() -> dict[str, threading.Thread]:
                 rl_ws_loop.run_until_complete(server.wait_closed())
             rl_ws_loop.run_until_complete(rl_ws_loop.shutdown_asyncgens())
             rl_ws_loop.close()
+            asyncio.set_event_loop(None)
+            rl_ws_loop = None
 
     def _start_event_ws() -> None:
         global event_ws_loop
@@ -1534,6 +1536,8 @@ def start_websockets() -> dict[str, threading.Thread]:
                 event_ws_loop.run_until_complete(server.wait_closed())
             event_ws_loop.run_until_complete(event_ws_loop.shutdown_asyncgens())
             event_ws_loop.close()
+            asyncio.set_event_loop(None)
+            event_ws_loop = None
 
     def _start_log_ws() -> None:
         global log_ws_loop
@@ -1567,6 +1571,8 @@ def start_websockets() -> dict[str, threading.Thread]:
                 log_ws_loop.run_until_complete(server.wait_closed())
             log_ws_loop.run_until_complete(log_ws_loop.shutdown_asyncgens())
             log_ws_loop.close()
+            asyncio.set_event_loop(None)
+            log_ws_loop = None
 
     for name, target in (
         ("rl", _start_rl_ws),
