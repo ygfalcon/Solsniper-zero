@@ -103,6 +103,8 @@ def test_setup_one_click_dry_run(monkeypatch, capsys):
     monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
     monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
 
+    Path(".env").write_text("")
+
     runpy.run_path(str(script), run_name="__main__")
 
     out = capsys.readouterr().out
@@ -131,6 +133,8 @@ def test_regenerates_proto_when_stale(monkeypatch):
         return 0
 
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+
+    Path(".env").write_text("")
 
     runpy.run_path(str(script), run_name="__main__")
 
@@ -187,6 +191,7 @@ def test_single_trading_loop(monkeypatch):
     monkeypatch.setattr(os, "execvp", lambda *a, **k: start_all_stub.main())
 
     script = Path("scripts/setup_one_click.py")
+    Path(".env").write_text("")
     runpy.run_path(str(script), run_name="__main__")
 
     main_calls = [

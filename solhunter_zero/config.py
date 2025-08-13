@@ -250,10 +250,16 @@ def find_config_file() -> str | None:
     if path:
         p = Path(path)
         if not p.is_absolute():
+            cwd_path = Path.cwd() / p
+            if cwd_path.is_file():
+                return str(cwd_path)
             p = ROOT / p
         if p.is_file():
             return str(p)
     for name in ("config.toml", "config.yaml", "config.yml"):
+        p = Path.cwd() / name
+        if p.is_file():
+            return str(p)
         p = ROOT / name
         if p.is_file():
             return str(p)

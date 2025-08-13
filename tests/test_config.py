@@ -10,6 +10,11 @@ from solhunter_zero.config import (
     find_config_file,
 )
 from solhunter_zero.event_bus import subscribe
+import subprocess
+import sys
+import json
+from pathlib import Path
+import types
 
 
 def test_load_config_yaml(tmp_path):
@@ -94,6 +99,36 @@ def test_find_config_file_order(tmp_path, monkeypatch):
     assert Path(find_config_file()).resolve() == (tmp_path / "config.toml").resolve()
     (tmp_path / "config.toml").unlink()
     assert Path(find_config_file()).resolve() == (tmp_path / "config.yaml").resolve()
+
+
+def test_load_config_from_repo_root_when_installed():
+    repo_root = Path(__file__).resolve().parents[1]
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", str(repo_root), "--no-deps", "--quiet"]
+    )
+    code = (
+        "import sys, json, pathlib, types;"
+        "repo=pathlib.Path().resolve();"
+        "sys.path=[p for p in sys.path if pathlib.Path(p).resolve()!=repo];"
+        "event_pb2=types.ModuleType('event_pb2');"
+        "sys.modules['event_pb2']=event_pb2;"
+        "sys.modules['solhunter_zero.event_pb2']=event_pb2;"
+        "from solhunter_zero import paths;"
+        "from solhunter_zero.config import load_config, find_config_file;"
+        "print(paths.ROOT);"
+        "cfg=find_config_file();"
+        "print(cfg);"
+        "print(json.dumps(load_config()));"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=repo_root
+    )
+    assert result.returncode == 0
+    lines = result.stdout.strip().splitlines()
+    assert Path(lines[0]).resolve() != repo_root.resolve()
+    assert Path(lines[1]).resolve() == repo_root / "config.toml"
+    cfg = json.loads(lines[2])
+    assert cfg["solana_rpc_url"].startswith("https://api.mainnet-beta.solana.com")
 
 
 def test_apply_env_overrides(monkeypatch):
