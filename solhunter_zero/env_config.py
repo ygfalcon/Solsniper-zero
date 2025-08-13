@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import ast
 
 import tomllib
 
@@ -14,7 +15,7 @@ from .config import ENV_VARS
 from .env_defaults import DEFAULTS
 from .paths import ROOT
 from .event_bus import DEFAULT_WS_URL
-from .jsonutil import dumps as json_dumps
+from .jsonutil import dumps as json_dumps, loads as json_loads
 
 __all__ = [
     "configure_environment",
@@ -120,6 +121,25 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         os.environ[name] = ""
         applied.setdefault(name, "")
     file_updates: dict[str, str] = {}
+
+    for env_key in ("AGENTS", "AGENT_WEIGHTS"):
+        raw = os.environ.get(env_key)
+        if not raw:
+            continue
+        try:
+            json_loads(raw)
+            continue
+        except Exception:
+            try:
+                parsed = ast.literal_eval(raw)
+            except Exception:
+                continue
+            if isinstance(parsed, (list, dict)):
+                corrected = json_dumps(parsed)
+                os.environ[env_key] = corrected
+                applied[env_key] = corrected
+                file_updates[env_key] = corrected
+                log_startup(f"Migrated {env_key} value to JSON format")
 
     cfg_path = Path(root) / "config.toml"
     if cfg_path.exists():
