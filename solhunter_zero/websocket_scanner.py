@@ -9,11 +9,19 @@ from typing import AsyncGenerator, Iterable
 
 from .http import get_session
 
-from solana.publickey import PublicKey
-from solana.rpc.websocket_api import (
-    RpcTransactionLogsFilterMentions,
-    connect,
-)
+from solders.pubkey import Pubkey
+try:
+    from solana.rpc.websocket_api import (
+        RpcTransactionLogsFilterMentions,
+        connect,
+    )
+except Exception:  # pragma: no cover - optional dependency
+    class RpcTransactionLogsFilterMentions:  # type: ignore
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    async def connect(*args, **kwargs):  # type: ignore
+        raise RuntimeError("solana.rpc.websocket_api not available")
 
 from .scanner_onchain import TOKEN_PROGRAM_ID
 from .dex_scanner import DEX_PROGRAM_ID
@@ -72,11 +80,15 @@ async def stream_new_tokens(
 
     async with connect(rpc_url) as ws:
         await ws.logs_subscribe(
-            RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key)
+            RpcTransactionLogsFilterMentions(
+                Pubkey.from_string(str(TOKEN_PROGRAM_ID))
+            )
         )
         if include_pools:
             await ws.logs_subscribe(
-                RpcTransactionLogsFilterMentions(PublicKey(str(DEX_PROGRAM_ID))._key)
+                RpcTransactionLogsFilterMentions(
+                    Pubkey.from_string(str(DEX_PROGRAM_ID))
+                )
             )
 
         while True:
