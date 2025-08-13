@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 from typing import List, Dict, Any
 
@@ -41,22 +42,30 @@ async def merge_sources(
     onchain_task = asyncio.create_task(
         scan_tokens_onchain(rpc_url, return_metrics=True)
     )
-
-    mp_gen = stream_ranked_mempool_tokens_with_depth(
-        rpc_url, threshold=mempool_threshold
-    )
-    mp_tokens: List[Dict[str, Any]] = []
     try:
-        while len(mp_tokens) < mempool_limit:
-            tok = await asyncio.wait_for(anext(mp_gen), timeout=0.5)
-            mp_tokens.append(tok)
-    except (StopAsyncIteration, asyncio.TimeoutError):
-        pass
-    finally:
-        await mp_gen.aclose()
+        mp_gen = stream_ranked_mempool_tokens_with_depth(
+            rpc_url, threshold=mempool_threshold
+        )
+        mp_tokens: List[Dict[str, Any]] = []
+        try:
+            while len(mp_tokens) < mempool_limit:
+                tok = await asyncio.wait_for(anext(mp_gen), timeout=0.5)
+                mp_tokens.append(tok)
+        except (StopAsyncIteration, asyncio.TimeoutError):
+            pass
+        finally:
+            await mp_gen.aclose()
 
-    trending = await trend_task
-    onchain_tokens = await onchain_task
+        trending = await trend_task
+        onchain_tokens = await onchain_task
+
+    finally:
+        trend_task.cancel()
+        onchain_task.cancel()
+        with contextlib.suppress(Exception):
+            await asyncio.gather(
+                trend_task, onchain_task, return_exceptions=True
+            )
 
     trend_metrics = []
     if trending:
