@@ -329,7 +329,20 @@ def install_deps() -> None:
     MAC_SETUP_MARKER.write_text("ok")
     try:
         ensure_deps(full=True)
-    except BaseException:
+        return
+    except Exception as exc:  # pragma: no cover - hard failure
+        needs_fallback = isinstance(exc, FileNotFoundError) or "pyproject.toml" in str(exc)
+        if needs_fallback:
+            repo_root = ROOT if "site-packages" not in str(ROOT) else Path.cwd()
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "scripts.deps", "--install-optional"],
+                    cwd=repo_root,
+                )
+                return
+            except Exception:  # pragma: no cover - fallback failure
+                MAC_SETUP_MARKER.unlink(missing_ok=True)
+                raise
         MAC_SETUP_MARKER.unlink(missing_ok=True)
         raise
 
