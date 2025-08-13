@@ -194,6 +194,12 @@ def launch_services(pm: ProcessManager) -> None:
     cfg_data = validate_env(config.REQUIRED_ENV_VARS, cfg)
     set_env_from_config(cfg_data)
     config.reload_active_config()
+    if not os.getenv("SOLANA_WS_URL"):
+        rpc_url = os.getenv("SOLANA_RPC_URL")
+        if rpc_url:
+            os.environ["SOLANA_WS_URL"] = rpc_url.replace(
+                "https://", "wss://"
+            ).replace("http://", "ws://")
     interval = float(
         cfg_data.get(
             "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
