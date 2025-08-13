@@ -5,7 +5,7 @@ import logging
 import os
 import datetime
 from pathlib import Path
-from typing import Any, Iterable, List, Tuple
+from typing import Any, Iterable, List, Tuple, Awaitable
 from contextlib import suppress
 from concurrent.futures import ProcessPoolExecutor
 import time
@@ -184,23 +184,34 @@ def _calc_num_workers(
     return base
 
 
-def _ensure_mmap_dataset(db_url: str, out_path: Path) -> None:
-    """Create ``out_path`` using ``build_mmap_dataset`` if it doesn't exist."""
+def _ensure_mmap_dataset(db_url: str, out_path: Path) -> Awaitable[None] | None:
+    """Ensure ``out_path`` exists by exporting data directly.
+
+    When invoked inside a running event loop the caller should ``await`` the
+    returned awaitable.  When no loop is running the export is executed
+    synchronously and ``None`` is returned.
+    """
+
     if out_path.exists():
-        return
+        return None
     if not parse_bool_env("RL_BUILD_MMAP_DATASET", True):
-        return
+        return None
+
+    async def _build() -> None:
+        data = OfflineData(db_url)
+        try:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            await data.export_npz(str(out_path))
+        finally:
+            await data.close()
+
     try:
-        from scripts import build_mmap_dataset
-    except Exception:  # pragma: no cover - missing script
-        return
-    db_path = db_url
-    if db_url.startswith("sqlite:///"):
-        db_path = db_url.replace("sqlite:///", "")
-    try:
-        build_mmap_dataset.main(["--db", db_path, "--out", str(out_path)])
-    except Exception as exc:  # pragma: no cover - generation failure
-        logging.getLogger(__name__).warning("failed to build mmap dataset: %s", exc)
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(_build())
+        return None
+    else:  # pragma: no cover - running loop
+        return _build()
 
 
 @njit(cache=True)
@@ -640,7 +651,9 @@ class TradeDataModule(pl.LightningDataModule):
         if self.mmap_path is None:
             default = Path("datasets/offline_data.npz")
             if not default.exists():
-                _ensure_mmap_dataset(self.db_url, default)
+                _coro = _ensure_mmap_dataset(self.db_url, default)
+                if _coro is not None:
+                    await _coro
             if default.exists():
                 self.mmap_path = str(default)
 

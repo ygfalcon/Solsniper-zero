@@ -428,9 +428,16 @@ class RLDaemon:
         self.memory = memory or Memory(memory_path)
         self.data_path = data_path
         self.data = OfflineData(f"sqlite:///{data_path}")
-        _ensure_mmap_dataset(
+        _coro = _ensure_mmap_dataset(
             f"sqlite:///{data_path}", Path("datasets/offline_data.npz")
         )
+        if _coro is not None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                asyncio.run(_coro)
+            else:  # pragma: no cover - existing loop
+                loop.create_task(_coro)
         self.model_path = Path(model_path)
         self.algo = algo
         self.policy = policy
