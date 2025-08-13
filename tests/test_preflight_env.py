@@ -79,7 +79,9 @@ def test_configure_env_strips_placeholder(tmp_path: Path, restore_env, caplog):
     assert "BIRDEYE_API_KEY" in caplog.text
 
 
-def test_configure_env_strips_bd_placeholder(tmp_path: Path, restore_env, caplog):
+def test_configure_env_strips_bd_placeholder(
+    tmp_path: Path, restore_env, caplog
+):
     env_file = tmp_path / ".env"
     env_file.write_text(
         "SOLANA_RPC_URL=https://api.mainnet-beta.solana.com\n"
@@ -125,3 +127,20 @@ def test_configure_env_creates_sanitized_env(tmp_path: Path, restore_env):
     assert env_file.exists()
     assert "be_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" not in env_file.read_text()
     assert os.environ.get("BIRDEYE_API_KEY") == ""
+
+
+def test_configure_env_serializes_json(tmp_path: Path, restore_env):
+    env_file = tmp_path / ".env"
+    env_file.write_text("")
+    (tmp_path / "config.toml").write_text(
+        "agents=['simulation']\nagent_weights={simulation=1.0}\n"
+    )
+    configure_environment(tmp_path)
+    from solhunter_zero.jsonutil import loads
+
+    assert loads(os.environ["AGENTS"]) == ["simulation"]
+    assert loads(os.environ["AGENT_WEIGHTS"]) == {"simulation": 1.0}
+    content = env_file.read_text().splitlines()
+    env_map = dict(line.split("=", 1) for line in content if "=" in line)
+    assert loads(env_map["AGENTS"]) == ["simulation"]
+    assert loads(env_map["AGENT_WEIGHTS"]) == {"simulation": 1.0}
