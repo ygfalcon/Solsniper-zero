@@ -98,7 +98,7 @@ DEFAULTS: dict[str, str] = {
     "OFFLINE_DATA_INTERVAL": "3600",
     "DEPTH_WS_ADDR": "127.0.0.1",
     "DEPTH_WS_PORT": "8766",
-    "EVENT_WS_PORT": "8769",
+    "EVENT_WS_PORT": "8770",
     "KEYPAIR_DIR": "keypairs",
     "RL_CLUSTER_WORKERS": "1",
     "RL_BUILD_MMAP_DATASET": "1",

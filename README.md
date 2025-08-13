@@ -346,13 +346,13 @@ Set `MEMORY_SYNC_INTERVAL` to control how often these sync requests are sent
 (defaults to 5 s).
 
 When the Web UI is running, these events are also forwarded over a simple
-WebSocket endpoint at `ws://localhost:8769/ws` (configurable via the
+WebSocket endpoint at `ws://localhost:8770/ws` (configurable via the
 `EVENT_WS_PORT` environment variable). Clients can subscribe and react
 to updates directly in the browser. Use the `topics` query parameter to limit
 events to a subset:
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8769/ws?topics=weights_updated');
+const ws = new WebSocket('ws://localhost:8770/ws?topics=weights_updated');
 ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   console.log(msg.topic, msg.payload);
