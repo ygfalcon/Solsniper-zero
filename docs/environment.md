@@ -201,6 +201,20 @@ This document lists environment variables recognized by the project.
 | `WS_PING_INTERVAL` | `20` | Interval for ws ping |
 | `WS_PING_TIMEOUT` | `20` | Configures ws ping timeout |
 
+## PyTorch Metal versions
+
+When running on Apple Silicon the Metal builds of ``torch`` and
+``torchvision`` must be installed as a matching pair. Supported combinations
+are:
+
+| torch | torchvision |
+| ----- | ----------- |
+| 2.8.0 | 0.23.0 |
+
+Set the ``TORCH_METAL_VERSION`` and ``TORCHVISION_METAL_VERSION`` environment
+variables or edit the ``[torch]`` section in ``config.toml`` to override the
+defaults.
+
 ## Jito Authentication
 
 On first launch the project checks for `JITO_AUTH`. If it is missing, a

@@ -23,12 +23,12 @@ INSTALL_TIMEOUT = 600
 
 
 def load_torch_metal_versions() -> tuple[str, str]:
-    """Return ``torch`` and ``torchvision`` versions for Metal wheels.
+    """Return compatible ``torch`` and ``torchvision`` Metal versions.
 
-    The versions are loaded from the ``TORCH_METAL_VERSION`` and
-    ``TORCHVISION_METAL_VERSION`` environment variables or the ``[torch]``
-    section of ``config.toml``.  A :class:`RuntimeError` is raised when neither
-    source provides the required values.
+    The versions are read from the ``TORCH_METAL_VERSION`` and
+    ``TORCHVISION_METAL_VERSION`` environment variables or from the ``[torch]``
+    section of ``config.toml``.  A :class:`RuntimeError` with guidance on
+    configuring these fields is raised when neither source provides values.
     """
 
     torch_ver = os.getenv("TORCH_METAL_VERSION")
@@ -46,7 +46,9 @@ def load_torch_metal_versions() -> tuple[str, str]:
 
     if not (torch_ver and vision_ver):
         raise RuntimeError(
-            "PyTorch Metal versions must be specified via environment variables or config.toml"
+            "Set TORCH_METAL_VERSION and TORCHVISION_METAL_VERSION or add"
+            " torch_metal_version/torchvision_metal_version under the [torch]"
+            " section in config.toml."
         )
 
     return torch_ver, vision_ver
