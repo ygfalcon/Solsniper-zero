@@ -166,10 +166,11 @@ def main(argv: list[str] | None = None) -> None:
     os.environ["AUTO_SELECT_KEYPAIR"] = "1"
 
     start_all = resources.files("scripts") / "start_all.py"
-    os.execvp(
-        sys.executable,
-        [sys.executable, str(start_all), "autopilot"],
-    )
+    # Launch the full stack including the web UI. ``start_all.py`` will
+    # automatically trigger trading via the UI when ``AUTO_START=1`` is set
+    # in the environment (handled above). The previous "autopilot" argument
+    # bypassed the UI, so omit it here to ensure ``launch_ui`` executes.
+    os.execvp(sys.executable, [sys.executable, str(start_all)])
 
 
 if __name__ == "__main__":  # pragma: no cover
