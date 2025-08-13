@@ -35,6 +35,7 @@ from solhunter_zero.paths import ROOT
 from scripts import quick_setup
 from solhunter_zero import device
 from solhunter_zero.logging_utils import log_startup
+from solhunter_zero import wallet
 
 
 REQUIRED_CFG_KEYS = {
@@ -160,10 +161,11 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{msg}: {exc}")
             log_startup(f"{msg}: {exc}")
 
+    os.environ["AUTO_SELECT_KEYPAIR"] = "1"
+    wallet.setup_default_keypair()
     device.initialize_gpu()
 
     os.environ["AUTO_START"] = "1"
-    os.environ["AUTO_SELECT_KEYPAIR"] = "1"
 
     start_all = resources.files("scripts") / "start_all.py"
     # Launch the full stack including the web UI. ``start_all.py`` will
