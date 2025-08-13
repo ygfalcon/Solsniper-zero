@@ -81,11 +81,26 @@ def start_depth_service(
     return proc
 
 
-def start_rl_daemon() -> subprocess.Popen:
-    """Start the reinforcement learning daemon."""
+def start_rl_daemon(*, stream_stderr: bool = True) -> subprocess.Popen:
+    """Start the reinforcement learning daemon.
+
+    Parameters
+    ----------
+    stream_stderr:
+        When ``True`` (the default) the RL daemon's standard error is piped
+        through the parent process so that any exceptions are visible in the
+        main console.
+    """
+
     env = os.environ.copy()
     cmd = [sys.executable, "scripts/run_rl_daemon.py"]
-    return subprocess.Popen(cmd, env=env)
+    stderr = subprocess.PIPE if stream_stderr else None
+    proc = subprocess.Popen(cmd, env=env, stderr=stderr)
+    if stream_stderr and proc.stderr is not None:
+        threading.Thread(
+            target=_stream_stderr, args=(proc.stderr,), daemon=True
+        ).start()
+    return proc
 
 
 def wait_for_depth_ws(
