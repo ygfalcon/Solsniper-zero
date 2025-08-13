@@ -70,6 +70,15 @@ MINT_RE = re.compile(r"mint:\s*(\S+)", re.IGNORECASE)
 POOL_TOKEN_RE = re.compile(r"token[AB]:\s*([A-Za-z0-9]{32,44})", re.IGNORECASE)
 
 
+def _to_ws_url(url: str) -> str:
+    """Return websocket URL matching the given HTTP(S) URL."""
+    if url.startswith("http://"):
+        return "ws://" + url[len("http://") :]
+    if url.startswith("https://"):
+        return "wss://" + url[len("https://") :]
+    return url
+
+
 async def stream_mempool_tokens(
     rpc_url: str,
     *,
@@ -90,6 +99,8 @@ async def stream_mempool_tokens(
     if keywords is None:
         keywords = TOKEN_KEYWORDS
     suffix = suffix.lower() if suffix else None
+
+    rpc_url = _to_ws_url(rpc_url)
 
     async with connect(rpc_url) as ws:
         await ws.logs_subscribe(
