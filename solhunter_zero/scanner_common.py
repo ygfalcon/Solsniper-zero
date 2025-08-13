@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import contextlib
 from typing import Dict, List, Optional, Iterable
 
 from solhunter_zero.lru import TTLCache
@@ -162,10 +163,22 @@ async def fetch_trending_tokens_async() -> List[str]:
 
     async def _fetch() -> List[str]:
         session = await get_session()
+        task = asyncio.create_task(
+            session.get(
+                JUPITER_TRENDS_API,
+                timeout=aiohttp.ClientTimeout(total=10),
+            )
+        )
         try:
-            async with session.get(JUPITER_TRENDS_API, timeout=10) as resp:
+            resp = await task
+            async with resp:
                 resp.raise_for_status()
                 data = await resp.json()
+        except asyncio.CancelledError:
+            task.cancel()
+            with contextlib.suppress(Exception):
+                await task
+            raise
         except aiohttp.ClientError as exc:  # pragma: no cover - network errors
             logger.warning("Failed to fetch trending tokens: %s", exc)
             return []
@@ -199,7 +212,9 @@ async def fetch_raydium_listings_async() -> List[str]:
 
     session = await get_session()
     try:
-        async with session.get(RAYDIUM_LISTINGS_API, timeout=10) as resp:
+        async with session.get(
+            RAYDIUM_LISTINGS_API, timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
             resp.raise_for_status()
             data = await resp.json()
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
@@ -223,7 +238,9 @@ async def fetch_orca_listings_async() -> List[str]:
 
     session = await get_session()
     try:
-        async with session.get(ORCA_LISTINGS_API, timeout=10) as resp:
+        async with session.get(
+            ORCA_LISTINGS_API, timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
             resp.raise_for_status()
             data = await resp.json()
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
@@ -247,7 +264,9 @@ async def fetch_phoenix_listings_async() -> List[str]:
 
     session = await get_session()
     try:
-        async with session.get(PHOENIX_LISTINGS_API, timeout=10) as resp:
+        async with session.get(
+            PHOENIX_LISTINGS_API, timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
             resp.raise_for_status()
             data = await resp.json()
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
@@ -267,7 +286,9 @@ def fetch_meteora_listings() -> List[str]:
 async def fetch_meteora_listings_async() -> List[str]:
     session = await get_session()
     try:
-        async with session.get(METEORA_LISTINGS_API, timeout=10) as resp:
+        async with session.get(
+            METEORA_LISTINGS_API, timeout=aiohttp.ClientTimeout(total=10)
+        ) as resp:
             resp.raise_for_status()
             data = await resp.json()
     except aiohttp.ClientError as exc:  # pragma: no cover - network errors
