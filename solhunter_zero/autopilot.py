@@ -6,9 +6,14 @@ import subprocess
 import sys
 import time
 import logging
+import asyncio
+import threading
+import urllib.parse
 from pathlib import Path
 
-from . import wallet, data_sync, main as main_module
+import websockets
+
+from . import wallet, data_sync, main as main_module, event_bus
 from .config import (
     CONFIG_DIR,
     get_active_config_name,
@@ -23,9 +28,27 @@ from .service_launcher import (
 from .paths import ROOT
 PROCS: list[subprocess.Popen] = []
 
+_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
+_EVENT_THREAD: threading.Thread | None = None
+
 
 def _stop_all(*_: object, exit_code: int = 0) -> None:
     data_sync.stop_scheduler()
+    global _EVENT_LOOP, _EVENT_THREAD
+    if _EVENT_LOOP is not None:
+        try:
+            fut = asyncio.run_coroutine_threadsafe(
+                event_bus.stop_ws_server(), _EVENT_LOOP
+            )
+            fut.result(timeout=5)
+        except Exception:
+            pass
+        try:
+            _EVENT_LOOP.call_soon_threadsafe(_EVENT_LOOP.stop)
+            if _EVENT_THREAD is not None:
+                _EVENT_THREAD.join(timeout=1)
+        except Exception:
+            pass
     for p in PROCS:
         if p.poll() is None:
             p.terminate()
@@ -82,6 +105,55 @@ def _get_config() -> tuple[str | None, dict]:
     return cfg_path, cfg
 
 
+def _start_event_bus(url: str) -> None:
+    """Launch the websocket event bus locally and ensure it is reachable."""
+    global _EVENT_LOOP, _EVENT_THREAD
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 8766
+    loop = asyncio.new_event_loop()
+    _EVENT_LOOP = loop
+
+    async def runner() -> None:
+        await event_bus.start_ws_server(host, port)
+
+    def _run() -> None:
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(runner())
+        loop.run_forever()
+
+    thread = threading.Thread(target=_run, daemon=True)
+    _EVENT_THREAD = thread
+    thread.start()
+
+    async def _check() -> None:
+        async with websockets.connect(url):
+            return None
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        try:
+            asyncio.run(asyncio.wait_for(_check(), 1))
+            return
+        except Exception:
+            time.sleep(0.1)
+    raise RuntimeError(f"Event bus failed to start at {url}")
+
+
+def _maybe_start_event_bus(cfg: dict) -> None:
+    """Start a local event bus if ``EVENT_BUS_URL`` points to localhost."""
+    url = os.getenv("EVENT_BUS_URL") or cfg.get("event_bus_url")
+    if not url:
+        return
+    host = urllib.parse.urlparse(url).hostname
+    if host and host in {"localhost", "0.0.0.0", "127.0.0.1"}:
+        try:
+            _start_event_bus(url)
+        except Exception as exc:
+            print(f"Could not start event bus at {url}: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+
 def main() -> None:
     signal.signal(signal.SIGINT, _stop_all)
     signal.signal(signal.SIGTERM, _stop_all)
@@ -112,6 +184,7 @@ def main() -> None:
         print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
+    _maybe_start_event_bus(cfg)
 
     try:
         depth_proc = start_depth_service(cfg_path)
