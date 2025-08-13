@@ -86,6 +86,11 @@ quick_setup_mod = types.ModuleType("scripts.quick_setup")
 quick_setup_mod.main = lambda argv: _fake_select_keypair()
 sys.modules["scripts.quick_setup"] = quick_setup_mod
 
+# Stub wallet module to avoid heavy crypto imports
+wallet_mod = types.ModuleType("solhunter_zero.wallet")
+wallet_mod.setup_default_keypair = lambda: _fake_select_keypair()
+sys.modules["solhunter_zero.wallet"] = wallet_mod
+
 
 def test_setup_one_click_dry_run(monkeypatch, capsys):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
@@ -96,6 +101,7 @@ def test_setup_one_click_dry_run(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
 
     monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
 
     runpy.run_path(str(script), run_name="__main__")
 
@@ -130,3 +136,60 @@ def test_regenerates_proto_when_stale(monkeypatch):
 
     assert "gen_proto.py" in " ".join(called["cmd"])
     os.utime(event_pb2, orig_times)
+
+
+def test_single_trading_loop(monkeypatch):
+    """setup_one_click should only start one trading loop."""
+
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
+    monkeypatch.delenv("AUTO_START", raising=False)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+
+    calls: list[list[str]] = []
+
+    class DummyPM:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def start(self, cmd, *, stream_stderr=False):
+            calls.append(cmd)
+            return types.SimpleNamespace(poll=lambda: 0)
+
+        def monitor_processes(self):
+            pass
+
+    def launch_services(pm):
+        pm.start([sys.executable, "-m", "solhunter_zero.main"])
+
+    def launch_ui(pm):
+        if os.getenv("AUTO_START") == "1":
+            pm.start([sys.executable, "-m", "solhunter_zero.main"])
+
+    def main() -> None:
+        with DummyPM() as pm:
+            launch_services(pm)
+            launch_ui(pm)
+            pm.monitor_processes()
+
+    start_all_stub = types.ModuleType("scripts.start_all")
+    start_all_stub.ProcessManager = DummyPM
+    start_all_stub.launch_services = launch_services
+    start_all_stub.launch_ui = launch_ui
+    start_all_stub.main = main
+    sys.modules["scripts.start_all"] = start_all_stub
+
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: start_all_stub.main())
+
+    script = Path("scripts/setup_one_click.py")
+    runpy.run_path(str(script), run_name="__main__")
+
+    main_calls = [
+        cmd for cmd in calls if cmd == [sys.executable, "-m", "solhunter_zero.main"]
+    ]
+    assert len(main_calls) == 1
