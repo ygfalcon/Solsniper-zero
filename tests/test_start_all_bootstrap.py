@@ -1,5 +1,6 @@
 import runpy
 import sys
+import os
 from pathlib import Path
 import types
 
@@ -59,3 +60,50 @@ def test_start_all_imports(monkeypatch):
     runpy.run_path("start_all.py", run_name="not_main")
 
     assert "solhunter_zero.device" in sys.modules
+
+
+def test_ensure_venv_skips_when_active(monkeypatch, tmp_path):
+    root = Path(__file__).resolve().parents[1]
+
+    device = types.ModuleType("solhunter_zero.device")
+    device.METAL_EXTRA_INDEX = []
+    device.initialize_gpu = lambda: None
+    sys.modules["solhunter_zero.device"] = device
+
+    logging_utils = types.ModuleType("solhunter_zero.logging_utils")
+    logging_utils.log_startup = lambda msg: None
+    sys.modules["solhunter_zero.logging_utils"] = logging_utils
+
+    paths = types.ModuleType("solhunter_zero.paths")
+    paths.ROOT = root
+    sys.modules["solhunter_zero.paths"] = paths
+
+    preflight = types.ModuleType("solhunter_zero.preflight_utils")
+    preflight.check_internet = lambda: (True, "")
+    sys.modules["solhunter_zero.preflight_utils"] = preflight
+
+    import solhunter_zero.bootstrap_utils as bu
+
+    # Ensure repository root isn't already on sys.path
+    path = [p for p in sys.path if p != str(bu.ROOT)]
+    monkeypatch.setattr(sys, "path", path)
+
+    called: list[str] = []
+
+    def fake_needs_recreation():
+        called.append("needs")
+        return None, ""
+
+    monkeypatch.setattr(bu, "_venv_needs_recreation", fake_needs_recreation)
+    execv_called: list[tuple] = []
+    monkeypatch.setattr(os, "execv", lambda *a, **k: execv_called.append(a))
+    monkeypatch.setattr(bu, "VENV_DIR", tmp_path / ".venv")
+    monkeypatch.setattr(sys, "prefix", "/existing")
+    monkeypatch.setattr(sys, "base_prefix", "/usr")
+
+    bu.ensure_venv(None)
+
+    assert not called
+    assert not execv_called
+    assert not (tmp_path / ".venv").exists()
+    assert str(bu.ROOT) in sys.path

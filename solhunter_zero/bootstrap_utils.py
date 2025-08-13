@@ -157,6 +157,13 @@ def ensure_venv(argv: list[str] | None) -> None:
         # to skip virtual environment creation, e.g. during tests.
         return
 
+    # If another virtual environment is already active, skip creating or
+    # re-executing into ``.venv``.  This allows running inside a pre-existing
+    # environment while still making the repository importable.
+    if sys.prefix != sys.base_prefix or os.getenv("VIRTUAL_ENV"):
+        prepend_repo_root()
+        return
+
     python_exe, reason = _venv_needs_recreation()
     if python_exe:
         if reason == "initial setup":
