@@ -5,6 +5,7 @@ import asyncio
 import os
 from typing import List, Dict, Any
 
+from solders.pubkey import Pubkey
 from solhunter_zero.lru import TTLCache
 
 
