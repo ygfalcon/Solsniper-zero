@@ -14,6 +14,7 @@ from pathlib import Path
 import websockets
 
 from . import wallet, data_sync, main as main_module, event_bus
+from .event_bus import DEFAULT_WS_URL
 from .config import (
     CONFIG_DIR,
     get_active_config_name,
@@ -144,6 +145,7 @@ def _maybe_start_event_bus(cfg: dict) -> None:
     """Start a local event bus if ``EVENT_BUS_URL`` points to localhost."""
     url = os.getenv("EVENT_BUS_URL") or cfg.get("event_bus_url")
     if not url:
+        _start_event_bus(DEFAULT_WS_URL)
         return
     host = urllib.parse.urlparse(url).hostname
     if host and host in {"localhost", "0.0.0.0", "127.0.0.1"}:
