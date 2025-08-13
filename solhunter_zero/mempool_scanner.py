@@ -104,12 +104,12 @@ async def stream_mempool_tokens(
 
     async with connect(rpc_url) as ws:
         await ws.logs_subscribe(
-            RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key),
+            RpcTransactionLogsFilterMentions(str(TOKEN_PROGRAM_ID)),
             commitment="processed",
         )
         if include_pools:
             await ws.logs_subscribe(
-                RpcTransactionLogsFilterMentions(PublicKey(str(DEX_PROGRAM_ID))._key),
+                RpcTransactionLogsFilterMentions(str(DEX_PROGRAM_ID)),
                 commitment="processed",
             )
 

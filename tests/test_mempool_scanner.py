@@ -1,11 +1,42 @@
 import asyncio
 import logging
 
+import types
+import sys
+
+def _decorator(*args, **kwargs):
+    def wrap(func):
+        return func
+    return wrap
+
+class _BaseModel:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def dict(self):
+        return dict(self.__dict__)
+
+    def model_dump(self, *args, **kwargs):  # pragma: no cover - pydantic v2 compat
+        return dict(self.__dict__)
+
+pydantic_stub = types.SimpleNamespace(
+    BaseModel=_BaseModel,
+    AnyUrl=str,
+    ValidationError=Exception,
+    field_validator=_decorator,
+    model_validator=_decorator,
+    validator=_decorator,
+    root_validator=_decorator,
+)
+
+sys.modules.setdefault("pydantic", pydantic_stub)
+
 import solhunter_zero.mempool_scanner as mp_scanner
 from solhunter_zero import dynamic_limit
 from solhunter_zero import scanner_common, event_bus, resource_monitor as rm
 
 scanner_common.TOKEN_SUFFIX = ""
+mp_scanner.RpcTransactionLogsFilterMentions = lambda *a, **k: None
 
 
 class FakeWS:
@@ -95,6 +126,41 @@ def test_connect_with_wss_url(monkeypatch):
 
     asyncio.run(run())
     assert urls == ["wss://node"]
+
+
+def test_filter_creation_uses_public_api(monkeypatch):
+    calls = []
+
+    class DummyPK:
+        def __str__(self):
+            return "dummy"
+
+        def to_bytes(self):  # pragma: no cover - optional
+            return b"dummy"
+
+    monkeypatch.setattr(mp_scanner, "TOKEN_PROGRAM_ID", DummyPK())
+
+    def fake_filter(arg):
+        calls.append(arg)
+        return None
+
+    monkeypatch.setattr(mp_scanner, "RpcTransactionLogsFilterMentions", fake_filter)
+
+    def fake_connect(url):
+        return FakeConnect(url, [])
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    async def run():
+        gen = mp_scanner.stream_mempool_tokens("ws://node", include_pools=False)
+        try:
+            await anext(gen)
+        except StopAsyncIteration:
+            pass
+        await gen.aclose()
+
+    asyncio.run(run())
+    assert calls[0] in {"dummy", b"dummy"}
 
 
 def test_stream_mempool_tokens(monkeypatch):
