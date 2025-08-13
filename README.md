@@ -59,6 +59,16 @@ Trade logs use the same mechanism via `MEMORY_BATCH_SIZE` and `MEMORY_FLUSH_INTE
 ## Setup
 See [docs/setup.md](docs/setup.md) for comprehensive setup instructions, including quick start, macOS details, Docker Compose, environment configuration, paper trading, and the Rust depth service.
 
+### Redis
+The default event bus uses Redis for messaging. Install Redis and ensure it is running before launching the application:
+
+```bash
+sudo apt-get install redis-server  # Debian/Ubuntu
+redis-server &
+```
+
+If you prefer to use a remote instance, set the `EVENT_BUS_URL` environment variable to its address.
+
 ## Configuration
 
 The bot reads its settings from `config.toml`. Ensure the following keys are defined before starting:
