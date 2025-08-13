@@ -1427,7 +1427,9 @@ async def _rl_ws_handler(ws):
         rl_ws_clients.discard(ws)
 
 
-async def _event_ws_handler(ws):
+async def _event_ws_handler(ws, path: str | None = None):
+    if path not in (None, "/ws"):
+        return
     event_ws_clients.add(ws)
     try:
         async for _ in ws:
@@ -1466,74 +1468,105 @@ def start_websockets() -> dict[str, threading.Thread]:
     def _start_rl_ws() -> None:
         global rl_ws_loop
         rl_ws_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(rl_ws_loop)
+        server = None
         try:
-            rl_ws_loop.run_until_complete(
-                websockets.serve(
+            async def _serve() -> Any:
+                return await websockets.serve(
                     _rl_ws_handler,
                     "localhost",
                     8767,
                     ping_interval=_WS_PING_INTERVAL,
                     ping_timeout=_WS_PING_TIMEOUT,
                 )
-            )
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                logger.error("RL websocket port %s is already in use", 8767)
-            else:
-                logger.error("Failed to start RL websocket on port %s: %s", 8767, e)
-            return
-        rl_ws_loop.run_forever()
+
+            try:
+                server = rl_ws_loop.run_until_complete(_serve())
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logger.error("RL websocket port %s is already in use", 8767)
+                else:
+                    logger.error(
+                        "Failed to start RL websocket on port %s: %s", 8767, e
+                    )
+                return
+            rl_ws_loop.run_forever()
+        finally:
+            if server is not None:
+                server.close()
+                rl_ws_loop.run_until_complete(server.wait_closed())
+            rl_ws_loop.run_until_complete(rl_ws_loop.shutdown_asyncgens())
+            rl_ws_loop.close()
 
     def _start_event_ws() -> None:
         global event_ws_loop
         event_ws_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_ws_loop)
+        server = None
         try:
-            event_ws_loop.run_until_complete(
-                websockets.serve(
+            async def _serve() -> Any:
+                return await websockets.serve(
                     _event_ws_handler,
                     "localhost",
                     _EVENT_WS_PORT,
-                    path="/ws",
                     ping_interval=_WS_PING_INTERVAL,
                     ping_timeout=_WS_PING_TIMEOUT,
                 )
-            )
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                logger.error(
-                    "Event websocket port %s is already in use", _EVENT_WS_PORT
-                )
-            else:
-                logger.error(
-                    "Failed to start event websocket on port %s: %s",
-                    _EVENT_WS_PORT,
-                    e,
-                )
-            return
-        event_ws_loop.run_forever()
+
+            try:
+                server = event_ws_loop.run_until_complete(_serve())
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logger.error(
+                        "Event websocket port %s is already in use", _EVENT_WS_PORT
+                    )
+                else:
+                    logger.error(
+                        "Failed to start event websocket on port %s: %s",
+                        _EVENT_WS_PORT,
+                        e,
+                    )
+                return
+            event_ws_loop.run_forever()
+        finally:
+            if server is not None:
+                server.close()
+                event_ws_loop.run_until_complete(server.wait_closed())
+            event_ws_loop.run_until_complete(event_ws_loop.shutdown_asyncgens())
+            event_ws_loop.close()
 
     def _start_log_ws() -> None:
         global log_ws_loop
         log_ws_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(log_ws_loop)
+        server = None
         try:
-            log_ws_loop.run_until_complete(
-                websockets.serve(
+            async def _serve() -> Any:
+                return await websockets.serve(
                     _log_ws_handler,
                     "localhost",
                     8768,
                     ping_interval=_WS_PING_INTERVAL,
                     ping_timeout=_WS_PING_TIMEOUT,
                 )
-            )
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                logger.error("Log websocket port %s is already in use", 8768)
-            else:
-                logger.error(
-                    "Failed to start log websocket on port %s: %s", 8768, e
-                )
-            return
-        log_ws_loop.run_forever()
+
+            try:
+                server = log_ws_loop.run_until_complete(_serve())
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    logger.error("Log websocket port %s is already in use", 8768)
+                else:
+                    logger.error(
+                        "Failed to start log websocket on port %s: %s", 8768, e
+                    )
+                return
+            log_ws_loop.run_forever()
+        finally:
+            if server is not None:
+                server.close()
+                log_ws_loop.run_until_complete(server.wait_closed())
+            log_ws_loop.run_until_complete(log_ws_loop.shutdown_asyncgens())
+            log_ws_loop.close()
 
     for name, target in (
         ("rl", _start_rl_ws),
