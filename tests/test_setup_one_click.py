@@ -5,6 +5,7 @@ import sys
 import types
 import subprocess
 import shutil
+import site
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ import pytest
 # Stub modules to avoid heavy side effects during import
 macos_setup_mod = types.ModuleType("solhunter_zero.macos_setup")
 macos_setup_mod.ensure_tools = lambda non_interactive=True: None
+macos_setup_mod._resolve_metal_versions = lambda: ("torch", "vision")
+macos_setup_mod._write_versions_to_config = lambda *a, **k: None
 sys.modules["solhunter_zero.macos_setup"] = macos_setup_mod
 
 bootstrap_utils_mod = types.ModuleType("solhunter_zero.bootstrap_utils")
@@ -198,3 +201,39 @@ def test_single_trading_loop(monkeypatch):
         cmd for cmd in calls if cmd == [sys.executable, "-m", "solhunter_zero.main"]
     ]
     assert len(main_calls) == 1
+
+
+def test_purges_corrupt_dist_info(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    script = Path("scripts/setup_one_click.py")
+    monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    site_dir = tmp_path / "site-packages"
+    site_dir.mkdir()
+    pkg_dir = site_dir / "solhunter_zero"
+    pkg_dir.mkdir()
+    dist_dir = site_dir / "solhunter_zero-0.1-invalid.dist-info"
+    dist_dir.mkdir()
+
+    monkeypatch.setattr(site, "getsitepackages", lambda: [str(site_dir)])
+    monkeypatch.setattr(site, "getusersitepackages", lambda: str(site_dir))
+
+    def fake_run(cmd, *a, **k):
+        if cmd[:3] == [sys.executable, "-m", "pip"] and cmd[3] == "show":
+            out = f"Name: solhunter-zero\nVersion: invalid\nLocation: {site_dir}\n"
+            return types.SimpleNamespace(returncode=0, stdout=out)
+        return types.SimpleNamespace(returncode=0, stdout="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    Path(".env").write_text("")
+    runpy.run_path(str(script), run_name="__main__")
+
+    assert not pkg_dir.exists()
+    assert not dist_dir.exists()

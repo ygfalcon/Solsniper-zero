@@ -9,6 +9,8 @@ import os
 import sys
 import subprocess
 import shutil
+import site
+from packaging.version import InvalidVersion, Version
 import tomllib
 from pathlib import Path
 
@@ -67,6 +69,41 @@ def _validate_config(path: os.PathLike[str]) -> None:
         )
         print("Example configuration:\n\n" + example, file=sys.stderr)
         sys.exit(1)
+
+
+def _purge_corrupt_install() -> None:
+    """Remove broken solhunter-zero installs before reinstalling."""
+    res = subprocess.run(
+        [sys.executable, "-m", "pip", "show", "solhunter-zero"],
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode != 0:
+        return
+    version: str | None = None
+    location: str | None = None
+    for line in res.stdout.splitlines():
+        if line.startswith("Version:"):
+            version = line.split(":", 1)[1].strip()
+        elif line.startswith("Location:"):
+            location = line.split(":", 1)[1].strip()
+    if not version:
+        return
+    try:
+        Version(version)
+        return
+    except InvalidVersion:
+        pass
+
+    dirs: set[Path] = set()
+    if location:
+        dirs.add(Path(location))
+    dirs.update(Path(p) for p in site.getsitepackages())
+    dirs.add(Path(site.getusersitepackages()))
+    for base in dirs:
+        for target in base.glob("solhunter_zero*"):
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -145,6 +182,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     if "PYTEST_CURRENT_TEST" not in os.environ:
+        _purge_corrupt_install()
         METAL_INDEX = (
             device.METAL_EXTRA_INDEX[1]
             if len(getattr(device, "METAL_EXTRA_INDEX", [])) > 1
