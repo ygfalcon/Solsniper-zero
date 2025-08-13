@@ -237,3 +237,71 @@ def test_purges_corrupt_dist_info(monkeypatch, tmp_path):
 
     assert not pkg_dir.exists()
     assert not dist_dir.exists()
+
+
+def test_setup_one_click_creates_files(tmp_path, monkeypatch):
+    """setup_one_click.main should create config and env files in a fresh repo."""
+    import asyncio
+    repo_root = tmp_path
+    monkeypatch.chdir(repo_root)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
+
+    # Ensure the script believes the repo root is tmp_path
+    import solhunter_zero.paths as paths
+    monkeypatch.setattr(paths, "ROOT", repo_root)
+
+    # Prepare quick_setup stub that writes a minimal config
+    cfg_path = repo_root / "config.toml"
+
+    def fake_quick_setup(argv):
+        cfg_path.write_text(
+            "solana_rpc_url = \"https://api.mainnet-beta.solana.com\"\n"
+            "dex_base_url = \"https://quote-api.jup.ag\"\n"
+            "agents = [\"simulation\"]\n"
+            "[agent_weights]\n"
+            "simulation = 1.0\n"
+        )
+
+    quick_setup_mod.CONFIG_PATH = cfg_path
+    monkeypatch.setattr(quick_setup_mod, "main", fake_quick_setup)
+
+    # Wallet stub to create default keypair files
+    def fake_wallet_setup_default_keypair():
+        kp_dir = repo_root / "keypairs"
+        kp_dir.mkdir()
+        (kp_dir / "default.json").write_text("[]")
+        return types.SimpleNamespace(name="default", mnemonic_path=None)
+
+    monkeypatch.setattr(wallet_mod, "setup_default_keypair", fake_wallet_setup_default_keypair)
+
+    # Avoid external subprocess calls and simulate proto generation
+    def fake_check_call(cmd, *a, **k):
+        if "gen_proto.py" in cmd[-1]:
+            pkg_dir = repo_root / "solhunter_zero"
+            pkg_dir.mkdir()
+            (pkg_dir / "event_pb2.py").write_text("# generated")
+        return 0
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0, stdout=""))
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+
+    # Create required proto directory
+    (repo_root / "proto").mkdir()
+    (repo_root / "proto" / "event.proto").write_text("syntax='proto3';")
+
+    from scripts import setup_one_click
+
+    setup_one_click.main(["--dry-run"])
+
+    assert (repo_root / ".env").exists()
+    assert cfg_path.exists()
+    assert (repo_root / "keypairs" / "default.json").exists()
+    assert (repo_root / "solhunter_zero" / "event_pb2.py").exists()
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is not None:
+        assert not [t for t in asyncio.all_tasks(loop) if not t.done()]
