@@ -33,23 +33,33 @@ _EVENT_LOOP: asyncio.AbstractEventLoop | None = None
 _EVENT_THREAD: threading.Thread | None = None
 
 
-def _stop_all(*_: object, exit_code: int = 0) -> None:
-    data_sync.stop_scheduler()
+def shutdown_event_bus() -> None:
+    """Stop the event bus thread and its event loop if running."""
     global _EVENT_LOOP, _EVENT_THREAD
-    if _EVENT_LOOP is not None:
+    if _EVENT_LOOP is None:
+        return
+    try:
+        fut = asyncio.run_coroutine_threadsafe(
+            event_bus.stop_ws_server(), _EVENT_LOOP
+        )
         try:
-            fut = asyncio.run_coroutine_threadsafe(
-                event_bus.stop_ws_server(), _EVENT_LOOP
-            )
             fut.result(timeout=5)
-        except Exception:
+        except Exception:  # pragma: no cover - best effort cleanup
             pass
+    finally:
         try:
             _EVENT_LOOP.call_soon_threadsafe(_EVENT_LOOP.stop)
-            if _EVENT_THREAD is not None:
-                _EVENT_THREAD.join(timeout=1)
         except Exception:
             pass
+        if _EVENT_THREAD is not None:
+            _EVENT_THREAD.join(timeout=1)
+    _EVENT_LOOP = None
+    _EVENT_THREAD = None
+
+
+def _stop_all(*_: object, exit_code: int = 0) -> None:
+    data_sync.stop_scheduler()
+    shutdown_event_bus()
     for p in PROCS:
         if p.poll() is None:
             p.terminate()
