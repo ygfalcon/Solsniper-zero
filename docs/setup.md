@@ -8,11 +8,14 @@
    with installation.
 
 2. **Install dependencies**
-   ```bash
-   python -m solhunter_zero.launcher --one-click
-   ```
-   The one-click launcher automatically installs any missing Python packages by
-   invoking the internal `ensure_deps` helper.
+ ```bash
+  python -m solhunter_zero.launcher --one-click
+  ```
+  The one-click launcher automatically installs any missing Python packages by
+  invoking the internal `ensure_deps` helper.
+  If you already have an active virtual environment, the setup script will use it
+  instead of creating a `.venv` directory. Activate your preferred environment
+  first to supply a custom name.
 
 For a guided setup you can run `scripts/startup.py` which checks dependencies, verifies that the `solhunter-wallet` CLI is installed, prompts for configuration and wallet details, then launches the bot live. `make start` runs the same script with `--one-click` for unattended startup. The `solhunter-start` command provides the same non-interactive flow by default while still accepting the standard flags for customization.
 
