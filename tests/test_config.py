@@ -96,6 +96,21 @@ def test_find_config_file_order(tmp_path, monkeypatch):
     assert Path(find_config_file()).resolve() == (tmp_path / "config.yaml").resolve()
 
 
+def test_find_config_file_outside_package(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir()
+    cfg_path = cfg_dir / "config.toml"
+    cfg_path.write_text("agents=['sim']\n[agent_weights]\nsim=1\n")
+    site_root = tmp_path / "site"
+    site_root.mkdir()
+    import solhunter_zero.config as config_module
+    import solhunter_zero.paths as paths_module
+    monkeypatch.setattr(paths_module, "ROOT", site_root)
+    monkeypatch.setattr(config_module, "ROOT", site_root)
+    monkeypatch.chdir(cfg_dir)
+    assert Path(config_module.find_config_file()).resolve() == cfg_path.resolve()
+
+
 def test_apply_env_overrides(monkeypatch):
     cfg = {
         "birdeye_api_key": "a",

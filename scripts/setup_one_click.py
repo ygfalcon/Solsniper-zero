@@ -74,8 +74,11 @@ def main(argv: list[str] | None = None) -> None:
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
+    cfg_str = None
     if cfg_path:
         _validate_config(cfg_path)
+        cfg_str = str(cfg_path)
+        os.environ["SOLHUNTER_CONFIG"] = cfg_str
 
     env_file = ROOT / ".env"
     bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
@@ -84,6 +87,7 @@ def main(argv: list[str] | None = None) -> None:
     lines = env_file.read_text().splitlines(True)
     seen_event = False
     seen_broker = False
+    seen_config = cfg_str is None
     for i, line in enumerate(lines):
         if line.startswith("EVENT_BUS_URL="):
             lines[i] = f"EVENT_BUS_URL={bus_url}\n"
@@ -91,10 +95,15 @@ def main(argv: list[str] | None = None) -> None:
         elif line.startswith("BROKER_WS_URLS="):
             lines[i] = f"BROKER_WS_URLS={bus_url}\n"
             seen_broker = True
+        elif not seen_config and line.startswith("SOLHUNTER_CONFIG="):
+            lines[i] = f"SOLHUNTER_CONFIG={cfg_str}\n"
+            seen_config = True
     if not seen_event:
         lines.append(f"EVENT_BUS_URL={bus_url}\n")
     if not seen_broker:
         lines.append(f"BROKER_WS_URLS={bus_url}\n")
+    if not seen_config:
+        lines.append(f"SOLHUNTER_CONFIG={cfg_str}\n")
     with env_file.open("w", encoding="utf-8") as fh:
         fh.writelines(lines)
 

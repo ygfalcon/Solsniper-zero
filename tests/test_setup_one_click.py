@@ -27,7 +27,9 @@ logging_utils_mod.setup_logging = lambda name: None
 sys.modules["solhunter_zero.logging_utils"] = logging_utils_mod
 
 env_config_mod = types.ModuleType("solhunter_zero.env_config")
-env_config_mod.configure_environment = lambda root: {}
+env_config_mod.configure_environment = (
+    lambda root: (Path(root) / ".env").write_text("", encoding="utf-8")
+)
 env_config_mod.configure_startup_env = lambda root: {}
 sys.modules["solhunter_zero.env_config"] = env_config_mod
 
@@ -193,3 +195,29 @@ def test_single_trading_loop(monkeypatch):
         cmd for cmd in calls if cmd == [sys.executable, "-m", "solhunter_zero.main"]
     ]
     assert len(main_calls) == 1
+
+
+def test_setup_one_click_sets_config_env(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    cfg_path = tmp_path / "config.toml"
+    cfg_path.write_text(
+        "solana_rpc_url='https://api.mainnet-beta.solana.com'\n"
+        "dex_base_url='https://quote-api.jup.ag'\n"
+        "agents=['simulation']\n"
+        "[agent_weights]\n"
+        "simulation=1.0\n"
+    )
+    quick_setup_mod.CONFIG_PATH = cfg_path
+
+    script = Path("scripts/setup_one_click.py")
+    monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
+
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+
+    runpy.run_path(str(script), run_name="__main__")
+
+    assert os.environ.get("SOLHUNTER_CONFIG") == str(cfg_path)

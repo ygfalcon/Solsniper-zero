@@ -239,24 +239,38 @@ ACTIVE_CONFIG_FILE = os.path.join(CONFIG_DIR, "active")
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
 
-def find_config_file() -> str | None:
+def find_config_file(root: str | os.PathLike | None = None) -> str | None:
     """Return the first existing configuration file path.
 
     The search order is ``config.toml``, ``config.yaml`` and ``config.yml``.
     The ``SOLHUNTER_CONFIG`` environment variable, when set, takes precedence.
+    ``root`` specifies the directory to search first and defaults to the
+    current working directory.  The project ``ROOT`` is used as a fallback.
     """
 
-    path = os.getenv("SOLHUNTER_CONFIG")
-    if path:
-        p = Path(path)
-        if not p.is_absolute():
-            p = ROOT / p
-        if p.is_file():
-            return str(p)
+    search_root = Path(root) if root is not None else Path.cwd()
+    env_path = os.getenv("SOLHUNTER_CONFIG")
+    if env_path:
+        p = Path(env_path)
+        if p.is_absolute():
+            if p.is_file():
+                return str(p)
+        else:
+            candidate = search_root / p
+            if candidate.is_file():
+                return str(candidate)
+            candidate = ROOT / p
+            if candidate.is_file():
+                return str(candidate)
     for name in ("config.toml", "config.yaml", "config.yml"):
-        p = ROOT / name
+        p = search_root / name
         if p.is_file():
             return str(p)
+    if search_root != ROOT:
+        for name in ("config.toml", "config.yaml", "config.yml"):
+            p = ROOT / name
+            if p.is_file():
+                return str(p)
     return None
 
 
