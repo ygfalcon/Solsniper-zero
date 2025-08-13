@@ -193,18 +193,32 @@ class ProcessManager:
 
 
 def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
-    """Wait briefly to ensure the RL daemon is running."""
+    """Wait for the RL daemon to emit a heartbeat event."""
+
+    from solhunter_zero import event_bus
+
     deadline = time.monotonic() + timeout
-    ready_after = time.monotonic() + 1.0
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            raise RuntimeError(
-                f"rl_daemon exited with code {proc.returncode}"
-            )
-        if time.monotonic() >= ready_after:
-            return
-        time.sleep(0.1)
-    raise TimeoutError("rl_daemon startup timed out")
+    hb_received = threading.Event()
+
+    def _on_hb(payload: object) -> None:
+        service = (
+            payload.get("service") if isinstance(payload, dict) else getattr(payload, "service", None)
+        )
+        if service == "rl_daemon":
+            hb_received.set()
+
+    unsub = event_bus.subscribe("heartbeat", _on_hb)
+    try:
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"rl_daemon exited with code {proc.returncode}"
+                )
+            if hb_received.wait(0.1):
+                return
+        raise TimeoutError("rl_daemon startup timed out")
+    finally:
+        unsub()
 
 
 def launch_services(pm: ProcessManager) -> None:
