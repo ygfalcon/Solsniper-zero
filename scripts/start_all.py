@@ -30,6 +30,7 @@ import threading
 import logging
 import webbrowser
 import socket
+import urllib.parse
 from typing import IO
 
 from solhunter_zero.paths import ROOT  # noqa: E402
@@ -73,6 +74,28 @@ def _is_port_open(host: str, port: int) -> bool:
             return True
         except OSError:
             return False
+
+
+def _check_redis_connection() -> None:
+    """Log a helpful message when the Redis broker is unreachable."""
+    url = (
+        os.getenv("EVENT_BUS_URL")
+        or os.getenv("BROKER_URL")
+        or "redis://127.0.0.1:6379"
+    )
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"redis", "rediss"}:
+        return
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 6379
+    if _is_port_open(host, port):
+        return
+    logging.error(
+        "Failed to connect to Redis at %s:%s. "
+        "Start redis-server or set EVENT_BUS_URL.",
+        host,
+        port,
+    )
 
 class ProcessManager:
     def __init__(self) -> None:
@@ -194,6 +217,7 @@ def launch_services(pm: ProcessManager) -> None:
     cfg_data = validate_env(config.REQUIRED_ENV_VARS, cfg)
     set_env_from_config(cfg_data)
     config.reload_active_config()
+    _check_redis_connection()
     if not os.getenv("SOLANA_WS_URL"):
         rpc_url = os.getenv("SOLANA_RPC_URL")
         if rpc_url:

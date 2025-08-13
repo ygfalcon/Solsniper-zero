@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 from contextlib import nullcontext
+import urllib.parse
 
 from flask import Flask, Blueprint, jsonify, request, render_template_string
 
@@ -70,6 +71,36 @@ _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.t
 log_buffer: deque[str] = deque()
 buffer_handler: logging.Handler | None = None
 _SUBSCRIPTIONS: list[Any] = []
+
+
+def _check_redis_connection() -> None:
+    """Warn the user when Redis is unreachable."""
+    url = os.getenv("EVENT_BUS_URL") or "redis://127.0.0.1:6379"
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"redis", "rediss"}:
+        return
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 6379
+    try:
+        with socket.create_connection((host, port), timeout=0.1):
+            return
+    except OSError:
+        try:
+            subprocess.Popen(["redis-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(10):
+                time.sleep(0.5)
+                try:
+                    with socket.create_connection((host, port), timeout=0.1):
+                        return
+                except OSError:
+                    continue
+        except Exception:
+            pass
+        logger.error(
+            "Failed to connect to Redis at %s:%s. Start redis-server or set EVENT_BUS_URL.",
+            host,
+            port,
+        )
 
 # Ensure event bus subscriptions are cleaned up when the application context ends
 def _clear_subscriptions(_exc: Exception | None) -> None:
@@ -308,6 +339,7 @@ def ensure_active_config() -> None:
         return
     select_config(configs[0])
     set_env_from_config(load_selected_config())
+    _check_redis_connection()
     initialize_event_bus()
 
 
@@ -337,6 +369,7 @@ def create_app() -> Flask:
 
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
+    _check_redis_connection()
     initialize_event_bus()
 
     try:
@@ -462,6 +495,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+    _check_redis_connection()
     initialize_event_bus()
     ensure_active_config()
 
@@ -481,6 +515,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     current_portfolio = portfolio
     set_env_from_config(load_selected_config())
+    _check_redis_connection()
     initialize_event_bus()
     keypair_path = os.getenv("KEYPAIR_PATH")
     try:
@@ -531,6 +566,7 @@ def start() -> dict:
 
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
+    _check_redis_connection()
     initialize_event_bus()
     ensure_active_config()
 
