@@ -33,9 +33,8 @@ from solhunter_zero.macos_setup import ensure_tools
 import solhunter_zero.env_config as env_config
 from solhunter_zero.paths import ROOT
 from scripts import quick_setup
-from solhunter_zero import device
+from solhunter_zero import bootstrap, device
 from solhunter_zero.logging_utils import log_startup
-from solhunter_zero import wallet
 
 
 REQUIRED_CFG_KEYS = {
@@ -83,9 +82,6 @@ def main(argv: list[str] | None = None) -> None:
         with open(cfg_path, "wb") as fh:
             fh.write(tomli_w.dumps(cfg).encode("utf-8"))
         _validate_config(cfg_path)
-
-    # Dependency installation is deferred to ``bootstrap.bootstrap`` which
-    # runs as part of the autopilot startup sequence.
 
     event_pb2 = ROOT / "solhunter_zero" / "event_pb2.py"
     event_proto = ROOT / "proto" / "event.proto"
@@ -161,9 +157,8 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{msg}: {exc}")
             log_startup(f"{msg}: {exc}")
 
-    os.environ["AUTO_SELECT_KEYPAIR"] = "1"
-    wallet.setup_default_keypair()
-    device.initialize_gpu()
+    # Install dependencies and initialize environment before launching.
+    bootstrap.bootstrap(one_click=True)
 
     start_all = resources.files("scripts") / "start_all.py"
     # Launch the full stack including the web UI. ``start_all.py`` already
