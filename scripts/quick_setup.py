@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import os
 import sys
 from pathlib import Path
@@ -88,6 +89,13 @@ def main(argv: list[str] | None = None) -> None:
         args.auto = True
 
     cfg = load_config(args.auto)
+    for key in ("agents", "agent_weights"):
+        val = cfg.get(key)
+        if isinstance(val, str):
+            try:
+                cfg[key] = ast.literal_eval(val)
+            except ValueError:
+                pass
     updated = False
     for key, env, desc in PROMPTS:
         val = os.getenv(env) or cfg.get(key)
