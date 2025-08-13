@@ -68,6 +68,9 @@ def ensure_keypair() -> tuple["wallet.KeypairInfo", Path]:
     name, mnemonic_path = result.name, result.mnemonic_path
     keypair_path = Path(wallet.KEYPAIR_DIR) / f"{name}.json"
 
+    if not os.environ.get("SOLANA_KEYPAIR"):
+        os.environ["SOLANA_KEYPAIR"] = str(keypair_path)
+
     if keypair_json:
         _msg("Keypair saved from KEYPAIR_JSON and selected as 'default'.")
         _msg(f"Keypair stored at {keypair_path}.")
