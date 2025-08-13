@@ -4,7 +4,7 @@
  - To customize, copy `config/default.toml` to `config.toml` and edit the values.
 - `make start` runs `scripts/startup.py` for guided setup and launches `depth_service` automatically.
 - Use `solhunter-start` to launch the same startup routine with `--one-click` by default while still accepting additional flags.
-- Pass `--min-delay` to enforce a minimum delay between trade iterations when running the bot.
+- Pass `--min-delay` or `--max-delay` to enforce minimum or maximum delay between trade iterations when running the bot.
 - Run `python -m solhunter_zero.launcher --auto` for a fully automated launch. On macOS, double-click `start.command` for the same effect. It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
 - `scripts/quick_setup.py --auto` populates `config.toml` with defaults. Use `--non-interactive` to rely on environment variables only. Set `AUTO_SELECT_KEYPAIR=1` to have the sole keypair chosen without prompts.
 - Setup scripts write the `.env` file to your current working directory, keeping environment settings alongside the source tree.
