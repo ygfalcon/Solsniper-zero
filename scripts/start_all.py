@@ -174,9 +174,13 @@ def launch_services(pm: ProcessManager) -> None:
 
 def launch_ui(pm: ProcessManager) -> None:
     def _run_ui() -> None:
-        app = ui.create_app()
-        pm.ws_threads = ui.start_websockets()
-        app.run()
+        try:
+            app = ui.create_app()
+            pm.ws_threads = ui.start_websockets()
+            app.run()
+        except Exception as exc:  # noqa: BLE001
+            log_startup(f"UI initialization failed: {exc}")
+            pm.stop_all()
 
     thread = threading.Thread(target=_run_ui, daemon=True)
     thread.start()
