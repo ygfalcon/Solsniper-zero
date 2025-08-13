@@ -1,5 +1,10 @@
+import os
 import platform
 import pytest
+
+os.environ.setdefault("TORCH_METAL_VERSION", "2.8.0")
+os.environ.setdefault("TORCHVISION_METAL_VERSION", "0.19.0")
+
 from solhunter_zero import bootstrap_utils
 
 
@@ -135,3 +140,39 @@ def test_redis_broker_requires_server(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "redis-server" in out
     assert "BROKER_URL=memory://" in out
+
+
+@pytest.mark.parametrize(
+    "env_var,url,expected",
+    [
+        ("BROKER_URL", "redis://localhost", "redis"),
+        ("BROKER_URLS", "nats://localhost", "nats-py"),
+    ],
+)
+def test_broker_packages_installed(monkeypatch, env_var, url, expected):
+    marker = bootstrap_utils.DEPS_MARKER
+    marker.unlink(missing_ok=True)
+    monkeypatch.delenv("BROKER_URL", raising=False)
+    monkeypatch.delenv("BROKER_URLS", raising=False)
+    monkeypatch.setenv(env_var, url)
+    installed: list[str] = []
+    monkeypatch.setattr(bootstrap_utils.deps, "check_deps", lambda: ([], []))
+    monkeypatch.setattr(bootstrap_utils, "_package_missing", lambda pkg: True)
+    monkeypatch.setattr(
+        "solhunter_zero.bootstrap.ensure_target", lambda name: None
+    )
+    import types, sys
+
+    dummy_preflight = types.SimpleNamespace(check_internet=lambda: (True, "ok"))
+    monkeypatch.setitem(sys.modules, "scripts.preflight", dummy_preflight)
+    monkeypatch.setattr(
+        bootstrap_utils,
+        "_pip_install",
+        lambda *a, **k: installed.append(a[0]),
+    )
+    if url.startswith("redis://"):
+        monkeypatch.setattr(
+            bootstrap_utils.shutil, "which", lambda cmd: "/usr/bin/redis-server"
+        )
+    bootstrap_utils.ensure_deps(ensure_wallet_cli=False)
+    assert expected in installed
