@@ -198,6 +198,14 @@ def apply_env_overrides(config: Mapping[str, Any] | None) -> dict[str, Any]:
     for key, env in ENV_VARS.items():
         env_val = os.getenv(env)
         if env_val is not None:
+            if env in {"AGENTS", "AGENT_WEIGHTS"} and isinstance(env_val, str):
+                try:
+                    parsed = ast.literal_eval(env_val)
+                except (ValueError, SyntaxError):
+                    pass
+                else:
+                    if isinstance(parsed, (list, dict)):
+                        env_val = parsed
             cfg[key] = env_val
     return cfg
 

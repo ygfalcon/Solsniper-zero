@@ -146,7 +146,7 @@ def test_apply_env_overrides(monkeypatch):
     monkeypatch.setenv("BIRDEYE_API_KEY", "NEW")
     monkeypatch.setenv("RISK_TOLERANCE", "0.2")
     monkeypatch.setenv("TOKEN_SUFFIX", "doge")
-    monkeypatch.setenv("AGENTS", "x,y")
+    monkeypatch.setenv("AGENTS", "['x', 'y']")
     monkeypatch.setenv("AGENT_WEIGHTS", "{'x': 1}")
     monkeypatch.setenv("EVENT_BUS_URL", "ws://new")
     result = apply_env_overrides(cfg)
@@ -154,9 +154,18 @@ def test_apply_env_overrides(monkeypatch):
     assert result["solana_rpc_url"] == "b"
     assert result["risk_tolerance"] == "0.2"
     assert result["token_suffix"] == "doge"
-    assert result["agents"] == "x,y"
-    assert result["agent_weights"] == "{'x': 1}"
+    assert result["agents"] == ["x", "y"]
+    assert result["agent_weights"] == {"x": 1}
     assert result["event_bus_url"] == "ws://new"
+
+
+def test_apply_env_overrides_invalid_values(monkeypatch):
+    cfg = {}
+    monkeypatch.setenv("AGENTS", "x,y")
+    monkeypatch.setenv("AGENT_WEIGHTS", "not a dict")
+    result = apply_env_overrides(cfg)
+    assert result["agents"] == "x,y"
+    assert result["agent_weights"] == "not a dict"
 
 
 def test_llm_env_overrides(monkeypatch):
