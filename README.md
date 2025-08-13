@@ -138,6 +138,9 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
    ```
+   If `SOLANA_WS_URL` is unset, it is automatically derived from
+   `SOLANA_RPC_URL` by switching the scheme from `http` to `ws` (and `https`
+   to `wss`).
 
 5. **Configure DEX endpoints**
    Set the base URL of the DEX API for mainnet and (optionally) the testnet

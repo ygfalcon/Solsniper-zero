@@ -176,6 +176,12 @@ def launch_services(pm: ProcessManager) -> None:
     set_env_from_config(cfg_data)
     import solhunter_zero.config as config  # noqa: E402
     config.reload_active_config()
+    if not os.getenv("SOLANA_WS_URL"):
+        rpc_url = os.getenv("SOLANA_RPC_URL")
+        if rpc_url:
+            os.environ["SOLANA_WS_URL"] = rpc_url.replace(
+                "https://", "wss://"
+            ).replace("http://", "ws://")
     interval = float(
         cfg_data.get(
             "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
