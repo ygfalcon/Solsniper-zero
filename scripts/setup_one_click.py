@@ -9,6 +9,7 @@ import sys
 import subprocess
 import shutil
 import tomllib
+import tomli_w  # type: ignore
 
 try:
     import solhunter_zero  # noqa: F401
@@ -40,7 +41,6 @@ from solhunter_zero.logging_utils import log_startup
 REQUIRED_CFG_KEYS = {
     "solana_rpc_url": "https://api.mainnet-beta.solana.com",
     "dex_base_url": "https://quote-api.jup.ag",
-    "event_bus_url": "ws://0.0.0.0:8787",
     "agents": ["simulation"],
     "agent_weights": {"simulation": 1.0},
 }
@@ -60,7 +60,6 @@ def _validate_config(path: os.PathLike[str]) -> None:
         example = (
             "solana_rpc_url = \"https://api.mainnet-beta.solana.com\"\n"
             "dex_base_url = \"https://quote-api.jup.ag\"\n"
-            "event_bus_url = \"ws://0.0.0.0:8787\"\n"
             "agents = [\"simulation\"]\n\n"
             "[agent_weights]\n"
             "simulation = 1.0\n"
@@ -76,6 +75,13 @@ def main(argv: list[str] | None = None) -> None:
     quick_setup.main(["--auto", "--non-interactive"])
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
     if cfg_path:
+        with open(cfg_path, "rb") as fh:
+            cfg = tomllib.load(fh)
+        url = cfg.get("event_bus_url", "").strip()
+        if not url or url == "ws://0.0.0.0:8787":
+            cfg.pop("event_bus_url", None)
+        with open(cfg_path, "wb") as fh:
+            fh.write(tomli_w.dumps(cfg).encode("utf-8"))
         _validate_config(cfg_path)
     ensure_deps(install_optional=True)
 
