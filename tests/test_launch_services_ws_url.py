@@ -67,7 +67,9 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
     )
     namespace: dict[str, object] = {}
     exec(src, start_all.__dict__, namespace)
-    start_all.launch_services = namespace["launch_services"]  # type: ignore[assignment]
+    start_all.launch_services = namespace[
+        "launch_services"
+    ]  # type: ignore[assignment]
 
     monkeypatch.setenv("SOLANA_RPC_URL", "https://rpc.example.com")
     monkeypatch.delenv("SOLANA_WS_URL", raising=False)
@@ -75,7 +77,9 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
     monkeypatch.setattr(start_all.config, "REQUIRED_ENV_VARS", ())
     monkeypatch.setattr(start_all, "ensure_config_file", lambda: None)
     monkeypatch.setattr(
-        start_all, "validate_env", lambda req, cfg: {"rl_db_path": tmp_path / "db"}
+        start_all,
+        "validate_env",
+        lambda req, cfg: {"rl_db_path": tmp_path / "db"},
     )
     monkeypatch.setattr(start_all, "set_env_from_config", lambda cfg: None)
     monkeypatch.setattr(start_all.config, "reload_active_config", lambda: None)
@@ -99,7 +103,9 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
         captured["ws"] = os.environ.get("SOLANA_WS_URL")
         return DummyProc()
 
-    monkeypatch.setattr(start_all, "start_depth_service", fake_start_depth_service)
+    monkeypatch.setattr(
+        start_all, "start_depth_service", fake_start_depth_service
+    )
 
     pm = start_all.ProcessManager()
     monkeypatch.setattr(pm, "start", lambda cmd, stream_stderr=False: None)
@@ -109,3 +115,13 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
 
     assert captured["ws"] == "wss://rpc.example.com"
 
+
+def test_get_solana_ws_url_converts_http(monkeypatch):
+    """Ensure HTTP(S) schemes are converted to websocket equivalents."""
+    monkeypatch.setenv("SOLANA_WS_URL", "http://rpc.example.com")
+    monkeypatch.setenv("SOLANA_RPC_URL", "https://rpc.example.com")
+    from solhunter_zero import config
+
+    url = config.get_solana_ws_url({})
+    assert url == "ws://rpc.example.com"
+    assert os.environ["SOLANA_WS_URL"] == "ws://rpc.example.com"

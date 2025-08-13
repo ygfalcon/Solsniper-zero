@@ -237,6 +237,45 @@ def validate_config(cfg: Mapping[str, Any]) -> dict:
         raise ValueError(f"Invalid configuration: {exc}") from exc
 
 
+def get_solana_ws_url(cfg: Mapping[str, Any] | None = None) -> str | None:
+    """Return websocket URL for Solana, deriving from RPC when needed.
+
+    The value is taken from ``SOLANA_WS_URL`` or the configuration. If the
+    URL is missing or uses an HTTP scheme, it is derived from
+    ``SOLANA_RPC_URL`` by swapping the scheme for its websocket equivalent.
+    The final URL is stored back into ``os.environ`` and logged so
+    misconfigurations are visible.
+    """
+
+    if cfg is None:
+        cfg = globals().get("_ACTIVE_CONFIG", {})
+
+    url = (
+        os.getenv("SOLANA_WS_URL")
+        or str(cfg.get("solana_ws_url", ""))
+    ).strip()
+    rpc_url = (
+        os.getenv("SOLANA_RPC_URL")
+        or str(cfg.get("solana_rpc_url", ""))
+    ).strip()
+
+    if url and (url.startswith("http://") or url.startswith("https://")):
+        url = url.replace("http://", "ws://").replace("https://", "wss://")
+    if not url and rpc_url:
+        url = rpc_url.replace("http://", "ws://").replace("https://", "wss://")
+
+    if url:
+        os.environ["SOLANA_WS_URL"] = url
+        logger.info("Using SOLANA_WS_URL=%s", url)
+        return url
+
+    logger.warning(
+        "SOLANA_WS_URL is not configured and could not be derived from "
+        "SOLANA_RPC_URL"
+    )
+    return None
+
+
 # ---------------------------------------------------------------------------
 #  Configuration file management helpers
 # ---------------------------------------------------------------------------
@@ -453,6 +492,7 @@ try:
 except ValueError:
     _ACTIVE_CONFIG = {}
 set_env_from_config(_ACTIVE_CONFIG)
+get_solana_ws_url(_ACTIVE_CONFIG)
 
 
 def _update_active(cfg: Mapping[str, Any] | None) -> None:
@@ -461,6 +501,7 @@ def _update_active(cfg: Mapping[str, Any] | None) -> None:
         cfg = {}
     _ACTIVE_CONFIG = apply_env_overrides(dict(cfg))
     set_env_from_config(_ACTIVE_CONFIG)
+    get_solana_ws_url(_ACTIVE_CONFIG)
 
 
 def reload_active_config() -> dict:
