@@ -157,6 +157,7 @@ def launch_services(pm: ProcessManager) -> None:
     ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)
     pm.procs.append(depth_proc)
+    os.environ["DEPTH_SERVICE"] = "false"
     rl_proc = start_rl_daemon()
     pm.procs.append(rl_proc)
     addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
