@@ -9,6 +9,7 @@ import sys
 import subprocess
 import shutil
 import tomllib
+from pathlib import Path
 
 try:
     import solhunter_zero  # noqa: F401
@@ -71,13 +72,13 @@ def _validate_config(path: os.PathLike[str]) -> None:
 def main(argv: list[str] | None = None) -> None:
     """Execute the automated setup steps then run the autopilot."""
     ensure_tools(non_interactive=True)
-    env_config.configure_environment(ROOT)
+    repo_root = ROOT if "site-packages" not in str(ROOT) else Path.cwd()
+    env_config.configure_environment(repo_root)
     quick_setup.main(["--auto", "--non-interactive"])
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
     if cfg_path:
         _validate_config(cfg_path)
-
-    env_file = ROOT / ".env"
+    env_file = repo_root / ".env"
     bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
     os.environ["EVENT_BUS_URL"] = bus_url
     os.environ.setdefault("BROKER_WS_URLS", bus_url)
@@ -101,14 +102,14 @@ def main(argv: list[str] | None = None) -> None:
     # Dependency installation is deferred to ``bootstrap.bootstrap`` which
     # runs as part of the autopilot startup sequence.
 
-    event_pb2 = ROOT / "solhunter_zero" / "event_pb2.py"
-    event_proto = ROOT / "proto" / "event.proto"
+    event_pb2 = repo_root / "solhunter_zero" / "event_pb2.py"
+    event_proto = repo_root / "proto" / "event.proto"
     if (
         not event_pb2.exists()
         or event_pb2.stat().st_mtime < event_proto.stat().st_mtime
     ):
         subprocess.check_call(
-            [sys.executable, str(ROOT / "scripts" / "gen_proto.py")]
+            [sys.executable, str(repo_root / "scripts" / "gen_proto.py")]
         )
 
     if "PYTEST_CURRENT_TEST" not in os.environ:
@@ -140,10 +141,10 @@ def main(argv: list[str] | None = None) -> None:
                     "--manifest-path",
                     "route_ffi/Cargo.toml",
                 ],
-                cwd=ROOT,
+                cwd=repo_root,
             )
 
-            target = ROOT / "route_ffi" / "target" / "release"
+            target = repo_root / "route_ffi" / "target" / "release"
             if sys.platform == "darwin":
                 libname = "libroute_ffi.dylib"
             elif os.name == "nt":
@@ -151,7 +152,7 @@ def main(argv: list[str] | None = None) -> None:
             else:
                 libname = "libroute_ffi.so"
             src = target / libname
-            dest = ROOT / "solhunter_zero" / libname
+            dest = repo_root / "solhunter_zero" / libname
             if src.exists():
                 try:
                     shutil.copy2(src, dest)

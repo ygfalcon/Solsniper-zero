@@ -6,6 +6,7 @@
  - Use `solhunter-start` to launch the same startup routine with `--one-click` by default while still accepting additional flags.
  - Run `python -m solhunter_zero.launcher --auto` for a fully automated launch. On macOS, double-click `start.command` for the same effect. It ensures the `solhunter-wallet` CLI is present, auto-selects the sole keypair and active config, verifies RPC endpoints, and warns if the wallet balance is below `min_portfolio_value`.
 - `scripts/quick_setup.py --auto` populates `config.toml` with defaults. Use `--non-interactive` to rely on environment variables only. Set `AUTO_SELECT_KEYPAIR=1` to have the sole keypair chosen without prompts.
+- Setup scripts write the `.env` file to your current working directory, keeping environment settings alongside the source tree.
 - `EVENT_BUS_URL` sets a single websocket broker. `BROKER_WS_URLS` accepts a
   comma‑separated list for clustering. If `BROKER_WS_URLS` is unset,
   `EVENT_BUS_URL` is used. Both default to `ws://127.0.0.1:8769`.

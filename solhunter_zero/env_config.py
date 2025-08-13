@@ -42,7 +42,10 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         Mapping of variables that were applied.
     """
 
-    root = root or ROOT
+    if root is None:
+        root = ROOT
+        if "site-packages" in root.parts:
+            root = Path.cwd()
     env_file = Path(root) / ".env"
 
     def _is_placeholder(value: str) -> bool:
