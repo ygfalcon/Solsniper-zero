@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib
 import importlib.resources as resources
 import os
 import sys
@@ -29,11 +30,10 @@ except ModuleNotFoundError:
         )
         sys.exit(1)
 
-from solhunter_zero.macos_setup import ensure_tools
+from solhunter_zero.macos_setup import ensure_tools, _resolve_metal_versions, _write_versions_to_config
 import solhunter_zero.env_config as env_config
 from solhunter_zero.paths import ROOT
 from scripts import quick_setup
-from solhunter_zero import device
 from solhunter_zero.logging_utils import log_startup
 from solhunter_zero import wallet
 from solhunter_zero.event_bus import DEFAULT_WS_URL
@@ -79,6 +79,31 @@ def main(argv: list[str] | None = None) -> None:
     if cfg_path:
         _validate_config(cfg_path)
     env_file = repo_root / ".env"
+
+    try:
+        device = importlib.import_module("solhunter_zero.device")
+    except RuntimeError:
+        torch_ver, vision_ver = _resolve_metal_versions()
+        if cfg_path and Path(cfg_path).exists():
+            _write_versions_to_config(torch_ver, vision_ver)
+        else:
+            env_lines = env_file.read_text().splitlines(True) if env_file.exists() else []
+            for prefix, value in (
+                ("TORCH_METAL_VERSION", torch_ver),
+                ("TORCHVISION_METAL_VERSION", vision_ver),
+            ):
+                for i, line in enumerate(env_lines):
+                    if line.startswith(f"{prefix}="):
+                        env_lines[i] = f"{prefix}={value}\n"
+                        break
+                else:
+                    env_lines.append(f"{prefix}={value}\n")
+            env_file.write_text("".join(env_lines))
+        os.environ.setdefault("TORCH_METAL_VERSION", torch_ver)
+        os.environ.setdefault("TORCHVISION_METAL_VERSION", vision_ver)
+        importlib.invalidate_caches()
+        device = importlib.import_module("solhunter_zero.device")
+
     bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
     os.environ["EVENT_BUS_URL"] = bus_url
     os.environ.setdefault("BROKER_WS_URLS", bus_url)

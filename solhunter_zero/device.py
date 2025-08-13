@@ -30,8 +30,8 @@ def load_torch_metal_versions() -> tuple[str, str]:
 
     The versions are read from the ``TORCH_METAL_VERSION`` and
     ``TORCHVISION_METAL_VERSION`` environment variables or from the ``[torch]``
-    section of ``config.toml``. When neither source provides values the
-    function falls back to defaults and logs installation instructions.
+    section of ``config.toml``. When neither source provides values a
+    ``RuntimeError`` is raised describing how to supply them.
     """
 
     torch_ver = os.getenv("TORCH_METAL_VERSION")
@@ -48,16 +48,12 @@ def load_torch_metal_versions() -> tuple[str, str]:
             logger.exception("Failed to load torch Metal versions from config")
 
     if not (torch_ver and vision_ver):
-        logger.warning(
-            "Torch Metal versions not specified; defaulting to %s/%s. Set "
-            "TORCH_METAL_VERSION and TORCHVISION_METAL_VERSION or add "
-            "torch_metal_version/torchvision_metal_version under the [torch] "
-            "section in config.toml.",
-            DEFAULT_TORCH_METAL_VERSION,
-            DEFAULT_TORCHVISION_METAL_VERSION,
+        raise RuntimeError(
+            "Torch Metal versions not specified. Set TORCH_METAL_VERSION and "
+            "TORCHVISION_METAL_VERSION or add torch_metal_version/"
+            "torchvision_metal_version under the [torch] section in "
+            "config.toml."
         )
-        torch_ver = torch_ver or DEFAULT_TORCH_METAL_VERSION
-        vision_ver = vision_ver or DEFAULT_TORCHVISION_METAL_VERSION
 
     return torch_ver, vision_ver
 
