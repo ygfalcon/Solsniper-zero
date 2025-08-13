@@ -169,7 +169,7 @@ def launch_services(pm: ProcessManager) -> None:
     wait_for_depth_ws(addr, port, deadline, depth_proc)
     _wait_for_rl_daemon(rl_proc)
 
-    main_cmd = [sys.executable, "-m", "solhunter_zero.main"]
+    main_cmd = [sys.executable, "-m", "solhunter_zero.main", "--auto"]
     if cfg:
         main_cmd += ["--config", cfg]
     pm.start(main_cmd)
