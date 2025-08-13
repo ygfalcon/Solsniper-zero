@@ -269,3 +269,27 @@ def test_writes_bus_urls(monkeypatch, tmp_path):
     import solhunter_zero.event_bus as event_bus
     urls = event_bus._resolve_ws_urls({})
     assert urls == {"ws://127.0.0.1:8769"}
+
+
+def test_respects_active_venv(monkeypatch, tmp_path):
+    import scripts.setup_env as setup_env
+
+    venv_dir = setup_env.ROOT / ".venv"
+    if venv_dir.exists():
+        shutil.rmtree(venv_dir)
+
+    monkeypatch.setattr(sys, "prefix", sys.base_prefix)
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "custom"))
+
+    created = {}
+
+    def fake_create(*a, **k):
+        created["called"] = True
+
+    monkeypatch.setattr(setup_env.venv, "create", fake_create)
+    monkeypatch.setattr(setup_env.os, "execv", lambda *a, **k: pytest.fail("should not execv"))
+
+    setup_env.ensure_venv()
+
+    assert "called" not in created
+    assert not venv_dir.exists()

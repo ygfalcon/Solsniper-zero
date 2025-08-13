@@ -28,7 +28,8 @@ def run(cmd: list[str], **kwargs) -> None:
 
 def ensure_venv() -> None:
     """Ensure we're running inside a virtualenv, creating one if needed."""
-    if sys.prefix != sys.base_prefix or os.getenv("VIRTUAL_ENV"):
+    active_venv = sys.prefix != sys.base_prefix or bool(os.getenv("VIRTUAL_ENV"))
+    if active_venv:
         if str(ROOT) not in sys.path:
             sys.path.insert(0, str(ROOT))
         return
