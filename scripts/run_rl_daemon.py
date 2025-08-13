@@ -65,10 +65,7 @@ async def main() -> None:
         hierarchical_rl=not args.no_hierarchical_rl,
     )
 
-    dqn_daemon.start(args.interval)
-    ppo_daemon.start(args.interval)
-
-    await asyncio.Event().wait()
+    await asyncio.gather(dqn_daemon.train(), ppo_daemon.train())
 
 
 if __name__ == "__main__":  # pragma: no cover
