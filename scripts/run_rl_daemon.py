@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import signal
 
 import solhunter_zero.device as device
 from solhunter_zero.agents.dqn import DQNAgent
@@ -65,7 +66,20 @@ async def main() -> None:
         hierarchical_rl=not args.no_hierarchical_rl,
     )
 
-    await asyncio.gather(dqn_daemon.train(), ppo_daemon.train())
+    tasks = [
+        dqn_daemon.start(args.interval),
+        ppo_daemon.start(args.interval),
+    ]
+    loop = asyncio.get_running_loop()
+
+    def _shutdown() -> None:
+        for t in tasks:
+            t.cancel()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, _shutdown)
+
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 if __name__ == "__main__":  # pragma: no cover
