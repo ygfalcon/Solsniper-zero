@@ -59,7 +59,7 @@ class ProcessManager:
         self, cmd: list[str], *, stream_stderr: bool = False
     ) -> subprocess.Popen:
         env = os.environ.copy()
-        for var in config.REQUIRED_ENV_VARS():
+        for var in config.REQUIRED_ENV_VARS:
             val = os.getenv(var)
             if val is not None:
                 env[var] = val
@@ -130,7 +130,7 @@ def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
 def launch_services(pm: ProcessManager) -> None:
     bootstrap.ensure_keypair()
     cfg = ensure_config_file()
-    cfg_data = validate_env(config.REQUIRED_ENV_VARS(), cfg)
+    cfg_data = validate_env(config.REQUIRED_ENV_VARS, cfg)
     set_env_from_config(cfg_data)
     import solhunter_zero.config as config  # noqa: E402
     config.reload_active_config()
