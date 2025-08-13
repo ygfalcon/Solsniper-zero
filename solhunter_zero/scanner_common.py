@@ -10,7 +10,7 @@ from .http import get_session
 
 from pathlib import Path
 
-
+from .config import get_solana_ws_url
 from .scanner_onchain import scan_tokens_onchain, scan_tokens_onchain_sync
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ JUPITER_TRENDS_API = os.getenv(
 BIRDEYE_API = "https://public-api.birdeye.so/defi/tokenlist"
 BIRDEYE_API_KEY = os.getenv("BIRDEYE_API_KEY")
 SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
+SOLANA_WS_URL = get_solana_ws_url()
 
 # Additional discovery endpoints
 RAYDIUM_LISTINGS_API = os.getenv(
@@ -326,7 +327,7 @@ async def offline_or_onchain_async(
     if method == "mempool":
         from .mempool_scanner import stream_mempool_tokens
 
-        gen = stream_mempool_tokens(SOLANA_RPC_URL)
+        gen = stream_mempool_tokens(SOLANA_WS_URL)
         try:
             token = await anext(gen)
         except StopAsyncIteration:
@@ -341,7 +342,7 @@ async def offline_or_onchain_async(
         if method == "websocket":
             from .websocket_scanner import stream_new_tokens
 
-            gen = stream_new_tokens(SOLANA_RPC_URL)
+            gen = stream_new_tokens(SOLANA_WS_URL)
             try:
                 token = await anext(gen)
             except StopAsyncIteration:

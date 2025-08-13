@@ -28,6 +28,7 @@ except Exception:  # pragma: no cover - optional dependency
 ENV_VARS = {
     "birdeye_api_key": "BIRDEYE_API_KEY",
     "solana_rpc_url": "SOLANA_RPC_URL",
+    "solana_ws_url": "SOLANA_WS_URL",
     "solana_keypair": "SOLANA_KEYPAIR",
     "dex_base_url": "DEX_BASE_URL",
     "dex_testnet_url": "DEX_TESTNET_URL",
@@ -137,6 +138,33 @@ ENV_VARS = {
     "rl_prefetch_buffer": "RL_PREFETCH_BUFFER",
 }
 
+
+def get_solana_ws_url() -> str | None:
+    """Return a valid websocket URL for Solana RPC.
+
+    If ``SOLANA_WS_URL`` is missing or uses an HTTP scheme, derive it from
+    ``SOLANA_RPC_URL`` by replacing ``http`` with ``ws`` and ``https`` with
+    ``wss``. The final value is stored back into the environment and logged so
+    misconfigurations are easy to spot.
+    """
+
+    url = os.getenv("SOLANA_WS_URL")
+    if not url:
+        rpc = os.getenv("SOLANA_RPC_URL")
+        if rpc:
+            url = rpc.replace("https://", "wss://").replace("http://", "ws://")
+    elif url.startswith("http://"):
+        url = "ws://" + url[len("http://") :]
+    elif url.startswith("https://"):
+        url = "wss://" + url[len("https://") :]
+
+    if url:
+        os.environ["SOLANA_WS_URL"] = url
+        logger.info("Using SOLANA_WS_URL=%s", url)
+    else:
+        logger.warning("SOLANA_WS_URL not set and SOLANA_RPC_URL missing")
+    return url
+
 # Commonly required environment variables
 REQUIRED_ENV_VARS = (
     "EVENT_BUS_URL",
@@ -223,6 +251,8 @@ def set_env_from_config(config: dict) -> None:
             and not isinstance(val, (list, dict, set, tuple))
         ):
             os.environ[env] = str(val)
+    # ensure websocket URL is always normalised and available
+    get_solana_ws_url()
 def validate_config(cfg: Mapping[str, Any]) -> dict:
     """Validate configuration against :class:`ConfigModel` schema.
 
