@@ -28,14 +28,17 @@ def run(cmd: list[str], **kwargs) -> None:
 
 def ensure_venv() -> None:
     """Ensure we're running inside a virtualenv, creating one if needed."""
-    if sys.prefix == sys.base_prefix:
-        venv_dir = ROOT / ".venv"
-        if not venv_dir.exists():
-            print(f"Creating venv at {venv_dir}")
-            venv.create(venv_dir, with_pip=True)
-        python_bin = venv_dir / ("Scripts" if os.name == "nt" else "bin") / "python"
-        print(f"Re-executing under {python_bin}")
-        os.execv(str(python_bin), [str(python_bin), __file__] + sys.argv[1:])
+    if sys.prefix != sys.base_prefix or os.getenv("VIRTUAL_ENV"):
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        return
+    venv_dir = ROOT / ".venv"
+    if not venv_dir.exists():
+        print(f"Creating venv at {venv_dir}")
+        venv.create(venv_dir, with_pip=True)
+    python_bin = venv_dir / ("Scripts" if os.name == "nt" else "bin") / "python"
+    print(f"Re-executing under {python_bin}")
+    os.execv(str(python_bin), [str(python_bin), __file__] + sys.argv[1:])
 
 
 def pip_install(args: list[str]) -> None:
