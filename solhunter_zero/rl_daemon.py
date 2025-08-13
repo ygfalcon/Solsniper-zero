@@ -729,7 +729,7 @@ class RLDaemon:
         except Exception:
             return []
 
-    async def train(self) -> None:
+    async def train(self):
         trades, snaps = await self._fetch_new()
         if not trades and not snaps:
             return
