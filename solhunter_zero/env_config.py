@@ -14,6 +14,7 @@ from .config import ENV_VARS
 from .env_defaults import DEFAULTS
 from .paths import ROOT
 from .event_bus import DEFAULT_WS_URL
+from .jsonutil import dumps as json_dumps
 
 __all__ = [
     "configure_environment",
@@ -80,14 +81,19 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         env_file.parent.mkdir(parents=True, exist_ok=True)
         if example_file.exists():
             with example_file.open("r", encoding="utf-8") as fh:
-                sanitized, removed_placeholders = _sanitize_lines(fh.readlines())
+                sanitized, removed_placeholders = _sanitize_lines(
+                    fh.readlines()
+                )
             with env_file.open("w", encoding="utf-8") as fh:
                 fh.writelines(sanitized)
             log_startup(
                 f"Created environment file {env_file} from {example_file}"
             )
             if removed_placeholders:
-                report_env_changes({name: "" for name in removed_placeholders}, env_file)
+                report_env_changes(
+                    {name: "" for name in removed_placeholders},
+                    env_file,
+                )
         else:
             env_file.touch()
             log_startup(f"Created environment file {env_file}")
@@ -97,7 +103,10 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
         if removed_placeholders:
             with env_file.open("w", encoding="utf-8") as fh:
                 fh.writelines(sanitized)
-            report_env_changes({name: "" for name in removed_placeholders}, env_file)
+            report_env_changes(
+                {name: "" for name in removed_placeholders},
+                env_file,
+            )
 
     env.load_env_file(env_file)
 
@@ -123,9 +132,12 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
             val = cfg.get(key)
             if val is None:
                 continue
-            value_str = (
-                str(val).lower() if isinstance(val, bool) else str(val)
-            )
+            if isinstance(val, bool):
+                value_str = str(val).lower()
+            elif isinstance(val, (list, dict)):
+                value_str = json_dumps(val)
+            else:
+                value_str = str(val)
             if _is_placeholder(value_str) or not value_str:
                 applied.setdefault(env_name, "")
                 continue
@@ -148,8 +160,9 @@ def configure_environment(root: Path | None = None) -> dict[str, str]:
                 lines.append(f"{name}={value}\n")
         with env_file.open("w", encoding="utf-8") as fh:
             fh.writelines(lines)
+        updated_list = ", ".join(file_updates)
         log_startup(
-            f"Updated environment file {env_file} with: {', '.join(file_updates)}"
+            f"Updated environment file {env_file} with: {updated_list}"
         )
         report_env_changes(file_updates, env_file)
 
