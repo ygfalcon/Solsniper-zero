@@ -56,6 +56,7 @@ This document lists environment variables recognized by the project.
 | `EVENT_MMAP_BATCH_MS` | `` | Configures event mmap batch ms |
 | `EVENT_MMAP_BATCH_SIZE` | `` | Configures event mmap batch size |
 | `EVENT_SERIALIZATION` | `` | Configures event serialization |
+| `EVENT_WS_PORT` | `8769` | Port for event websocket |
 | `EXPORT_ONNX` | `` | Configures export onnx |
 | `FIRST_TRADE_RETRY` | `false` | Configures first trade retry |
 | `FIRST_TRADE_TIMEOUT` | `0` | Configures first trade timeout |
