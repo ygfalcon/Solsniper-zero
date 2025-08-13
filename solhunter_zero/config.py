@@ -198,7 +198,17 @@ def apply_env_overrides(config: Mapping[str, Any] | None) -> dict[str, Any]:
     for key, env in ENV_VARS.items():
         env_val = os.getenv(env)
         if env_val is not None:
-            cfg[key] = env_val
+            try:
+                parsed = loads(env_val)
+            except Exception:
+                parsed = env_val
+            else:
+                if not isinstance(parsed, (list, dict)):
+                    parsed = env_val
+            cfg[key] = parsed
+    required = {"solana_rpc_url", "dex_base_url", "agents", "agent_weights"}
+    if required.issubset(cfg):
+        cfg = validate_config(cfg)
     return cfg
 
 
@@ -206,12 +216,11 @@ def set_env_from_config(config: dict) -> None:
     """Set environment variables for values present in ``config``."""
     for key, env in ENV_VARS.items():
         val = config.get(key)
-        if (
-            val is not None
-            and os.getenv(env) is None
-            and not isinstance(val, (list, dict, set, tuple))
-        ):
-            os.environ[env] = str(val)
+        if val is not None and os.getenv(env) is None:
+            if isinstance(val, (list, dict)):
+                os.environ[env] = dumps(val)
+            else:
+                os.environ[env] = str(val)
 def validate_config(cfg: Mapping[str, Any]) -> dict:
     """Validate configuration against :class:`ConfigModel` schema.
 

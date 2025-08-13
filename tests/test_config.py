@@ -134,7 +134,7 @@ def test_load_config_from_repo_root_when_installed():
 def test_apply_env_overrides(monkeypatch):
     cfg = {
         "birdeye_api_key": "a",
-        "solana_rpc_url": "b",
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
         "dex_base_url": "https://quote-api.jup.ag",
         "risk_tolerance": 0.1,
         "token_suffix": "bonk",
@@ -146,16 +146,16 @@ def test_apply_env_overrides(monkeypatch):
     monkeypatch.setenv("BIRDEYE_API_KEY", "NEW")
     monkeypatch.setenv("RISK_TOLERANCE", "0.2")
     monkeypatch.setenv("TOKEN_SUFFIX", "doge")
-    monkeypatch.setenv("AGENTS", "x,y")
-    monkeypatch.setenv("AGENT_WEIGHTS", "{'x': 1}")
+    monkeypatch.setenv("AGENTS", '["x","y"]')
+    monkeypatch.setenv("AGENT_WEIGHTS", '{"x": 1, "y": 2}')
     monkeypatch.setenv("EVENT_BUS_URL", "ws://new")
     result = apply_env_overrides(cfg)
     assert result["birdeye_api_key"] == "NEW"
-    assert result["solana_rpc_url"] == "b"
+    assert result["solana_rpc_url"] == "https://api.mainnet-beta.solana.com"
     assert result["risk_tolerance"] == "0.2"
     assert result["token_suffix"] == "doge"
-    assert result["agents"] == "x,y"
-    assert result["agent_weights"] == "{'x': 1}"
+    assert result["agents"] == ["x", "y"]
+    assert result["agent_weights"] == {"x": 1, "y": 2}
     assert result["event_bus_url"] == "ws://new"
 
 
@@ -207,8 +207,8 @@ def test_set_env_from_config(monkeypatch):
     assert os.getenv("SOLANA_RPC_URL") == "EXIST"
     assert os.getenv("RISK_TOLERANCE") == "0.3"
     assert os.getenv("TOKEN_SUFFIX") == "xyz"
-    assert os.getenv("AGENTS") == "['sim']"
-    assert os.getenv("AGENT_WEIGHTS") == "{'sim': 1.0}"
+    assert os.getenv("AGENTS") == '["sim"]'
+    assert os.getenv("AGENT_WEIGHTS") == '{"sim": 1.0}'
 
 
 def test_set_env_llm(monkeypatch):
@@ -218,6 +218,26 @@ def test_set_env_llm(monkeypatch):
     set_env_from_config(cfg)
     assert os.getenv("LLM_MODEL") == "model"
     assert os.getenv("LLM_CONTEXT_LENGTH") == "64"
+
+
+def test_agents_weights_round_trip_env(monkeypatch):
+    cfg = {
+        "solana_rpc_url": "https://api.mainnet-beta.solana.com",
+        "dex_base_url": "https://quote-api.jup.ag",
+        "agents": ["a", "b"],
+        "agent_weights": {"a": 1.0, "b": 2.0},
+    }
+    for env in [
+        "AGENTS",
+        "AGENT_WEIGHTS",
+        "SOLANA_RPC_URL",
+        "DEX_BASE_URL",
+    ]:
+        monkeypatch.delenv(env, raising=False)
+    set_env_from_config(cfg)
+    result = apply_env_overrides({})
+    assert result["agents"] == cfg["agents"]
+    assert result["agent_weights"] == cfg["agent_weights"]
 
 
 def test_set_env_from_config_booleans(monkeypatch):
