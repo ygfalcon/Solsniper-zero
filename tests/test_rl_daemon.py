@@ -3,6 +3,7 @@ import sys
 import types
 import importlib.util
 import pytest
+import subprocess
 
 pytest.importorskip("google.protobuf")
 
@@ -604,3 +605,23 @@ def test_hierarchical_policy_persists_weights(tmp_path, monkeypatch):
         hierarchical_model_path=policy,
     )
     assert daemon2.hier_weights == saved
+
+
+def test_subprocess_terminated_on_close(tmp_path, monkeypatch):
+    monkeypatch.setenv("RL_BUILD_MMAP_DATASET", "0")
+    mem_db = f"sqlite:///{tmp_path/'mem.db'}"
+    data_path = tmp_path / 'data.db'
+    daemon = RLDaemon(
+        memory_path=mem_db,
+        data_path=str(data_path),
+        model_path=tmp_path / 'm.pt',
+    )
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    daemon._proc = proc
+    try:
+        daemon.close()
+        assert proc.poll() is not None
+        assert daemon._proc is None
+    finally:
+        if proc.poll() is None:
+            proc.kill()
