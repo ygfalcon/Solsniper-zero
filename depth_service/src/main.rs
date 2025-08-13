@@ -46,7 +46,7 @@ fn depth_ws_addr(cfg: &TomlTable) -> (String, u16) {
         .and_then(|v| v.parse().ok())
         .or_else(|| cfg_str(cfg, "DEPTH_WS_PORT").and_then(|v| v.parse().ok()))
         .or_else(|| cfg_str(cfg, "depth_ws_port").and_then(|v| v.parse().ok()))
-        .unwrap_or(8765);
+        .unwrap_or(8766);
     (addr, port)
 }
 

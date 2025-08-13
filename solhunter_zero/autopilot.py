@@ -119,7 +119,7 @@ def main() -> None:
         PROCS.append(start_rl_daemon())
 
         addr = os.getenv("DEPTH_WS_ADDR", "127.0.0.1")
-        port = int(os.getenv("DEPTH_WS_PORT", "8765"))
+        port = int(os.getenv("DEPTH_WS_PORT", "8766"))
         deadline = time.monotonic() + 30.0
         wait_for_depth_ws(addr, port, deadline, depth_proc)
     except Exception as exc:

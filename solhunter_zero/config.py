@@ -435,11 +435,19 @@ def reload_active_config() -> dict:
 
 
 
-def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str | None:
-    """Return websocket URL of the external event bus if configured."""
+def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str:
+    """Return websocket URL of the external event bus.
+
+    Falls back to the built-in default when neither environment nor config
+    provide an override.
+    """
     cfg = cfg or _ACTIVE_CONFIG
     url = os.getenv("EVENT_BUS_URL") or str(cfg.get("event_bus_url", ""))
-    return url or None
+    if url:
+        return url
+    from .event_bus import DEFAULT_WS_URL
+
+    return DEFAULT_WS_URL
 
 
 def get_event_bus_peers(cfg: Mapping[str, Any] | None = None) -> list[str]:
@@ -528,7 +536,7 @@ def get_depth_ws_addr(cfg: Mapping[str, Any] | None = None) -> tuple[str, int]:
     if port_env is not None and port_env != "":
         port = int(port_env)
     else:
-        port = int(cast(int, cfg.get("depth_ws_port", 8765)))
+        port = int(cast(int, cfg.get("depth_ws_port", 8766)))
     return addr, port
 
 
