@@ -51,9 +51,13 @@ def test_dynamic_workers_auto(monkeypatch):
     rl_daemon_mod.RLDaemon = DummyDaemon
     monkeypatch.setitem(sys.modules, "solhunter_zero.rl_daemon", rl_daemon_mod)
     import solhunter_zero.main as main_module
-    monkeypatch.setattr(main_module.os, "cpu_count", lambda: 4)
+    import solhunter_zero.loop as loop_module
+    monkeypatch.setattr(loop_module, "detect_cpu_count", lambda: 4)
 
-    asyncio.run(main_module._init_rl_training({"rl_auto_train": True}, rl_daemon=True, rl_interval=0.01))
+    async def _run():
+        main_module._init_rl_training({"rl_auto_train": True}, rl_daemon=True, rl_interval=0.01)
+
+    asyncio.run(_run())
     assert captured["dw"] is True
 
 
@@ -84,7 +88,11 @@ def test_dynamic_workers_single_core(monkeypatch):
     rl_daemon_mod.RLDaemon = DummyDaemon
     monkeypatch.setitem(sys.modules, "solhunter_zero.rl_daemon", rl_daemon_mod)
     import solhunter_zero.main as main_module
-    monkeypatch.setattr(main_module.os, "cpu_count", lambda: 1)
+    import solhunter_zero.loop as loop_module
+    monkeypatch.setattr(loop_module, "detect_cpu_count", lambda: 1)
 
-    asyncio.run(main_module._init_rl_training({"rl_auto_train": True}, rl_daemon=True, rl_interval=0.01))
+    async def _run():
+        main_module._init_rl_training({"rl_auto_train": True}, rl_daemon=True, rl_interval=0.01)
+
+    asyncio.run(_run())
     assert captured["dw"] is False

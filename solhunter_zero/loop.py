@@ -336,7 +336,7 @@ async def run_iteration(
         agent_manager.save_weights()
 
 
-async def _init_rl_training(
+def _init_rl_training(
     cfg: dict,
     *,
     rl_daemon: bool = False,
@@ -471,7 +471,7 @@ async def trading_loop(
     else:
         await event_bus.disconnect_ws()  # type: ignore[attr-defined]
 
-    rl_task = await _init_rl_training(
+    rl_task = _init_rl_training(
         cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
     )
     cfg_val = cfg.get("collect_offline_data")

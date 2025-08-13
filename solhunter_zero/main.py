@@ -38,6 +38,7 @@ from .loop import (
     trading_loop,
     FirstTradeTimeoutError,
     run_iteration as _run_iteration,
+    _init_rl_training,
 )
 from .main_state import TradingState
 from .memory import Memory, load_snapshot
