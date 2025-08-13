@@ -57,8 +57,12 @@ DEFAULT_WS_URL = "ws://127.0.0.1:8769"
 
 try:  # optional redis / nats support
     import redis.asyncio as aioredis  # type: ignore
+    from redis.exceptions import ConnectionError as RedisConnectionError  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     aioredis = None
+
+    class RedisConnectionError(Exception):
+        pass
 
 try:
     import nats  # type: ignore
@@ -1739,15 +1743,23 @@ def _get_broker_urls(cfg=None):
 
 
 def _reload_broker(cfg) -> None:
-    global _ENV_BROKER
     urls = set(_get_broker_urls(cfg))
     if urls == _ENV_BROKER:
         return
 
     async def _reconnect() -> None:
         await disconnect_broker()
+        use_urls = urls
         if urls:
-            await connect_broker(list(urls))
+            try:
+                await connect_broker(list(urls))
+            except RedisConnectionError:
+                logging.warning(
+                    "Failed to connect to Redis broker; using in-process event bus"
+                )
+                use_urls = set()
+        global _ENV_BROKER
+        _ENV_BROKER = use_urls
 
     try:
         loop = asyncio.get_running_loop()
@@ -1757,10 +1769,26 @@ def _reload_broker(cfg) -> None:
         loop.create_task(_reconnect())
     else:
         asyncio.run(_reconnect())
-    _ENV_BROKER = urls
 
 
 subscription("config_updated", _reload_broker).__enter__()
+
+# ---------------------------------------------------------------------------
+#  Initialization helper
+# ---------------------------------------------------------------------------
+
+def initialize_event_bus() -> None:
+    """Reload event bus settings after environment variables are configured."""
+    try:
+        _reload_serialization(None)
+        _reload_bus(None)
+        _reload_broker(None)
+    except RedisConnectionError:
+        logging.warning(
+            "Failed to connect to Redis broker during initialization; using in-process event bus"
+        )
+    except Exception:
+        logging.exception("Failed to reload event bus settings")
 
 # initialize mmap on import if configured
 open_mmap()

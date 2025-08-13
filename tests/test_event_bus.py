@@ -74,6 +74,34 @@ if importlib.util.find_spec("watchfiles") is None:
     watch_mod.__spec__ = importlib.machinery.ModuleSpec("watchfiles", None)
     watch_mod.awatch = lambda *a, **k: iter(())
     sys.modules.setdefault("watchfiles", watch_mod)
+if importlib.util.find_spec("pydantic") is None:
+    pyd = types.ModuleType("pydantic")
+    pyd.__spec__ = importlib.machinery.ModuleSpec("pydantic", None)
+
+    class BaseModel:
+        def __init__(self, **data):
+            pass
+
+        def dict(self):
+            return {}
+
+        def model_dump(self, *a, **k):  # pragma: no cover - pydantic v2
+            return {}
+
+    class ValidationError(Exception):
+        pass
+
+    def _identity(*a, **k):  # pragma: no cover - decorator stub
+        return lambda func: func
+
+    pyd.BaseModel = BaseModel
+    pyd.ValidationError = ValidationError
+    pyd.AnyUrl = str
+    pyd.field_validator = _identity
+    pyd.model_validator = _identity
+    pyd.validator = _identity
+    pyd.root_validator = _identity
+    sys.modules.setdefault("pydantic", pyd)
 if importlib.util.find_spec("sqlalchemy") is None:
     sa = types.ModuleType("sqlalchemy")
     sa.__spec__ = importlib.machinery.ModuleSpec("sqlalchemy", None)
@@ -825,4 +853,36 @@ async def test_mmap_batching(monkeypatch, tmp_path):
         off += 4 + ln
     assert len(lengths) == 2 and all(l > 0 for l in lengths)
     ev.close_mmap()
+
+
+def test_redis_broker_connection_error_falls_back(monkeypatch):
+    import solhunter_zero.event_bus as ev
+    from solhunter_zero import config as cfg
+
+    ev.reset()
+    ev._ENV_BROKER = set()
+
+    class DummyRedis:
+        @staticmethod
+        def from_url(url):
+            raise ev.RedisConnectionError("connection refused")
+
+    monkeypatch.setattr(ev, "aioredis", DummyRedis)
+    monkeypatch.setenv("BROKER_URL", "redis://127.0.0.1:6379")
+    monkeypatch.setattr(ev, "_reload_bus", lambda cfg: None)
+
+    cfg.initialize_event_bus()
+
+    assert ev._BROKER_CONNS == []
+    assert ev._ENV_BROKER == set()
+
+    events = []
+
+    def handler(payload):
+        events.append(payload)
+
+    unsub = ev.subscribe("local", handler)
+    ev.publish("local", {"x": 1})
+    unsub()
+    assert events == [{"x": 1}]
 
