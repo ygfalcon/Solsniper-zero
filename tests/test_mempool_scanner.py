@@ -39,6 +39,64 @@ class FakeConnect:
         await self.ws.__aexit__(exc_type, exc, tb)
 
 
+def test_connect_with_https_url(monkeypatch):
+    urls = []
+
+    def fake_connect(url):
+        urls.append(url)
+        return FakeConnect(url, [])
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    class _PK(str):
+        @property
+        def _key(self):
+            return self
+
+    monkeypatch.setattr(mp_scanner, "PublicKey", _PK)
+    monkeypatch.setattr(mp_scanner, "RpcTransactionLogsFilterMentions", lambda *a, **k: None)
+
+    async def run():
+        gen = mp_scanner.stream_mempool_tokens("https://node")
+        try:
+            await anext(gen)
+        except StopAsyncIteration:
+            pass
+        await gen.aclose()
+
+    asyncio.run(run())
+    assert urls == ["wss://node"]
+
+
+def test_connect_with_wss_url(monkeypatch):
+    urls = []
+
+    def fake_connect(url):
+        urls.append(url)
+        return FakeConnect(url, [])
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    class _PK(str):
+        @property
+        def _key(self):
+            return self
+
+    monkeypatch.setattr(mp_scanner, "PublicKey", _PK)
+    monkeypatch.setattr(mp_scanner, "RpcTransactionLogsFilterMentions", lambda *a, **k: None)
+
+    async def run():
+        gen = mp_scanner.stream_mempool_tokens("wss://node")
+        try:
+            await anext(gen)
+        except StopAsyncIteration:
+            pass
+        await gen.aclose()
+
+    asyncio.run(run())
+    assert urls == ["wss://node"]
+
+
 def test_stream_mempool_tokens(monkeypatch):
     msgs = [
         {
