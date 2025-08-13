@@ -39,6 +39,7 @@ from solhunter_zero.logging_utils import log_startup
 REQUIRED_CFG_KEYS = {
     "solana_rpc_url": "https://api.mainnet-beta.solana.com",
     "dex_base_url": "https://quote-api.jup.ag",
+    "event_bus_url": "ws://0.0.0.0:8787",
     "agents": ["simulation"],
     "agent_weights": {"simulation": 1.0},
 }
@@ -58,6 +59,7 @@ def _validate_config(path: os.PathLike[str]) -> None:
         example = (
             "solana_rpc_url = \"https://api.mainnet-beta.solana.com\"\n"
             "dex_base_url = \"https://quote-api.jup.ag\"\n"
+            "event_bus_url = \"ws://0.0.0.0:8787\"\n"
             "agents = [\"simulation\"]\n\n"
             "[agent_weights]\n"
             "simulation = 1.0\n"
