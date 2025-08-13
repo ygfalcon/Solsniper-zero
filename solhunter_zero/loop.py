@@ -10,7 +10,6 @@ import os
 import time
 from pathlib import Path
 from typing import Sequence
-from urllib.parse import urlparse
 
 from . import metrics_aggregator
 from .exchange import place_order_async as _exchange_place_order_async
@@ -463,16 +462,14 @@ async def trading_loop(
     bus_url = event_bus.get_event_bus_url()  # type: ignore[attr-defined]
     default_url = event_bus.DEFAULT_WS_URL  # type: ignore[attr-defined]
     check_url = bus_url or default_url
-    parsed = urlparse(check_url)
-    host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
     try:
-        reader, writer = await asyncio.open_connection(host, port)
-        writer.close()
-        await writer.wait_closed()
+        ws = await event_bus.connect_ws(check_url)  # type: ignore[attr-defined]
+        await asyncio.wait_for(ws.ping(), timeout=1)
     except Exception:
         await event_bus.start_ws_server()
         bus_started = True
+    else:
+        await event_bus.disconnect_ws()  # type: ignore[attr-defined]
 
     rl_task = await _init_rl_training(
         cfg, rl_daemon=rl_daemon, rl_interval=rl_interval
