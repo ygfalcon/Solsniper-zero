@@ -3,6 +3,8 @@ import platform
 import runpy
 import sys
 import types
+import subprocess
+import shutil
 from pathlib import Path
 
 import pytest
@@ -88,6 +90,7 @@ sys.modules["scripts.quick_setup"] = quick_setup_mod
 def test_setup_one_click_dry_run(monkeypatch, capsys):
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
 
     script = Path("scripts/setup_one_click.py")
     monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
@@ -98,3 +101,32 @@ def test_setup_one_click_dry_run(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "Selected keypair: default" in out
+
+
+def test_regenerates_proto_when_stale(monkeypatch):
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    script = Path("scripts/setup_one_click.py")
+    monkeypatch.setattr(sys, "argv", [str(script), "--dry-run"])
+
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+
+    event_pb2 = Path("solhunter_zero/event_pb2.py")
+    event_proto = Path("proto/event.proto")
+    orig_times = (event_pb2.stat().st_atime, event_pb2.stat().st_mtime)
+    os.utime(event_pb2, (event_proto.stat().st_atime, event_proto.stat().st_mtime - 10))
+
+    called = {}
+
+    def fake_check_call(cmd, *a, **k):
+        called["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+
+    runpy.run_path(str(script), run_name="__main__")
+
+    assert "gen_proto.py" in " ".join(called["cmd"])
+    os.utime(event_pb2, orig_times)
