@@ -47,6 +47,15 @@ def test_maybe_start_event_bus_remote(monkeypatch):
     assert "url" not in called
 
 
+def test_maybe_start_event_bus_default(monkeypatch):
+    ap = _load_autopilot(monkeypatch)
+    called = {}
+    monkeypatch.setattr(ap, "_start_event_bus", lambda url: called.setdefault("url", url))
+    monkeypatch.delenv("EVENT_BUS_URL", raising=False)
+    ap._maybe_start_event_bus({})
+    assert called["url"] == ap.DEFAULT_WS_URL
+
+
 def test_start_event_bus_invokes_readiness(monkeypatch):
     ap = _load_autopilot(monkeypatch)
     called = {}
