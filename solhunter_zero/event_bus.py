@@ -588,10 +588,15 @@ def _encode_event(topic: str, payload: Any) -> Any:
             ),
         )
     elif topic == "config_updated":
+        data = to_dict(payload)
+        if _USE_ORJSON:
+            config_json = json.dumps(data).decode()
+        else:
+            config_json = json.dumps(data)
         event = pb.Event(
             topic=topic,
             config_updated=pb.ConfigUpdated(
-                config_json=_dumps(to_dict(payload)).decode(),
+                config_json=config_json,
             ),
         )
     elif topic == "pending_swap":
@@ -744,7 +749,7 @@ def _decode_payload(ev: Any) -> Any:
             "price": msg.price,
         }
     if field == "config_updated":
-        return _loads(msg.config_json)
+        return json.loads(msg.config_json)
     if field == "pending_swap":
         return {
             "token": msg.token,
