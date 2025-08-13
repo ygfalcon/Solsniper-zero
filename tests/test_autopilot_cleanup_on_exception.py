@@ -37,6 +37,7 @@ def test_run_auto_exception_triggers_cleanup(monkeypatch, tmp_path):
     monkeypatch.setattr(autopilot, "_ensure_keypair", lambda: None)
     monkeypatch.setattr(autopilot, "_get_config", lambda: (None, {}))
     monkeypatch.setattr(autopilot, "ROOT", tmp_path)
+    monkeypatch.setattr(autopilot, "_maybe_start_event_bus", lambda cfg: None)
 
     # Track scheduler shutdown
     stop_called = {}

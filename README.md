@@ -244,9 +244,12 @@ profit calculation so routes are ranked based on the borrowed size.
 16. **External event bus**
     Set `EVENT_BUS_URL` to automatically connect to a remote websocket bus:
     ```bash
-    export EVENT_BUS_URL=ws://0.0.0.0:8787
-    ```
-   Alternatively specify `event_bus_url` in the configuration file.
+   export EVENT_BUS_URL=ws://0.0.0.0:8787
+   ```
+   Alternatively specify `event_bus_url` in the configuration file. If the
+   address points to `localhost`, `127.0.0.1` or `0.0.0.0`, the autopilot will
+   automatically launch a websocket event bus server and verify it is reachable
+   before starting other services.
 17. **Message broker**
    Connect to one or more brokers so multiple instances share events:
    ```bash
