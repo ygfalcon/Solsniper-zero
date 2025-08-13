@@ -37,7 +37,10 @@ from solhunter_zero.service_launcher import (  # noqa: E402
     start_rl_daemon,
     wait_for_depth_ws,
 )
-from solhunter_zero.autopilot import _maybe_start_event_bus  # noqa: E402
+from solhunter_zero.autopilot import (  # noqa: E402
+    _maybe_start_event_bus,
+    shutdown_event_bus,
+)
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
 from solhunter_zero import bootstrap  # noqa: E402
@@ -77,6 +80,7 @@ class ProcessManager:
             return
         self._stopped = True
         data_sync.stop_scheduler()
+        shutdown_event_bus()
         for loop in (ui.rl_ws_loop, ui.event_ws_loop, ui.log_ws_loop):
             if loop is not None:
                 loop.call_soon_threadsafe(loop.stop)
@@ -195,7 +199,11 @@ def launch_ui(pm: ProcessManager) -> None:
 
 def main() -> None:
     with ProcessManager() as pm:
-        launch_services(pm)
+        try:
+            launch_services(pm)
+        except Exception:
+            shutdown_event_bus()
+            raise
         launch_ui(pm)
         pm.monitor_processes()
 

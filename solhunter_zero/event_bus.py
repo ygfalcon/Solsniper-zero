@@ -1334,14 +1334,25 @@ async def start_ws_server(host: str = "localhost", port: int = 8769):
         loop = asyncio.get_running_loop()
         _flush_task = loop.create_task(_flush_outgoing())
 
-    _ws_server = await websockets.serve(
-        handler,
-        host,
-        port,
-        compression=_WS_COMPRESSION,
-        ping_interval=_WS_PING_INTERVAL,
-        ping_timeout=_WS_PING_TIMEOUT,
-    )
+    try:
+        _ws_server = await websockets.serve(
+            handler,
+            host,
+            port,
+            compression=_WS_COMPRESSION,
+            ping_interval=_WS_PING_INTERVAL,
+            ping_timeout=_WS_PING_TIMEOUT,
+        )
+    except Exception:
+        if _flush_task is not None:
+            _flush_task.cancel()
+            try:
+                await _flush_task
+            except Exception:  # pragma: no cover - best effort
+                pass
+            _flush_task = None
+        _outgoing_queue = None
+        raise
     return _ws_server
 
 
