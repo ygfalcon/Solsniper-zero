@@ -12,6 +12,7 @@ import tomli_w  # type: ignore
 
 from solhunter_zero.config_schema import validate_config
 from solhunter_zero.config_utils import ensure_default_config
+from solhunter_zero.event_bus import DEFAULT_WS_URL
 
 CONFIG_PATH = ensure_default_config()
 
@@ -50,7 +51,7 @@ AUTO_DEFAULTS = {
     "dex_testnet_url": "https://quote-api.jup.ag",
     "orca_dex_url": "",
     "raydium_dex_url": "",
-    "event_bus_url": "ws://0.0.0.0:8787",
+    "event_bus_url": DEFAULT_WS_URL,
 }
 
 

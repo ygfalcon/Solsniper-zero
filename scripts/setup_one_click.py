@@ -9,7 +9,6 @@ import sys
 import subprocess
 import shutil
 import tomllib
-import tomli_w  # type: ignore
 
 try:
     import solhunter_zero  # noqa: F401
@@ -36,6 +35,7 @@ from scripts import quick_setup
 from solhunter_zero import device
 from solhunter_zero.logging_utils import log_startup
 from solhunter_zero import wallet
+from solhunter_zero.event_bus import DEFAULT_WS_URL
 
 
 REQUIRED_CFG_KEYS = {
@@ -73,15 +73,9 @@ def main(argv: list[str] | None = None) -> None:
     ensure_tools(non_interactive=True)
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
+    os.environ.setdefault("EVENT_BUS_URL", DEFAULT_WS_URL)
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
     if cfg_path:
-        with open(cfg_path, "rb") as fh:
-            cfg = tomllib.load(fh)
-        url = cfg.get("event_bus_url", "").strip()
-        if not url or url == "ws://0.0.0.0:8787":
-            cfg.pop("event_bus_url", None)
-        with open(cfg_path, "wb") as fh:
-            fh.write(tomli_w.dumps(cfg).encode("utf-8"))
         _validate_config(cfg_path)
 
     # Dependency installation is deferred to ``bootstrap.bootstrap`` which
