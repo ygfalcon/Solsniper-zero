@@ -278,8 +278,18 @@ def ensure_deps(
     elif full is not None:
         cfg.install_optional = full
 
-    broker_url = os.getenv("BROKER_URL", "")
-    if broker_url.startswith("redis://") and shutil.which("redis-server") is None:
+    urls: list[str] = []
+    url = os.getenv("BROKER_URL")
+    if url:
+        urls.append(url)
+    more = os.getenv("BROKER_URLS")
+    if more:
+        urls.extend(u.strip() for u in more.split(",") if u.strip())
+
+    needs_redis = any(u.startswith(("redis://", "rediss://")) for u in urls)
+    needs_nats = any(u.startswith("nats://") for u in urls)
+
+    if needs_redis and shutil.which("redis-server") is None:
         msg = (
             "BROKER_URL is set to use Redis but 'redis-server' was not found. "
             "Install/start Redis or set BROKER_URL=memory://."
@@ -314,6 +324,15 @@ def ensure_deps(
         return
 
     req, opt = deps.check_deps()
+    broker_pkgs: list[str] = []
+    if needs_redis and _package_missing("redis"):
+        broker_pkgs.append("redis")
+        if "redis" in opt:
+            opt.remove("redis")
+    if needs_nats and _package_missing("nats-py"):
+        broker_pkgs.append("nats-py")
+        if "nats" in opt:
+            opt.remove("nats")
     if req:
         print("Missing required modules: " + ", ".join(req))
     if opt:
@@ -335,7 +354,7 @@ def ensure_deps(
         opt = []
 
     need_cli = cfg.ensure_wallet_cli and shutil.which("solhunter-wallet") is None
-    need_install = bool(req) or need_cli or (cfg.install_optional and opt)
+    need_install = bool(req) or need_cli or broker_pkgs or (cfg.install_optional and opt)
     if not need_install:
         from . import bootstrap as bootstrap_mod
 
@@ -377,7 +396,7 @@ def ensure_deps(
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         extra_index = list(METAL_EXTRA_INDEX)
 
-    need_install = bool(req) or need_cli or (cfg.install_optional and (opt or extra_index))
+    need_install = bool(req) or need_cli or broker_pkgs or (cfg.install_optional and (opt or extra_index))
     if need_install:
         import contextlib
         import io
@@ -415,6 +434,11 @@ def ensure_deps(
                 "and ensure it is in your PATH."
             )
             raise SystemExit(1)
+    if broker_pkgs:
+        print("Installing broker dependencies...")
+        for pkg in broker_pkgs:
+            _pip_install(pkg, *extra_index)
+
 
     if cfg.install_optional and extra_index:
         try:
@@ -435,6 +459,8 @@ def ensure_deps(
             "lz4": "lz4",
             "zstandard": "zstandard",
             "msgpack": "msgpack",
+            "redis": "redis",
+            "nats": "nats-py",
         }
         mods = set(opt)
         extras_pkgs: list[str] = []

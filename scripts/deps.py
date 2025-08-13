@@ -29,6 +29,7 @@ IMPORT_NAME_MAP = {
     "beautifulsoup4": "bs4",
     "grpcio-tools": "grpc_tools",
     "protobuf": "google.protobuf",
+    "nats-py": "nats",
 }
 
 OPTIONAL_DEPS = [
@@ -40,6 +41,8 @@ OPTIONAL_DEPS = [
     "zstandard",
     "msgpack",
     "psutil",
+    "redis",
+    "nats-py",
 ]
 
 
