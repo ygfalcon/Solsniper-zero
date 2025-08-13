@@ -243,7 +243,7 @@ async def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog
     daemon.register_agent(agent)
     first = agent._last_mtime
     with caplog.at_level(logging.INFO):
-        daemon.train()
+        await daemon.train()
     assert model_path.exists()
     assert agent._last_mtime != first
     assert any("checkpoint" in r.message for r in caplog.records)
@@ -266,7 +266,7 @@ async def test_queued_trades_trigger_update(tmp_path, monkeypatch):
     action = {'token': 'tok', 'side': 'buy', 'amount': 1.0, 'price': 1.0}
     await mem_agent.log(action, skip_db=True)
 
-    daemon.train()
+    await daemon.train()
     assert (tmp_path / 'model.pt').exists()
 
 
@@ -319,7 +319,7 @@ async def test_rl_checkpoint_event_emitted(tmp_path, monkeypatch):
     dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
     dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
     monkeypatch.setattr(RLDaemon, "_fetch_new", lambda self: ([dummy_trade], [dummy_snap]))
-    daemon.train()
+    await daemon.train()
     unsub()
 
     from solhunter_zero.schemas import RLCheckpoint
@@ -355,7 +355,7 @@ async def test_rl_weights_event_emitted(tmp_path, monkeypatch):
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
-    daemon.train()
+    await daemon.train()
     unsub()
 
     from solhunter_zero.schemas import RLWeights
@@ -393,7 +393,7 @@ async def test_rl_metrics_event_emitted(tmp_path, monkeypatch):
     daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=tmp_path/'model.pt')
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
-    daemon.train()
+    await daemon.train()
     unsub()
 
     assert events and isinstance(events[0], dict)
@@ -436,7 +436,7 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
 
     from solhunter_zero import event_pb2
     async with websockets.connect(f"ws://localhost:{port}") as ws:
-        daemon.train()
+        await daemon.train()
         for _ in range(3):
             raw = await asyncio.wait_for(ws.recv(), timeout=1)
             if isinstance(raw, bytes):
@@ -591,7 +591,7 @@ def test_hierarchical_policy_persists_weights(tmp_path, monkeypatch):
     monkeypatch.setattr(torch, "load", lambda *a, **k: {})
     monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
 
-    daemon.train()
+    asyncio.run(daemon.train())
     saved = dict(daemon.hier_weights)
     daemon.close()
 

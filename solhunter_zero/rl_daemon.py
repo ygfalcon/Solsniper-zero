@@ -729,21 +729,8 @@ class RLDaemon:
         except Exception:
             return []
 
-    def train(self) -> None:
-        fetch_result = self._fetch_new()
-        if asyncio.iscoroutine(fetch_result):
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                trades, snaps = asyncio.run(fetch_result)
-            else:
-                new_loop = asyncio.new_event_loop()
-                try:
-                    trades, snaps = new_loop.run_until_complete(fetch_result)
-                finally:
-                    new_loop.close()
-        else:
-            trades, snaps = fetch_result
+    async def train(self) -> None:
+        trades, snaps = await self._fetch_new()
         if not trades and not snaps:
             return
         if self.multi_rl and self.population is not None:
@@ -853,7 +840,7 @@ class RLDaemon:
         delay = max(min_i, min(max_i, interval))
         while True:
             try:
-                self.train()
+                await self.train()
             except Exception as exc:  # pragma: no cover - log errors
                 logger.error("daemon training failed: %s", exc)
             cpu = get_cpu_usage()
