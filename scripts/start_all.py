@@ -61,6 +61,7 @@ from solhunter_zero.autopilot import (  # noqa: E402
     _maybe_start_event_bus,
     shutdown_event_bus,
 )
+from solhunter_zero.event_bus import subscription  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
 from solhunter_zero import bootstrap  # noqa: E402
@@ -193,18 +194,35 @@ class ProcessManager:
 
 
 def _wait_for_rl_daemon(proc: subprocess.Popen, timeout: float = 30.0) -> None:
-    """Wait briefly to ensure the RL daemon is running."""
+    """Wait for an ``rl_daemon`` heartbeat or raise ``TimeoutError``.
+
+    The readiness of the RL daemon is now signalled via heartbeat events
+    published on the event bus.  This helper subscribes to the ``heartbeat``
+    topic and returns once a message with ``{"service": "rl_daemon"}`` is
+    observed.  If the subprocess exits early or no heartbeat arrives within
+    ``timeout`` seconds a runtime or timeout error is raised respectively.
+    """
     deadline = time.monotonic() + timeout
-    ready_after = time.monotonic() + 1.0
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            raise RuntimeError(
-                f"rl_daemon exited with code {proc.returncode}"
-            )
-        if time.monotonic() >= ready_after:
-            return
-        time.sleep(0.1)
-    raise TimeoutError("rl_daemon startup timed out")
+    ready = threading.Event()
+
+    def _handler(payload) -> None:
+        service = (
+            payload.get("service")
+            if isinstance(payload, dict)
+            else getattr(payload, "service", None)
+        )
+        if service == "rl_daemon":
+            ready.set()
+
+    with subscription("heartbeat", _handler):
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"rl_daemon exited with code {proc.returncode}"
+                )
+            if ready.wait(0.1):
+                return
+        raise TimeoutError("rl_daemon startup timed out waiting for heartbeat")
 
 
 def launch_services(pm: ProcessManager) -> None:
@@ -218,7 +236,7 @@ def launch_services(pm: ProcessManager) -> None:
     set_env_from_config(cfg_data)
     config.reload_active_config()
     _check_redis_connection()
-    config.get_solana_ws_url()
+    getattr(config, "get_solana_ws_url", lambda: None)()
     interval = float(
         cfg_data.get(
             "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")

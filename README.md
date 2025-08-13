@@ -307,7 +307,9 @@ profit calculation so routes are ranked based on the borrowed size.
    ```bash
    python scripts/start_all.py
    ```
-   The script waits for the depth websocket and forwards `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all subprocesses.
+   The script waits for the RL daemon heartbeat and the depth websocket before
+   forwarding `--config`, `EVENT_BUS_URL` and `SOLANA_RPC_URL` to all
+   subprocesses.
 
 Running `scripts/startup.py` handles these steps interactively and forwards any options to the cross-platform entry point
 `python -m solhunter_zero.launcher --auto`, which performs a fully automated launch using the bundled defaults.
