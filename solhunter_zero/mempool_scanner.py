@@ -9,6 +9,7 @@ import contextlib
 import time
 from collections import deque
 from typing import AsyncGenerator, Iterable, Dict, Any, Deque
+from solders.pubkey import Pubkey
 
 from .dynamic_limit import _target_concurrency, _step_limit
 from . import resource_monitor
@@ -104,12 +105,16 @@ async def stream_mempool_tokens(
 
     async with connect(rpc_url) as ws:
         await ws.logs_subscribe(
-            RpcTransactionLogsFilterMentions(str(TOKEN_PROGRAM_ID)),
+            RpcTransactionLogsFilterMentions(
+                Pubkey.from_string(str(TOKEN_PROGRAM_ID))
+            ),
             commitment="processed",
         )
         if include_pools:
             await ws.logs_subscribe(
-                RpcTransactionLogsFilterMentions(str(DEX_PROGRAM_ID)),
+                RpcTransactionLogsFilterMentions(
+                    Pubkey.from_string(str(DEX_PROGRAM_ID))
+                ),
                 commitment="processed",
             )
 

@@ -163,6 +163,32 @@ def test_filter_creation_uses_public_api(monkeypatch):
     assert calls[0] in {"dummy", b"dummy"}
 
 
+def test_stream_mempool_tokens_subscribes_pubkey(monkeypatch):
+    def fake_connect(url):
+        return FakeConnect(url, [])
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    def fake_filter(arg, *args, **kwargs):
+        if isinstance(arg, str):
+            raise TypeError("expected Pubkey")
+        return None
+
+    monkeypatch.setattr(
+        mp_scanner, "RpcTransactionLogsFilterMentions", fake_filter
+    )
+
+    async def run():
+        gen = mp_scanner.stream_mempool_tokens("ws://node", include_pools=False)
+        try:
+            await anext(gen)
+        except StopAsyncIteration:
+            pass
+        await gen.aclose()
+
+    asyncio.run(run())
+
+
 def test_stream_mempool_tokens(monkeypatch):
     msgs = [
         {
