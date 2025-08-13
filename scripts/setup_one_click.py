@@ -74,6 +74,14 @@ def main(argv: list[str] | None = None) -> None:
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
     os.environ.setdefault("EVENT_BUS_URL", DEFAULT_WS_URL)
+    env_file = ROOT / ".env"
+    try:
+        lines = env_file.read_text().splitlines()
+    except FileNotFoundError:
+        lines = []
+    if not any(line.startswith("EVENT_BUS_URL=") for line in lines):
+        with env_file.open("a", encoding="utf-8") as fh:
+            fh.write(f"EVENT_BUS_URL={os.environ['EVENT_BUS_URL']}\n")
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
     if cfg_path:
         _validate_config(cfg_path)
