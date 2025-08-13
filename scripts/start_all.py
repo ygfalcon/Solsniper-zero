@@ -207,11 +207,10 @@ def main() -> None:
     with ProcessManager() as pm:
         try:
             launch_services(pm)
-        except Exception:
+            launch_ui(pm)
+            pm.monitor_processes()
+        finally:
             shutdown_event_bus()
-            raise
-        launch_ui(pm)
-        pm.monitor_processes()
 
 
 if __name__ == "__main__":

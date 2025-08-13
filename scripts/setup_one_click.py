@@ -36,7 +36,7 @@ from scripts import quick_setup
 from solhunter_zero import device
 from solhunter_zero.logging_utils import log_startup
 from solhunter_zero import wallet
-from solhunter_zero.event_bus import DEFAULT_WS_URL
+from solhunter_zero.event_bus import DEFAULT_WS_URL, shutdown_event_bus
 
 
 REQUIRED_CFG_KEYS = {
@@ -71,120 +71,124 @@ def _validate_config(path: os.PathLike[str]) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     """Execute the automated setup steps then run the autopilot."""
-    ensure_tools(non_interactive=True)
-    repo_root = ROOT if "site-packages" not in str(ROOT) else Path.cwd()
-    env_config.configure_environment(repo_root)
-    quick_setup.main(["--auto", "--non-interactive"])
-    cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
-    if cfg_path:
-        _validate_config(cfg_path)
-    env_file = repo_root / ".env"
-    bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
-    os.environ["EVENT_BUS_URL"] = bus_url
-    os.environ.setdefault("BROKER_WS_URLS", bus_url)
-    lines = env_file.read_text().splitlines(True)
-    seen_event = False
-    seen_broker = False
-    for i, line in enumerate(lines):
-        if line.startswith("EVENT_BUS_URL="):
-            lines[i] = f"EVENT_BUS_URL={bus_url}\n"
-            seen_event = True
-        elif line.startswith("BROKER_WS_URLS="):
-            lines[i] = f"BROKER_WS_URLS={bus_url}\n"
-            seen_broker = True
-    if not seen_event:
-        lines.append(f"EVENT_BUS_URL={bus_url}\n")
-    if not seen_broker:
-        lines.append(f"BROKER_WS_URLS={bus_url}\n")
-    with env_file.open("w", encoding="utf-8") as fh:
-        fh.writelines(lines)
+    try:
+        ensure_tools(non_interactive=True)
+        repo_root = ROOT if "site-packages" not in str(ROOT) else Path.cwd()
+        env_config.configure_environment(repo_root)
+        quick_setup.main(["--auto", "--non-interactive"])
+        cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
+        if cfg_path:
+            _validate_config(cfg_path)
+        env_file = repo_root / ".env"
+        env_file.touch(exist_ok=True)
+        bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
+        os.environ["EVENT_BUS_URL"] = bus_url
+        os.environ.setdefault("BROKER_WS_URLS", bus_url)
+        lines = env_file.read_text().splitlines(True)
+        seen_event = False
+        seen_broker = False
+        for i, line in enumerate(lines):
+            if line.startswith("EVENT_BUS_URL="):
+                lines[i] = f"EVENT_BUS_URL={bus_url}\n"
+                seen_event = True
+            elif line.startswith("BROKER_WS_URLS="):
+                lines[i] = f"BROKER_WS_URLS={bus_url}\n"
+                seen_broker = True
+        if not seen_event:
+            lines.append(f"EVENT_BUS_URL={bus_url}\n")
+        if not seen_broker:
+            lines.append(f"BROKER_WS_URLS={bus_url}\n")
+        with env_file.open("w", encoding="utf-8") as fh:
+            fh.writelines(lines)
 
-    # Dependency installation is deferred to ``bootstrap.bootstrap`` which
-    # runs as part of the autopilot startup sequence.
+        # Dependency installation is deferred to ``bootstrap.bootstrap`` which
+        # runs as part of the autopilot startup sequence.
 
-    event_pb2 = repo_root / "solhunter_zero" / "event_pb2.py"
-    event_proto = repo_root / "proto" / "event.proto"
-    if (
-        not event_pb2.exists()
-        or event_pb2.stat().st_mtime < event_proto.stat().st_mtime
-    ):
-        subprocess.check_call(
-            [sys.executable, str(repo_root / "scripts" / "gen_proto.py")]
-        )
-
-    if "PYTEST_CURRENT_TEST" not in os.environ:
-        METAL_INDEX = (
-            device.METAL_EXTRA_INDEX[1]
-            if len(getattr(device, "METAL_EXTRA_INDEX", [])) > 1
-            else "https://download.pytorch.org/whl/metal"
-        )
-        subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                ".[fastjson,fastcompress,msgpack]",
-                "--extra-index-url",
-                METAL_INDEX,
-            ]
-        )
-
-    if shutil.which("cargo") and shutil.which("rustup"):
-        try:
+        event_pb2 = repo_root / "solhunter_zero" / "event_pb2.py"
+        event_proto = repo_root / "proto" / "event.proto"
+        if (
+            not event_pb2.exists()
+            or event_pb2.stat().st_mtime < event_proto.stat().st_mtime
+        ):
             subprocess.check_call(
-                [
-                    "cargo",
-                    "build",
-                    "--release",
-                    "--features=parallel",
-                    "--manifest-path",
-                    "route_ffi/Cargo.toml",
-                ],
-                cwd=repo_root,
+                [sys.executable, str(repo_root / "scripts" / "gen_proto.py")]
             )
 
-            target = repo_root / "route_ffi" / "target" / "release"
-            if sys.platform == "darwin":
-                libname = "libroute_ffi.dylib"
-            elif os.name == "nt":
-                libname = "route_ffi.dll"
-            else:
-                libname = "libroute_ffi.so"
-            src = target / libname
-            dest = repo_root / "solhunter_zero" / libname
-            if src.exists():
-                try:
-                    shutil.copy2(src, dest)
-                    os.environ["ROUTE_FFI_LIB"] = str(dest)
-                    msg = f"Route FFI library available at {dest}"
-                except OSError as exc:
-                    os.environ["ROUTE_FFI_LIB"] = str(src)
-                    msg = (
-                        "Failed to copy route FFI library; using "
-                        f"{src} ({exc})"
-                    )
-            else:
-                msg = (
-                    "Route FFI build artifact not found; "
-                    "set ROUTE_FFI_LIB manually."
+        if "PYTEST_CURRENT_TEST" not in os.environ:
+            METAL_INDEX = (
+                device.METAL_EXTRA_INDEX[1]
+                if len(getattr(device, "METAL_EXTRA_INDEX", [])) > 1
+                else "https://download.pytorch.org/whl/metal"
+            )
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    ".[fastjson,fastcompress,msgpack]",
+                    "--extra-index-url",
+                    METAL_INDEX,
+                ]
+            )
+
+        if shutil.which("cargo") and shutil.which("rustup"):
+            try:
+                subprocess.check_call(
+                    [
+                        "cargo",
+                        "build",
+                        "--release",
+                        "--features=parallel",
+                        "--manifest-path",
+                        "route_ffi/Cargo.toml",
+                    ],
+                    cwd=repo_root,
                 )
-            print(msg)
-            log_startup(msg)
-        except subprocess.CalledProcessError as exc:
-            msg = "Failed to build route_ffi with parallel feature"
-            print(f"{msg}: {exc}")
-            log_startup(f"{msg}: {exc}")
 
-    os.environ["AUTO_SELECT_KEYPAIR"] = "1"
-    wallet.setup_default_keypair()
-    device.initialize_gpu()
+                target = repo_root / "route_ffi" / "target" / "release"
+                if sys.platform == "darwin":
+                    libname = "libroute_ffi.dylib"
+                elif os.name == "nt":
+                    libname = "route_ffi.dll"
+                else:
+                    libname = "libroute_ffi.so"
+                src = target / libname
+                dest = repo_root / "solhunter_zero" / libname
+                if src.exists():
+                    try:
+                        shutil.copy2(src, dest)
+                        os.environ["ROUTE_FFI_LIB"] = str(dest)
+                        msg = f"Route FFI library available at {dest}"
+                    except OSError as exc:
+                        os.environ["ROUTE_FFI_LIB"] = str(src)
+                        msg = (
+                            "Failed to copy route FFI library; using "
+                            f"{src} ({exc})"
+                        )
+                else:
+                    msg = (
+                        "Route FFI build artifact not found; "
+                        "set ROUTE_FFI_LIB manually."
+                    )
+                print(msg)
+                log_startup(msg)
+            except subprocess.CalledProcessError as exc:
+                msg = "Failed to build route_ffi with parallel feature"
+                print(f"{msg}: {exc}")
+                log_startup(f"{msg}: {exc}")
 
-    start_all = resources.files("scripts") / "start_all.py"
-    # Launch the full stack including the web UI. ``start_all.py`` already
-    # starts the trading process, so avoid setting ``AUTO_START`` to prevent
-    # the UI from launching an additional trading thread.
-    os.execvp(sys.executable, [sys.executable, str(start_all)])
+        os.environ["AUTO_SELECT_KEYPAIR"] = "1"
+        wallet.setup_default_keypair()
+        device.initialize_gpu()
+
+        start_all = resources.files("scripts") / "start_all.py"
+        # Launch the full stack including the web UI. ``start_all.py`` already
+        # starts the trading process, so avoid setting ``AUTO_START`` to prevent
+        # the UI from launching an additional trading thread.
+        os.execvp(sys.executable, [sys.executable, str(start_all)])
+    finally:
+        shutdown_event_bus()
 
 
 if __name__ == "__main__":  # pragma: no cover

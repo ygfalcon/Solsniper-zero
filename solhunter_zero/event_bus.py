@@ -1608,20 +1608,26 @@ def _reload_bus(cfg) -> None:
             await connect_ws(u)
 
     try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop:
-        async def _runner() -> None:
-            task = asyncio.create_task(_reconnect())
-            try:
-                await task
-            except Exception:
-                task.cancel()
-        _reconnect_task = loop.create_task(_runner())
-    else:
-        asyncio.run(_reconnect())
-    _ENV_PEERS = urls
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop:
+            async def _runner() -> None:
+                task = asyncio.create_task(_reconnect())
+                try:
+                    await task
+                except Exception:
+                    task.cancel()
+                    raise
+            _reconnect_task = loop.create_task(_runner())
+        else:
+            asyncio.run(_reconnect())
+        _ENV_PEERS = urls
+    except Exception:
+        if _reconnect_task is not None:
+            _reconnect_task.cancel()
+        raise
 
 
 def shutdown_event_bus() -> None:
