@@ -7,6 +7,7 @@ import logging
 from typing import Mapping, Any, Sequence, cast
 from pathlib import Path
 from importlib import import_module
+import urllib.parse
 
 from .jsonutil import loads, dumps
 from .dex_config import DEXConfig
@@ -18,6 +19,19 @@ from pydantic import ValidationError
 from .config_schema import ConfigModel
 
 logger = logging.getLogger(__name__)
+
+_VALIDATED_URLS: dict[str, str] = {}
+
+
+def _validate_and_store_url(name: str, url: str, schemes: set[str] | None = None) -> str:
+    parsed = urllib.parse.urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Invalid {name}: {url!r}")
+    if schemes and parsed.scheme not in schemes:
+        raise ValueError(f"Invalid {name} scheme: {parsed.scheme}")
+    os.environ[name] = url
+    _VALIDATED_URLS[name] = url
+    return url
 
 try:
     import yaml  # type: ignore
@@ -148,6 +162,11 @@ def get_solana_ws_url() -> str | None:
     misconfigurations are easy to spot.
     """
 
+    if "SOLANA_WS_URL" in _VALIDATED_URLS:
+        if _VALIDATED_URLS["SOLANA_WS_URL"]:
+            os.environ.setdefault("SOLANA_WS_URL", _VALIDATED_URLS["SOLANA_WS_URL"])
+        return _VALIDATED_URLS["SOLANA_WS_URL"] or None
+
     url = os.getenv("SOLANA_WS_URL")
     if not url:
         rpc = os.getenv("SOLANA_RPC_URL")
@@ -159,11 +178,14 @@ def get_solana_ws_url() -> str | None:
         url = "wss://" + url[len("https://") :]
 
     if url:
-        os.environ["SOLANA_WS_URL"] = url
-        logger.info("Using SOLANA_WS_URL=%s", url)
-    else:
-        logger.warning("SOLANA_WS_URL not set and SOLANA_RPC_URL missing")
-    return url
+        try:
+            return _validate_and_store_url("SOLANA_WS_URL", url, {"ws", "wss"})
+        except ValueError as exc:
+            logger.error(str(exc))
+            return None
+
+    logger.error("SOLANA_WS_URL or SOLANA_RPC_URL must be set to a valid URL")
+    return None
 
 # Commonly required environment variables
 REQUIRED_ENV_VARS = (
@@ -509,12 +531,24 @@ def get_event_bus_url(cfg: Mapping[str, Any] | None = None) -> str:
     Falls back to the built-in default when neither environment nor config
     provide an override.
     """
+    if "EVENT_BUS_URL" in _VALIDATED_URLS:
+        os.environ.setdefault("EVENT_BUS_URL", _VALIDATED_URLS["EVENT_BUS_URL"])
+        return _VALIDATED_URLS["EVENT_BUS_URL"]
+
     cfg = cfg or _ACTIVE_CONFIG
     url = os.getenv("EVENT_BUS_URL") or str(cfg.get("event_bus_url", ""))
     if url:
-        return url
+        try:
+            return _validate_and_store_url(
+                "EVENT_BUS_URL", url, {"ws", "wss", "redis", "rediss"}
+            )
+        except ValueError as exc:
+            logger.error(str(exc))
+
     from .event_bus import DEFAULT_WS_URL
 
+    _VALIDATED_URLS["EVENT_BUS_URL"] = DEFAULT_WS_URL
+    os.environ.setdefault("EVENT_BUS_URL", DEFAULT_WS_URL)
     return DEFAULT_WS_URL
 
 

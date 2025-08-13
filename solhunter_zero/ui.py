@@ -75,7 +75,7 @@ _SUBSCRIPTIONS: list[Any] = []
 
 def _check_redis_connection() -> None:
     """Warn the user when Redis is unreachable."""
-    url = os.getenv("EVENT_BUS_URL") or "redis://127.0.0.1:6379"
+    url = get_event_bus_url()
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"redis", "rediss"}:
         return
