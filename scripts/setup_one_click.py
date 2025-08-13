@@ -73,10 +73,30 @@ def main(argv: list[str] | None = None) -> None:
     ensure_tools(non_interactive=True)
     env_config.configure_environment(ROOT)
     quick_setup.main(["--auto", "--non-interactive"])
-    os.environ.setdefault("EVENT_BUS_URL", DEFAULT_WS_URL)
     cfg_path = getattr(quick_setup, "CONFIG_PATH", None)
     if cfg_path:
         _validate_config(cfg_path)
+
+    env_file = ROOT / ".env"
+    bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
+    os.environ["EVENT_BUS_URL"] = bus_url
+    os.environ.setdefault("BROKER_WS_URLS", bus_url)
+    lines = env_file.read_text().splitlines(True)
+    seen_event = False
+    seen_broker = False
+    for i, line in enumerate(lines):
+        if line.startswith("EVENT_BUS_URL="):
+            lines[i] = f"EVENT_BUS_URL={bus_url}\n"
+            seen_event = True
+        elif line.startswith("BROKER_WS_URLS="):
+            lines[i] = f"BROKER_WS_URLS={bus_url}\n"
+            seen_broker = True
+    if not seen_event:
+        lines.append(f"EVENT_BUS_URL={bus_url}\n")
+    if not seen_broker:
+        lines.append(f"BROKER_WS_URLS={bus_url}\n")
+    with env_file.open("w", encoding="utf-8") as fh:
+        fh.writelines(lines)
 
     # Dependency installation is deferred to ``bootstrap.bootstrap`` which
     # runs as part of the autopilot startup sequence.

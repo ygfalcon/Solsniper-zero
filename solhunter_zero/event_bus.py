@@ -1572,11 +1572,12 @@ def _resolve_ws_urls(cfg) -> Set[str]:
     env_val = os.getenv("BROKER_WS_URLS")
     if env_val:
         urls.update(u.strip() for u in env_val.split(",") if u.strip())
+    else:
+        single = _get_bus_url(cfg)
+        if single:
+            urls.add(single)
 
     urls.update(get_event_bus_peers(cfg))
-    single = _get_bus_url(cfg)
-    if single:
-        urls.add(single)
     return _validate_ws_urls(urls)
 
 
