@@ -118,29 +118,38 @@ def main(argv: list[str] | None = None) -> None:
         os.environ["SOLHUNTER_CONFIG"] = str(cfg_path)
     env_file = repo_root / ".env"
 
-    try:
-        device = importlib.import_module("solhunter_zero.device")
-    except RuntimeError:
+    torch_ver = os.getenv("TORCH_METAL_VERSION")
+    vision_ver = os.getenv("TORCHVISION_METAL_VERSION")
+    cfg_has_versions = False
+    if cfg_path and Path(cfg_path).exists():
+        with open(cfg_path, "rb") as fh:
+            cfg = tomllib.load(fh)
+        torch_cfg = cfg.get("torch", {})
+        cfg_torch = torch_cfg.get("torch_metal_version")
+        cfg_vision = torch_cfg.get("torchvision_metal_version")
+        if cfg_torch and cfg_vision:
+            cfg_has_versions = True
+        torch_ver = torch_ver or cfg_torch
+        vision_ver = vision_ver or cfg_vision
+    if not (torch_ver and vision_ver):
         torch_ver, vision_ver = _resolve_metal_versions()
-        if cfg_path and Path(cfg_path).exists():
-            _write_versions_to_config(torch_ver, vision_ver)
-        else:
-            env_lines = env_file.read_text().splitlines(True) if env_file.exists() else []
-            for prefix, value in (
-                ("TORCH_METAL_VERSION", torch_ver),
-                ("TORCHVISION_METAL_VERSION", vision_ver),
-            ):
-                for i, line in enumerate(env_lines):
-                    if line.startswith(f"{prefix}="):
-                        env_lines[i] = f"{prefix}={value}\n"
-                        break
-                else:
-                    env_lines.append(f"{prefix}={value}\n")
-            env_file.write_text("".join(env_lines))
-        os.environ.setdefault("TORCH_METAL_VERSION", torch_ver)
-        os.environ.setdefault("TORCHVISION_METAL_VERSION", vision_ver)
-        importlib.invalidate_caches()
-        device = importlib.import_module("solhunter_zero.device")
+    os.environ.setdefault("TORCH_METAL_VERSION", torch_ver)
+    os.environ.setdefault("TORCHVISION_METAL_VERSION", vision_ver)
+    if cfg_path and Path(cfg_path).exists() and not cfg_has_versions:
+        _write_versions_to_config(torch_ver, vision_ver)
+    env_lines = env_file.read_text().splitlines(True) if env_file.exists() else []
+    changed = False
+    for prefix, value in (
+        ("TORCH_METAL_VERSION", torch_ver),
+        ("TORCHVISION_METAL_VERSION", vision_ver),
+    ):
+        if not any(line.startswith(f"{prefix}=") for line in env_lines):
+            env_lines.append(f"{prefix}={value}\n")
+            changed = True
+    if changed:
+        env_file.write_text("".join(env_lines))
+    importlib.invalidate_caches()
+    device = importlib.import_module("solhunter_zero.device")
 
     bus_url = os.getenv("EVENT_BUS_URL") or DEFAULT_WS_URL
     os.environ["EVENT_BUS_URL"] = bus_url
