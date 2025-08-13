@@ -7,6 +7,7 @@ import subprocess
 import shutil
 import site
 from pathlib import Path
+import importlib
 
 import pytest
 
@@ -237,3 +238,34 @@ def test_purges_corrupt_dist_info(monkeypatch, tmp_path):
 
     assert not pkg_dir.exists()
     assert not dist_dir.exists()
+
+
+def test_writes_bus_urls(monkeypatch, tmp_path):
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.delenv("EVENT_BUS_URL", raising=False)
+    monkeypatch.delenv("BROKER_WS_URLS", raising=False)
+
+    monkeypatch.setattr("solhunter_zero.paths.ROOT", tmp_path)
+    script = importlib.reload(importlib.import_module("scripts.setup_one_click"))
+    monkeypatch.setattr(script, "ROOT", tmp_path)
+
+    monkeypatch.setattr(os, "execvp", lambda *a, **k: None)
+    monkeypatch.setattr(subprocess, "check_call", lambda *a, **k: 0)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=0))
+
+    script.main([])
+
+    env_text = (tmp_path / ".env").read_text()
+    assert "EVENT_BUS_URL=ws://127.0.0.1:8769" in env_text
+    assert "BROKER_WS_URLS=ws://127.0.0.1:8769" in env_text
+
+    dummy_cfg = types.ModuleType("solhunter_zero.config")
+    dummy_cfg.get_event_bus_peers = lambda cfg=None: []
+    dummy_cfg.get_event_bus_url = lambda cfg=None: os.getenv("EVENT_BUS_URL", "")
+    sys.modules["solhunter_zero.config"] = dummy_cfg
+    import solhunter_zero.event_bus as event_bus
+    urls = event_bus._resolve_ws_urls({})
+    assert urls == {"ws://127.0.0.1:8769"}
