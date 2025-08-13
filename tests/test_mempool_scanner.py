@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import pytest
 
 import solhunter_zero.mempool_scanner as mp_scanner
 from solhunter_zero import dynamic_limit
@@ -83,6 +84,28 @@ def test_stream_mempool_tokens_pool(monkeypatch):
 
     token_out = asyncio.run(run())
     assert token_out == token
+
+
+def test_http_url_converted(monkeypatch):
+    captured = {}
+
+    class Connect(FakeConnect):
+        def __init__(self, url, messages):
+            captured["url"] = url
+            super().__init__(url, messages)
+
+    def fake_connect(url):
+        return Connect(url, [])
+
+    monkeypatch.setattr(mp_scanner, "connect", fake_connect)
+
+    async def run():
+        gen = mp_scanner.stream_mempool_tokens("https://node")
+        with pytest.raises(StopAsyncIteration):
+            await asyncio.wait_for(anext(gen), timeout=0.1)
+
+    asyncio.run(run())
+    assert captured["url"] == "wss://node"
 
 
 def test_offline_or_onchain_async_mempool(monkeypatch):

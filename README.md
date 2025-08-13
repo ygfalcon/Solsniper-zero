@@ -125,7 +125,9 @@ profit calculation so routes are ranked based on the borrowed size.
    The scanner uses the BirdEye API when `BIRDEYE_API_KEY` is set.  If the key
    is missing, it will fall back to scanning the blockchain directly using the
    RPC endpoint specified by `SOLANA_RPC_URL` and will query on-chain volume
-   and liquidity metrics for discovered tokens.
+   and liquidity metrics for discovered tokens. This endpoint must expose a
+   WebSocket interface; `http(s)` URLs are automatically converted to their
+   `ws(s)` equivalents when streaming the mempool.
    To use BirdEye, export the API key:
 
    ```bash
@@ -137,6 +139,7 @@ profit calculation so routes are ranked based on the borrowed size.
 
    ```bash
    export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+   # Endpoint must also support websockets (wss://) for mempool streaming
    ```
 
 5. **Configure DEX endpoints**

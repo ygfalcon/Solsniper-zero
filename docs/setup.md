@@ -169,7 +169,7 @@ Note: `solhunter_zero.device.initialize_gpu` automatically exports `PYTORCH_ENAB
 
 Build and run inside containers without installing Python or Rust locally. The
 compose file mounts `config.toml` and the `keypairs` directory so changes persist
-across runs. Environment variables such as `SOLANA_RPC_URL` and `BIRDEYE_API_KEY`
+across runs. Environment variables such as `SOLANA_RPC_URL` (requires a WebSocket-capable endpoint) and `BIRDEYE_API_KEY`
 are loaded from a `.env` file.
 
 ```bash

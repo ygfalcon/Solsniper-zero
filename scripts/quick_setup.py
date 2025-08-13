@@ -32,7 +32,11 @@ def save_config(cfg: dict) -> None:
 
 PROMPTS = [
     ("birdeye_api_key", "BIRDEYE_API_KEY", "BirdEye API key"),
-    ("solana_rpc_url", "SOLANA_RPC_URL", "Solana RPC URL"),
+    (
+        "solana_rpc_url",
+        "SOLANA_RPC_URL",
+        "Solana RPC URL (must support WebSocket subscriptions)",
+    ),
     ("dex_base_url", "DEX_BASE_URL", "Base DEX URL (mainnet)"),
     ("dex_testnet_url", "DEX_TESTNET_URL", "DEX testnet URL"),
     ("orca_dex_url", "ORCA_DEX_URL", "Orca DEX URL"),

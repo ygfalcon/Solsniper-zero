@@ -91,7 +91,15 @@ async def stream_mempool_tokens(
         keywords = TOKEN_KEYWORDS
     suffix = suffix.lower() if suffix else None
 
-    async with connect(rpc_url) as ws:
+    ws_url = rpc_url
+    if rpc_url.startswith("http://"):
+        ws_url = "ws://" + rpc_url[7:]
+        logger.warning("SOLANA_RPC_URL uses http; switching to websocket endpoint %s", ws_url)
+    elif rpc_url.startswith("https://"):
+        ws_url = "wss://" + rpc_url[8:]
+        logger.warning("SOLANA_RPC_URL uses https; switching to websocket endpoint %s", ws_url)
+
+    async with connect(ws_url) as ws:
         await ws.logs_subscribe(
             RpcTransactionLogsFilterMentions(PublicKey(str(TOKEN_PROGRAM_ID))._key),
             commitment="processed",
