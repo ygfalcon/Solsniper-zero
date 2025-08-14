@@ -64,6 +64,9 @@ _WS_PING_TIMEOUT = float(os.getenv("WS_PING_TIMEOUT", "20") or 20)
 # event websocket configuration
 _EVENT_WS_PORT = int(os.getenv("EVENT_WS_PORT", "8770") or 8770)
 
+# maximum length for various in-memory history buffers
+_HISTORY_MAXLEN = 1000
+
 bp = Blueprint("ui", __name__)
 
 # The test suite provides a very small stub of :mod:`flask` that lacks the
@@ -297,12 +300,15 @@ startup_message = ""
 current_portfolio: Portfolio | None = None
 current_keypair = None
 state_lock = threading.RLock()
-pnl_history: list[float] = []
-token_pnl_history: dict[str, list[float]] = {}
-allocation_history: dict[str, list[float]] = {}
+# rolling history of portfolio PnL values
+pnl_history: deque[float] = deque(maxlen=_HISTORY_MAXLEN)
+# per-token rolling PnL histories
+token_pnl_history: dict[str, deque[float]] = {}
+# per-token rolling allocation histories
+allocation_history: dict[str, deque[float]] = {}
 
 # most recent RL training metrics
-rl_metrics: list[dict[str, float]] = []
+rl_metrics: deque[dict[str, float]] = deque(maxlen=_HISTORY_MAXLEN)
 
 # latest system metrics data
 system_metrics: dict[str, float] = {"cpu": 0.0, "memory": 0.0}
@@ -995,7 +1001,7 @@ def pnl() -> dict:
     )
     pnl = value - entry
     pnl_history.append(pnl)
-    return jsonify({"pnl": pnl, "history": pnl_history})
+    return jsonify({"pnl": pnl, "history": list(pnl_history)})
 
 
 @bp.route("/token_history")
@@ -1009,12 +1015,12 @@ def token_history() -> dict:
     for token, pos in pf.balances.items():
         price = prices.get(token, pos.entry_price)
         pnl = (price - pos.entry_price) * pos.amount
-        token_pnl_history.setdefault(token, []).append(pnl)
+        token_pnl_history.setdefault(token, deque(maxlen=_HISTORY_MAXLEN)).append(pnl)
         alloc = (pos.amount * price) / total if total else 0.0
-        allocation_history.setdefault(token, []).append(alloc)
+        allocation_history.setdefault(token, deque(maxlen=_HISTORY_MAXLEN)).append(alloc)
         result[token] = {
-            "pnl_history": token_pnl_history[token],
-            "allocation_history": allocation_history[token],
+            "pnl_history": list(token_pnl_history[token]),
+            "allocation_history": list(allocation_history[token]),
         }
     return jsonify(result)
 
@@ -1044,12 +1050,18 @@ def logs() -> dict:
 def rl_status() -> dict:
     """Return RL training metrics if available."""
     if rl_daemon is None:
-        return jsonify({"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics})
+        return jsonify(
+            {
+                "last_train_time": None,
+                "checkpoint_path": None,
+                "metrics": list(rl_metrics),
+            }
+        )
     return jsonify(
         {
             "last_train_time": getattr(rl_daemon, "last_train_time", None),
             "checkpoint_path": getattr(rl_daemon, "checkpoint_path", None),
-            "metrics": rl_metrics,
+            "metrics": list(rl_metrics),
         }
     )
 
