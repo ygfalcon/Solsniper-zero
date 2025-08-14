@@ -1145,9 +1145,25 @@ def rl_status() -> dict:
 def status() -> dict:
     """Return status of background components."""
     trading_alive = trading_thread.is_alive() if trading_thread else False
-    rl_alive = rl_daemon is not None or time.time() - rl_daemon_heartbeat < 120
-    depth_alive = depth_service_connected or time.time() - depth_service_heartbeat < 120
-    heartbeat_alive = time.time() - last_heartbeat < 120
+
+    now = time.time()
+    rl_alive = False
+    if now - rl_daemon_heartbeat < 120:
+        rl_alive = True
+    elif rl_daemon is not None:
+        for attr in ("is_alive", "running"):
+            indicator = getattr(rl_daemon, attr, None)
+            if indicator is None:
+                continue
+            try:
+                rl_alive = bool(indicator()) if callable(indicator) else bool(indicator)
+            except Exception:
+                rl_alive = bool(indicator)
+            if rl_alive:
+                break
+
+    depth_alive = depth_service_connected or now - depth_service_heartbeat < 120
+    heartbeat_alive = now - last_heartbeat < 120
     event_alive = False
     url = get_event_bus_url()
     if url and websockets is not None:

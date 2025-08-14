@@ -947,7 +947,12 @@ def test_status_endpoint(monkeypatch):
             return True
 
     monkeypatch.setattr(ui, "trading_thread", DummyThread(), raising=False)
-    monkeypatch.setattr(ui, "rl_daemon", object(), raising=False)
+
+    class DummyDaemon:
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr(ui, "rl_daemon", DummyDaemon(), raising=False)
     monkeypatch.setattr(ui, "depth_service_connected", True, raising=False)
 
     called = {}
@@ -994,13 +999,65 @@ def test_status_endpoint(monkeypatch):
     assert called["url"] == "ws://bus"
 
 
-def test_status_endpoint_with_message(monkeypatch):
+def test_status_endpoint_requires_heartbeat_or_alive(monkeypatch):
     class DummyThread:
         def is_alive(self):
             return True
 
     monkeypatch.setattr(ui, "trading_thread", DummyThread(), raising=False)
     monkeypatch.setattr(ui, "rl_daemon", object(), raising=False)
+    monkeypatch.setattr(ui, "rl_daemon_heartbeat", 0.0, raising=False)
+    monkeypatch.setattr(ui, "depth_service_connected", True, raising=False)
+
+    called = {}
+
+    class Dummy:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    def fake_ws(url, *a, **k):
+        called["url"] = url
+
+        class Conn:
+            async def __aenter__(self_inner):
+                return Dummy()
+
+            async def __aexit__(self_inner, exc_type, exc, tb):
+                pass
+
+            def __await__(self_inner):
+                async def _coro():
+                    return self_inner
+
+                return _coro().__await__()
+
+        return Conn()
+
+    monkeypatch.setattr(ui.websockets, "connect", fake_ws)
+    monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: "ws://bus")
+
+    client = ui.app.test_client()
+    resp = client.get("/status")
+    data = resp.get_json()
+    assert data["rl_daemon"] is False
+    assert called["url"] == "ws://bus"
+
+
+def test_status_endpoint_with_message(monkeypatch):
+    class DummyThread:
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr(ui, "trading_thread", DummyThread(), raising=False)
+
+    class DummyDaemon:
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr(ui, "rl_daemon", DummyDaemon(), raising=False)
     monkeypatch.setattr(ui, "depth_service_connected", True, raising=False)
     monkeypatch.setattr(ui, "startup_message", "hi", raising=False)
 
