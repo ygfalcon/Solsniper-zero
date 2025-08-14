@@ -287,6 +287,16 @@ def test_get_and_set_discovery_method(monkeypatch):
     assert os.getenv("DISCOVERY_METHOD") == "mempool"
 
 
+def test_discovery_method_invalid_value(monkeypatch):
+    monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
+    client = ui.app.test_client()
+    resp = client.post("/discovery", json={"method": "invalid"})
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "Invalid discovery method" in data["error"]
+    assert os.getenv("DISCOVERY_METHOD") is None
+
+
 def test_start_requires_env(monkeypatch):
     async def noop():
         pass
