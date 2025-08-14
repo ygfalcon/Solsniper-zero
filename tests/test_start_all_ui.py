@@ -33,6 +33,7 @@ class DummyProcessManager:
         self.procs = []
         self.ws_threads = {}
         self.redis_proc = None
+        self.stop_called = False
 
     def start(self, cmd, stream_stderr=False):
         proc = DummyProc()
@@ -40,7 +41,7 @@ class DummyProcessManager:
         return proc
 
     def stop_all(self, *_args, **_kwargs):
-        pass
+        self.stop_called = True
 
 
 def test_rl_daemon_starts_before_ui(monkeypatch):
@@ -125,3 +126,73 @@ def test_rl_daemon_starts_before_ui(monkeypatch):
 
     assert ui_run.wait(1.0)
     assert call_order == ["rl", "ui"]
+
+
+def test_launch_ui_aborts_on_ws_error(monkeypatch):
+    root = Path(__file__).resolve().parents[1]
+    messages: list[str] = []
+    stub_module(
+        "solhunter_zero.bootstrap_utils",
+        ensure_venv=lambda argv=None: None,
+        prepend_repo_root=lambda: None,
+        ensure_cargo=lambda: None,
+    )
+    stub_module("solhunter_zero.logging_utils", log_startup=lambda msg: messages.append(msg))
+    stub_module("solhunter_zero.paths", ROOT=root)
+    stub_module("solhunter_zero.device", ensure_gpu_env=lambda: None)
+    stub_module("solhunter_zero.system", set_rayon_threads=lambda: None)
+    stub_module(
+        "solhunter_zero.config",
+        REQUIRED_ENV_VARS=[],
+        set_env_from_config=lambda *a, **k: None,
+        ensure_config_file=lambda *a, **k: "cfg.toml",
+        validate_env=lambda *a, **k: {},
+        initialize_event_bus=lambda: None,
+    )
+    stub_module(
+        "solhunter_zero.data_sync",
+        start_scheduler=lambda *a, **k: None,
+        stop_scheduler=lambda: None,
+    )
+
+    ui_run = threading.Event()
+
+    def fake_create_app():
+        class App:
+            def run(self):
+                ui_run.set()
+
+        return App()
+
+    def fake_start_websockets():
+        raise RuntimeError("fail")
+
+    stub_module(
+        "solhunter_zero.autopilot",
+        _maybe_start_event_bus=lambda cfg: None,
+        shutdown_event_bus=lambda: None,
+    )
+    stub_module("solhunter_zero.bootstrap", bootstrap=lambda one_click=True: None)
+    stub_module(
+        "solhunter_zero.service_launcher",
+        start_depth_service=lambda cfg, stream_stderr=True: DummyProc(),
+        start_rl_daemon=lambda: DummyProc(),
+        wait_for_depth_ws=lambda *a, **k: None,
+    )
+    stub_module(
+        "solhunter_zero.ui",
+        start_websockets=fake_start_websockets,
+        create_app=fake_create_app,
+    )
+
+    sys.modules.pop("scripts.start_all", None)
+    start_all = importlib.import_module("scripts.start_all")
+    monkeypatch.setattr(start_all.webbrowser, "open", lambda *a, **k: None)
+
+    pm = DummyProcessManager()
+    start_all.launch_ui(pm)
+    pm.ui_thread.join(timeout=1)
+
+    assert not ui_run.is_set()
+    assert pm.stop_called
+    assert any("Websocket initialization failed" in m for m in messages)

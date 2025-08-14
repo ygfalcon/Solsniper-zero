@@ -301,7 +301,12 @@ def launch_ui(pm: ProcessManager) -> None:
     def _run_ui() -> None:
         try:
             app = ui.create_app()
-            pm.ws_threads = ui.start_websockets()
+            try:
+                pm.ws_threads = ui.start_websockets()
+            except Exception as exc:  # noqa: BLE001
+                log_startup(f"Websocket initialization failed: {exc}")
+                pm.stop_all()
+                return
             app.run()
         except Exception as exc:  # noqa: BLE001
             log_startup(f"UI initialization failed: {exc}")

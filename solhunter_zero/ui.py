@@ -1846,12 +1846,12 @@ def start_websockets() -> dict[str, threading.Thread]:
                 server = rl_ws_loop.run_until_complete(_serve())
             except OSError as e:
                 if e.errno == errno.EADDRINUSE:
-                    logger.error("RL websocket port %s is already in use", 8767)
-                else:
-                    logger.error(
-                        "Failed to start RL websocket on port %s: %s", 8767, e
-                    )
-                return
+                    raise RuntimeError(
+                        "RL websocket port 8767 is already in use"
+                    ) from e
+                raise RuntimeError(
+                    f"Failed to start RL websocket on port 8767: {e}"
+                ) from e
             rl_ws_loop.run_forever()
         finally:
             if server is not None:
@@ -1881,16 +1881,12 @@ def start_websockets() -> dict[str, threading.Thread]:
                 server = event_ws_loop.run_until_complete(_serve())
             except OSError as e:
                 if e.errno == errno.EADDRINUSE:
-                    logger.error(
-                        "Event websocket port %s is already in use", _EVENT_WS_PORT
-                    )
-                else:
-                    logger.error(
-                        "Failed to start event websocket on port %s: %s",
-                        _EVENT_WS_PORT,
-                        e,
-                    )
-                return
+                    raise RuntimeError(
+                        f"Event websocket port {_EVENT_WS_PORT} is already in use"
+                    ) from e
+                raise RuntimeError(
+                    f"Failed to start event websocket on port {_EVENT_WS_PORT}: {e}"
+                ) from e
             event_ws_loop.run_forever()
         finally:
             if server is not None:
@@ -1920,12 +1916,12 @@ def start_websockets() -> dict[str, threading.Thread]:
                 server = log_ws_loop.run_until_complete(_serve())
             except OSError as e:
                 if e.errno == errno.EADDRINUSE:
-                    logger.error("Log websocket port %s is already in use", 8768)
-                else:
-                    logger.error(
-                        "Failed to start log websocket on port %s: %s", 8768, e
-                    )
-                return
+                    raise RuntimeError(
+                        "Log websocket port 8768 is already in use"
+                    ) from e
+                raise RuntimeError(
+                    f"Failed to start log websocket on port 8768: {e}"
+                ) from e
             log_ws_loop.run_forever()
         finally:
             if server is not None:
@@ -1936,14 +1932,44 @@ def start_websockets() -> dict[str, threading.Thread]:
             asyncio.set_event_loop(None)
             log_ws_loop = None
 
+    class _WSWorker(threading.Thread):
+        def __init__(self, name: str, target: Any) -> None:
+            super().__init__(daemon=True)
+            self._target = target
+            self.name = name
+            self.exc: Exception | None = None
+
+        def run(self) -> None:  # pragma: no cover - minimal
+            try:
+                self._target()
+            except Exception as e:  # noqa: BLE001
+                self.exc = e
+
+    workers: list[_WSWorker] = []
+    failures: list[tuple[str, Exception]] = []
+
     for name, target in (
         ("rl", _start_rl_ws),
         ("event", _start_event_ws),
         ("log", _start_log_ws),
     ):
-        t = threading.Thread(target=target, daemon=True)
-        t.start()
-        threads[name] = t
+        worker = _WSWorker(name, target)
+        worker.start()
+        worker.join(0.1)
+        if worker.exc is not None:
+            failures.append((name, worker.exc))
+        else:
+            threads[name] = worker
+            workers.append(worker)
+
+    if failures:
+        for loop in (rl_ws_loop, event_ws_loop, log_ws_loop):
+            if loop is not None:
+                loop.call_soon_threadsafe(loop.stop)
+        for worker in workers:
+            worker.join(timeout=1)
+        msgs = ", ".join(f"{name}: {exc}" for name, exc in failures)
+        raise RuntimeError(f"Websocket startup failed: {msgs}")
 
     return threads
 
