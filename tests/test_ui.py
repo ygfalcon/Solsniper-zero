@@ -51,6 +51,11 @@ dummy_watchfiles.awatch = lambda *a, **k: None
 sys.modules.setdefault("watchfiles", dummy_watchfiles)
 
 
+# ``solhunter_zero.ui`` no longer creates a Flask application at import time.
+# Instantiate one explicitly for tests.
+ui.app = ui.create_app()
+
+
 def test_ensure_active_keypair_selects_single(monkeypatch):
     monkeypatch.setattr(ui.wallet, "get_active_keypair_name", lambda: None)
     monkeypatch.setattr(ui.wallet, "list_keypairs", lambda: ["only"])
