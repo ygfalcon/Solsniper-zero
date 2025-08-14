@@ -134,6 +134,13 @@ def _clear_subscriptions(_exc: Exception | None) -> None:
             pass
     _SUBSCRIPTIONS.clear()
 
+    # Remove log handler so that subsequent ``create_app`` calls can attach
+    # a fresh one without duplicating handlers on the root logger.
+    global buffer_handler
+    if buffer_handler is not None:
+        logging.getLogger().removeHandler(buffer_handler)
+        buffer_handler = None
+
 
 @bp.record_once
 def _register_clear_subscriptions(state: Any) -> None:
@@ -504,11 +511,17 @@ def create_app() -> Flask:
     app.register_blueprint(bp)
 
     log_buffer = deque(maxlen=200)
-    buffer_handler = _BufferHandler()
-    buffer_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    root_logger = logging.getLogger()
+    fmt = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    existing = next(
+        (h for h in root_logger.handlers if isinstance(h, _BufferHandler)), None
     )
-    logging.getLogger().addHandler(buffer_handler)
+    if existing:
+        buffer_handler = existing
+    else:
+        buffer_handler = _BufferHandler()
+        root_logger.addHandler(buffer_handler)
+    buffer_handler.setFormatter(fmt)
 
     _SUBSCRIPTIONS = [
         subscription("weights_updated", _update_weights),
