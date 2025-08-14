@@ -61,8 +61,7 @@ from solhunter_zero.portfolio import Position
 
 
 # ``solhunter_zero.ui`` no longer creates a Flask application at import time.
-# Instantiate one explicitly for tests.
-ui.app = ui.create_app()
+# Tests obtain an application instance from a fixture.
 
 
 def test_ensure_active_keypair_selects_single(monkeypatch):
@@ -107,7 +106,7 @@ def test_ensure_active_config_selects_single(monkeypatch):
     assert called["cfg"] is cfg
 
 
-def test_start_and_stop(monkeypatch):
+def test_start_and_stop(monkeypatch, client):
     ui.start_all_thread = None
     ui.start_all_proc = None
     ui.start_all_ready = threading.Event()
@@ -134,8 +133,6 @@ def test_start_and_stop(monkeypatch):
 
     monkeypatch.setattr(ui.subprocess, "Popen", DummyProc)
 
-    client = ui.app.test_client()
-
     resp = client.post("/start_all")
     assert resp.get_json()["status"] == "started"
     assert ui.start_all_thread and ui.start_all_thread.is_alive()
@@ -152,14 +149,12 @@ def test_start_and_stop(monkeypatch):
     assert "term" in events
 
 
-def test_balances_includes_usd(monkeypatch):
+def test_balances_includes_usd(monkeypatch, client):
     pf = ui.Portfolio(path=None)
     pf.balances = {"tok": Position("tok", 2, 1.0)}
 
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: pf)
     monkeypatch.setattr(ui, "fetch_token_prices", lambda tokens: {"tok": 3.0})
-
-    client = ui.app.test_client()
     resp = client.get("/balances")
     data = resp.get_json()
 
@@ -289,12 +284,10 @@ def test_trading_loop_initializes_bus_once(monkeypatch):
     assert counts == {"check": 1, "init": 1}
 
 
-def test_get_and_set_risk_params(monkeypatch):
+def test_get_and_set_risk_params(monkeypatch, client):
     monkeypatch.delenv("RISK_TOLERANCE", raising=False)
     monkeypatch.delenv("MAX_ALLOCATION", raising=False)
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
-
-    client = ui.app.test_client()
 
     resp = client.get("/risk")
     data = resp.get_json()
@@ -314,11 +307,10 @@ def test_get_and_set_risk_params(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") == "1.5"
 
 
-def test_risk_params_invalid_env(monkeypatch, caplog):
+def test_risk_params_invalid_env(monkeypatch, caplog, client):
     monkeypatch.setenv("RISK_TOLERANCE", "oops")
     monkeypatch.setenv("MAX_ALLOCATION", "bad")
     monkeypatch.setenv("RISK_MULTIPLIER", "nope")
-    client = ui.app.test_client()
     with caplog.at_level(logging.WARNING, logger="solhunter_zero.ui"):
         resp = client.get("/risk")
     data = resp.get_json()
@@ -330,7 +322,7 @@ def test_risk_params_invalid_env(monkeypatch, caplog):
     assert "RISK_MULTIPLIER" in caplog.text
 
 
-def test_risk_endpoint_emits_event(monkeypatch):
+def test_risk_endpoint_emits_event(monkeypatch, client):
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
     events = []
 
@@ -340,8 +332,6 @@ def test_risk_endpoint_emits_event(monkeypatch):
         events.append(payload)
 
     unsub = subscribe("risk_updated", on_risk)
-
-    client = ui.app.test_client()
     resp = client.post("/risk", json={"risk_multiplier": 2.0})
     assert resp.get_json()["status"] == "ok"
     asyncio.run(asyncio.sleep(0))
@@ -350,12 +340,10 @@ def test_risk_endpoint_emits_event(monkeypatch):
     assert events and events[0]["multiplier"] == 2.0
 
 
-def test_risk_params_rejects_non_numeric(monkeypatch):
+def test_risk_params_rejects_non_numeric(monkeypatch, client):
     monkeypatch.delenv("RISK_TOLERANCE", raising=False)
     monkeypatch.delenv("MAX_ALLOCATION", raising=False)
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
-
-    client = ui.app.test_client()
 
     for key in ("risk_tolerance", "max_allocation", "risk_multiplier"):
         resp = client.post("/risk", json={key: "not-a-number"})
@@ -366,9 +354,8 @@ def test_risk_params_rejects_non_numeric(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") is None
 
 
-def test_get_and_set_discovery_method(monkeypatch):
+def test_get_and_set_discovery_method(monkeypatch, client):
     monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
-    client = ui.app.test_client()
 
     resp = client.get("/discovery")
     assert resp.get_json()["method"] == "websocket"
@@ -378,9 +365,8 @@ def test_get_and_set_discovery_method(monkeypatch):
     assert os.getenv("DISCOVERY_METHOD") == "mempool"
 
 
-def test_discovery_method_invalid_value(monkeypatch):
+def test_discovery_method_invalid_value(monkeypatch, client):
     monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
-    client = ui.app.test_client()
     resp = client.post("/discovery", json={"method": "invalid"})
     assert resp.status_code == 400
     data = resp.get_json()
@@ -401,8 +387,8 @@ def test_start_requires_env(monkeypatch):
     monkeypatch.delenv("BIRDEYE_API_KEY", raising=False)
     monkeypatch.delenv("SOLANA_RPC_URL", raising=False)
     monkeypatch.delenv("DEX_BASE_URL", raising=False)
-    ui.app = ui.create_app()
-    client = ui.app.test_client()
+    app = ui.create_app()
+    client = app.test_client()
     resp = client.post("/start")
     assert resp.status_code == 400
     msg = resp.get_json()["message"]
@@ -410,7 +396,7 @@ def test_start_requires_env(monkeypatch):
     assert "BIRDEYE_API_KEY or SOLANA_RPC_URL" in msg
 
 
-def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
+def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path, client):
     monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path / "keys"))
     monkeypatch.setattr(
         ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "keys" / "active")
@@ -421,8 +407,6 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
     )
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
     os.makedirs(config.CONFIG_DIR, exist_ok=True)
-
-    client = ui.app.test_client()
 
     kp = Keypair()
     data = json.dumps(list(kp.to_bytes()))
@@ -466,17 +450,16 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
     monkeypatch.setenv("BIRDEYE_API_KEY", "x")
     monkeypatch.setenv("DEX_BASE_URL", "x")
-    ui.app = ui.create_app()
-    client = ui.app.test_client()
+    app = ui.create_app()
+    client = app.test_client()
     resp = client.post("/start")
     assert resp.get_json()["status"] == "started"
     ui.trading_thread.join(timeout=1)
     assert (tmp_path / "active").read_text() == "only"
 
 
-def test_get_and_set_weights(monkeypatch):
+def test_get_and_set_weights(monkeypatch, client):
     monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
-    client = ui.app.test_client()
 
     resp = client.get("/weights")
     assert resp.get_json() == {}
@@ -503,15 +486,13 @@ def test_rl_weights_event_updates_env(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") == "2.0"
 
 
-def test_logs_endpoint(monkeypatch):
+def test_logs_endpoint(monkeypatch, client):
     monkeypatch.setattr(ui, "log_buffer", deque(maxlen=5))
     ui.buffer_handler.setFormatter(logging.Formatter("%(message)s"))
     logging.getLogger().setLevel(logging.INFO)
 
     logging.getLogger().info("alpha")
     logging.getLogger().error("beta")
-
-    client = ui.app.test_client()
     resp = client.get("/logs")
     logs = resp.get_json()["logs"]
 
@@ -544,15 +525,13 @@ def test_autostart_env(monkeypatch):
     assert any("Autostart triggered" in log for log in logs)
 
 
-def test_token_history_endpoint(monkeypatch):
+def test_token_history_endpoint(monkeypatch, client):
     pf = ui.Portfolio(path=None)
     pf.balances = {"tok": Position("tok", 1, 2.0)}
     monkeypatch.setattr(ui, "current_portfolio", pf, raising=False)
     monkeypatch.setattr(ui, "fetch_token_prices", lambda tokens: {"tok": 3.0})
     monkeypatch.setattr(ui, "token_pnl_history", {}, raising=False)
     monkeypatch.setattr(ui, "allocation_history", {}, raising=False)
-
-    client = ui.app.test_client()
     resp = client.get("/token_history")
     data = resp.get_json()
     assert "tok" in data
@@ -598,9 +577,8 @@ def _setup_memory(monkeypatch):
     return mem
 
 
-def test_memory_insert(monkeypatch):
+def test_memory_insert(monkeypatch, client):
     _setup_memory(monkeypatch)
-    client = ui.app.test_client()
     resp = client.post(
         "/memory/insert",
         json={
@@ -620,9 +598,8 @@ def test_memory_insert(monkeypatch):
     assert len(data) == 1 and data[0]["token"] == "TOK"
 
 
-def test_memory_update(monkeypatch):
+def test_memory_update(monkeypatch, client):
     _setup_memory(monkeypatch)
-    client = ui.app.test_client()
     client.post(
         "/memory/insert",
         json={
@@ -651,9 +628,8 @@ def test_memory_update(monkeypatch):
     assert resp.get_json()[0]["price"] == 3.0
 
 
-def test_memory_query(monkeypatch):
+def test_memory_query(monkeypatch, client):
     _setup_memory(monkeypatch)
-    client = ui.app.test_client()
     client.post(
         "/memory/insert",
         json={
@@ -675,18 +651,16 @@ def test_memory_query(monkeypatch):
     assert data == [{"token": "TOK", "price": 2.0}]
 
 
-def test_memory_rejects_disallowed_sql(monkeypatch):
+def test_memory_rejects_disallowed_sql(monkeypatch, client):
     _setup_memory(monkeypatch)
-    client = ui.app.test_client()
     resp = client.post("/memory/insert", json={"sql": "SELECT * FROM trades"})
     assert resp.status_code == 400
     assert resp.get_json()["error"] == "disallowed sql"
 
 
-def test_memory_requires_auth(monkeypatch):
+def test_memory_requires_auth(monkeypatch, client):
     _setup_memory(monkeypatch)
     monkeypatch.setenv("UI_API_TOKEN", "token")
-    client = ui.app.test_client()
     # missing token
     ui.request.headers = {}
     resp = client.post("/memory/query", json={"sql": "SELECT 1"})
@@ -701,29 +675,27 @@ def test_memory_requires_auth(monkeypatch):
     assert resp.status_code == 200
 
 
-def test_vars_endpoint(monkeypatch):
+def test_vars_endpoint(monkeypatch, client):
     mem = _setup_memory(monkeypatch)
     mem.log_var(0.1)
     mem.log_var(0.2)
-    client = ui.app.test_client()
     resp = client.get("/vars")
     data = resp.get_json()
     assert [v["value"] for v in data] == [0.1, 0.2]
 
 
-def test_rl_status_endpoint(monkeypatch):
+def test_rl_status_endpoint(monkeypatch, client):
     daemon = type(
         "D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"}
     )()
     monkeypatch.setattr(ui, "rl_daemon", daemon, raising=False)
-    client = ui.app.test_client()
     resp = client.get("/rl/status")
     data = resp.get_json()
     assert data["last_train_time"] == 1.0
     assert data["checkpoint_path"] == "chk.pt"
 
 
-def test_status_endpoint(monkeypatch):
+def test_status_endpoint(monkeypatch, client):
     class DummyThread:
         def is_alive(self):
             return True
@@ -761,8 +733,6 @@ def test_status_endpoint(monkeypatch):
 
     monkeypatch.setattr(ui.websockets, "connect", fake_ws)
     monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: "ws://bus")
-
-    client = ui.app.test_client()
     resp = client.get("/status")
     data = resp.get_json()
     assert data == {
@@ -776,7 +746,7 @@ def test_status_endpoint(monkeypatch):
     assert called["url"] == "ws://bus"
 
 
-def test_status_endpoint_with_message(monkeypatch):
+def test_status_endpoint_with_message(monkeypatch, client):
     class DummyThread:
         def is_alive(self):
             return True
@@ -817,7 +787,6 @@ def test_status_endpoint_with_message(monkeypatch):
     monkeypatch.setattr(ui, "get_event_bus_url", lambda *_: "ws://bus")
     monkeypatch.setattr(ui.request, "args", {"include_message": "1"}, raising=False)
 
-    client = ui.app.test_client()
     resp = client.get("/status")
     data = resp.get_json()
     assert data == {
@@ -845,8 +814,8 @@ def test_autostart(monkeypatch):
     monkeypatch.setattr(ui.main_module, "run_auto", fake_run_auto)
     monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
     monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
-    ui.app = ui.create_app()
-    client = ui.app.test_client()
+    app = ui.create_app()
+    client = app.test_client()
     resp = client.post("/autostart")
     assert resp.get_json()["status"] == "started"
     assert "run" in events

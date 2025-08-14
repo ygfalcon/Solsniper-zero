@@ -323,3 +323,21 @@ def shared_prices() -> list[float]:
     underlying trading engine receives identical inputs in tests.
     """
     return [100.0, 90.0, 95.0, 105.0]
+
+
+import solhunter_zero.ui as ui
+
+
+@pytest.fixture
+def app():
+    """Provide a fresh Flask app for each test."""
+    app = ui.create_app()
+    ui.app = app
+    yield app
+    ui.app = None
+
+
+@pytest.fixture
+def client(app):
+    """Flask test client for the app fixture."""
+    return app.test_client()
