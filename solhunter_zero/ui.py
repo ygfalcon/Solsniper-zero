@@ -753,19 +753,6 @@ def start() -> dict:
         )
 
     try:
-        from . import data_sync
-
-        def _background_sync() -> None:
-            try:
-                asyncio.run(data_sync.sync_recent())
-            except Exception as exc:  # pragma: no cover - ignore sync errors
-                logger.warning("data sync failed: %s", exc)
-
-        threading.Thread(target=_background_sync, daemon=True).start()
-    except Exception as exc:  # pragma: no cover - ignore sync errors
-        logger.warning("data sync failed: %s", exc)
-
-    try:
         ensure_active_keypair()
     except Exception as exc:
         print(
@@ -779,6 +766,20 @@ def start() -> dict:
                 "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
             }
         ), 500
+
+    try:
+        from . import data_sync
+
+        def _background_sync() -> None:
+            try:
+                asyncio.run(data_sync.sync_recent())
+            except Exception as exc:  # pragma: no cover - ignore sync errors
+                logger.warning("data sync failed: %s", exc)
+
+        threading.Thread(target=_background_sync, daemon=True).start()
+    except Exception as exc:  # pragma: no cover - ignore sync errors
+        logger.warning("data sync failed: %s", exc)
+
 
     missing = _missing_required()
     if missing:
