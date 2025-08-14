@@ -720,3 +720,55 @@ def test_autostart(monkeypatch):
     assert resp.get_json()["status"] == "already running"
     done.set()
     ui.trading_thread.join(timeout=1)
+
+
+@pytest.mark.parametrize("bad_name", ["../evil", "dir/evil", "dir\\evil"])
+def test_upload_keypair_rejects_bad_name(monkeypatch, bad_name):
+    called: list[str] = []
+    monkeypatch.setattr(
+        ui.wallet,
+        "save_keypair",
+        lambda *a, **k: called.append("called"),
+    )
+
+    class Dummy:
+        def __init__(self, data: bytes, filename: str):
+            self._data = data
+            self.filename = filename
+
+        def read(self) -> bytes:
+            return self._data
+
+    ui.request.files = {"file": Dummy(b"[]", "kp.json")}
+    ui.request.form = {"name": bad_name}
+    resp = ui.upload_keypair()
+    assert resp[1] == 400
+    assert not called
+    ui.request.files = {}
+    ui.request.form = {}
+
+
+@pytest.mark.parametrize("bad_name", ["../evil", "dir/evil", "dir\\evil"])
+def test_upload_config_rejects_bad_name(monkeypatch, bad_name):
+    called: list[str] = []
+    monkeypatch.setattr(
+        ui,
+        "save_config",
+        lambda *a, **k: called.append("called"),
+    )
+
+    class Dummy:
+        def __init__(self, data: bytes, filename: str):
+            self._data = data
+            self.filename = filename
+
+        def read(self) -> bytes:
+            return self._data
+
+    ui.request.files = {"file": Dummy(b"a=1", "cfg.toml")}
+    ui.request.form = {"name": bad_name}
+    resp = ui.upload_config()
+    assert resp[1] == 400
+    assert not called
+    ui.request.files = {}
+    ui.request.form = {}
