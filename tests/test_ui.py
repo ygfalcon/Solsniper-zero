@@ -255,6 +255,22 @@ def test_get_and_set_risk_params(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") == "1.5"
 
 
+def test_risk_params_invalid_env(monkeypatch, caplog):
+    monkeypatch.setenv("RISK_TOLERANCE", "oops")
+    monkeypatch.setenv("MAX_ALLOCATION", "bad")
+    monkeypatch.setenv("RISK_MULTIPLIER", "nope")
+    client = ui.app.test_client()
+    with caplog.at_level(logging.WARNING, logger="solhunter_zero.ui"):
+        resp = client.get("/risk")
+    data = resp.get_json()
+    assert data["risk_tolerance"] == 0.1
+    assert data["max_allocation"] == 0.2
+    assert data["risk_multiplier"] == 1.0
+    assert "RISK_TOLERANCE" in caplog.text
+    assert "MAX_ALLOCATION" in caplog.text
+    assert "RISK_MULTIPLIER" in caplog.text
+
+
 def test_risk_endpoint_emits_event(monkeypatch):
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
     events = []
