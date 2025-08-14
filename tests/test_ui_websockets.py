@@ -2,20 +2,31 @@ import importlib
 import socket
 import sys
 import time
+import types
 
 import pytest
 
 
 @pytest.mark.timeout(30)
 def test_websocket_threads_bind():
-    pytest.importorskip("websockets")
-
-    # ``tests.stubs`` replaces ``websockets`` with a lightweight stub. Reload the
-    # real implementation so the websocket servers can be created.
+    # ``tests.stubs`` replaces ``websockets`` with a lightweight stub. Remove the
+    # stub modules before checking for the real dependency so this test is
+    # skipped when the package isn't installed.
     for name in list(sys.modules):
         if name.startswith("websockets"):
             sys.modules.pop(name, None)
-    importlib.import_module("websockets")
+    pytest.importorskip("websockets")
+
+    # Reload the real implementation so the websocket servers can be created.
+    ws = importlib.import_module("websockets")
+    assert ws.__file__ is not None
+
+    # ``ui`` depends on a few optional packages; provide simple stubs when the
+    # real packages aren't available so the module can be imported.
+    sys.modules.setdefault("sqlparse", types.SimpleNamespace())
+    sys.modules.setdefault(
+        "solhunter_zero.wallet", types.ModuleType("solhunter_zero.wallet")
+    )
 
     from solhunter_zero import ui
     importlib.reload(ui)
