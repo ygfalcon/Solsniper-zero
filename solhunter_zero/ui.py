@@ -473,8 +473,17 @@ def _missing_required() -> list[str]:
     return missing
 
 
-def create_app() -> Flask:
-    """Create and configure the Flask application."""
+def create_app(auto_start: bool = True) -> Flask:
+    """Create and configure the Flask application.
+
+    Parameters
+    ----------
+    auto_start:
+        When ``True`` (the default), the trading loop is started
+        automatically if both a keypair and configuration are detected.
+        Passing ``False`` leaves the UI in a status-only mode, allowing an
+        external process to handle trading.
+    """
     global log_buffer, buffer_handler, _SUBSCRIPTIONS
 
     install_uvloop()
@@ -588,34 +597,41 @@ def create_app() -> Flask:
     active_keypair = wallet.get_active_keypair_name()
     active_config = get_active_config_name()
     if active_keypair and active_config:
-        startup_message = (
-            f"Detected keypair '{active_keypair}' and config '{active_config}'. "
-            "Starting trading."
-        )
         logger = logging.getLogger(__name__)
-        logger.info(startup_message)
-        try:
-            with app.app_context():
-                result = start()
-            status_code = 200
-            if isinstance(result, tuple):
-                response, status_code = result[0], result[1]
-            else:
-                response = result
-                status_code = getattr(response, "status_code", status_code)
-            data = (
-                response.get_json() if hasattr(response, "get_json") else {}
-            ) or {}
-            status = data.get("status") if isinstance(data, dict) else None
-            if status_code != 200 or status != "started":
-                message = data.get("message") if isinstance(data, dict) else data
-                startup_message = f"Automatic start failed: {message}"
+        if auto_start:
+            startup_message = (
+                f"Detected keypair '{active_keypair}' and config '{active_config}'. "
+                "Starting trading."
+            )
+            logger.info(startup_message)
+            try:
+                with app.app_context():
+                    result = start()
+                status_code = 200
+                if isinstance(result, tuple):
+                    response, status_code = result[0], result[1]
+                else:
+                    response = result
+                    status_code = getattr(response, "status_code", status_code)
+                data = (
+                    response.get_json() if hasattr(response, "get_json") else {}
+                ) or {}
+                status = data.get("status") if isinstance(data, dict) else None
+                if status_code != 200 or status != "started":
+                    message = data.get("message") if isinstance(data, dict) else data
+                    startup_message = f"Automatic start failed: {message}"
+                    logger.error(startup_message)
+                else:
+                    logger.info("Automatic start returned: %s", status)
+            except Exception as exc:
+                startup_message = f"Automatic start failed: {exc}"
                 logger.error(startup_message)
-            else:
-                logger.info("Automatic start returned: %s", status)
-        except Exception as exc:
-            startup_message = f"Automatic start failed: {exc}"
-            logger.error(startup_message)
+        else:
+            startup_message = (
+                f"Detected keypair '{active_keypair}' and config '{active_config}'."
+                " Auto start disabled."
+            )
+            logger.info(startup_message)
     else:
         missing: list[str] = []
         if not active_keypair:

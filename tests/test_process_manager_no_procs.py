@@ -52,7 +52,7 @@ def test_monitor_processes_no_child_processes(monkeypatch, caplog):
         event_ws_loop=None,
         log_ws_loop=None,
         start_websockets=lambda: {},
-        create_app=lambda: None,
+        create_app=lambda *a, **k: None,
     )
 
     start_all = importlib.import_module("scripts.start_all")
