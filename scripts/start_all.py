@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import asyncio
 from pathlib import Path
 
 # Ensure we can import bootstrap utilities even when the repository has not
@@ -64,6 +65,7 @@ from solhunter_zero.autopilot import (  # noqa: E402
 from solhunter_zero.bootstrap_utils import ensure_cargo  # noqa: E402
 import solhunter_zero.ui as ui  # noqa: E402
 from solhunter_zero import bootstrap  # noqa: E402
+from solhunter_zero import event_bus  # noqa: E402
 
 
 def _is_port_open(host: str, port: int) -> bool:
@@ -278,6 +280,9 @@ def launch_services(pm: ProcessManager) -> None:
 
     _maybe_start_event_bus(cfg_data)
     initialize_event_bus()
+
+    if not asyncio.run(event_bus.verify_broker_connection()):
+        raise RuntimeError("Message broker verification failed")
 
     ensure_cargo()
     depth_proc = start_depth_service(cfg, stream_stderr=True)
