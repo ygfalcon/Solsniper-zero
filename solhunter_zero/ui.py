@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from contextlib import nullcontext
 import urllib.parse
+import atexit
 
 from flask import Flask, Blueprint, jsonify, request, render_template_string
 
@@ -23,7 +24,8 @@ from rich.table import Table
 
 from .http import close_session
 from .util import install_uvloop
-from .event_bus import subscription, publish
+from . import event_bus as _event_bus
+from .event_bus import subscription, publish, _subscribers
 try:
     import websockets
 except Exception:  # pragma: no cover - optional
@@ -83,6 +85,7 @@ _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.t
 log_buffer: deque[str] = deque()
 buffer_handler: logging.Handler | None = None
 _SUBSCRIPTIONS: list[Any] = []
+_subs_active = False
 
 
 def _check_redis_connection() -> None:
@@ -114,21 +117,29 @@ def _check_redis_connection() -> None:
             port,
         )
 
-# Ensure event bus subscriptions are cleaned up when the application context ends
-def _clear_subscriptions(_exc: Exception | None) -> None:
+# Ensure event bus subscriptions are cleaned up when the application exits
+def _clear_subscriptions(_exc: Exception | None = None) -> None:
     """Terminate all active event bus subscriptions."""
+    global _subs_active
     for sub in _SUBSCRIPTIONS:
         try:
             sub.__exit__(None, None, None)
         except Exception:
             pass
     _SUBSCRIPTIONS.clear()
+    _subs_active = False
+
+
+_atexit_registered = False
 
 
 @bp.record_once
 def _register_clear_subscriptions(state: Any) -> None:
-    """Register teardown to clear event bus subscriptions once app is ready."""
-    state.app.teardown_appcontext(_clear_subscriptions)
+    """Ensure subscriptions are only cleared when the interpreter exits."""
+    global _atexit_registered
+    if not _atexit_registered:
+        atexit.register(_clear_subscriptions, None)
+        _atexit_registered = True
 
 # websocket state for streaming log lines
 log_ws_clients: set[Any] = set()
@@ -280,6 +291,53 @@ def _depth_status(payload: Any) -> None:
     global depth_service_connected
     status = str(getattr(payload, "status", payload.get("status")))
     depth_service_connected = status in {"connected", "reconnected"}
+
+
+def _ensure_subscriptions() -> None:
+    """(Re)establish event bus subscriptions when needed."""
+    global _subs_active, _SUBSCRIPTIONS
+    if _subs_active and _subscribers:
+        return
+    _SUBSCRIPTIONS = [
+        subscription("weights_updated", _update_weights),
+        subscription("rl_weights", _update_rl_weights),
+        subscription("rl_metrics", _store_rl_metrics),
+        subscription("system_metrics_combined", _store_system_metrics),
+        subscription("rl_checkpoint", _send_rl_update),
+        subscription("rl_weights", _send_rl_update),
+        subscription("rl_metrics", _send_rl_update),
+        subscription("action_executed", _sub_handler("action_executed")),
+        subscription("weights_updated", _sub_handler("weights_updated")),
+        subscription("rl_weights", _sub_handler("rl_weights")),
+        subscription("rl_metrics", _sub_handler("rl_metrics")),
+        subscription("risk_updated", _sub_handler("risk_updated")),
+        subscription("config_updated", _sub_handler("config_updated")),
+        subscription("system_metrics_combined", _sub_handler("system_metrics")),
+        subscription("heartbeat", _heartbeat),
+        subscription("depth_service_status", _depth_status),
+    ]
+    for sub in _SUBSCRIPTIONS:
+        sub.__enter__()
+    _subs_active = True
+
+
+if hasattr(bp, "before_app_request"):
+    @bp.before_app_request  # pragma: no cover - simple guard
+    def _ensure_subscriptions_request() -> None:
+        _ensure_subscriptions()
+
+
+_orig_bus_reset = _event_bus.reset
+
+
+def _reset_bus_and_resubscribe() -> None:
+    _orig_bus_reset()
+    global _subs_active
+    _subs_active = False
+    _ensure_subscriptions()
+
+
+_event_bus.reset = _reset_bus_and_resubscribe
 
 
 trading_thread = None
@@ -441,27 +499,7 @@ def create_app() -> Flask:
         logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     )
     logging.getLogger().addHandler(buffer_handler)
-
-    _SUBSCRIPTIONS = [
-        subscription("weights_updated", _update_weights),
-        subscription("rl_weights", _update_rl_weights),
-        subscription("rl_metrics", _store_rl_metrics),
-        subscription("system_metrics_combined", _store_system_metrics),
-        subscription("rl_checkpoint", _send_rl_update),
-        subscription("rl_weights", _send_rl_update),
-        subscription("rl_metrics", _send_rl_update),
-        subscription("action_executed", _sub_handler("action_executed")),
-        subscription("weights_updated", _sub_handler("weights_updated")),
-        subscription("rl_weights", _sub_handler("rl_weights")),
-        subscription("rl_metrics", _sub_handler("rl_metrics")),
-        subscription("risk_updated", _sub_handler("risk_updated")),
-        subscription("config_updated", _sub_handler("config_updated")),
-        subscription("system_metrics_combined", _sub_handler("system_metrics")),
-        subscription("heartbeat", _heartbeat),
-        subscription("depth_service_status", _depth_status),
-    ]
-    for sub in _SUBSCRIPTIONS:
-        sub.__enter__()
+    _ensure_subscriptions()
     global startup_message
     active_keypair = wallet.get_active_keypair_name()
     active_config = get_active_config_name()

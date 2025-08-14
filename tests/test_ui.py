@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import os
 import asyncio
 import types
 import contextlib
@@ -649,3 +650,21 @@ def test_autostart(monkeypatch):
     assert resp.get_json()["status"] == "already running"
     done.set()
     ui.trading_thread.join(timeout=1)
+
+
+def test_rl_weights_subscription_persists_after_requests(monkeypatch):
+    from solhunter_zero.event_bus import publish
+
+    monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
+    client = ui.app.test_client()
+    for _ in range(3):
+        assert client.get("/").status_code == 200
+
+    publish("rl_weights", {"weights": {"w": 1}})
+    assert json.loads(os.environ["AGENT_WEIGHTS"]) == {"w": 1}
+
+    for _ in range(2):
+        client.get("/")
+
+    publish("rl_weights", {"weights": {"w": 2}})
+    assert json.loads(os.environ["AGENT_WEIGHTS"]) == {"w": 2}
