@@ -347,7 +347,7 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     assert "envpath" in used.get("paths", [])
 
 
-def test_trading_loop_initializes_bus_once(monkeypatch):
+def test_trading_loop_checks_redis_only(monkeypatch):
     counts = {"check": 0, "init": 0}
 
     def fake_check():
@@ -387,7 +387,7 @@ def test_trading_loop_initializes_bus_once(monkeypatch):
     thread.start()
     thread.join(timeout=1)
 
-    assert counts == {"check": 1, "init": 1}
+    assert counts == {"check": 1, "init": 0}
 
 
 def test_get_and_set_risk_params(monkeypatch):

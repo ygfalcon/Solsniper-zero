@@ -372,8 +372,6 @@ def ensure_active_config() -> None:
         return
     select_config(configs[0])
     set_env_from_config(load_selected_config())
-    _check_redis_connection()
-    initialize_event_bus()
 
 
 def record_history(prices: dict[str, float]) -> None:
@@ -589,7 +587,6 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
     cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
-    initialize_event_bus()
     ensure_active_config()
 
     try:
@@ -660,7 +657,6 @@ def start() -> dict:
     cfg = apply_env_overrides(load_config("config.toml"))
     set_env_from_config(cfg)
     _check_redis_connection()
-    initialize_event_bus()
     ensure_active_config()
 
     try:
