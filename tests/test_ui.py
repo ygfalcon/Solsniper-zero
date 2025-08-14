@@ -341,6 +341,22 @@ def test_risk_endpoint_emits_event(monkeypatch):
     assert events and events[0]["multiplier"] == 2.0
 
 
+def test_risk_params_rejects_non_numeric(monkeypatch):
+    monkeypatch.delenv("RISK_TOLERANCE", raising=False)
+    monkeypatch.delenv("MAX_ALLOCATION", raising=False)
+    monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
+
+    client = ui.app.test_client()
+
+    for key in ("risk_tolerance", "max_allocation", "risk_multiplier"):
+        resp = client.post("/risk", json={key: "not-a-number"})
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "invalid numeric value"
+    assert os.getenv("RISK_TOLERANCE") is None
+    assert os.getenv("MAX_ALLOCATION") is None
+    assert os.getenv("RISK_MULTIPLIER") is None
+
+
 def test_get_and_set_discovery_method(monkeypatch):
     monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
     client = ui.app.test_client()

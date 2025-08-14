@@ -685,18 +685,36 @@ def stop_all_route() -> dict:
 
 @bp.route("/risk", methods=["GET", "POST"])
 def risk_params() -> dict:
-    if request.method == "POST":
-        data = request.get_json() or {}
+    method = getattr(request, "method", None)
+    if method is None:
+        method = "POST" if getattr(request, "json", None) is not None else "GET"
+    if method == "POST":
+        if hasattr(request, "get_json"):
+            data = request.get_json() or {}
+        else:
+            data = getattr(request, "json", None) or {}
         rt = data.get("risk_tolerance")
         ma = data.get("max_allocation")
         rm = data.get("risk_multiplier")
         if rt is not None:
+            try:
+                rt = float(rt)
+            except ValueError:
+                return jsonify({"error": "invalid numeric value"}), 400
             os.environ["RISK_TOLERANCE"] = str(rt)
         if ma is not None:
+            try:
+                ma = float(ma)
+            except ValueError:
+                return jsonify({"error": "invalid numeric value"}), 400
             os.environ["MAX_ALLOCATION"] = str(ma)
         if rm is not None:
+            try:
+                rm = float(rm)
+            except ValueError:
+                return jsonify({"error": "invalid numeric value"}), 400
             os.environ["RISK_MULTIPLIER"] = str(rm)
-            publish("risk_updated", {"multiplier": float(rm)})
+            publish("risk_updated", {"multiplier": rm})
         return jsonify({"status": "ok"})
     rt_raw = os.getenv("RISK_TOLERANCE", "0.1")
     try:
