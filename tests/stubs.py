@@ -1008,6 +1008,129 @@ def stub_transformers() -> None:
         mod.pipeline = lambda *a, **k: lambda *aa, **kw: None
 
 
+def stub_rich() -> None:
+    if 'rich' in sys.modules:
+        return
+    rich_mod = types.ModuleType('rich')
+    rich_mod.__spec__ = importlib.machinery.ModuleSpec('rich', None)
+    console_mod = types.ModuleType('rich.console')
+    console_mod.__spec__ = importlib.machinery.ModuleSpec('rich.console', None)
+
+    class _Console:
+        def print(self, *a, **k):
+            pass
+
+    console_mod.Console = _Console
+    panel_mod = types.ModuleType('rich.panel')
+    panel_mod.__spec__ = importlib.machinery.ModuleSpec('rich.panel', None)
+
+    class _Panel:
+        def __init__(self, *a, **k):
+            pass
+
+    panel_mod.Panel = _Panel
+    table_mod = types.ModuleType('rich.table')
+    table_mod.__spec__ = importlib.machinery.ModuleSpec('rich.table', None)
+
+    class _Table:
+        def __init__(self, *a, **k):
+            pass
+
+        def add_column(self, *a, **k):
+            pass
+
+        def add_row(self, *a, **k):
+            pass
+
+    table_mod.Table = _Table
+    sys.modules.setdefault('rich', rich_mod)
+    sys.modules.setdefault('rich.console', console_mod)
+    sys.modules.setdefault('rich.panel', panel_mod)
+    sys.modules.setdefault('rich.table', table_mod)
+
+
+def stub_sqlparse() -> None:
+    if 'sqlparse' in sys.modules:
+        return
+    sqlparse_mod = types.ModuleType('sqlparse')
+    sqlparse_mod.__spec__ = importlib.machinery.ModuleSpec('sqlparse', None)
+
+    def _format(sql, strip_comments=True, **kwargs):
+        if strip_comments:
+            lines = []
+            for line in sql.splitlines():
+                if "--" in line:
+                    line = line.split("--", 1)[0]
+                if line.strip():
+                    lines.append(line)
+            sql = "\n".join(lines)
+        return sql
+
+    def _parse(sql):
+        parts = [p for p in sql.split(";") if p.strip()]
+        stmts = []
+        for part in parts:
+            first = part.strip().split()[0] if part.strip() else ""
+
+            def _token_first(skip_ws=True, _v=first):
+                return types.SimpleNamespace(value=_v)
+
+            stmts.append(
+                types.SimpleNamespace(is_whitespace=False, token_first=_token_first)
+            )
+        return stmts
+
+    sqlparse_mod.format = _format
+    sqlparse_mod.parse = _parse
+    sys.modules.setdefault('sqlparse', sqlparse_mod)
+
+
+def stub_pydantic() -> None:
+    if 'pydantic' in sys.modules:
+        return
+    dummy = types.ModuleType('pydantic')
+    dummy.__spec__ = importlib.machinery.ModuleSpec('pydantic', None)
+
+    class _BaseModel:
+        def __init__(self, **data):
+            for k, v in data.items():
+                setattr(self, k, v)
+
+        def dict(self, *a, **k):
+            return self.__dict__
+
+        def model_dump(self, *a, **k):  # pragma: no cover - v2 compatibility
+            return self.__dict__
+
+    dummy.BaseModel = _BaseModel
+    dummy.AnyUrl = str
+    dummy.ValidationError = Exception
+    dummy.root_validator = lambda *a, **k: (lambda f: f)
+    dummy.validator = lambda *a, **k: (lambda f: f)
+    dummy.field_validator = lambda *a, **k: (lambda f: f)
+    dummy.model_validator = lambda *a, **k: (lambda f: f)
+    sys.modules.setdefault('pydantic', dummy)
+
+
+def stub_cryptography() -> None:
+    if 'cryptography' in sys.modules:
+        return
+    crypto = types.ModuleType('cryptography')
+    crypto.__spec__ = importlib.machinery.ModuleSpec('cryptography', None)
+    fernet_mod = types.ModuleType('cryptography.fernet')
+    fernet_mod.__spec__ = importlib.machinery.ModuleSpec('cryptography.fernet', None)
+
+    class _Fernet:
+        def __init__(self, *a, **k):
+            pass
+
+    fernet_mod.Fernet = _Fernet
+    fernet_mod.InvalidToken = Exception
+    crypto.fernet = fernet_mod
+    sys.modules.setdefault('cryptography', crypto)
+    sys.modules.setdefault('cryptography.fernet', fernet_mod)
+
+
 def install_stubs() -> None:
     stub_numpy()
     stub_cachetools()
@@ -1023,6 +1146,10 @@ def install_stubs() -> None:
     stub_transformers()
     stub_bip_utils()
     stub_faiss()
+    stub_rich()
+    stub_sqlparse()
+    stub_pydantic()
+    stub_cryptography()
 
     if os.getenv("SOLHUNTER_PATCH_INVESTOR_DEMO"):
         from solhunter_zero.simple_memory import SimpleMemory

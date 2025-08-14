@@ -12,7 +12,6 @@ import time
 import subprocess
 import sys
 from pathlib import Path
-from contextlib import nullcontext
 import urllib.parse
 
 from flask import Flask, Blueprint, jsonify, request, render_template_string
@@ -55,8 +54,16 @@ from .memory import Memory
 from .base_memory import BaseMemory
 from .portfolio import Portfolio
 
-# shared in-memory database instance used by UI routes
-MEMORY: BaseMemory = Memory("sqlite:///memory.db")
+# shared in-memory database instance used by UI routes (initialised lazily)
+MEMORY: BaseMemory | None = None
+
+
+def get_memory() -> BaseMemory:
+    """Return the global memory instance, creating it if necessary."""
+    global MEMORY
+    if MEMORY is None:
+        MEMORY = Memory("sqlite:///memory.db")
+    return MEMORY
 
 
 def set_memory(memory: BaseMemory) -> None:
@@ -590,32 +597,8 @@ def create_app() -> Flask:
     if active_keypair and active_config:
         startup_message = (
             f"Detected keypair '{active_keypair}' and config '{active_config}'. "
-            "Starting trading."
+            "Use /start to begin trading."
         )
-        logger = logging.getLogger(__name__)
-        logger.info(startup_message)
-        try:
-            with app.app_context():
-                result = start()
-            status_code = 200
-            if isinstance(result, tuple):
-                response, status_code = result[0], result[1]
-            else:
-                response = result
-                status_code = getattr(response, "status_code", status_code)
-            data = (
-                response.get_json() if hasattr(response, "get_json") else {}
-            ) or {}
-            status = data.get("status") if isinstance(data, dict) else None
-            if status_code != 200 or status != "started":
-                message = data.get("message") if isinstance(data, dict) else data
-                startup_message = f"Automatic start failed: {message}"
-                logger.error(startup_message)
-            else:
-                logger.info("Automatic start returned: %s", status)
-        except Exception as exc:
-            startup_message = f"Automatic start failed: {exc}"
-            logger.error(startup_message)
     else:
         missing: list[str] = []
         if not active_keypair:
@@ -629,17 +612,9 @@ def create_app() -> Flask:
         )
         logging.getLogger(__name__).warning(startup_message)
 
-    if os.getenv("AUTO_START") == "1":
-        ctx = app.app_context() if hasattr(app, "app_context") else nullcontext()
-        try:
-            with ctx:
-                result = autostart()
-            data = result.get_json() if hasattr(result, "get_json") else result
-            logging.warning("Autostart triggered: %s", data.get("status"))
-        except Exception as exc:  # pragma: no cover - simple logging
-            logging.warning("Autostart failed: %s", exc)
-
     return app
+
+
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
@@ -658,7 +633,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
         )
         raise SystemExit(1)
 
-    memory = memory or MEMORY
+    memory = memory or get_memory()
     portfolio = Portfolio()
     state = main_module.TradingState()
 
@@ -1090,7 +1065,7 @@ def positions() -> dict:
 
 @bp.route("/trades")
 def trades() -> dict:
-    mem = MEMORY
+    mem = get_memory()
     recents = [
         {
             "token": t.token,
@@ -1107,7 +1082,7 @@ def trades() -> dict:
 @bp.route("/vars")
 def vars_route() -> dict:
     """Return recent VaR measurements."""
-    mem = MEMORY
+    mem = get_memory()
     data = [
         {"value": v.value, "timestamp": v.timestamp.isoformat()}
         for v in mem.list_vars()[-50:]
@@ -1336,7 +1311,7 @@ def memory_insert() -> dict:
         return jsonify({"error": "missing sql"}), 400
     if not _validate_sql(sql, {"insert"}):
         return jsonify({"error": "disallowed sql"}), 400
-    mem = MEMORY
+    mem = get_memory()
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
         session.commit()
@@ -1354,7 +1329,7 @@ def memory_update() -> dict:
         return jsonify({"error": "missing sql"}), 400
     if not _validate_sql(sql, {"update", "delete"}):
         return jsonify({"error": "disallowed sql"}), 400
-    mem = MEMORY
+    mem = get_memory()
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
         session.commit()
@@ -1372,7 +1347,7 @@ def memory_query() -> dict:
         return jsonify({"error": "missing sql"}), 400
     if not _validate_sql(sql, {"select"}):
         return jsonify({"error": "disallowed sql"}), 400
-    mem = MEMORY
+    mem = get_memory()
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
         rows = [dict(row._mapping) for row in result]

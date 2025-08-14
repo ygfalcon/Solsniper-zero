@@ -26,8 +26,18 @@ def test_launch_services_sets_keypair(monkeypatch, tmp_path):
     )
     stub_module("solhunter_zero.logging_utils", log_startup=lambda msg: None)
     stub_module("solhunter_zero.paths", ROOT=root)
-    stub_module("solhunter_zero.device", ensure_gpu_env=lambda: None)
-    stub_module("solhunter_zero.system", set_rayon_threads=lambda: None)
+    stub_module(
+        "solhunter_zero.device",
+        ensure_gpu_env=lambda: None,
+        detect_gpu=lambda: False,
+        get_gpu_backend=lambda: "cpu",
+        get_default_device=lambda: "cpu",
+    )
+    stub_module(
+        "solhunter_zero.system",
+        set_rayon_threads=lambda: None,
+        detect_cpu_count=lambda: 1,
+    )
     stub_module(
         "solhunter_zero.data_sync",
         start_scheduler=lambda *a, **k: None,
@@ -53,23 +63,6 @@ def test_launch_services_sets_keypair(monkeypatch, tmp_path):
         "solhunter_zero.autopilot",
         _maybe_start_event_bus=lambda cfg: None,
         shutdown_event_bus=lambda: None,
-    )
-    stub_module(
-        "solhunter_zero.ui",
-        rl_ws_loop=None,
-        event_ws_loop=None,
-        log_ws_loop=None,
-        start_websockets=lambda: {},
-        create_app=lambda: None,
-    )
-    stub_module(
-        "solhunter_zero.config",
-        REQUIRED_ENV_VARS=[],
-        set_env_from_config=lambda *a, **k: None,
-        ensure_config_file=lambda *a, **k: None,
-        validate_env=lambda req, cfg: {"rl_db_path": tmp_path / "db"},
-        initialize_event_bus=lambda: None,
-        reload_active_config=lambda: None,
     )
 
     # Dependencies of wallet.ensure_keypair
@@ -125,6 +118,12 @@ def test_launch_services_sets_keypair(monkeypatch, tmp_path):
 
     start_all = importlib.import_module("scripts.start_all")
     monkeypatch.setattr(start_all, "_check_redis_connection", lambda: None)
+    monkeypatch.setattr(start_all, "ensure_config_file", lambda: None)
+    monkeypatch.setattr(start_all, "validate_env", lambda req, cfg: {"rl_db_path": tmp_path / "db"})
+    monkeypatch.setattr(start_all, "set_env_from_config", lambda cfg: None)
+    monkeypatch.setattr(start_all, "initialize_event_bus", lambda: None)
+    monkeypatch.setattr(start_all.config, "reload_active_config", lambda: None)
+    monkeypatch.setattr(start_all.config, "REQUIRED_ENV_VARS", [])
     start_all.bootstrap.bootstrap = lambda one_click=True: None
     start_all.bootstrap.ensure_keypair = real_bootstrap.ensure_keypair
 

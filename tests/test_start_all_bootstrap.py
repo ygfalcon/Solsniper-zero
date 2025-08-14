@@ -24,11 +24,6 @@ def test_start_all_imports(monkeypatch):
     autopilot._maybe_start_event_bus = lambda cfg: None
     autopilot.shutdown_event_bus = lambda: None
     sys.modules["solhunter_zero.autopilot"] = autopilot
-    ui = types.ModuleType("solhunter_zero.ui")
-    ui.rl_ws_loop = ui.event_ws_loop = ui.log_ws_loop = None
-    ui.create_app = lambda: None
-    ui.start_websockets = lambda: {}
-    sys.modules["solhunter_zero.ui"] = ui
     bootstrap_module = types.ModuleType("solhunter_zero.bootstrap")
     bootstrap_module.bootstrap = lambda one_click=True: None
     bootstrap_module.ensure_keypair = lambda: None

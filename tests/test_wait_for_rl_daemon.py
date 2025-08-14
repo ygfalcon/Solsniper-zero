@@ -26,8 +26,20 @@ def test_wait_for_rl_daemon_waits_for_heartbeat(monkeypatch):
     )
     stub_module(monkeypatch, "solhunter_zero.logging_utils", log_startup=lambda msg: None)
     stub_module(monkeypatch, "solhunter_zero.paths", ROOT=root)
-    stub_module(monkeypatch, "solhunter_zero.device", ensure_gpu_env=lambda: None)
-    stub_module(monkeypatch, "solhunter_zero.system", set_rayon_threads=lambda: None)
+    stub_module(
+        monkeypatch,
+        "solhunter_zero.device",
+        ensure_gpu_env=lambda: None,
+        detect_gpu=lambda: False,
+        get_gpu_backend=lambda: "cpu",
+        get_default_device=lambda: "cpu",
+    )
+    stub_module(
+        monkeypatch,
+        "solhunter_zero.system",
+        set_rayon_threads=lambda: None,
+        detect_cpu_count=lambda: 1,
+    )
     stub_module(
         monkeypatch,
         "solhunter_zero.data_sync",
@@ -52,25 +64,6 @@ def test_wait_for_rl_daemon_waits_for_heartbeat(monkeypatch):
         "solhunter_zero.bootstrap",
         bootstrap=lambda one_click=True: None,
         ensure_keypair=lambda: None,
-    )
-    stub_module(
-        monkeypatch,
-        "solhunter_zero.config",
-        REQUIRED_ENV_VARS=[],
-        set_env_from_config=lambda *a, **k: None,
-        ensure_config_file=lambda *a, **k: None,
-        validate_env=lambda *a, **k: {},
-        initialize_event_bus=lambda: None,
-        reload_active_config=lambda: None,
-    )
-    stub_module(
-        monkeypatch,
-        "solhunter_zero.ui",
-        rl_ws_loop=None,
-        event_ws_loop=None,
-        log_ws_loop=None,
-        start_websockets=lambda: {},
-        create_app=lambda: None,
     )
 
     start_all = importlib.import_module("scripts.start_all")

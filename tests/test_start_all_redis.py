@@ -81,16 +81,17 @@ def test_launch_services_starts_and_stops_redis(monkeypatch):
     )
     stub_module("solhunter_zero.logging_utils", log_startup=lambda msg: None)
     stub_module("solhunter_zero.paths", ROOT=root)
-    stub_module("solhunter_zero.device", ensure_gpu_env=lambda: None)
-    stub_module("solhunter_zero.system", set_rayon_threads=lambda: None)
     stub_module(
-        "solhunter_zero.config",
-        REQUIRED_ENV_VARS=[],
-        set_env_from_config=lambda *a, **k: None,
-        ensure_config_file=lambda *a, **k: None,
-        validate_env=lambda *a, **k: {},
-        initialize_event_bus=lambda: None,
-        reload_active_config=lambda: None,
+        "solhunter_zero.device",
+        ensure_gpu_env=lambda: None,
+        detect_gpu=lambda: False,
+        get_gpu_backend=lambda: "cpu",
+        get_default_device=lambda: "cpu",
+    )
+    stub_module(
+        "solhunter_zero.system",
+        set_rayon_threads=lambda: None,
+        detect_cpu_count=lambda: 1,
     )
     stub_module(
         "solhunter_zero.data_sync",
@@ -114,18 +115,17 @@ def test_launch_services_starts_and_stops_redis(monkeypatch):
         start_rl_daemon=lambda: DummyProc(),
         wait_for_depth_ws=lambda *a, **k: None,
     )
-    stub_module(
-        "solhunter_zero.ui",
-        rl_ws_loop=None,
-        event_ws_loop=None,
-        log_ws_loop=None,
-        start_websockets=lambda: {},
-        create_app=lambda: None,
-    )
 
     start_all = importlib.import_module("scripts.start_all")
     monkeypatch.setattr(start_all, "_wait_for_rl_daemon", lambda *a, **k: None)
     monkeypatch.setattr(start_all.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(start_all, "ensure_config_file", lambda: None)
+    monkeypatch.setattr(start_all, "validate_env", lambda req, cfg: {})
+    monkeypatch.setattr(start_all, "set_env_from_config", lambda cfg: None)
+    monkeypatch.setattr(start_all, "initialize_event_bus", lambda: None)
+    monkeypatch.setattr(start_all.config, "reload_active_config", lambda: None)
+    monkeypatch.setattr(start_all.config, "REQUIRED_ENV_VARS", [])
+    monkeypatch.setattr(start_all.config, "get_solana_ws_url", lambda: None)
     monkeypatch.delenv("BROKER_URLS", raising=False)
     monkeypatch.setenv("BROKER_URL", "redis://localhost:6379")
 

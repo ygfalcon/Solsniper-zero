@@ -54,17 +54,17 @@ def test_rl_daemon_starts_before_ui(monkeypatch):
     )
     stub_module("solhunter_zero.logging_utils", log_startup=lambda msg: None)
     stub_module("solhunter_zero.paths", ROOT=root)
-    stub_module("solhunter_zero.device", ensure_gpu_env=lambda: None)
-    stub_module("solhunter_zero.system", set_rayon_threads=lambda: None)
     stub_module(
-        "solhunter_zero.config",
-        REQUIRED_ENV_VARS=[],
-        set_env_from_config=lambda *a, **k: None,
-        ensure_config_file=lambda *a, **k: "cfg.toml",
-        validate_env=lambda *a, **k: {},
-        initialize_event_bus=lambda: None,
-        reload_active_config=lambda: None,
-        get_solana_ws_url=lambda: "ws://",
+        "solhunter_zero.device",
+        ensure_gpu_env=lambda: None,
+        detect_gpu=lambda: False,
+        get_gpu_backend=lambda: "cpu",
+        get_default_device=lambda: "cpu",
+    )
+    stub_module(
+        "solhunter_zero.system",
+        set_rayon_threads=lambda: None,
+        detect_cpu_count=lambda: 1,
     )
     stub_module(
         "solhunter_zero.data_sync",
@@ -104,16 +104,11 @@ def test_rl_daemon_starts_before_ui(monkeypatch):
         start_rl_daemon=fake_start_rl_daemon,
         wait_for_depth_ws=lambda *a, **k: None,
     )
-    stub_module(
-        "solhunter_zero.ui",
-        rl_ws_loop=None,
-        event_ws_loop=None,
-        log_ws_loop=None,
-        start_websockets=lambda: {},
-        create_app=fake_create_app,
-    )
 
     start_all = importlib.import_module("scripts.start_all")
+    import solhunter_zero.ui as real_ui
+    monkeypatch.setattr(real_ui, "create_app", fake_create_app)
+    monkeypatch.setattr(real_ui, "start_websockets", lambda: {})
     monkeypatch.setattr(start_all, "_wait_for_rl_daemon", lambda *a, **k: None)
     monkeypatch.setattr(start_all, "_is_port_open", lambda h, p: True)
     monkeypatch.setattr(start_all.webbrowser, "open", lambda *a, **k: None)
@@ -139,8 +134,18 @@ def test_launch_ui_aborts_on_ws_error(monkeypatch):
     )
     stub_module("solhunter_zero.logging_utils", log_startup=lambda msg: messages.append(msg))
     stub_module("solhunter_zero.paths", ROOT=root)
-    stub_module("solhunter_zero.device", ensure_gpu_env=lambda: None)
-    stub_module("solhunter_zero.system", set_rayon_threads=lambda: None)
+    stub_module(
+        "solhunter_zero.device",
+        ensure_gpu_env=lambda: None,
+        detect_gpu=lambda: False,
+        get_gpu_backend=lambda: "cpu",
+        get_default_device=lambda: "cpu",
+    )
+    stub_module(
+        "solhunter_zero.system",
+        set_rayon_threads=lambda: None,
+        detect_cpu_count=lambda: 1,
+    )
     stub_module(
         "solhunter_zero.config",
         REQUIRED_ENV_VARS=[],
@@ -179,14 +184,11 @@ def test_launch_ui_aborts_on_ws_error(monkeypatch):
         start_rl_daemon=lambda: DummyProc(),
         wait_for_depth_ws=lambda *a, **k: None,
     )
-    stub_module(
-        "solhunter_zero.ui",
-        start_websockets=fake_start_websockets,
-        create_app=fake_create_app,
-    )
-
     sys.modules.pop("scripts.start_all", None)
     start_all = importlib.import_module("scripts.start_all")
+    import solhunter_zero.ui as real_ui
+    monkeypatch.setattr(real_ui, "start_websockets", fake_start_websockets)
+    monkeypatch.setattr(real_ui, "create_app", fake_create_app)
     monkeypatch.setattr(start_all.webbrowser, "open", lambda *a, **k: None)
 
     pm = DummyProcessManager()
