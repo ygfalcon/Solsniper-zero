@@ -500,72 +500,74 @@ def create_app() -> Flask:
             logging.warning("Autostart failed: %s", exc)
 
     return app
+
+
 async def trading_loop(memory: BaseMemory | None = None) -> None:
-    global current_portfolio, current_keypair
-
-    cfg = apply_env_overrides(load_config("config.toml"))
-    set_env_from_config(cfg)
-    _check_redis_connection()
-    initialize_event_bus()
-    ensure_active_config()
+    global current_portfolio, current_keypair, trading_thread
 
     try:
-        ensure_active_keypair()
-    except Exception as exc:
-        print(
-            f"Wallet interaction failed: {exc}\n"
-            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
+        cfg = apply_env_overrides(load_config("config.toml"))
+        set_env_from_config(cfg)
+        _check_redis_connection()
+        initialize_event_bus()
+        ensure_active_config()
 
-    memory = memory or Memory("sqlite:///memory.db")
-    portfolio = Portfolio()
-    state = main_module.TradingState()
-
-    current_portfolio = portfolio
-    set_env_from_config(load_selected_config())
-    _check_redis_connection()
-    initialize_event_bus()
-    keypair_path = os.getenv("KEYPAIR_PATH")
-    try:
-        env_keypair = (
-            await wallet.load_keypair_async(keypair_path) if keypair_path else None
-        )
-    except Exception as exc:
-        print(
-            f"Wallet interaction failed: {exc}\n"
-            "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    current_keypair = env_keypair
-
-    while not stop_event.is_set():
         try:
-            selected_keypair = await wallet.load_selected_keypair_async()
+            ensure_active_keypair()
         except Exception as exc:
-            print(
-                f"Wallet interaction failed: {exc}\n"
-                "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
-                file=sys.stderr,
+            logger.error(
+                "Wallet interaction failed: %s\nRun 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+                exc,
             )
-            raise SystemExit(1)
-        keypair = selected_keypair if selected_keypair is not None else env_keypair
-        current_keypair = keypair
-        await main_module._run_iteration(
-            memory,
-            portfolio,
-            state,
-            testnet=False,
-            dry_run=False,
-            offline=False,
-            keypair=keypair,
-        )
-        for _ in range(loop_delay):
-            if stop_event.is_set():
-                break
-            await asyncio.sleep(1)
+            return
+
+        memory = memory or Memory("sqlite:///memory.db")
+        portfolio = Portfolio()
+        state = main_module.TradingState()
+
+        current_portfolio = portfolio
+        set_env_from_config(load_selected_config())
+        _check_redis_connection()
+        initialize_event_bus()
+        keypair_path = os.getenv("KEYPAIR_PATH")
+        try:
+            env_keypair = (
+                await wallet.load_keypair_async(keypair_path) if keypair_path else None
+            )
+        except Exception as exc:
+            logger.error(
+                "Wallet interaction failed: %s\nRun 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+                exc,
+            )
+            return
+        current_keypair = env_keypair
+
+        while not stop_event.is_set():
+            try:
+                selected_keypair = await wallet.load_selected_keypair_async()
+            except Exception as exc:
+                logger.error(
+                    "Wallet interaction failed: %s\nRun 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
+                    exc,
+                )
+                return
+            keypair = selected_keypair if selected_keypair is not None else env_keypair
+            current_keypair = keypair
+            await main_module._run_iteration(
+                memory,
+                portfolio,
+                state,
+                testnet=False,
+                dry_run=False,
+                offline=False,
+                keypair=keypair,
+            )
+            for _ in range(loop_delay):
+                if stop_event.is_set():
+                    break
+                await asyncio.sleep(1)
+    finally:
+        trading_thread = None
 
 
 @bp.route("/start", methods=["POST"])

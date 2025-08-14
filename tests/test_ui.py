@@ -373,6 +373,36 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     assert (tmp_path / "active").read_text() == "only"
 
 
+def test_start_stop_start(monkeypatch):
+    async def noop():
+        pass
+
+    monkeypatch.setattr(ui, "trading_loop", noop)
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
+    monkeypatch.setattr(ui, "stop_event", threading.Event())
+    monkeypatch.setenv("BIRDEYE_API_KEY", "x")
+    monkeypatch.setenv("DEX_BASE_URL", "x")
+    ui.app = ui.create_app()
+    client = ui.app.test_client()
+
+    resp = client.post("/start")
+    assert resp.get_json()["status"] == "started"
+    if ui.trading_thread:
+        ui.trading_thread.join(timeout=1)
+
+    resp = client.post("/stop")
+    assert resp.get_json()["status"] == "stopped"
+
+    resp = client.post("/start")
+    assert resp.get_json()["status"] == "started"
+    if ui.trading_thread:
+        ui.trading_thread.join(timeout=1)
+
+
 def test_get_and_set_weights(monkeypatch):
     monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
     client = ui.app.test_client()
