@@ -15,7 +15,7 @@ from pathlib import Path
 from contextlib import nullcontext
 import urllib.parse
 
-from flask import Flask, Blueprint, jsonify, request, render_template_string
+from flask import Flask, Blueprint, Response, jsonify, request, render_template_string
 
 from rich.console import Console
 from rich.panel import Panel
@@ -573,7 +573,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
 
 @bp.route("/start", methods=["POST"])
-def start() -> dict:
+def start() -> Response | tuple[Response, int]:
     global trading_thread
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
@@ -626,7 +626,7 @@ def start() -> dict:
 
 
 @bp.route("/stop", methods=["POST"])
-def stop() -> dict:
+def stop() -> Response:
     stop_event.set()
     if trading_thread:
         trading_thread.join()
@@ -634,7 +634,7 @@ def stop() -> dict:
 
 
 @bp.route("/autostart", methods=["POST"])
-def autostart() -> dict:
+def autostart() -> Response:
     """Launch the bot in fully automatic mode."""
     global trading_thread
     if trading_thread and trading_thread.is_alive():
@@ -660,7 +660,7 @@ def _run_start_all() -> None:
 
 
 @bp.route("/start_all", methods=["POST"])
-def start_all_route() -> dict:
+def start_all_route() -> Response:
     global start_all_thread
     if start_all_thread and start_all_thread.is_alive():
         return jsonify({"status": "already running"})
@@ -672,7 +672,7 @@ def start_all_route() -> dict:
 
 
 @bp.route("/stop_all", methods=["POST"])
-def stop_all_route() -> dict:
+def stop_all_route() -> Response:
     if start_all_proc and start_all_proc.poll() is None:
         start_all_proc.terminate()
         try:
@@ -685,7 +685,7 @@ def stop_all_route() -> dict:
 
 
 @bp.route("/risk", methods=["GET", "POST"])
-def risk_params() -> dict:
+def risk_params() -> Response | tuple[Response, int]:
     method = getattr(request, "method", None)
     if method is None:
         method = "POST" if getattr(request, "json", None) is not None else "GET"
@@ -748,7 +748,7 @@ def risk_params() -> dict:
 
 
 @bp.route("/weights", methods=["GET", "POST"])
-def agent_weights() -> dict:
+def agent_weights() -> Response:
     """Get or update agent weighting factors."""
     if request.method == "POST":
         weights = request.get_json() or {}
@@ -770,7 +770,7 @@ def agent_weights() -> dict:
 
 
 @bp.route("/strategies", methods=["GET", "POST"])
-def strategies_route() -> dict:
+def strategies_route() -> Response:
     """Get or set active strategy modules."""
     if request.method == "POST":
         names = request.get_json() or []
@@ -788,7 +788,7 @@ def strategies_route() -> dict:
 
 
 @bp.route("/discovery", methods=["GET", "POST"])
-def discovery_method() -> dict:
+def discovery_method() -> Response | tuple[Response, int]:
     if request.method == "POST":
         method = (request.get_json() or {}).get("method")
         allowed = {"websocket", "mempool"}
@@ -805,7 +805,7 @@ def discovery_method() -> dict:
 
 
 @bp.route("/keypairs", methods=["GET"])
-def keypairs() -> dict:
+def keypairs() -> Response | tuple[Response, int]:
     try:
         data = {
             "keypairs": wallet.list_keypairs(),
@@ -822,7 +822,7 @@ def keypairs() -> dict:
 
 
 @bp.route("/keypairs/upload", methods=["POST"])
-def upload_keypair() -> dict:
+def upload_keypair() -> Response | tuple[Response, int]:
     file = request.files.get("file")
     raw_name = request.form.get("name") or (file.filename if file else None)
     if not file or not raw_name:
@@ -843,7 +843,7 @@ def upload_keypair() -> dict:
 
 
 @bp.route("/keypairs/select", methods=["POST"])
-def select_keypair_route() -> dict:
+def select_keypair_route() -> Response | tuple[Response, int]:
     name = request.get_json().get("name")
     try:
         wallet.select_keypair(name)
@@ -866,12 +866,12 @@ def select_keypair_route() -> dict:
 
 
 @bp.route("/configs", methods=["GET"])
-def configs() -> dict:
+def configs() -> Response:
     return jsonify({"configs": list_configs(), "active": get_active_config_name()})
 
 
 @bp.route("/configs/upload", methods=["POST"])
-def upload_config() -> dict:
+def upload_config() -> Response | tuple[Response, int]:
     file = request.files.get("file")
     raw_name = request.form.get("name") or (file.filename if file else None)
     if not file or not raw_name:
@@ -891,14 +891,14 @@ def upload_config() -> dict:
 
 
 @bp.route("/configs/select", methods=["POST"])
-def select_config_route() -> dict:
+def select_config_route() -> Response:
     name = request.get_json().get("name")
     select_config(name)
     return jsonify({"status": "ok"})
 
 
 @bp.route("/positions")
-def positions() -> dict:
+def positions() -> Response:
     with state_lock:
         pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -917,7 +917,7 @@ def positions() -> dict:
 
 
 @bp.route("/trades")
-def trades() -> dict:
+def trades() -> Response:
     mem = Memory("sqlite:///memory.db")
     recents = [
         {
@@ -933,7 +933,7 @@ def trades() -> dict:
 
 
 @bp.route("/vars")
-def vars_route() -> dict:
+def vars_route() -> Response:
     """Return recent VaR measurements."""
     mem = Memory("sqlite:///memory.db")
     data = [
@@ -944,7 +944,7 @@ def vars_route() -> dict:
 
 
 @bp.route("/roi")
-def roi() -> dict:
+def roi() -> Response:
     with state_lock:
         pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -958,7 +958,7 @@ def roi() -> dict:
 
 
 @bp.route("/exposure")
-def exposure() -> dict:
+def exposure() -> Response:
     """Return current portfolio weights."""
     with state_lock:
         pf = current_portfolio or Portfolio()
@@ -969,7 +969,7 @@ def exposure() -> dict:
 
 
 @bp.route("/sharpe")
-def sharpe_ratio() -> dict:
+def sharpe_ratio() -> Response:
     """Return rolling Sharpe ratio from PnL history."""
     if len(pnl_history) < 2:
         return jsonify({"sharpe": 0.0})
@@ -984,7 +984,7 @@ def sharpe_ratio() -> dict:
 
 
 @bp.route("/pnl")
-def pnl() -> dict:
+def pnl() -> Response:
     with state_lock:
         pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -999,7 +999,7 @@ def pnl() -> dict:
 
 
 @bp.route("/token_history")
-def token_history() -> dict:
+def token_history() -> Response:
     with state_lock:
         pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
@@ -1020,7 +1020,7 @@ def token_history() -> dict:
 
 
 @bp.route("/balances")
-def balances() -> dict:
+def balances() -> Response:
     """Return portfolio balances with USD values."""
     with state_lock:
         pf = current_portfolio or Portfolio()
@@ -1035,13 +1035,13 @@ def balances() -> dict:
 
 
 @bp.route("/logs")
-def logs() -> dict:
+def logs() -> Response:
     """Return recent log messages."""
     return jsonify({"logs": list(log_buffer)})
 
 
 @bp.route("/rl/status")
-def rl_status() -> dict:
+def rl_status() -> Response:
     """Return RL training metrics if available."""
     if rl_daemon is None:
         return jsonify({"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics})
@@ -1055,7 +1055,7 @@ def rl_status() -> dict:
 
 
 @bp.route("/status")
-def status() -> dict:
+def status() -> Response:
     """Return status of background components."""
     trading_alive = trading_thread.is_alive() if trading_thread else False
     rl_alive = rl_daemon is not None or time.time() - rl_daemon_heartbeat < 120
@@ -1131,7 +1131,7 @@ def _get_request_json() -> dict:
 
 
 @bp.route("/memory/insert", methods=["POST"])
-def memory_insert() -> dict:
+def memory_insert() -> Response | tuple[Response, int]:
     data = _get_request_json()
     sql = data.get("sql")
     params = data.get("params", {})
@@ -1149,7 +1149,7 @@ def memory_insert() -> dict:
 
 
 @bp.route("/memory/update", methods=["POST"])
-def memory_update() -> dict:
+def memory_update() -> Response | tuple[Response, int]:
     data = _get_request_json()
     sql = data.get("sql")
     params = data.get("params", {})
@@ -1167,7 +1167,7 @@ def memory_update() -> dict:
 
 
 @bp.route("/memory/query", methods=["POST"])
-def memory_query() -> dict:
+def memory_query() -> Response | tuple[Response, int]:
     data = _get_request_json()
     sql = data.get("sql")
     params = data.get("params", {})
