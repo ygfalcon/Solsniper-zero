@@ -178,7 +178,7 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
     monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
-    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     async def _load_sel():
@@ -215,7 +215,7 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
-    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     async def _load_sel2():
@@ -261,7 +261,7 @@ def test_trading_loop_initializes_bus_once(monkeypatch):
     monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
     monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
-    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     async def _load_sel():

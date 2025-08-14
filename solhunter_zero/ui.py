@@ -506,7 +506,7 @@ def create_app() -> Flask:
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
-    cfg = apply_env_overrides(load_config("config.toml"))
+    cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
     initialize_event_bus()
@@ -528,7 +528,6 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     with state_lock:
         current_portfolio = portfolio
-    set_env_from_config(load_selected_config())
     keypair_path = os.getenv("KEYPAIR_PATH")
     try:
         env_keypair = (
