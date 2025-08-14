@@ -96,6 +96,7 @@ def test_ensure_active_config_selects_single(monkeypatch):
 def test_start_and_stop(monkeypatch):
     ui.start_all_thread = None
     ui.start_all_proc = None
+    ui.start_all_ready = threading.Event()
     events = []
 
     class DummyProc:
@@ -124,6 +125,7 @@ def test_start_and_stop(monkeypatch):
     resp = client.post("/start_all")
     assert resp.get_json()["status"] == "started"
     assert ui.start_all_thread and ui.start_all_thread.is_alive()
+    assert ui.start_all_ready.is_set()
 
     resp = client.post("/start_all")
     assert resp.get_json()["status"] == "already running"
