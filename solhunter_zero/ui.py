@@ -300,6 +300,8 @@ state_lock = threading.RLock()
 pnl_history: list[float] = []
 token_pnl_history: dict[str, list[float]] = {}
 allocation_history: dict[str, list[float]] = {}
+_HISTORY_LIMIT = 100
+last_prices: dict[str, float] = {}
 
 # most recent RL training metrics
 rl_metrics: list[dict[str, float]] = []
@@ -356,6 +358,60 @@ def ensure_active_config() -> None:
     set_env_from_config(load_selected_config())
     _check_redis_connection()
     initialize_event_bus()
+
+
+def record_history(prices: dict[str, float]) -> None:
+    """Record PnL and allocation history using ``prices``."""
+    last_prices.update(prices)
+    with state_lock:
+        pf = current_portfolio or Portfolio()
+        entry = sum(p.amount * p.entry_price for p in pf.balances.values())
+        value = sum(
+            p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items()
+        )
+        pnl = value - entry
+        pnl_history.append(pnl)
+        if len(pnl_history) > _HISTORY_LIMIT:
+            del pnl_history[:-_HISTORY_LIMIT]
+        total = value
+        for token, pos in pf.balances.items():
+            price = prices.get(token, pos.entry_price)
+            token_pnl_history.setdefault(token, []).append(
+                (price - pos.entry_price) * pos.amount
+            )
+            if len(token_pnl_history[token]) > _HISTORY_LIMIT:
+                del token_pnl_history[token][:-_HISTORY_LIMIT]
+            alloc = (pos.amount * price) / total if total else 0.0
+            allocation_history.setdefault(token, []).append(alloc)
+            if len(allocation_history[token]) > _HISTORY_LIMIT:
+                del allocation_history[token][:-_HISTORY_LIMIT]
+
+
+def _on_price_update(msg: Any) -> None:
+    token = getattr(msg, "token", None)
+    price = getattr(msg, "price", None)
+    if token is None and isinstance(msg, dict):
+        token = msg.get("token")
+        price = msg.get("price")
+    if not isinstance(token, str) or not isinstance(price, (int, float)):
+        return
+    last_prices[token] = float(price)
+    with state_lock:
+        pf = current_portfolio or Portfolio()
+        prices = {tok: last_prices.get(tok, pos.entry_price) for tok, pos in pf.balances.items()}
+    if prices:
+        record_history(prices)
+
+
+def _on_portfolio_update(_msg: Any) -> None:
+    with state_lock:
+        pf = current_portfolio or Portfolio()
+        tokens = list(pf.balances.keys())
+    if not tokens:
+        record_history({})
+        return
+    prices = fetch_token_prices(tokens)
+    record_history(prices)
 
 
 def _missing_required() -> list[str]:
@@ -462,6 +518,8 @@ def create_app() -> Flask:
         subscription("system_metrics_combined", _sub_handler("system_metrics")),
         subscription("heartbeat", _heartbeat),
         subscription("depth_service_status", _depth_status),
+        subscription("price_update", _on_price_update),
+        subscription("portfolio_updated", _on_portfolio_update),
     ]
     for sub in _SUBSCRIPTIONS:
         sub.__enter__()
@@ -994,7 +1052,6 @@ def pnl() -> dict:
         p.amount * prices.get(tok, p.entry_price) for tok, p in pf.balances.items()
     )
     pnl = value - entry
-    pnl_history.append(pnl)
     return jsonify({"pnl": pnl, "history": pnl_history})
 
 
@@ -1002,19 +1059,11 @@ def pnl() -> dict:
 def token_history() -> dict:
     with state_lock:
         pf = current_portfolio or Portfolio()
-    tokens = list(pf.balances.keys())
-    prices = fetch_token_prices(tokens)
-    total = pf.total_value(prices)
     result: dict[str, dict[str, list[float]]] = {}
-    for token, pos in pf.balances.items():
-        price = prices.get(token, pos.entry_price)
-        pnl = (price - pos.entry_price) * pos.amount
-        token_pnl_history.setdefault(token, []).append(pnl)
-        alloc = (pos.amount * price) / total if total else 0.0
-        allocation_history.setdefault(token, []).append(alloc)
+    for token in pf.balances:
         result[token] = {
-            "pnl_history": token_pnl_history[token],
-            "allocation_history": allocation_history[token],
+            "pnl_history": token_pnl_history.get(token, []),
+            "allocation_history": allocation_history.get(token, []),
         }
     return jsonify(result)
 
