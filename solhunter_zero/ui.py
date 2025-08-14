@@ -295,6 +295,7 @@ startup_message = ""
 # currently active portfolio and keypair used by the trading loop
 current_portfolio: Portfolio | None = None
 current_keypair = None
+state_lock = threading.RLock()
 pnl_history: list[float] = []
 token_pnl_history: dict[str, list[float]] = {}
 allocation_history: dict[str, list[float]] = {}
@@ -524,7 +525,8 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
     portfolio = Portfolio()
     state = main_module.TradingState()
 
-    current_portfolio = portfolio
+    with state_lock:
+        current_portfolio = portfolio
     set_env_from_config(load_selected_config())
     _check_redis_connection()
     initialize_event_bus()
@@ -540,7 +542,8 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
             file=sys.stderr,
         )
         raise SystemExit(1)
-    current_keypair = env_keypair
+    with state_lock:
+        current_keypair = env_keypair
 
     while not stop_event.is_set():
         try:
@@ -553,7 +556,8 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
             )
             raise SystemExit(1)
         keypair = selected_keypair if selected_keypair is not None else env_keypair
-        current_keypair = keypair
+        with state_lock:
+            current_keypair = keypair
         await main_module._run_iteration(
             memory,
             portfolio,
@@ -857,7 +861,8 @@ def select_config_route() -> dict:
 
 @bp.route("/positions")
 def positions() -> dict:
-    pf = current_portfolio or Portfolio()
+    with state_lock:
+        pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     result = {}
@@ -902,7 +907,8 @@ def vars_route() -> dict:
 
 @bp.route("/roi")
 def roi() -> dict:
-    pf = current_portfolio or Portfolio()
+    with state_lock:
+        pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     entry = sum(p.amount * p.entry_price for p in pf.balances.values())
@@ -916,7 +922,8 @@ def roi() -> dict:
 @bp.route("/exposure")
 def exposure() -> dict:
     """Return current portfolio weights."""
-    pf = current_portfolio or Portfolio()
+    with state_lock:
+        pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     weights = pf.weights(prices)
@@ -940,7 +947,8 @@ def sharpe_ratio() -> dict:
 
 @bp.route("/pnl")
 def pnl() -> dict:
-    pf = current_portfolio or Portfolio()
+    with state_lock:
+        pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     entry = sum(p.amount * p.entry_price for p in pf.balances.values())
@@ -954,7 +962,8 @@ def pnl() -> dict:
 
 @bp.route("/token_history")
 def token_history() -> dict:
-    pf = current_portfolio or Portfolio()
+    with state_lock:
+        pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     total = pf.total_value(prices)
@@ -975,7 +984,8 @@ def token_history() -> dict:
 @bp.route("/balances")
 def balances() -> dict:
     """Return portfolio balances with USD values."""
-    pf = Portfolio()
+    with state_lock:
+        pf = current_portfolio or Portfolio()
     tokens = list(pf.balances.keys())
     prices = fetch_token_prices(tokens)
     result = {}
