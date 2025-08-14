@@ -372,8 +372,6 @@ def ensure_active_config() -> None:
         return
     select_config(configs[0])
     set_env_from_config(load_selected_config())
-    _check_redis_connection()
-    initialize_event_bus()
 
 
 def record_history(prices: dict[str, float]) -> None:
