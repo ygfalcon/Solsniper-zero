@@ -301,6 +301,10 @@ pnl_history: list[float] = []
 token_pnl_history: dict[str, list[float]] = {}
 allocation_history: dict[str, list[float]] = {}
 
+# Cap the number of history points stored for each token to avoid
+# unbounded memory growth.
+TOKEN_HISTORY_MAX_LENGTH = 100
+
 # most recent RL training metrics
 rl_metrics: list[dict[str, float]] = []
 
@@ -1009,9 +1013,15 @@ def token_history() -> dict:
     for token, pos in pf.balances.items():
         price = prices.get(token, pos.entry_price)
         pnl = (price - pos.entry_price) * pos.amount
-        token_pnl_history.setdefault(token, []).append(pnl)
+        history = token_pnl_history.setdefault(token, [])
+        history.append(pnl)
+        if len(history) > TOKEN_HISTORY_MAX_LENGTH:
+            del history[:-TOKEN_HISTORY_MAX_LENGTH]
         alloc = (pos.amount * price) / total if total else 0.0
-        allocation_history.setdefault(token, []).append(alloc)
+        alloc_hist = allocation_history.setdefault(token, [])
+        alloc_hist.append(alloc)
+        if len(alloc_hist) > TOKEN_HISTORY_MAX_LENGTH:
+            del alloc_hist[:-TOKEN_HISTORY_MAX_LENGTH]
         result[token] = {
             "pnl_history": token_pnl_history[token],
             "allocation_history": allocation_history[token],

@@ -560,6 +560,25 @@ def test_token_history_endpoint(monkeypatch):
     assert data["tok"]["allocation_history"][-1] == pytest.approx(1.0)
 
 
+def test_token_history_trims(monkeypatch):
+    pf = ui.Portfolio(path=None)
+    pf.balances = {"tok": Position("tok", 1, 2.0)}
+    monkeypatch.setattr(ui, "current_portfolio", pf, raising=False)
+    prices = iter([3.0, 4.0, 5.0, 6.0, 7.0])
+    monkeypatch.setattr(ui, "fetch_token_prices", lambda t: {"tok": next(prices)})
+    monkeypatch.setattr(ui, "token_pnl_history", {}, raising=False)
+    monkeypatch.setattr(ui, "allocation_history", {}, raising=False)
+    monkeypatch.setattr(ui, "TOKEN_HISTORY_MAX_LENGTH", 3, raising=False)
+
+    client = ui.app.test_client()
+    for _ in range(5):
+        resp = client.get("/token_history")
+
+    data = resp.get_json()
+    assert data["tok"]["pnl_history"] == [3.0, 4.0, 5.0]
+    assert len(data["tok"]["allocation_history"]) == 3
+
+
 def _setup_memory(monkeypatch):
     mem = ui.Memory("sqlite:///:memory:")
     monkeypatch.setattr(ui, "Memory", lambda *a, **k: mem)
