@@ -1646,11 +1646,12 @@ def start_websockets() -> dict[str, threading.Thread]:
     return threads
 
 
-try:  # pragma: no cover - module level app creation for tests
-    app = create_app()
-except Exception:  # pragma: no cover - minimal fallback
-    app = Flask(__name__)
-    app.register_blueprint(bp)
+# Flask application instance populated by ``create_app``.
+#
+# The application is not created at import time to avoid side effects when the
+# module is imported.  Consumers should explicitly call ``create_app`` and
+# assign the result to ``ui.app`` if they require a module-level reference.
+app: Flask | None = None
 
 
 if __name__ == "__main__":
