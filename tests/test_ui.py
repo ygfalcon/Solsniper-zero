@@ -330,24 +330,34 @@ def test_risk_params_invalid_env(monkeypatch, caplog):
     assert "RISK_MULTIPLIER" in caplog.text
 
 
-def test_risk_endpoint_emits_event(monkeypatch):
+@pytest.mark.parametrize(
+    "payload, expected",
+    [
+        ({"risk_tolerance": 0.2}, {"risk_tolerance": 0.2}),
+        ({"max_allocation": 0.3}, {"max_allocation": 0.3}),
+        ({"risk_multiplier": 2.0}, {"risk_multiplier": 2.0}),
+    ],
+)
+def test_risk_endpoint_emits_event(monkeypatch, payload, expected):
+    monkeypatch.delenv("RISK_TOLERANCE", raising=False)
+    monkeypatch.delenv("MAX_ALLOCATION", raising=False)
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
-    events = []
+    events: list[dict] = []
 
     from solhunter_zero.event_bus import subscribe
 
-    async def on_risk(payload):
-        events.append(payload)
+    async def on_risk(p):
+        events.append(p)
 
     unsub = subscribe("risk_updated", on_risk)
 
     client = ui.app.test_client()
-    resp = client.post("/risk", json={"risk_multiplier": 2.0})
+    resp = client.post("/risk", json=payload)
     assert resp.get_json()["status"] == "ok"
     asyncio.run(asyncio.sleep(0))
     unsub()
 
-    assert events and events[0]["multiplier"] == 2.0
+    assert events == [expected]
 
 
 def test_risk_params_rejects_non_numeric(monkeypatch):
