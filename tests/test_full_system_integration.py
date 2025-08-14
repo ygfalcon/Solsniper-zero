@@ -259,7 +259,9 @@ else:  # pragma: no cover - real dependency
     import torch  # type: ignore
 
 sys.modules["solhunter_zero.models"] = types.SimpleNamespace(
-    get_model=lambda *a, **k: None
+    get_model=lambda *a, **k: None,
+    load_compiled_model=lambda *a, **k: None,
+    export_torchscript=lambda *a, **k: None,
 )
 _trans_mod = types.ModuleType("transformers")
 _trans_mod.__spec__ = importlib.machinery.ModuleSpec("transformers", None)
