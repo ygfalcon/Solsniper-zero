@@ -44,18 +44,25 @@ if importlib.util.find_spec("torch") is None:
     torch_nn = types.ModuleType("torch.nn")
     torch_nn.__spec__ = importlib.machinery.ModuleSpec("torch.nn", None)
     torch_nn.__path__ = []
-    torch_nn.Module = type(
-        "Module",
-        (),
-        {
-            "to": lambda self, *a, **k: None,
-            "load_state_dict": lambda self, *a, **k: None,
-        },
-    )
-    torch_nn.Sequential = lambda *a, **k: object()
-    torch_nn.Linear = lambda *a, **k: object()
-    torch_nn.ReLU = lambda *a, **k: object()
-    torch_nn.MSELoss = lambda *a, **k: object()
+    class _Module:
+        def to(self, *a, **k):
+            return self
+
+        def load_state_dict(self, *a, **k):
+            return None
+
+        def parameters(self):
+            return []
+
+    torch_nn.Module = _Module
+
+    def _module_factory(*a, **k):
+        return _Module()
+
+    torch_nn.Sequential = _module_factory
+    torch_nn.Linear = _module_factory
+    torch_nn.ReLU = _module_factory
+    torch_nn.MSELoss = _module_factory
     sys.modules.setdefault("torch.nn", torch_nn)
     torch_opt = types.ModuleType("torch.optim")
     torch_opt.__spec__ = importlib.machinery.ModuleSpec("torch.optim", None)
@@ -228,7 +235,10 @@ async def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
-    monkeypatch.setattr(Memory, "log_trade", lambda self, **kw: None)
+    async def _stub_trade(self, **kw):
+        return None
+
+    monkeypatch.setattr(Memory, "log_trade", _stub_trade)
     mem = Memory(mem_db)
     await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
     await mem.log_trade(token='tok', direction='sell', amount=1, price=2)
@@ -238,9 +248,40 @@ async def test_rl_daemon_updates_and_agent_reloads(tmp_path, monkeypatch, caplog
     await data.log_snapshot('tok', 1.1, 1.0, total_depth=1.6, imbalance=0.0)
 
     model_path = tmp_path / 'model.pt'
-    daemon = RLDaemon(memory_path=mem_db, data_path=str(data_path), model_path=model_path, algo=algo)
+    daemon = RLDaemon(
+        memory_path=mem_db,
+        data_path=str(data_path),
+        model_path=model_path,
+        algo=algo,
+        hierarchical_rl=False,
+    )
     monkeypatch.setattr(DQNAgent, "reload_weights", _no_load)
+
+    def _init(self, memory_agent=None, epsilon=0.0, model_path=None, **kwargs):
+        self.model_path = model_path
+        self._last_mtime = 0.0
+
+    monkeypatch.setattr(DQNAgent, "__init__", _init)
     agent = DQNAgent(memory_agent=MemoryAgent(mem), epsilon=0.0, model_path=model_path)
+
+    import solhunter_zero.rl_training as rl_training
+    from pathlib import Path
+
+    def fake_fit(*a, **k):
+        Path(k.get("model_path")).write_text("x")
+
+    monkeypatch.setattr(rl_training, "fit", fake_fit)
+    import torch
+    monkeypatch.setattr(torch, "load", lambda *a, **k: {})
+    monkeypatch.setattr(daemon.model, "load_state_dict", lambda *_: None)
+    from types import SimpleNamespace
+    dummy_trade = SimpleNamespace(direction='buy', amount=1, price=1, token='tok')
+    dummy_snap = SimpleNamespace(token='tok', price=1.0, depth=1.0, timestamp=0)
+
+    async def _fetch(self):
+        return [dummy_trade], [dummy_snap]
+
+    monkeypatch.setattr(RLDaemon, "_fetch_new", _fetch)
     daemon.register_agent(agent)
     first = agent._last_mtime
     with caplog.at_level(logging.INFO):
