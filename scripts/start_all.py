@@ -255,6 +255,8 @@ def launch_services(pm: ProcessManager) -> None:
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
     urls: list[str] = []
+    event_bus_url = os.getenv("EVENT_BUS_URL") or "redis://127.0.0.1:6379"
+    urls.append(event_bus_url)
     url = os.getenv("BROKER_URL")
     if url:
         urls.append(url)

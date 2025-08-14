@@ -75,7 +75,7 @@ def fake_popen(cmd, *_, **__):
     return DummyProc()
 
 
-def test_launch_services_starts_and_stops_redis(monkeypatch):
+def test_event_bus_url_triggers_redis(monkeypatch):
     root = Path(__file__).resolve().parents[1]
     stub_module(
         "solhunter_zero.bootstrap_utils",
@@ -130,8 +130,15 @@ def test_launch_services_starts_and_stops_redis(monkeypatch):
     start_all = importlib.import_module("scripts.start_all")
     monkeypatch.setattr(start_all, "_wait_for_rl_daemon", lambda *a, **k: None)
     monkeypatch.setattr(start_all.subprocess, "Popen", fake_popen)
+    monkeypatch.setenv("EVENT_BUS_URL", "redis://localhost:6379")
+    monkeypatch.delenv("BROKER_URL", raising=False)
     monkeypatch.delenv("BROKER_URLS", raising=False)
-    monkeypatch.setenv("BROKER_URL", "redis://localhost:6379")
+    called_check = {}
+
+    def fake_check():
+        called_check["check"] = True
+
+    monkeypatch.setattr(start_all, "_check_redis_connection", fake_check)
 
     with pytest.raises(SystemExit):
         with start_all.ProcessManager() as pm:
@@ -139,4 +146,5 @@ def test_launch_services_starts_and_stops_redis(monkeypatch):
             redis_proc = pm.redis_proc
             assert redis_proc is not None
             assert called["maybe"]
+            assert called_check["check"]
     assert redis_proc._terminated

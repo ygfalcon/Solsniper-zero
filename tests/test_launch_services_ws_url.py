@@ -22,6 +22,20 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
     ui.start_websockets = lambda: {}
     monkeypatch.setitem(sys.modules, "solhunter_zero.ui", ui)
 
+    config = types.ModuleType("solhunter_zero.config")
+    config.REQUIRED_ENV_VARS = []
+    config.set_env_from_config = lambda *a, **k: None
+    config.ensure_config_file = lambda *a, **k: None
+    config.validate_env = lambda *a, **k: {}
+    config.initialize_event_bus = lambda: None
+    config.reload_active_config = lambda: None
+    def get_solana_ws_url():
+        rpc = os.environ.get("SOLANA_RPC_URL")
+        if rpc:
+            os.environ.setdefault("SOLANA_WS_URL", rpc.replace("https://", "wss://"))
+    config.get_solana_ws_url = get_solana_ws_url
+    monkeypatch.setitem(sys.modules, "solhunter_zero.config", config)
+
     bootstrap = types.ModuleType("solhunter_zero.bootstrap")
     bootstrap.bootstrap = lambda one_click=True: None
     bootstrap.ensure_keypair = lambda: None
@@ -71,6 +85,7 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
 
     monkeypatch.setenv("SOLANA_RPC_URL", "https://rpc.example.com")
     monkeypatch.delenv("SOLANA_WS_URL", raising=False)
+    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
 
     monkeypatch.setattr(start_all.config, "REQUIRED_ENV_VARS", ())
     monkeypatch.setattr(start_all, "ensure_config_file", lambda: None)

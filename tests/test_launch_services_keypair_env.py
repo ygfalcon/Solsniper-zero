@@ -122,6 +122,7 @@ def test_launch_services_sets_keypair(monkeypatch, tmp_path):
     monkeypatch.delenv("BROKER_URL", raising=False)
     monkeypatch.delenv("BROKER_URLS", raising=False)
     monkeypatch.setenv("SOLHUNTER_TESTING", "1")
+    monkeypatch.setenv("EVENT_BUS_URL", "ws://bus")
 
     start_all = importlib.import_module("scripts.start_all")
     monkeypatch.setattr(start_all, "_check_redis_connection", lambda: None)

@@ -12,6 +12,10 @@ def stub_module(name: str, **attrs) -> None:
     for attr, value in attrs.items():
         setattr(mod, attr, value)
     sys.modules[name] = mod
+    if "." in name:
+        pkg_name, _, sub_name = name.rpartition(".")
+        pkg = sys.modules.setdefault(pkg_name, types.ModuleType(pkg_name))
+        setattr(pkg, sub_name, mod)
 
 
 class DummyProc:
@@ -112,7 +116,7 @@ def test_rl_daemon_starts_before_ui(monkeypatch):
         start_websockets=lambda: {},
         create_app=fake_create_app,
     )
-
+    sys.modules.pop("scripts.start_all", None)
     start_all = importlib.import_module("scripts.start_all")
     monkeypatch.setattr(start_all, "_wait_for_rl_daemon", lambda *a, **k: None)
     monkeypatch.setattr(start_all, "_is_port_open", lambda h, p: True)
