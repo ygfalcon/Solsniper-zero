@@ -2,56 +2,13 @@ import os
 import io
 import json
 import asyncio
-import types
-import contextlib
-import importlib.machinery
-import sys
 import pytest
 from solders.keypair import Keypair
 import logging
 import threading
+from tests import stubs  # noqa: F401
 
 pytest.importorskip("google.protobuf")
-
-torch_mod = types.ModuleType("torch")
-torch_mod.__spec__ = importlib.machinery.ModuleSpec("torch", loader=None)
-torch_mod.no_grad = contextlib.nullcontext
-torch_mod.tensor = lambda *a, **k: None
-torch_mod.nn = types.SimpleNamespace(
-    Module=object,
-    LSTM=object,
-    Linear=object,
-    TransformerEncoder=object,
-    TransformerEncoderLayer=object,
-)
-torch_mod.Tensor = object
-torch_mod.optim = types.ModuleType("optim")
-sys.modules.setdefault("torch", torch_mod)
-sys.modules.setdefault("torch.nn", torch_mod.nn)
-dummy_trans = types.ModuleType("transformers")
-dummy_trans.pipeline = lambda *a, **k: lambda x: []
-sys.modules.setdefault("transformers", dummy_trans)
-sys.modules["transformers"].pipeline = dummy_trans.pipeline
-dummy_sklearn = types.ModuleType("sklearn")
-dummy_sklearn.linear_model = types.SimpleNamespace(LinearRegression=object)
-dummy_sklearn.ensemble = types.SimpleNamespace(
-    GradientBoostingRegressor=object,
-    RandomForestRegressor=object,
-)
-sys.modules.setdefault("sklearn", dummy_sklearn)
-sys.modules.setdefault("sklearn.linear_model", dummy_sklearn.linear_model)
-sys.modules.setdefault("sklearn.ensemble", dummy_sklearn.ensemble)
-dummy_watchfiles = types.ModuleType("watchfiles")
-dummy_watchfiles.awatch = lambda *a, **k: None
-sys.modules.setdefault("watchfiles", dummy_watchfiles)
-
-dummy_crypto = types.ModuleType("cryptography")
-fernet_mod = types.ModuleType("fernet")
-fernet_mod.Fernet = object
-fernet_mod.InvalidToken = Exception
-dummy_crypto.fernet = fernet_mod
-sys.modules.setdefault("cryptography", dummy_crypto)
-sys.modules.setdefault("cryptography.fernet", fernet_mod)
 
 import solhunter_zero.config as config
 config.initialize_event_bus = lambda: None
