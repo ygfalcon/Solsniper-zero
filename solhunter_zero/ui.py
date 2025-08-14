@@ -94,21 +94,50 @@ log_buffer: deque[str] = deque()
 buffer_handler: logging.Handler | None = None
 _SUBSCRIPTIONS: list[Any] = []
 
+# Handle for a locally spawned Redis process, if any
+_redis_process: subprocess.Popen | None = None
+
 
 def _check_redis_connection() -> None:
-    """Warn the user when Redis is unreachable."""
+    """Warn the user when Redis is unreachable.
+
+    If a connection cannot be made, a local ``redis-server`` instance is
+    spawned and the handle stored in ``_redis_process``. Subsequent calls will
+    avoid starting another server while the existing one is running.  When a
+    connection can be made, any previously spawned process is terminated.
+    """
+
+    global _redis_process
+
     url = get_event_bus_url()
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"redis", "rediss"}:
         return
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or 6379
+
     try:
         with socket.create_connection((host, port), timeout=0.1):
+            # Connection successful - ensure any locally spawned server is
+            # shut down as connectivity has been restored.
+            if _redis_process and _redis_process.poll() is None:
+                try:
+                    _redis_process.terminate()
+                except Exception:
+                    pass
+                _redis_process = None
             return
     except OSError:
+        # Unable to connect; start a local redis instance if one is not already
+        # running.
+        if _redis_process and _redis_process.poll() is None:
+            return
         try:
-            subprocess.Popen(["redis-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _redis_process = subprocess.Popen(
+                ["redis-server"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             for _ in range(10):
                 time.sleep(0.5)
                 try:
@@ -136,10 +165,18 @@ def _clear_subscriptions(_exc: Exception | None) -> None:
 
     # Remove log handler so that subsequent ``create_app`` calls can attach
     # a fresh one without duplicating handlers on the root logger.
-    global buffer_handler
+    global buffer_handler, _redis_process
     if buffer_handler is not None:
         logging.getLogger().removeHandler(buffer_handler)
         buffer_handler = None
+
+    # Terminate any Redis server we may have spawned.
+    if _redis_process and _redis_process.poll() is None:
+        try:
+            _redis_process.terminate()
+        except Exception:
+            pass
+        _redis_process = None
 
 
 @bp.record_once
