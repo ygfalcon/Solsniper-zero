@@ -447,9 +447,12 @@ async def test_rl_metrics_via_external_ws(tmp_path, monkeypatch):
     data_path = tmp_path / 'data.db'
     data_db = f"sqlite:///{data_path}"
 
-    monkeypatch.setattr(Memory, "log_trade", lambda self, **kw: None)
+    async def _noop_log_trade(self, **kw):
+        return None
+
+    monkeypatch.setattr(Memory, "log_trade", _noop_log_trade)
     mem = Memory(mem_db)
-    mem.log_trade(token='tok', direction='buy', amount=1, price=1)
+    await mem.log_trade(token='tok', direction='buy', amount=1, price=1)
 
     async def _snap(*a, **k):
         pass
