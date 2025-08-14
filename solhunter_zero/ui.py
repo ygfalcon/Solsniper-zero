@@ -289,6 +289,7 @@ loop_delay = 60
 # background thread/process for running scripts/start_all.py
 start_all_thread = None
 start_all_proc = None
+start_all_ready = threading.Event()
 startup_message = ""
 
 # currently active portfolio and keypair used by the trading loop
@@ -651,6 +652,7 @@ def _run_start_all() -> None:
         "autopilot",
     ]
     start_all_proc = subprocess.Popen(cmd)
+    start_all_ready.set()
     start_all_proc.wait()
 
 
@@ -659,16 +661,10 @@ def start_all_route() -> dict:
     global start_all_thread
     if start_all_thread and start_all_thread.is_alive():
         return jsonify({"status": "already running"})
+    start_all_ready.clear()
     start_all_thread = threading.Thread(target=_run_start_all, daemon=True)
     start_all_thread.start()
-    # Ensure the subprocess has been spawned before returning so that a
-    # subsequent call to ``/stop_all`` can reliably terminate it.  Without this
-    # short wait the global ``start_all_proc`` may still be ``None`` if the
-    # thread has not yet executed, leading to races in tests.
-    for _ in range(20):
-        if start_all_proc is not None:
-            break
-        time.sleep(0.01)
+    start_all_ready.wait(0.2)
     return jsonify({"status": "started"})
 
 
