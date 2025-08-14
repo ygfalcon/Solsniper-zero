@@ -547,8 +547,11 @@ def test_token_history_endpoint(monkeypatch):
     pf.balances = {"tok": Position("tok", 1, 2.0)}
     monkeypatch.setattr(ui, "current_portfolio", pf, raising=False)
     monkeypatch.setattr(ui, "fetch_token_prices", lambda tokens: {"tok": 3.0})
+    monkeypatch.setattr(ui, "pnl_history", [], raising=False)
     monkeypatch.setattr(ui, "token_pnl_history", {}, raising=False)
     monkeypatch.setattr(ui, "allocation_history", {}, raising=False)
+
+    ui.record_history({"tok": 3.0})
 
     client = ui.app.test_client()
     resp = client.get("/token_history")
@@ -556,6 +559,9 @@ def test_token_history_endpoint(monkeypatch):
     assert "tok" in data
     assert data["tok"]["pnl_history"][-1] == pytest.approx(1.0)
     assert data["tok"]["allocation_history"][-1] == pytest.approx(1.0)
+    resp = client.get("/token_history")
+    data2 = resp.get_json()
+    assert len(data2["tok"]["pnl_history"]) == len(data["tok"]["pnl_history"])
 
 
 def _setup_memory(monkeypatch):
