@@ -298,6 +298,13 @@ def launch_services(pm: ProcessManager) -> None:
 
 
 def launch_ui(pm: ProcessManager) -> None:
+    if _is_port_open("127.0.0.1", 5000):
+        msg = "Port 5000 is already in use; aborting UI startup."
+        logging.error(msg)
+        log_startup(msg)
+        pm.stop_all()
+        return
+
     def _run_ui() -> None:
         try:
             app = ui.create_app()
