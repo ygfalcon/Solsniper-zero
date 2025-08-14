@@ -774,7 +774,14 @@ def strategies_route() -> dict:
 def discovery_method() -> dict:
     if request.method == "POST":
         method = (request.get_json() or {}).get("method")
+        allowed = {"websocket", "mempool"}
         if method:
+            if method not in allowed:
+                msg = (
+                    f"Invalid discovery method '{method}'. "
+                    f"Allowed methods: {', '.join(sorted(allowed))}"
+                )
+                return jsonify({"error": msg}), 400
             os.environ["DISCOVERY_METHOD"] = method
         return jsonify({"status": "ok"})
     return jsonify({"method": os.getenv("DISCOVERY_METHOD", "websocket")})
