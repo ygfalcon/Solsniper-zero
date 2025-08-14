@@ -592,12 +592,30 @@ def create_app() -> Flask:
             f"Detected keypair '{active_keypair}' and config '{active_config}'. "
             "Starting trading."
         )
-        logging.getLogger(__name__).info(startup_message)
+        logger = logging.getLogger(__name__)
+        logger.info(startup_message)
         try:
             with app.app_context():
-                start()
+                result = start()
+            status_code = 200
+            if isinstance(result, tuple):
+                response, status_code = result[0], result[1]
+            else:
+                response = result
+                status_code = getattr(response, "status_code", status_code)
+            data = (
+                response.get_json() if hasattr(response, "get_json") else {}
+            ) or {}
+            status = data.get("status") if isinstance(data, dict) else None
+            if status_code != 200 or status != "started":
+                message = data.get("message") if isinstance(data, dict) else data
+                startup_message = f"Automatic start failed: {message}"
+                logger.error(startup_message)
+            else:
+                logger.info("Automatic start returned: %s", status)
         except Exception as exc:
-            logging.getLogger(__name__).error("Automatic start failed: %s", exc)
+            startup_message = f"Automatic start failed: {exc}"
+            logger.error(startup_message)
     else:
         missing: list[str] = []
         if not active_keypair:
