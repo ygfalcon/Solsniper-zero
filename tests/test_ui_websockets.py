@@ -48,3 +48,32 @@ def test_websocket_threads_bind():
                 loop.call_soon_threadsafe(loop.stop)
         for t in threads.values():
             t.join(timeout=1)
+
+
+@pytest.mark.timeout(30)
+def test_websocket_port_in_use():
+    for name in list(sys.modules):
+        if name.startswith("websockets"):
+            sys.modules.pop(name, None)
+    pytest.importorskip("websockets")
+
+    importlib.import_module("websockets")  # ensure real implementation
+
+    sys.modules.setdefault("sqlparse", types.SimpleNamespace())
+    sys.modules.setdefault(
+        "solhunter_zero.wallet", types.ModuleType("solhunter_zero.wallet")
+    )
+
+    from solhunter_zero import ui
+    importlib.reload(ui)
+
+    sock = socket.socket()
+    sock.bind(("localhost", 8767))
+    try:
+        with pytest.raises(RuntimeError):
+            ui.start_websockets()
+    finally:
+        sock.close()
+        for loop in (ui.rl_ws_loop, ui.event_ws_loop, ui.log_ws_loop):
+            if loop is not None:
+                loop.call_soon_threadsafe(loop.stop)
