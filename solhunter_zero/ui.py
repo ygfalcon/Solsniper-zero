@@ -55,6 +55,15 @@ from .memory import Memory
 from .base_memory import BaseMemory
 from .portfolio import Portfolio
 
+# shared in-memory database instance used by UI routes
+MEMORY: BaseMemory = Memory("sqlite:///memory.db")
+
+
+def set_memory(memory: BaseMemory) -> None:
+    """Override the global memory instance (mainly for tests)."""
+    global MEMORY
+    MEMORY = memory
+
 logger = logging.getLogger(__name__)
 
 # websocket ping configuration
@@ -522,7 +531,7 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
         )
         raise SystemExit(1)
 
-    memory = memory or Memory("sqlite:///memory.db")
+    memory = memory or MEMORY
     portfolio = Portfolio()
     state = main_module.TradingState()
 
@@ -750,8 +759,13 @@ def risk_params() -> dict:
 @bp.route("/weights", methods=["GET", "POST"])
 def agent_weights() -> dict:
     """Get or update agent weighting factors."""
-    if request.method == "POST":
-        weights = request.get_json() or {}
+    method = getattr(request, "method", None)
+    if method is None:
+        method = "POST" if getattr(request, "json", None) is not None else "GET"
+    if method == "POST":
+        getter = getattr(request, "get_json", None)
+        weights = getter() if callable(getter) else getattr(request, "json", {})
+        weights = weights or {}
         os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
         return jsonify({"status": "ok"})
 
@@ -789,8 +803,13 @@ def strategies_route() -> dict:
 
 @bp.route("/discovery", methods=["GET", "POST"])
 def discovery_method() -> dict:
-    if request.method == "POST":
-        method = (request.get_json() or {}).get("method")
+    method = getattr(request, "method", None)
+    if method is None:
+        method = "POST" if getattr(request, "json", None) is not None else "GET"
+    if method == "POST":
+        getter = getattr(request, "get_json", None)
+        data = getter() if callable(getter) else getattr(request, "json", {})
+        method = data.get("method") if isinstance(data, dict) else None
         allowed = {"websocket", "mempool"}
         if method:
             if method not in allowed:
@@ -918,7 +937,7 @@ def positions() -> dict:
 
 @bp.route("/trades")
 def trades() -> dict:
-    mem = Memory("sqlite:///memory.db")
+    mem = MEMORY
     recents = [
         {
             "token": t.token,
@@ -935,7 +954,7 @@ def trades() -> dict:
 @bp.route("/vars")
 def vars_route() -> dict:
     """Return recent VaR measurements."""
-    mem = Memory("sqlite:///memory.db")
+    mem = MEMORY
     data = [
         {"value": v.value, "timestamp": v.timestamp.isoformat()}
         for v in mem.list_vars()[-50:]
@@ -1141,7 +1160,7 @@ def memory_insert() -> dict:
         return jsonify({"error": "missing sql"}), 400
     if not _validate_sql(sql, {"insert"}):
         return jsonify({"error": "disallowed sql"}), 400
-    mem = Memory("sqlite:///memory.db")
+    mem = MEMORY
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
         session.commit()
@@ -1159,7 +1178,7 @@ def memory_update() -> dict:
         return jsonify({"error": "missing sql"}), 400
     if not _validate_sql(sql, {"update", "delete"}):
         return jsonify({"error": "disallowed sql"}), 400
-    mem = Memory("sqlite:///memory.db")
+    mem = MEMORY
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
         session.commit()
@@ -1177,7 +1196,7 @@ def memory_query() -> dict:
         return jsonify({"error": "missing sql"}), 400
     if not _validate_sql(sql, {"select"}):
         return jsonify({"error": "disallowed sql"}), 400
-    mem = Memory("sqlite:///memory.db")
+    mem = MEMORY
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
         rows = [dict(row._mapping) for row in result]
