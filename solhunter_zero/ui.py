@@ -1060,17 +1060,17 @@ def status() -> dict:
             event_alive = asyncio.run(_check())
         except Exception:
             event_alive = False
-    return jsonify(
-        {
-            "trading_loop": trading_alive,
-            "rl_daemon": rl_alive,
-            "depth_service": depth_alive,
-            "event_bus": event_alive,
-            "heartbeat": heartbeat_alive,
-            "system_metrics": system_metrics,
-            "message": startup_message,
-        }
-    )
+    data = {
+        "trading_loop": trading_alive,
+        "rl_daemon": rl_alive,
+        "depth_service": depth_alive,
+        "event_bus": event_alive,
+        "heartbeat": heartbeat_alive,
+        "system_metrics": system_metrics,
+    }
+    if getattr(request, "args", None) and request.args.get("include_message"):
+        data["message"] = startup_message
+    return jsonify(data)
 
 
 @bp.route("/memory/insert", methods=["POST"])
