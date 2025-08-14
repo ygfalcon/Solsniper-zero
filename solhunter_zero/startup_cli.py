@@ -7,8 +7,26 @@ import sys
 from pathlib import Path
 from typing import Tuple, List
 
-from rich.panel import Panel
-from rich.console import Console
+# ``startup_cli`` only needs a tiny subset of Rich's API. To keep the
+# startup sequence light and to avoid hard dependency on the ``rich``
+# package during tests or minimal installations, we attempt to import the
+# real objects but provide small fallbacks when Rich is unavailable.
+try:  # pragma: no cover - exercised in tests that stub Rich
+    from rich.panel import Panel
+    from rich.console import Console
+except Exception:  # pragma: no cover
+    class Console:  # type: ignore
+        """Minimal stub matching :class:`rich.console.Console`."""
+
+        def print(self, *args, **kwargs) -> None:
+            print(*args, **kwargs)
+
+    class Panel:  # type: ignore
+        """Fallback panel with ``fit`` passthrough."""
+
+        @staticmethod
+        def fit(msg: str) -> str:
+            return msg
 
 console = Console()
 

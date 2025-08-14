@@ -158,7 +158,8 @@ def main(
     env_config.configure_startup_env(ROOT)
 
     # Configure Rayon thread count once for all downstream imports
-    system.set_rayon_threads()
+    # Use the alias so tests can monkeypatch it easily.
+    set_rayon_threads()
     if not (platform.system() == "Darwin" and platform.machine() == "x86_64"):
         gpu_env = device.initialize_gpu() or {}
         os.environ.update(gpu_env)
