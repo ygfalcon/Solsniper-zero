@@ -441,10 +441,23 @@ def test_launcher_sets_rayon_threads_on_darwin(tmp_path):
     bin_dir.mkdir(parents=True, exist_ok=True)
     try:
         stub = bin_dir / "python3"
-        stub.write_text("#!/bin/bash\necho RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n")
+        stub.write_text(
+            "#!/bin/bash\n"
+            "if [ \"$1\" = '-c' ]; then\n"
+            f"  echo {sys.version_info.major}.{sys.version_info.minor}\n"
+            "  exit 0\n"
+            "fi\n"
+            "echo RAYON_NUM_THREADS=$RAYON_NUM_THREADS\n"
+        )
         os.chmod(stub, 0o755)
 
-        env = {**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}"}
+        env = {
+            **os.environ,
+            "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
+            "SOLHUNTER_PYTHON": str(stub),
+            "SOLHUNTER_TESTING": "1",
+            "PYTHONPATH": str(repo_root),
+        }
         env.pop("RAYON_NUM_THREADS", None)
 
         result = subprocess.run(
