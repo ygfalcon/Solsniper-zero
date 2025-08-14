@@ -300,7 +300,7 @@ def launch_services(pm: ProcessManager) -> None:
 def launch_ui(pm: ProcessManager) -> None:
     def _run_ui() -> None:
         try:
-            app = ui.create_app()
+            app = ui.create_app(auto_start=False)
             pm.ws_threads = ui.start_websockets()
             app.run()
         except Exception as exc:  # noqa: BLE001

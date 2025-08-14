@@ -78,7 +78,7 @@ def test_rl_daemon_starts_before_ui(monkeypatch):
         call_order.append("rl")
         return DummyProc()
 
-    def fake_create_app():
+    def fake_create_app(auto_start=True):
         call_order.append("ui")
 
         class App:
