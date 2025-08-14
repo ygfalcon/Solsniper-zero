@@ -444,7 +444,7 @@ def create_app() -> Flask:
 
     install_uvloop()
 
-    cfg = load_config()
+    cfg = load_selected_config() or load_config()
     if not cfg and _DEFAULT_PRESET.is_file():
         cfg = load_config(_DEFAULT_PRESET)
 
@@ -453,6 +453,7 @@ def create_app() -> Flask:
         if not dest.exists():
             dest.write_bytes(_DEFAULT_PRESET.read_bytes())
         select_config(dest.name)
+        cfg = load_selected_config()
 
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
@@ -469,6 +470,9 @@ def create_app() -> Flask:
         )
 
     ensure_active_config()
+
+    cfg = apply_env_overrides(load_selected_config() or cfg)
+    set_env_from_config(cfg)
 
     # assemble startup summary
     active_cfg = get_active_config_name() or "<none>"
