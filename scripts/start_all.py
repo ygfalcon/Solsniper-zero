@@ -102,6 +102,7 @@ class ProcessManager:
         self.procs: list[subprocess.Popen] = []
         self.ws_threads: dict[str, threading.Thread] = {}
         self.redis_proc: subprocess.Popen | None = None
+        self.ui_thread: threading.Thread | None = None
         self._stopped = False
 
     @staticmethod
@@ -138,6 +139,9 @@ class ProcessManager:
                 loop.call_soon_threadsafe(loop.stop)
         for thread in self.ws_threads.values():
             thread.join(timeout=1)
+        if self.ui_thread is not None:
+            self.ui_thread.join(timeout=1)
+            self.ui_thread = None
         for p in self.procs:
             if p.poll() is None:
                 p.terminate()
@@ -301,8 +305,8 @@ def launch_ui(pm: ProcessManager) -> None:
             log_startup(f"UI initialization failed: {exc}")
             pm.stop_all()
 
-    thread = threading.Thread(target=_run_ui, daemon=True)
-    thread.start()
+    pm.ui_thread = threading.Thread(target=_run_ui, daemon=True)
+    pm.ui_thread.start()
     try:
         webbrowser.open("http://127.0.0.1:5000")
     except Exception:
