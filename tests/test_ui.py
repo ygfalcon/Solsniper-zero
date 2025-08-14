@@ -232,6 +232,49 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     assert "envpath" in used.get("paths", [])
 
 
+def test_trading_loop_initializes_bus_once(monkeypatch):
+    counts = {"check": 0, "init": 0}
+
+    def fake_check():
+        counts["check"] += 1
+
+    def fake_init():
+        counts["init"] += 1
+
+    async def fake_run_iteration(*args, **kwargs):
+        ui.stop_event.set()
+
+    monkeypatch.setattr(ui.main_module, "_run_iteration", fake_run_iteration)
+    monkeypatch.setattr(ui, "Memory", lambda *a, **k: object())
+    monkeypatch.setattr(ui, "Portfolio", lambda *a, **k: object())
+    monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
+    monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+    async def _load_sel():
+        return None
+
+    async def _load_kp(path):
+        return None
+
+    monkeypatch.setattr(ui.wallet, "load_selected_keypair_async", _load_sel)
+    monkeypatch.setattr(ui.wallet, "load_keypair_async", _load_kp)
+    monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
+    monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
+    monkeypatch.setattr(ui, "_check_redis_connection", fake_check)
+    monkeypatch.setattr(ui, "initialize_event_bus", fake_init)
+    monkeypatch.delenv("KEYPAIR_PATH", raising=False)
+    monkeypatch.setattr(ui, "loop_delay", 0)
+
+    ui.stop_event.clear()
+    thread = threading.Thread(
+        target=lambda: asyncio.run(ui.trading_loop()), daemon=True
+    )
+    thread.start()
+    thread.join(timeout=1)
+
+    assert counts == {"check": 1, "init": 1}
+
+
 def test_get_and_set_risk_params(monkeypatch):
     monkeypatch.delenv("RISK_TOLERANCE", raising=False)
     monkeypatch.delenv("MAX_ALLOCATION", raising=False)

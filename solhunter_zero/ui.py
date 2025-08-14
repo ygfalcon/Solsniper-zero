@@ -528,8 +528,6 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
     with state_lock:
         current_portfolio = portfolio
     set_env_from_config(load_selected_config())
-    _check_redis_connection()
-    initialize_event_bus()
     keypair_path = os.getenv("KEYPAIR_PATH")
     try:
         env_keypair = (
