@@ -18,7 +18,7 @@ def test_launch_services_derives_ws_url(monkeypatch, tmp_path):
 
     ui = types.ModuleType("solhunter_zero.ui")
     ui.rl_ws_loop = ui.event_ws_loop = ui.log_ws_loop = None
-    ui.create_app = lambda: None
+    ui.create_app = lambda *a, **k: None
     ui.start_websockets = lambda: {}
     monkeypatch.setitem(sys.modules, "solhunter_zero.ui", ui)
 

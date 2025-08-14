@@ -60,7 +60,7 @@ def test_launch_services_sets_keypair(monkeypatch, tmp_path):
         event_ws_loop=None,
         log_ws_loop=None,
         start_websockets=lambda: {},
-        create_app=lambda: None,
+        create_app=lambda *a, **k: None,
     )
     stub_module(
         "solhunter_zero.config",

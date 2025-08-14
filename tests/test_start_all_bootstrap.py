@@ -26,7 +26,7 @@ def test_start_all_imports(monkeypatch):
     sys.modules["solhunter_zero.autopilot"] = autopilot
     ui = types.ModuleType("solhunter_zero.ui")
     ui.rl_ws_loop = ui.event_ws_loop = ui.log_ws_loop = None
-    ui.create_app = lambda: None
+    ui.create_app = lambda *a, **k: None
     ui.start_websockets = lambda: {}
     sys.modules["solhunter_zero.ui"] = ui
     bootstrap_module = types.ModuleType("solhunter_zero.bootstrap")

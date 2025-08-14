@@ -79,7 +79,7 @@ def test_rl_daemon_starts_before_ui(monkeypatch):
         call_order.append("rl")
         return DummyProc()
 
-    def fake_create_app():
+    def fake_create_app(*_args, **_kwargs):
         call_order.append("ui")
 
         class App:
@@ -157,7 +157,7 @@ def test_launch_ui_aborts_on_ws_error(monkeypatch):
 
     ui_run = threading.Event()
 
-    def fake_create_app():
+    def fake_create_app(*_args, **_kwargs):
         class App:
             def run(self):
                 ui_run.set()
