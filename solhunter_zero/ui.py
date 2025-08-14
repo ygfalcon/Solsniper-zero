@@ -779,9 +779,16 @@ def keypairs() -> dict:
 @bp.route("/keypairs/upload", methods=["POST"])
 def upload_keypair() -> dict:
     file = request.files.get("file")
-    name = request.form.get("name") or (file.filename if file else None)
-    if not file or not name:
+    raw_name = request.form.get("name") or (file.filename if file else None)
+    if not file or not raw_name:
         return jsonify({"error": "missing file or name"}), 400
+    name = os.path.basename(raw_name)
+    if (
+        name != raw_name
+        or ".." in name
+        or any(sep in name for sep in ("/", "\\"))
+    ):
+        return jsonify({"error": "invalid name"}), 400
     data = file.read()
     try:
         wallet.save_keypair(name, list(json.loads(data)))
@@ -821,9 +828,16 @@ def configs() -> dict:
 @bp.route("/configs/upload", methods=["POST"])
 def upload_config() -> dict:
     file = request.files.get("file")
-    name = request.form.get("name") or (file.filename if file else None)
-    if not file or not name:
+    raw_name = request.form.get("name") or (file.filename if file else None)
+    if not file or not raw_name:
         return jsonify({"error": "missing file or name"}), 400
+    name = os.path.basename(raw_name)
+    if (
+        name != raw_name
+        or ".." in name
+        or any(sep in name for sep in ("/", "\\"))
+    ):
+        return jsonify({"error": "invalid name"}), 400
     try:
         save_config(name, file.read())
     except Exception as exc:  # mirror keypair upload behavior
