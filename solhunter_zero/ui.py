@@ -700,11 +700,32 @@ def risk_params() -> dict:
             os.environ["RISK_MULTIPLIER"] = str(rm)
             publish("risk_updated", {"multiplier": float(rm)})
         return jsonify({"status": "ok"})
+    rt_raw = os.getenv("RISK_TOLERANCE", "0.1")
+    try:
+        rt = float(rt_raw)
+    except ValueError:
+        logger.warning("Invalid RISK_TOLERANCE '%s'; using default 0.1", rt_raw)
+        rt = 0.1
+
+    ma_raw = os.getenv("MAX_ALLOCATION", "0.2")
+    try:
+        ma = float(ma_raw)
+    except ValueError:
+        logger.warning("Invalid MAX_ALLOCATION '%s'; using default 0.2", ma_raw)
+        ma = 0.2
+
+    rm_raw = os.getenv("RISK_MULTIPLIER", "1.0")
+    try:
+        rm = float(rm_raw)
+    except ValueError:
+        logger.warning("Invalid RISK_MULTIPLIER '%s'; using default 1.0", rm_raw)
+        rm = 1.0
+
     return jsonify(
         {
-            "risk_tolerance": float(os.getenv("RISK_TOLERANCE", "0.1")),
-            "max_allocation": float(os.getenv("MAX_ALLOCATION", "0.2")),
-            "risk_multiplier": float(os.getenv("RISK_MULTIPLIER", "1.0")),
+            "risk_tolerance": rt,
+            "max_allocation": ma,
+            "risk_multiplier": rm,
         }
     )
 
