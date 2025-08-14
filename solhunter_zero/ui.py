@@ -694,28 +694,32 @@ def risk_params() -> dict:
             data = request.get_json() or {}
         else:
             data = getattr(request, "json", None) or {}
-        rt = data.get("risk_tolerance")
-        ma = data.get("max_allocation")
-        rm = data.get("risk_multiplier")
-        if rt is not None:
+        params = {
+            "risk_tolerance": data.get("risk_tolerance"),
+            "max_allocation": data.get("max_allocation"),
+            "risk_multiplier": data.get("risk_multiplier"),
+        }
+
+        validated: dict[str, float] = {}
+        for key, val in params.items():
+            if val is None:
+                continue
             try:
-                rt = float(rt)
-            except ValueError:
+                validated[key] = float(val)
+            except (ValueError, TypeError):
                 return jsonify({"error": "invalid numeric value"}), 400
-            os.environ["RISK_TOLERANCE"] = str(rt)
-        if ma is not None:
-            try:
-                ma = float(ma)
-            except ValueError:
-                return jsonify({"error": "invalid numeric value"}), 400
-            os.environ["MAX_ALLOCATION"] = str(ma)
-        if rm is not None:
-            try:
-                rm = float(rm)
-            except ValueError:
-                return jsonify({"error": "invalid numeric value"}), 400
-            os.environ["RISK_MULTIPLIER"] = str(rm)
-            publish("risk_updated", {"multiplier": rm})
+
+        for key, val in validated.items():
+            env_key = {
+                "risk_tolerance": "RISK_TOLERANCE",
+                "max_allocation": "MAX_ALLOCATION",
+                "risk_multiplier": "RISK_MULTIPLIER",
+            }[key]
+            os.environ[env_key] = str(val)
+
+        if "risk_multiplier" in validated:
+            publish("risk_updated", {"multiplier": validated["risk_multiplier"]})
+
         return jsonify({"status": "ok"})
     rt_raw = os.getenv("RISK_TOLERANCE", "0.1")
     try:
