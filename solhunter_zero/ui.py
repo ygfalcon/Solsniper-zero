@@ -769,6 +769,11 @@ def risk_params() -> dict:
                 rt = float(rt)
             except ValueError:
                 return jsonify({"error": "invalid numeric value"}), 400
+            if not 0 <= rt <= 1:
+                return (
+                    jsonify({"error": "risk_tolerance must be between 0 and 1"}),
+                    400,
+                )
             os.environ["RISK_TOLERANCE"] = str(rt)
             updates["risk_tolerance"] = rt
         if ma is not None:
@@ -776,6 +781,11 @@ def risk_params() -> dict:
                 ma = float(ma)
             except ValueError:
                 return jsonify({"error": "invalid numeric value"}), 400
+            if not 0 <= ma <= 1:
+                return (
+                    jsonify({"error": "max_allocation must be between 0 and 1"}),
+                    400,
+                )
             os.environ["MAX_ALLOCATION"] = str(ma)
             updates["max_allocation"] = ma
         if rm is not None:
@@ -783,6 +793,11 @@ def risk_params() -> dict:
                 rm = float(rm)
             except ValueError:
                 return jsonify({"error": "invalid numeric value"}), 400
+            if rm <= 0:
+                return (
+                    jsonify({"error": "risk_multiplier must be positive"}),
+                    400,
+                )
             os.environ["RISK_MULTIPLIER"] = str(rm)
             updates["risk_multiplier"] = rm
         if updates:

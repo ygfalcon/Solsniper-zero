@@ -477,6 +477,61 @@ def test_risk_params_rejects_non_numeric(monkeypatch):
     assert os.getenv("RISK_MULTIPLIER") is None
 
 
+def test_risk_params_boundary_values(monkeypatch):
+    client = ui.app.test_client()
+
+    for val in (0, 1):
+        monkeypatch.delenv("RISK_TOLERANCE", raising=False)
+        resp = client.post("/risk", json={"risk_tolerance": val})
+        assert resp.get_json()["status"] == "ok"
+        assert os.getenv("RISK_TOLERANCE") == str(float(val))
+
+    for val in (0, 1):
+        monkeypatch.delenv("MAX_ALLOCATION", raising=False)
+        resp = client.post("/risk", json={"max_allocation": val})
+        assert resp.get_json()["status"] == "ok"
+        assert os.getenv("MAX_ALLOCATION") == str(float(val))
+
+    monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
+    resp = client.post("/risk", json={"risk_multiplier": 1})
+    assert resp.get_json()["status"] == "ok"
+    assert os.getenv("RISK_MULTIPLIER") == "1.0"
+
+
+def test_risk_params_out_of_range(monkeypatch):
+    client = ui.app.test_client()
+
+    for val in (-0.1, 1.1):
+        monkeypatch.delenv("RISK_TOLERANCE", raising=False)
+        resp = client.post("/risk", json={"risk_tolerance": val})
+        assert resp.status_code == 400
+        assert (
+            resp.get_json()["error"]
+            == "risk_tolerance must be between 0 and 1"
+        )
+        assert os.getenv("RISK_TOLERANCE") is None
+
+    for val in (-0.1, 1.1):
+        monkeypatch.delenv("MAX_ALLOCATION", raising=False)
+        resp = client.post("/risk", json={"max_allocation": val})
+        assert resp.status_code == 400
+        assert (
+            resp.get_json()["error"]
+            == "max_allocation must be between 0 and 1"
+        )
+        assert os.getenv("MAX_ALLOCATION") is None
+
+    for val in (0, -1):
+        monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
+        resp = client.post("/risk", json={"risk_multiplier": val})
+        assert resp.status_code == 400
+        assert (
+            resp.get_json()["error"]
+            == "risk_multiplier must be positive"
+        )
+        assert os.getenv("RISK_MULTIPLIER") is None
+
+
 def test_get_and_set_discovery_method(monkeypatch):
     monkeypatch.delenv("DISCOVERY_METHOD", raising=False)
     client = ui.app.test_client()
