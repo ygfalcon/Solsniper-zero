@@ -23,7 +23,30 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - fallback for older versions
     import tomli as tomllib  # type: ignore
 
-import tomli_w
+try:
+    import tomli_w  # type: ignore
+    toml_dump = tomli_w.dump
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    def _format_toml_value(value: object) -> str:
+        if isinstance(value, str):
+            return f"\"{value}\""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    def toml_dump(data: dict[str, object], fh) -> None:
+        def _write_table(tbl: dict[str, object], prefix: list[str] | None = None) -> None:
+            prefix = prefix or []
+            scalars = {k: v for k, v in tbl.items() if not isinstance(v, dict)}
+            subtables = {k: v for k, v in tbl.items() if isinstance(v, dict)}
+            for key, val in scalars.items():
+                fh.write(f"{key} = {_format_toml_value(val)}\n".encode("utf-8"))
+            for key, sub in subtables.items():
+                section = ".".join(prefix + [key])
+                fh.write(f"\n[{section}]\n".encode("utf-8"))
+                _write_table(sub, prefix + [key])
+
+        _write_table(data)
 
 from .bootstrap_utils import ensure_deps
 from .cache_paths import MAC_SETUP_MARKER, TOOLS_OK_MARKER
@@ -67,7 +90,7 @@ def _write_versions_to_config(torch_ver: str, vision_ver: str) -> None:
     torch_cfg["torch_metal_version"] = torch_ver
     torch_cfg["torchvision_metal_version"] = vision_ver
     with open(CONFIG_PATH, "wb") as f:
-        tomli_w.dump(cfg, f)
+        toml_dump(cfg, f)
 
 
 try:  # pragma: no cover - optional import for CI
