@@ -8,11 +8,6 @@ import importlib.machinery
 import sys
 import pytest
 from solders.keypair import Keypair
-import solhunter_zero.config as config
-config.initialize_event_bus = lambda: None
-import solhunter_zero.ui as ui
-from collections import deque
-from solhunter_zero.portfolio import Position
 import logging
 import threading
 
@@ -49,6 +44,20 @@ sys.modules.setdefault("sklearn.ensemble", dummy_sklearn.ensemble)
 dummy_watchfiles = types.ModuleType("watchfiles")
 dummy_watchfiles.awatch = lambda *a, **k: None
 sys.modules.setdefault("watchfiles", dummy_watchfiles)
+
+dummy_crypto = types.ModuleType("cryptography")
+fernet_mod = types.ModuleType("fernet")
+fernet_mod.Fernet = object
+fernet_mod.InvalidToken = Exception
+dummy_crypto.fernet = fernet_mod
+sys.modules.setdefault("cryptography", dummy_crypto)
+sys.modules.setdefault("cryptography.fernet", fernet_mod)
+
+import solhunter_zero.config as config
+config.initialize_event_bus = lambda: None
+import solhunter_zero.ui as ui
+from collections import deque
+from solhunter_zero.portfolio import Position
 
 
 def test_ensure_active_keypair_selects_single(monkeypatch):
@@ -470,24 +479,17 @@ def _setup_memory(monkeypatch):
 
         class Wrapper:
             def __enter__(self_wr):
-                from solhunter_zero.util import run_coro
-
-                return run_coro(async_session.__aenter__())
+                self_wr._s = asyncio.run(async_session.__aenter__())
+                return self_wr
 
             def __exit__(self_wr, exc_type, exc, tb):
-                from solhunter_zero.util import run_coro
-
-                return run_coro(async_session.__aexit__(exc_type, exc, tb))
+                return asyncio.run(async_session.__aexit__(exc_type, exc, tb))
 
             def execute(self_wr, *a, **k):
-                from solhunter_zero.util import run_coro
-
-                return run_coro(async_session.execute(*a, **k))
+                return asyncio.run(self_wr._s.execute(*a, **k))
 
             def commit(self_wr):
-                from solhunter_zero.util import run_coro
-
-                return run_coro(async_session.commit())
+                return asyncio.run(self_wr._s.commit())
 
         return Wrapper()
 
@@ -505,7 +507,7 @@ def _setup_memory(monkeypatch):
 
 
 def test_memory_insert(monkeypatch):
-    mem = _setup_memory(monkeypatch)
+    _setup_memory(monkeypatch)
     client = ui.app.test_client()
     resp = client.post(
         "/memory/insert",
@@ -518,14 +520,27 @@ def test_memory_insert(monkeypatch):
         },
     )
     assert resp.get_json()["status"] == "ok"
-    trades = asyncio.run(mem.list_trades())
-    assert len(trades) == 1 and trades[0].token == "TOK"
+    resp = client.post(
+        "/memory/query",
+        json={"sql": "SELECT token FROM trades", "params": {}},
+    )
+    data = resp.get_json()
+    assert len(data) == 1 and data[0]["token"] == "TOK"
 
 
 def test_memory_update(monkeypatch):
-    mem = _setup_memory(monkeypatch)
-    mem.log_trade(token="TOK", direction="buy", amount=1.0, price=2.0)
+    _setup_memory(monkeypatch)
     client = ui.app.test_client()
+    client.post(
+        "/memory/insert",
+        json={
+            "sql": (
+                "INSERT INTO trades(token,direction,amount,price) "
+                "VALUES(:t,:d,:a,:p)"
+            ),
+            "params": {"t": "TOK", "d": "buy", "a": 1.0, "p": 2.0},
+        },
+    )
     resp = client.post(
         "/memory/update",
         json={
@@ -534,13 +549,29 @@ def test_memory_update(monkeypatch):
         },
     )
     assert resp.get_json()["rows"] == 1
-    assert asyncio.run(mem.list_trades())[0].price == 3.0
+    resp = client.post(
+        "/memory/query",
+        json={
+            "sql": "SELECT price FROM trades WHERE token=:t",
+            "params": {"t": "TOK"},
+        },
+    )
+    assert resp.get_json()[0]["price"] == 3.0
 
 
 def test_memory_query(monkeypatch):
-    mem = _setup_memory(monkeypatch)
-    mem.log_trade(token="TOK", direction="buy", amount=1.0, price=2.0)
+    _setup_memory(monkeypatch)
     client = ui.app.test_client()
+    client.post(
+        "/memory/insert",
+        json={
+            "sql": (
+                "INSERT INTO trades(token,direction,amount,price) "
+                "VALUES(:t,:d,:a,:p)"
+            ),
+            "params": {"t": "TOK", "d": "buy", "a": 1.0, "p": 2.0},
+        },
+    )
     resp = client.post(
         "/memory/query",
         json={
@@ -550,6 +581,32 @@ def test_memory_query(monkeypatch):
     )
     data = resp.get_json()
     assert data == [{"token": "TOK", "price": 2.0}]
+
+
+def test_memory_rejects_disallowed_sql(monkeypatch):
+    _setup_memory(monkeypatch)
+    client = ui.app.test_client()
+    resp = client.post("/memory/insert", json={"sql": "SELECT * FROM trades"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "disallowed sql"
+
+
+def test_memory_requires_auth(monkeypatch):
+    _setup_memory(monkeypatch)
+    monkeypatch.setenv("UI_API_TOKEN", "token")
+    client = ui.app.test_client()
+    # missing token
+    ui.request.headers = {}
+    resp = client.post("/memory/query", json={"sql": "SELECT 1"})
+    assert resp.status_code == 401
+    # wrong token
+    ui.request.headers = {"Authorization": "Bearer wrong"}
+    resp = client.post("/memory/query", json={"sql": "SELECT 1"})
+    assert resp.status_code == 401
+    # correct token
+    ui.request.headers = {"Authorization": "Bearer token"}
+    resp = client.post("/memory/query", json={"sql": "SELECT 1"})
+    assert resp.status_code == 200
 
 
 def test_vars_endpoint(monkeypatch):
