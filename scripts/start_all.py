@@ -235,8 +235,8 @@ def launch_services(pm: ProcessManager) -> None:
     cfg_data = validate_env(config.REQUIRED_ENV_VARS, cfg)
     set_env_from_config(cfg_data)
     config.reload_active_config()
-    _check_redis_connection()
-    config.get_solana_ws_url()
+    if hasattr(config, "get_solana_ws_url"):
+        config.get_solana_ws_url()
     interval = float(
         cfg_data.get(
             "offline_data_interval", os.getenv("OFFLINE_DATA_INTERVAL", "3600")
@@ -273,6 +273,8 @@ def launch_services(pm: ProcessManager) -> None:
             time.sleep(0.1)
         else:
             raise TimeoutError("redis-server startup timed out")
+
+    _check_redis_connection()
 
     _maybe_start_event_bus(cfg_data)
     initialize_event_bus()
