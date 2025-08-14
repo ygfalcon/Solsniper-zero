@@ -377,6 +377,7 @@ def test_trading_loop_checks_redis_only(monkeypatch):
     monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
     monkeypatch.setattr(ui, "_check_redis_connection", fake_check)
     monkeypatch.setattr(ui, "initialize_event_bus", fake_init)
+    monkeypatch.setattr(ui, "_event_bus_initialized", True)
     monkeypatch.delenv("KEYPAIR_PATH", raising=False)
     monkeypatch.setattr(ui, "loop_delay", 0)
 
@@ -1127,6 +1128,7 @@ def test_autostart(monkeypatch):
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.setattr(ui, "initialize_event_bus", lambda: None)
     monkeypatch.setattr(ui, "_check_redis_connection", lambda: None)
+    monkeypatch.setattr(ui, "_event_bus_initialized", False)
     ui.app = ui.create_app()
     client = ui.app.test_client()
     resp = client.post("/autostart")

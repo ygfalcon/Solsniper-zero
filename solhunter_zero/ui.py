@@ -97,6 +97,9 @@ _SUBSCRIPTIONS: list[Any] = []
 # Handle for a locally spawned Redis process, if any
 _redis_process: subprocess.Popen | None = None
 
+# Guard to ensure the event bus is initialised only once
+_event_bus_initialized = False
+
 
 def _check_redis_connection() -> None:
     """Warn the user when Redis is unreachable.
@@ -517,7 +520,10 @@ def create_app(auto_start: bool = True) -> Flask:
     cfg = apply_env_overrides(load_selected_config() or cfg)
     set_env_from_config(cfg)
     _check_redis_connection()
-    initialize_event_bus()
+    global _event_bus_initialized
+    if not _event_bus_initialized:
+        initialize_event_bus()
+        _event_bus_initialized = True
 
     # assemble startup summary
     active_cfg = get_active_config_name() or "<none>"
@@ -735,7 +741,10 @@ def start() -> dict:
     set_env_from_config(cfg)
     _check_redis_connection()
     try:
-        initialize_event_bus()
+        global _event_bus_initialized
+        if not _event_bus_initialized:
+            initialize_event_bus()
+            _event_bus_initialized = True
     except Exception as exc:
         logger.error("Failed to initialize event bus: %s", exc)
         return (
