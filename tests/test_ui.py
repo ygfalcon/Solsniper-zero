@@ -719,6 +719,22 @@ def test_memory_rejects_disallowed_sql(monkeypatch):
     assert resp.get_json()["error"] == "disallowed sql"
 
 
+def test_memory_sql_validation(monkeypatch):
+    _setup_memory(monkeypatch)
+    client = ui.app.test_client()
+    # comments should be ignored
+    resp = client.post("/memory/query", json={"sql": "-- comment\nSELECT 1"})
+    assert resp.status_code == 200
+    # multiple statements are rejected
+    resp = client.post("/memory/query", json={"sql": "SELECT 1; SELECT 2"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "disallowed sql"
+    # disallowed command is rejected
+    resp = client.post("/memory/query", json={"sql": "DROP TABLE trades"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "disallowed sql"
+
+
 def test_memory_requires_auth(monkeypatch):
     _setup_memory(monkeypatch)
     monkeypatch.setenv("UI_API_TOKEN", "token")

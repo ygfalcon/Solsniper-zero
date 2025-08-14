@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - optional
 
 import sqlalchemy as sa
 import numpy as np
-import re
+import sqlparse
 
 from .config import (
     load_config,
@@ -1159,24 +1159,26 @@ def status() -> dict:
     return jsonify(data)
 
 
-_SQL_START_RE = re.compile(r"^\s*(\w+)", re.IGNORECASE)
-
-
 def _validate_sql(sql: str, allowed: set[str]) -> bool:
-    """Return ``True`` if *sql* consists of a single allowed statement.
+    """Return ``True`` if *sql* contains a single allowed statement.
 
-    The check is intentionally simple and only verifies that the statement
-    contains a single command whose first keyword is present in ``allowed``.
-    Any additional statements separated by semicolons are rejected.
+    Comments are stripped before parsing and only one statement is permitted.
+    The first keyword of the statement must match one of the entries in
+    ``allowed``.  Any additional statements or unknown commands will result in
+    ``False`` being returned.
     """
 
-    statements = [s.strip() for s in sql.strip().split(";") if s.strip()]
+    try:
+        stripped = sqlparse.format(sql, strip_comments=True).strip()
+        statements = [s for s in sqlparse.parse(stripped) if s and not s.is_whitespace]
+    except Exception:  # pragma: no cover - invalid SQL
+        return False
     if len(statements) != 1:
         return False
-    match = _SQL_START_RE.match(statements[0])
-    if not match:
+    token = statements[0].token_first(skip_ws=True)
+    if token is None:
         return False
-    return match.group(1).lower() in allowed
+    return token.value.lower() in allowed
 
 
 def _authorized() -> bool:
