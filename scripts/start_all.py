@@ -76,8 +76,15 @@ def _is_port_open(host: str, port: int) -> bool:
             return False
 
 
-def _check_redis_connection() -> None:
-    """Log a helpful message when the Redis broker is unreachable."""
+def _check_redis_connection(pm: "ProcessManager") -> None:
+    """Ensure a Redis broker is reachable.
+
+    If a connection cannot be made, attempt to spawn a local ``redis-server``
+    instance (mirroring ``solhunter_zero.ui``) and re-check connectivity.  If
+    the broker remains unreachable a ``RuntimeError`` is raised so that
+    ``launch_services`` can abort early.
+    """
+
     url = (
         os.getenv("EVENT_BUS_URL")
         or os.getenv("BROKER_URL")
@@ -88,14 +95,33 @@ def _check_redis_connection() -> None:
         return
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or 6379
+
     if _is_port_open(host, port):
         return
-    logging.error(
+
+    if pm.redis_proc is None or pm.redis_proc.poll() is not None:
+        try:
+            pm.redis_proc = subprocess.Popen(
+                ["redis-server"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError("failed to start redis-server") from exc
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if _is_port_open(host, port):
+            return
+        if pm.redis_proc and pm.redis_proc.poll() is not None:
+            break
+        time.sleep(0.5)
+
+    raise RuntimeError(
         "Failed to connect to Redis at %s:%s. "
-        "Start redis-server or set EVENT_BUS_URL.",
-        host,
-        port,
+        "Start redis-server or set EVENT_BUS_URL." % (host, port)
     )
+
 
 class ProcessManager:
     def __init__(self) -> None:
@@ -254,27 +280,7 @@ def launch_services(pm: ProcessManager) -> None:
         print(f"Cannot write to {db_path}: {exc}", file=sys.stderr)
         sys.exit(1)
     data_sync.start_scheduler(interval=interval, db_path=str(db_path))
-    urls: list[str] = []
-    url = os.getenv("BROKER_URL")
-    if url:
-        urls.append(url)
-    more = os.getenv("BROKER_URLS")
-    if more:
-        urls.extend(u.strip() for u in more.split(",") if u.strip())
-    needs_redis = any(u.startswith("redis://") for u in urls)
-    if needs_redis and not _is_port_open("127.0.0.1", 6379):
-        pm.redis_proc = subprocess.Popen(["redis-server"])
-        deadline = time.monotonic() + 10.0
-        while time.monotonic() < deadline:
-            if pm.redis_proc.poll() is not None:
-                raise RuntimeError("redis-server exited during startup")
-            if _is_port_open("127.0.0.1", 6379):
-                break
-            time.sleep(0.1)
-        else:
-            raise TimeoutError("redis-server startup timed out")
-
-    _check_redis_connection()
+    _check_redis_connection(pm)
 
     _maybe_start_event_bus(cfg_data)
     initialize_event_bus()
