@@ -344,6 +344,7 @@ loop_delay = 60
 start_all_thread = None
 start_all_proc = None
 start_all_ready = threading.Event()
+start_all_error = False
 startup_message = ""
 
 # currently active portfolio and keypair used by the trading loop
@@ -806,26 +807,37 @@ def autostart() -> dict:
 
 def _run_start_all() -> None:
     """Run scripts/start_all.py in a subprocess and wait for it to exit."""
-    global start_all_proc
+    global start_all_proc, start_all_error
     cmd = [
         sys.executable,
         str(Path(__file__).resolve().parent.parent / "scripts" / "start_all.py"),
         "autopilot",
     ]
-    start_all_proc = subprocess.Popen(cmd)
+    try:
+        start_all_proc = subprocess.Popen(cmd)
+    except Exception:
+        start_all_error = True
+        start_all_ready.set()
+        return
     start_all_ready.set()
     start_all_proc.wait()
 
 
 @bp.route("/start_all", methods=["POST"])
 def start_all_route() -> dict:
-    global start_all_thread
+    global start_all_thread, start_all_error
     if start_all_thread and start_all_thread.is_alive():
         return jsonify({"status": "already running"})
     start_all_ready.clear()
+    start_all_error = False
     start_all_thread = threading.Thread(target=_run_start_all, daemon=True)
     start_all_thread.start()
-    start_all_ready.wait(0.2)
+    ready = start_all_ready.wait(0.2)
+    if not ready or start_all_error:
+        return (
+            jsonify({"status": "error", "message": "failed to start subprocess"}),
+            500,
+        )
     return jsonify({"status": "started"})
 
 
