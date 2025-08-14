@@ -695,7 +695,7 @@ def start() -> dict:
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
 
-    cfg = apply_env_overrides(load_config("config.toml"))
+    cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
     ensure_active_config()

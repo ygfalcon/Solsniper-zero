@@ -560,6 +560,7 @@ def test_start_requires_env(monkeypatch):
 
     monkeypatch.setattr(ui, "trading_loop", noop)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.setattr(ui, "ensure_active_keypair", lambda: None)
@@ -630,6 +631,7 @@ def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
 
     monkeypatch.setattr(ui, "trading_loop", noop)
     monkeypatch.setattr(ui, "load_config", lambda p=None: {})
+    monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
     monkeypatch.setattr(ui, "ensure_active_config", lambda: None)
