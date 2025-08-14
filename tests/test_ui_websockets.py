@@ -11,7 +11,13 @@ def test_websocket_threads_bind():
     pytest.importorskip("websockets")
 
     # ``tests.stubs`` replaces ``websockets`` with a lightweight stub. Reload the
-    # real implementation so the websocket servers can be created.
+    # real implementation so the websocket servers can be created. Keep a copy
+    # of the stubbed modules so we can restore them after the test runs.
+    stubbed_modules = {
+        name: sys.modules[name]
+        for name in list(sys.modules)
+        if name.startswith("websockets")
+    }
     for name in list(sys.modules):
         if name.startswith("websockets"):
             sys.modules.pop(name, None)
@@ -37,3 +43,9 @@ def test_websocket_threads_bind():
                 loop.call_soon_threadsafe(loop.stop)
         for t in threads.values():
             t.join(timeout=1)
+        # Restore the stubbed ``websockets`` modules so later tests continue to
+        # use the lightweight stub implementation.
+        for name in list(sys.modules):
+            if name.startswith("websockets"):
+                sys.modules.pop(name, None)
+        sys.modules.update(stubbed_modules)
