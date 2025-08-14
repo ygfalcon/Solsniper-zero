@@ -717,6 +717,14 @@ def start() -> dict:
     cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
+    try:
+        initialize_event_bus()
+    except Exception as exc:
+        logger.error("Failed to initialize event bus: %s", exc)
+        return (
+            jsonify({"status": "error", "message": "event bus initialization failed"}),
+            500,
+        )
 
     try:
         from . import data_sync
