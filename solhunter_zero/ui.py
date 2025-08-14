@@ -1192,7 +1192,21 @@ def status() -> dict:
                 return False
 
         try:
-            event_alive = asyncio.run(_check())
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                event_alive = asyncio.run_coroutine_threadsafe(
+                    _check(), loop
+                ).result()
+            else:
+                event_alive = loop.run_until_complete(_check())
+        except RuntimeError:
+            try:
+                loop = asyncio.new_event_loop()
+                event_alive = loop.run_until_complete(_check())
+            except Exception:
+                event_alive = False
+            finally:
+                loop.close()
         except Exception:
             event_alive = False
     data = {
