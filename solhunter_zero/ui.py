@@ -344,18 +344,21 @@ def ensure_active_keypair() -> None:
         )
 
 
-def ensure_active_config() -> None:
-    """Select the sole available config if none is active."""
+def ensure_active_config() -> bool:
+    """Select the sole available config if none is active.
+
+    Returns ``True`` when configuration-derived environment variables were
+    applied, ``False`` otherwise.
+    """
 
     if get_active_config_name() is not None:
-        return
+        return False
     configs = list_configs()
     if len(configs) != 1:
-        return
+        return False
     select_config(configs[0])
     set_env_from_config(load_selected_config())
-    _check_redis_connection()
-    initialize_event_bus()
+    return True
 
 
 def _missing_required() -> list[str]:
@@ -383,7 +386,9 @@ def create_app() -> Flask:
         select_config(dest.name)
 
     cfg = apply_env_overrides(cfg)
-    set_env_from_config(cfg)
+    env_applied = ensure_active_config()
+    if not env_applied:
+        set_env_from_config(cfg)
     _check_redis_connection()
     initialize_event_bus()
 
@@ -395,8 +400,6 @@ def create_app() -> Flask:
             "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
             file=sys.stderr,
         )
-
-    ensure_active_config()
 
     # assemble startup summary
     active_cfg = get_active_config_name() or "<none>"
@@ -506,11 +509,9 @@ def create_app() -> Flask:
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
-    cfg = apply_env_overrides(load_config("config.toml"))
-    set_env_from_config(cfg)
+    ensure_active_config()
     _check_redis_connection()
     initialize_event_bus()
-    ensure_active_config()
 
     try:
         ensure_active_keypair()
@@ -528,7 +529,6 @@ async def trading_loop(memory: BaseMemory | None = None) -> None:
 
     with state_lock:
         current_portfolio = portfolio
-    set_env_from_config(load_selected_config())
     keypair_path = os.getenv("KEYPAIR_PATH")
     try:
         env_keypair = (
@@ -578,11 +578,9 @@ def start() -> dict:
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
 
-    cfg = apply_env_overrides(load_config("config.toml"))
-    set_env_from_config(cfg)
+    ensure_active_config()
     _check_redis_connection()
     initialize_event_bus()
-    ensure_active_config()
 
     try:
         from . import data_sync

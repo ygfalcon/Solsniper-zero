@@ -101,10 +101,11 @@ def test_ensure_active_config_selects_single(monkeypatch):
 
     monkeypatch.setattr(ui, "set_env_from_config", _set_env)
 
-    ui.ensure_active_config()
+    res = ui.ensure_active_config()
 
     assert selected["name"] == "cfg"
     assert called["cfg"] is cfg
+    assert res is True
 
 
 def test_start_and_stop(monkeypatch):
