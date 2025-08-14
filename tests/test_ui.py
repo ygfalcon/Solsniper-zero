@@ -53,6 +53,107 @@ dummy_crypto.fernet = fernet_mod
 sys.modules.setdefault("cryptography", dummy_crypto)
 sys.modules.setdefault("cryptography.fernet", fernet_mod)
 
+rich_mod = types.ModuleType("rich")
+rich_mod.__spec__ = importlib.machinery.ModuleSpec("rich", loader=None)
+console_mod = types.ModuleType("rich.console")
+console_mod.__spec__ = importlib.machinery.ModuleSpec("rich.console", loader=None)
+
+
+class _Console:
+    def print(self, *a, **k):
+        pass
+
+
+console_mod.Console = _Console
+panel_mod = types.ModuleType("rich.panel")
+panel_mod.__spec__ = importlib.machinery.ModuleSpec("rich.panel", loader=None)
+
+
+class _Panel:
+    def __init__(self, *a, **k):
+        pass
+
+
+panel_mod.Panel = _Panel
+table_mod = types.ModuleType("rich.table")
+table_mod.__spec__ = importlib.machinery.ModuleSpec("rich.table", loader=None)
+
+
+class _Table:
+    def __init__(self, *a, **k):
+        pass
+
+    def add_column(self, *a, **k):
+        pass
+
+    def add_row(self, *a, **k):
+        pass
+
+
+table_mod.Table = _Table
+sys.modules.setdefault("rich", rich_mod)
+sys.modules.setdefault("rich.console", console_mod)
+sys.modules.setdefault("rich.panel", panel_mod)
+sys.modules.setdefault("rich.table", table_mod)
+
+sqlparse_mod = types.ModuleType("sqlparse")
+sqlparse_mod.__spec__ = importlib.machinery.ModuleSpec("sqlparse", loader=None)
+def _format(sql, strip_comments=True, **kwargs):
+    if strip_comments:
+        lines = []
+        for line in sql.splitlines():
+            if "--" in line:
+                line = line.split("--", 1)[0]
+            if line.strip():
+                lines.append(line)
+        sql = "\n".join(lines)
+    return sql
+
+
+def _parse(sql):
+    parts = [p for p in sql.split(";") if p.strip()]
+    stmts = []
+    for part in parts:
+        first = part.strip().split()[0] if part.strip() else ""
+
+        def _token_first(skip_ws=True, _v=first):
+            return types.SimpleNamespace(value=_v)
+
+        stmts.append(
+            types.SimpleNamespace(is_whitespace=False, token_first=_token_first)
+        )
+    return stmts
+
+
+sqlparse_mod.format = _format
+sqlparse_mod.parse = _parse
+sys.modules.setdefault("sqlparse", sqlparse_mod)
+
+dummy_pydantic = types.ModuleType("pydantic")
+dummy_pydantic.__spec__ = importlib.machinery.ModuleSpec("pydantic", loader=None)
+
+
+class _BaseModel:
+    def __init__(self, **data):
+        for k, v in data.items():
+            setattr(self, k, v)
+
+    def dict(self, *a, **k):
+        return self.__dict__
+
+    def model_dump(self, *a, **k):  # pragma: no cover - pydantic v2 compat
+        return self.__dict__
+
+
+dummy_pydantic.BaseModel = _BaseModel
+dummy_pydantic.AnyUrl = str
+dummy_pydantic.ValidationError = Exception
+dummy_pydantic.root_validator = lambda *a, **k: (lambda f: f)
+dummy_pydantic.validator = lambda *a, **k: (lambda f: f)
+dummy_pydantic.field_validator = lambda *a, **k: (lambda f: f)
+dummy_pydantic.model_validator = lambda *a, **k: (lambda f: f)
+sys.modules.setdefault("pydantic", dummy_pydantic)
+
 import solhunter_zero.config as config
 config.initialize_event_bus = lambda: None
 import solhunter_zero.ui as ui
