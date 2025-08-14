@@ -492,8 +492,6 @@ def create_app() -> Flask:
 
     cfg = apply_env_overrides(cfg)
     set_env_from_config(cfg)
-    _check_redis_connection()
-    initialize_event_bus()
 
     try:
         ensure_active_keypair()
@@ -508,6 +506,8 @@ def create_app() -> Flask:
 
     cfg = apply_env_overrides(load_selected_config() or cfg)
     set_env_from_config(cfg)
+    _check_redis_connection()
+    initialize_event_bus()
 
     # assemble startup summary
     active_cfg = get_active_config_name() or "<none>"
@@ -625,10 +625,10 @@ def create_app() -> Flask:
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
+    ensure_active_config()
     cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
-    ensure_active_config()
 
     try:
         ensure_active_keypair()
@@ -695,10 +695,10 @@ def start() -> dict:
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
 
+    ensure_active_config()
     cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
-    ensure_active_config()
 
     try:
         from . import data_sync
