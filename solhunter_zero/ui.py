@@ -31,6 +31,7 @@ except Exception:  # pragma: no cover - optional
 
 import sqlalchemy as sa
 import numpy as np
+import re
 
 from .config import (
     load_config,
@@ -1091,13 +1092,55 @@ def status() -> dict:
     return jsonify(data)
 
 
+_SQL_START_RE = re.compile(r"^\s*(\w+)", re.IGNORECASE)
+
+
+def _validate_sql(sql: str, allowed: set[str]) -> bool:
+    """Return ``True`` if *sql* consists of a single allowed statement.
+
+    The check is intentionally simple and only verifies that the statement
+    contains a single command whose first keyword is present in ``allowed``.
+    Any additional statements separated by semicolons are rejected.
+    """
+
+    statements = [s.strip() for s in sql.strip().split(";") if s.strip()]
+    if len(statements) != 1:
+        return False
+    match = _SQL_START_RE.match(statements[0])
+    if not match:
+        return False
+    return match.group(1).lower() in allowed
+
+
+def _authorized() -> bool:
+    """Check simple token based auth for memory endpoints."""
+    token = os.getenv("UI_API_TOKEN")
+    if not token:
+        return True
+    headers = getattr(request, "headers", {}) or {}
+    header = headers.get("Authorization", "") if hasattr(headers, "get") else ""
+    return header == f"Bearer {token}"
+
+
+def _get_request_json() -> dict:
+    """Return JSON payload from the current request in both real and stub envs."""
+    getter = getattr(request, "get_json", None)
+    if callable(getter):
+        return getter() or {}
+    return getattr(request, "json", {}) or {}
+
+
 @bp.route("/memory/insert", methods=["POST"])
 def memory_insert() -> dict:
-    data = request.get_json() or {}
+    data = _get_request_json()
     sql = data.get("sql")
     params = data.get("params", {})
+    if not _authorized():
+        return jsonify({"error": "unauthorized"}), 401
     if not sql:
         return jsonify({"error": "missing sql"}), 400
+    if not _validate_sql(sql, {"insert"}):
+        return jsonify({"error": "disallowed sql"}), 400
     mem = Memory("sqlite:///memory.db")
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
@@ -1107,11 +1150,15 @@ def memory_insert() -> dict:
 
 @bp.route("/memory/update", methods=["POST"])
 def memory_update() -> dict:
-    data = request.get_json() or {}
+    data = _get_request_json()
     sql = data.get("sql")
     params = data.get("params", {})
+    if not _authorized():
+        return jsonify({"error": "unauthorized"}), 401
     if not sql:
         return jsonify({"error": "missing sql"}), 400
+    if not _validate_sql(sql, {"update", "delete"}):
+        return jsonify({"error": "disallowed sql"}), 400
     mem = Memory("sqlite:///memory.db")
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
@@ -1121,11 +1168,15 @@ def memory_update() -> dict:
 
 @bp.route("/memory/query", methods=["POST"])
 def memory_query() -> dict:
-    data = request.get_json() or {}
+    data = _get_request_json()
     sql = data.get("sql")
     params = data.get("params", {})
+    if not _authorized():
+        return jsonify({"error": "unauthorized"}), 401
     if not sql:
         return jsonify({"error": "missing sql"}), 400
+    if not _validate_sql(sql, {"select"}):
+        return jsonify({"error": "disallowed sql"}), 400
     mem = Memory("sqlite:///memory.db")
     with mem.Session() as session:
         result = session.execute(sa.text(sql), params)
