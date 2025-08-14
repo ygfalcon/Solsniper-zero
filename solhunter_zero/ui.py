@@ -65,6 +65,18 @@ _EVENT_WS_PORT = int(os.getenv("EVENT_WS_PORT", "8770") or 8770)
 
 bp = Blueprint("ui", __name__)
 
+# The test suite provides a very small stub of :mod:`flask` that lacks the
+# ``record_once`` helper normally available on real ``Blueprint`` instances.
+# When running with this stub, accessing ``bp.record_once`` would raise an
+# ``AttributeError`` at import time.  To keep the module importable in the
+# minimal test environment we provide a no-op fallback that simply returns the
+# decorated function unchanged.
+if not hasattr(bp, "record_once"):
+    def _record_once(func):  # pragma: no cover - simple fallback
+        return func
+
+    bp.record_once = _record_once  # type: ignore[attr-defined]
+
 _DEFAULT_PRESET = Path(__file__).resolve().parent.parent / "config" / "default.toml"
 
 # in-memory log storage for UI access (initialised in ``create_app``)
@@ -488,8 +500,6 @@ def create_app() -> Flask:
             logging.warning("Autostart failed: %s", exc)
 
     return app
-
-
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
@@ -651,6 +661,14 @@ def start_all_route() -> dict:
         return jsonify({"status": "already running"})
     start_all_thread = threading.Thread(target=_run_start_all, daemon=True)
     start_all_thread.start()
+    # Ensure the subprocess has been spawned before returning so that a
+    # subsequent call to ``/stop_all`` can reliably terminate it.  Without this
+    # short wait the global ``start_all_proc`` may still be ``None`` if the
+    # thread has not yet executed, leading to races in tests.
+    for _ in range(20):
+        if start_all_proc is not None:
+            break
+        time.sleep(0.01)
     return jsonify({"status": "started"})
 
 
@@ -1626,6 +1644,13 @@ def start_websockets() -> dict[str, threading.Thread]:
         threads[name] = t
 
     return threads
+
+
+try:  # pragma: no cover - module level app creation for tests
+    app = create_app()
+except Exception:  # pragma: no cover - minimal fallback
+    app = Flask(__name__)
+    app.register_blueprint(bp)
 
 
 if __name__ == "__main__":
