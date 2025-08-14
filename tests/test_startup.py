@@ -50,14 +50,37 @@ class DummyProgress:
 
 
 @pytest.fixture
-def startup_stubs(monkeypatch):
+def startup_stubs(monkeypatch, tmp_path):
     import types
     import sys
+    import os
 
-    monkeypatch.setitem(sys.modules, "scripts.preflight", types.SimpleNamespace(run_preflight=lambda: []))
-    monkeypatch.setitem(sys.modules, "scripts.deps", types.SimpleNamespace(check_deps=lambda: ([], [])))
-    monkeypatch.setitem(sys.modules, "scripts.quick_setup", types.SimpleNamespace(_is_placeholder=lambda v: False))
-    monkeypatch.setitem(sys.modules, "solhunter_zero.wallet", types.SimpleNamespace(KEYPAIR_DIR="."))
+    monkeypatch.setitem(
+        sys.modules,
+        "scripts.preflight",
+        types.SimpleNamespace(run_preflight=lambda: []),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "scripts.deps",
+        types.SimpleNamespace(check_deps=lambda: ([], [])),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "scripts.quick_setup",
+        types.SimpleNamespace(_is_placeholder=lambda v: False),
+    )
+
+    monkeypatch.setenv("KEYPAIR_DIR", str(tmp_path))
+    from solhunter_zero import wallet as wallet_mod
+
+    os.makedirs(wallet_mod.KEYPAIR_DIR, exist_ok=True)
+    monkeypatch.setattr(
+        wallet_mod,
+        "ACTIVE_KEYPAIR_FILE",
+        str(tmp_path / "active"),
+        raising=False,
+    )
 
 
 def test_startup_help():
