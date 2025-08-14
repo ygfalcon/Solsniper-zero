@@ -586,11 +586,11 @@ def create_app() -> Flask:
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
+    ensure_active_config()
     cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
     initialize_event_bus()
-    ensure_active_config()
 
     try:
         ensure_active_keypair()
