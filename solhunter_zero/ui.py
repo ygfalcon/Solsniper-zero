@@ -605,7 +605,8 @@ def create_app(auto_start: bool = True) -> Flask:
     active_config = get_active_config_name()
     if active_keypair and active_config:
         logger = logging.getLogger(__name__)
-        if auto_start:
+        env_auto = os.getenv("AUTO_START")
+        if auto_start and not env_auto:
             startup_message = (
                 f"Detected keypair '{active_keypair}' and config '{active_config}'. "
                 "Starting trading."
@@ -634,10 +635,16 @@ def create_app(auto_start: bool = True) -> Flask:
                 startup_message = f"Automatic start failed: {exc}"
                 logger.error(startup_message)
         else:
-            startup_message = (
-                f"Detected keypair '{active_keypair}' and config '{active_config}'."
-                " Auto start disabled."
-            )
+            if env_auto:
+                startup_message = (
+                    f"Detected keypair '{active_keypair}' and config '{active_config}'."
+                    " AUTO_START set; awaiting autostart."
+                )
+            else:
+                startup_message = (
+                    f"Detected keypair '{active_keypair}' and config '{active_config}'."
+                    " Auto start disabled."
+                )
             logger.info(startup_message)
     else:
         missing: list[str] = []
