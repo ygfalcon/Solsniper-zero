@@ -98,6 +98,8 @@ sys.modules.setdefault("rich.table", table_mod)
 
 sqlparse_mod = types.ModuleType("sqlparse")
 sqlparse_mod.__spec__ = importlib.machinery.ModuleSpec("sqlparse", loader=None)
+
+
 def _format(sql, strip_comments=True, **kwargs):
     if strip_comments:
         lines = []
@@ -155,6 +157,7 @@ dummy_pydantic.model_validator = lambda *a, **k: (lambda f: f)
 sys.modules.setdefault("pydantic", dummy_pydantic)
 
 import solhunter_zero.config as config
+
 config.initialize_event_bus = lambda: None
 import solhunter_zero.ui as ui
 from collections import deque
@@ -193,19 +196,9 @@ def test_ensure_active_config_selects_single(monkeypatch):
         selected["name"] = name
 
     monkeypatch.setattr(ui, "select_config", _select)
-    cfg = {"a": 1}
-    monkeypatch.setattr(ui, "load_selected_config", lambda: cfg)
-    called = {}
-
-    def _set_env(c):
-        called["cfg"] = c
-
-    monkeypatch.setattr(ui, "set_env_from_config", _set_env)
-
     ui.ensure_active_config()
 
     assert selected["name"] == "cfg"
-    assert called["cfg"] is cfg
 
 
 def test_start_and_stop(monkeypatch):
@@ -282,6 +275,7 @@ def test_trading_loop_awaits_run_iteration(monkeypatch):
     monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+
     async def _load_sel():
         return None
 
@@ -319,6 +313,7 @@ def test_trading_loop_falls_back_to_env_keypair(monkeypatch):
     monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+
     async def _load_sel2():
         return None
 
@@ -365,6 +360,7 @@ def test_trading_loop_initializes_bus_once(monkeypatch):
     monkeypatch.setattr(ui, "load_selected_config", lambda: {})
     monkeypatch.setattr(ui, "apply_env_overrides", lambda c: c)
     monkeypatch.setattr(ui, "set_env_from_config", lambda c: None)
+
     async def _load_sel():
         return None
 
@@ -505,30 +501,21 @@ def test_risk_params_out_of_range(monkeypatch):
         monkeypatch.delenv("RISK_TOLERANCE", raising=False)
         resp = client.post("/risk", json={"risk_tolerance": val})
         assert resp.status_code == 400
-        assert (
-            resp.get_json()["error"]
-            == "risk_tolerance must be between 0 and 1"
-        )
+        assert resp.get_json()["error"] == "risk_tolerance must be between 0 and 1"
         assert os.getenv("RISK_TOLERANCE") is None
 
     for val in (-0.1, 1.1):
         monkeypatch.delenv("MAX_ALLOCATION", raising=False)
         resp = client.post("/risk", json={"max_allocation": val})
         assert resp.status_code == 400
-        assert (
-            resp.get_json()["error"]
-            == "max_allocation must be between 0 and 1"
-        )
+        assert resp.get_json()["error"] == "max_allocation must be between 0 and 1"
         assert os.getenv("MAX_ALLOCATION") is None
 
     for val in (0, -1):
         monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
         resp = client.post("/risk", json={"risk_multiplier": val})
         assert resp.status_code == 400
-        assert (
-            resp.get_json()["error"]
-            == "risk_multiplier must be positive"
-        )
+        assert resp.get_json()["error"] == "risk_multiplier must be positive"
         assert os.getenv("RISK_MULTIPLIER") is None
 
 
@@ -582,9 +569,7 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
         ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "keys" / "active")
     )
     monkeypatch.setattr(config, "CONFIG_DIR", str(tmp_path / "cfgs"))
-    monkeypatch.setattr(
-        config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active")
-    )
+    monkeypatch.setattr(config, "ACTIVE_CONFIG_FILE", str(tmp_path / "cfgs" / "active"))
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
     os.makedirs(config.CONFIG_DIR, exist_ok=True)
 
@@ -617,9 +602,7 @@ def test_upload_endpoints_prevent_traversal(monkeypatch, tmp_path):
 
 def test_start_auto_selects_single_keypair(monkeypatch, tmp_path):
     monkeypatch.setattr(ui.wallet, "KEYPAIR_DIR", str(tmp_path))
-    monkeypatch.setattr(
-        ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active")
-    )
+    monkeypatch.setattr(ui.wallet, "ACTIVE_KEYPAIR_FILE", str(tmp_path / "active"))
     os.makedirs(ui.wallet.KEYPAIR_DIR, exist_ok=True)
 
     kp = Keypair()
@@ -659,9 +642,7 @@ def test_rl_weights_event_updates_env(monkeypatch):
     monkeypatch.delenv("AGENT_WEIGHTS", raising=False)
     monkeypatch.delenv("RISK_MULTIPLIER", raising=False)
 
-    ui._update_rl_weights(
-        {"weights": {"x": 1.5}, "risk": {"risk_multiplier": 2.0}}
-    )
+    ui._update_rl_weights({"weights": {"x": 1.5}, "risk": {"risk_multiplier": 2.0}})
 
     assert json.loads(os.getenv("AGENT_WEIGHTS"))["x"] == 1.5
     assert os.getenv("RISK_MULTIPLIER") == "2.0"
@@ -930,9 +911,7 @@ def test_vars_endpoint(monkeypatch):
 
 
 def test_rl_status_endpoint(monkeypatch):
-    daemon = type(
-        "D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"}
-    )()
+    daemon = type("D", (), {"last_train_time": 1.0, "checkpoint_path": "chk.pt"})()
     monkeypatch.setattr(ui, "rl_daemon", daemon, raising=False)
     client = ui.app.test_client()
     resp = client.get("/rl/status")

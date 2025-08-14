@@ -24,6 +24,7 @@ from rich.table import Table
 from .http import close_session
 from .util import install_uvloop
 from .event_bus import subscription, publish
+
 try:
     import websockets
 except Exception:  # pragma: no cover - optional
@@ -64,6 +65,7 @@ def set_memory(memory: BaseMemory) -> None:
     global MEMORY
     MEMORY = memory
 
+
 logger = logging.getLogger(__name__)
 
 # websocket ping configuration
@@ -82,6 +84,7 @@ bp = Blueprint("ui", __name__)
 # minimal test environment we provide a no-op fallback that simply returns the
 # decorated function unchanged.
 if not hasattr(bp, "record_once"):
+
     def _record_once(func):  # pragma: no cover - simple fallback
         return func
 
@@ -108,7 +111,9 @@ def _check_redis_connection() -> None:
             return
     except OSError:
         try:
-            subprocess.Popen(["redis-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(
+                ["redis-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             for _ in range(10):
                 time.sleep(0.5)
                 try:
@@ -123,6 +128,7 @@ def _check_redis_connection() -> None:
             host,
             port,
         )
+
 
 # Ensure event bus subscriptions are cleaned up when the application context ends
 def _clear_subscriptions(_exc: Exception | None) -> None:
@@ -146,6 +152,7 @@ def _clear_subscriptions(_exc: Exception | None) -> None:
 def _register_clear_subscriptions(state: Any) -> None:
     """Register teardown to clear event bus subscriptions once app is ready."""
     state.app.teardown_appcontext(_clear_subscriptions)
+
 
 # websocket state for streaming log lines
 log_ws_clients: set[Any] = set()
@@ -178,6 +185,7 @@ class _BufferHandler(logging.Handler):
         log_buffer.append(line)
         _broadcast_log_line(line)
 
+
 def _update_weights(weights):
     if is_dataclass(weights):
         weights = asdict(weights)["weights"]
@@ -185,6 +193,7 @@ def _update_weights(weights):
         os.environ["AGENT_WEIGHTS"] = json.dumps(weights)
     except Exception:
         pass
+
 
 def _update_rl_weights(msg: Any) -> None:
     weights = msg.weights if hasattr(msg, "weights") else msg.get("weights", {})
@@ -199,7 +208,6 @@ def _update_rl_weights(msg: Any) -> None:
         os.environ["RISK_MULTIPLIER"] = str(rm)
 
 
-
 def _store_rl_metrics(msg: Any) -> None:
     loss = getattr(msg, "loss", None)
     if loss is None and isinstance(msg, dict):
@@ -210,7 +218,6 @@ def _store_rl_metrics(msg: Any) -> None:
     if loss is None or reward is None:
         return
     rl_metrics.append({"loss": float(loss), "reward": float(reward)})
-
 
 
 def _store_system_metrics(msg: Any) -> None:
@@ -224,7 +231,6 @@ def _store_system_metrics(msg: Any) -> None:
         return
     system_metrics["cpu"] = float(cpu)
     system_metrics["memory"] = float(mem)
-
 
 
 async def _send_rl_update(payload):
@@ -245,8 +251,6 @@ async def _send_rl_update(payload):
             rl_ws_clients.discard(ws)
 
     asyncio.run_coroutine_threadsafe(_broadcast(), rl_ws_loop)
-
-
 
 
 def _emit_ws_event(topic: str, payload: Any) -> None:
@@ -277,11 +281,11 @@ def _sub_handler(topic: str):
     return handler
 
 
-
 depth_service_connected = False
 last_heartbeat = 0.0
 rl_daemon_heartbeat = 0.0
 depth_service_heartbeat = 0.0
+
 
 def _heartbeat(_payload: Any) -> None:
     global last_heartbeat, rl_daemon_heartbeat, depth_service_heartbeat
@@ -357,9 +361,7 @@ def ensure_active_keypair() -> None:
         return
     wallet.select_keypair(keys[0])
     if not os.getenv("KEYPAIR_PATH"):
-        os.environ["KEYPAIR_PATH"] = os.path.join(
-            wallet.KEYPAIR_DIR, keys[0] + ".json"
-        )
+        os.environ["KEYPAIR_PATH"] = os.path.join(wallet.KEYPAIR_DIR, keys[0] + ".json")
 
 
 def ensure_active_config() -> None:
@@ -371,9 +373,6 @@ def ensure_active_config() -> None:
     if len(configs) != 1:
         return
     select_config(configs[0])
-    set_env_from_config(load_selected_config())
-    _check_redis_connection()
-    initialize_event_bus()
 
 
 def record_history(prices: dict[str, float]) -> None:
@@ -414,7 +413,10 @@ def _on_price_update(msg: Any) -> None:
     last_prices[token] = float(price)
     with state_lock:
         pf = current_portfolio or Portfolio()
-        prices = {tok: last_prices.get(tok, pos.entry_price) for tok, pos in pf.balances.items()}
+        prices = {
+            tok: last_prices.get(tok, pos.entry_price)
+            for tok, pos in pf.balances.items()
+        }
     if prices:
         record_history(prices)
 
@@ -443,18 +445,15 @@ def create_app() -> Flask:
     global log_buffer, buffer_handler, _SUBSCRIPTIONS
 
     install_uvloop()
-
-    cfg = load_config()
-    if not cfg and _DEFAULT_PRESET.is_file():
-        cfg = load_config(_DEFAULT_PRESET)
-
     if get_active_config_name() is None and _DEFAULT_PRESET.is_file():
         dest = Path(config_module.CONFIG_DIR) / _DEFAULT_PRESET.name
         if not dest.exists():
             dest.write_bytes(_DEFAULT_PRESET.read_bytes())
         select_config(dest.name)
 
-    cfg = apply_env_overrides(cfg)
+    ensure_active_config()
+
+    cfg = apply_env_overrides(load_selected_config())
     set_env_from_config(cfg)
     _check_redis_connection()
     initialize_event_bus()
@@ -467,8 +466,6 @@ def create_app() -> Flask:
             "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
             file=sys.stderr,
         )
-
-    ensure_active_config()
 
     # assemble startup summary
     active_cfg = get_active_config_name() or "<none>"
@@ -505,9 +502,7 @@ def create_app() -> Flask:
     )
     Console().print(banner)
 
-    app = Flask(
-        __name__, static_folder=str(Path(__file__).resolve().parent / "static")
-    )
+    app = Flask(__name__, static_folder=str(Path(__file__).resolve().parent / "static"))
     app.register_blueprint(bp)
 
     log_buffer = deque(maxlen=200)
@@ -583,6 +578,8 @@ def create_app() -> Flask:
             logging.warning("Autostart failed: %s", exc)
 
     return app
+
+
 async def trading_loop(memory: BaseMemory | None = None) -> None:
     global current_portfolio, current_keypair
 
@@ -684,12 +681,15 @@ def start() -> dict:
             "Run 'solhunter-wallet' manually or set the MNEMONIC environment variable.",
             file=sys.stderr,
         )
-        return jsonify(
-            {
-                "status": "error",
-                "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
-            }
-        ), 500
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "wallet unavailable; run solhunter-wallet or set MNEMONIC",
+                }
+            ),
+            500,
+        )
 
     missing = _missing_required()
     if missing:
@@ -718,9 +718,7 @@ def autostart() -> dict:
     global trading_thread
     if trading_thread and trading_thread.is_alive():
         return jsonify({"status": "already running"})
-    trading_thread = threading.Thread(
-        target=main_module.run_auto, daemon=True
-    )
+    trading_thread = threading.Thread(target=main_module.run_auto, daemon=True)
     trading_thread.start()
     return jsonify({"status": "started"})
 
@@ -888,7 +886,9 @@ def strategies_route() -> dict:
     active = [s.strip() for s in env.split(",") if s.strip()] if env else []
     if not active:
         active = list(StrategyManager.DEFAULT_STRATEGIES)
-    return jsonify({"available": list(StrategyManager.DEFAULT_STRATEGIES), "active": active})
+    return jsonify(
+        {"available": list(StrategyManager.DEFAULT_STRATEGIES), "active": active}
+    )
 
 
 @bp.route("/discovery", methods=["GET", "POST"])
@@ -937,11 +937,7 @@ def upload_keypair() -> dict:
     if not file or not raw_name:
         return jsonify({"error": "missing file or name"}), 400
     name = os.path.basename(raw_name)
-    if (
-        name != raw_name
-        or ".." in name
-        or any(sep in name for sep in ("/", "\\"))
-    ):
+    if name != raw_name or ".." in name or any(sep in name for sep in ("/", "\\")):
         return jsonify({"error": "invalid name"}), 400
     data = file.read()
     try:
@@ -986,11 +982,7 @@ def upload_config() -> dict:
     if not file or not raw_name:
         return jsonify({"error": "missing file or name"}), 400
     name = os.path.basename(raw_name)
-    if (
-        name != raw_name
-        or ".." in name
-        or any(sep in name for sep in ("/", "\\"))
-    ):
+    if name != raw_name or ".." in name or any(sep in name for sep in ("/", "\\")):
         return jsonify({"error": "invalid name"}), 400
     try:
         save_config(name, file.read())
@@ -1144,7 +1136,9 @@ def logs() -> dict:
 def rl_status() -> dict:
     """Return RL training metrics if available."""
     if rl_daemon is None:
-        return jsonify({"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics})
+        return jsonify(
+            {"last_train_time": None, "checkpoint_path": None, "metrics": rl_metrics}
+        )
     return jsonify(
         {
             "last_train_time": getattr(rl_daemon, "last_train_time", None),
@@ -1180,6 +1174,7 @@ def status() -> dict:
     event_alive = False
     url = get_event_bus_url()
     if url and websockets is not None:
+
         async def _check():
             try:
                 async with websockets.connect(
@@ -1194,9 +1189,7 @@ def status() -> dict:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                event_alive = asyncio.run_coroutine_threadsafe(
-                    _check(), loop
-                ).result()
+                event_alive = asyncio.run_coroutine_threadsafe(_check(), loop).result()
             else:
                 event_alive = loop.run_until_complete(_check())
         except RuntimeError:
@@ -1778,6 +1771,7 @@ def start_websockets() -> dict[str, threading.Thread]:
         asyncio.set_event_loop(rl_ws_loop)
         server = None
         try:
+
             async def _serve() -> Any:
                 return await websockets.serve(
                     _rl_ws_handler,
@@ -1793,9 +1787,7 @@ def start_websockets() -> dict[str, threading.Thread]:
                 if e.errno == errno.EADDRINUSE:
                     logger.error("RL websocket port %s is already in use", 8767)
                 else:
-                    logger.error(
-                        "Failed to start RL websocket on port %s: %s", 8767, e
-                    )
+                    logger.error("Failed to start RL websocket on port %s: %s", 8767, e)
                 return
             rl_ws_loop.run_forever()
         finally:
@@ -1813,6 +1805,7 @@ def start_websockets() -> dict[str, threading.Thread]:
         asyncio.set_event_loop(event_ws_loop)
         server = None
         try:
+
             async def _serve() -> Any:
                 return await websockets.serve(
                     _event_ws_handler,
@@ -1852,6 +1845,7 @@ def start_websockets() -> dict[str, threading.Thread]:
         asyncio.set_event_loop(log_ws_loop)
         server = None
         try:
+
             async def _serve() -> Any:
                 return await websockets.serve(
                     _log_ws_handler,
