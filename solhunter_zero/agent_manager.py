@@ -39,7 +39,12 @@ from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
-from .agents.attention_swarm import AttentionSwarm, load_model
+try:  # optional torch-based swarm
+    from .agents.attention_swarm import AttentionSwarm, load_model
+except Exception:  # pragma: no cover - torch not available
+    AttentionSwarm = None  # type: ignore
+    def load_model(*args, **kwargs):  # type: ignore
+        raise ImportError("AttentionSwarm requires torch")
 from .agents.rl_weight_agent import RLWeightAgent
 from .agents.hierarchical_rl_agent import HierarchicalRLAgent
 from .device import get_default_device
