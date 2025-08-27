@@ -10,7 +10,7 @@ import pytest
 
 # Skip this module when running lightweight CI self-tests
 if os.getenv("SELFTEST_SKIP_ARTIFACTS") == "1" or os.getenv("CI") == "true":
-    pytest.skip("Skipping heavy UI tests in self-test mode", allow_module_level=True)
+    pytest.skip("Skipping heavy UI tests in self-test/CI mode", allow_module_level=True)
 from solders.keypair import Keypair
 import logging
 import threading

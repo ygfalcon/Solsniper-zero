@@ -3,6 +3,7 @@ import os
 import argparse
 import asyncio
 import json
+from pathlib import Path
 from dataclasses import asdict, is_dataclass
 import logging
 import socket
@@ -12,7 +13,6 @@ from typing import Any
 import time
 import subprocess
 import sys
-from pathlib import Path
 from contextlib import nullcontext
 import urllib.parse
 
@@ -112,6 +112,17 @@ _redis_process: subprocess.Popen | None = None
 _event_bus_initialized = False
 
 
+def _write_diagnostics(diag: dict, filename: str = "diagnostics.json") -> None:
+    """Best-effort write of diagnostics to disk."""
+
+    try:
+        if os.getenv("SELFTEST_NO_DIAG") == "1":
+            return
+        Path(filename).write_text(json.dumps(diag, indent=2), encoding="utf-8")
+    except Exception:  # pragma: no cover - ignore write issues
+        pass
+
+
 def ui_selftest() -> int:
     diag = {"phase": "UI_PREFLIGHT"}
     try:
@@ -135,11 +146,16 @@ def ui_selftest() -> int:
         verify_flashloan_prereqs(cfg)
         diag["logic_ok"] = True
 
-        print(json.dumps({"ok": True, **diag}))
+        payload = {"ok": True, **diag}
+        print(json.dumps(payload))
+        if os.getenv("SELFTEST_ALWAYS_WRITE_DIAG") == "1":
+            _write_diagnostics(payload)
         return 0
     except Exception as e:
         diag["error"] = f"{type(e).__name__}: {e}"
-        print(json.dumps({"ok": False, **diag}, indent=2))
+        payload = {"ok": False, **diag}
+        print(json.dumps(payload, indent=2))
+        _write_diagnostics(payload)
         return 2
 
 
