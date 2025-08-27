@@ -50,6 +50,14 @@ python -m solhunter_zero.ui --selftest
 ```
 This runs the same checks the full orchestrator will rely on, but isolated—so failures are clean and actionable.
 
+### Full-stack smoke (paper-safe)
+Run the on-demand smoke locally:
+```bash
+USE_REDIS=1 CHECK_UI_HEALTH=1 RL_HEALTH_URL=http://127.0.0.1:7070/health \
+SELFTEST_SKIP_ARTIFACTS=1 CI=true \
+python scripts/smoke_fullstack.py
+```
+
 Use `--min-delay` or `--max-delay` from the CLI to bound the delay between trade iterations during manual runs.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50 GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).
