@@ -1,5 +1,6 @@
 import threading
 import os
+import argparse
 import asyncio
 import json
 from dataclasses import asdict, is_dataclass
@@ -24,6 +25,16 @@ from rich.table import Table
 from .http import close_session
 from .util import install_uvloop
 from .event_bus import subscription, publish
+from ._preflight import (
+    derive_ws_url,
+    load_and_validate_config,
+    resolve_keypair,
+    check_artifacts,
+    rpc_ping,
+    rpc_blockhash,
+    validate_agent_weights,
+    verify_flashloan_prereqs,
+)
 try:
     import websockets
 except Exception:  # pragma: no cover - optional
@@ -99,6 +110,37 @@ _redis_process: subprocess.Popen | None = None
 
 # Guard to ensure the event bus is initialised only once
 _event_bus_initialized = False
+
+
+def ui_selftest() -> int:
+    diag = {"phase": "UI_PREFLIGHT"}
+    try:
+        cfg = load_and_validate_config(os.getenv("SOLHUNTER_CONFIG"))
+        diag["config_ok"] = True
+
+        if not cfg.get("solana_ws_url") and cfg.get("solana_rpc_url"):
+            cfg["solana_ws_url"] = derive_ws_url(cfg["solana_rpc_url"])
+
+        check_artifacts()
+        diag["artifacts_ok"] = True
+
+        resolve_keypair()
+        diag["keypair_ok"] = True
+
+        rpc_ping(cfg["solana_rpc_url"])
+        rpc_blockhash(cfg["solana_rpc_url"])
+        diag["rpc_ok"] = True
+
+        validate_agent_weights(cfg)
+        verify_flashloan_prereqs(cfg)
+        diag["logic_ok"] = True
+
+        print(json.dumps({"ok": True, **diag}))
+        return 0
+    except Exception as e:
+        diag["error"] = f"{type(e).__name__}: {e}"
+        print(json.dumps({"ok": False, **diag}, indent=2))
+        return 2
 
 
 def _check_redis_connection() -> None:
@@ -2035,7 +2077,12 @@ def start_websockets() -> dict[str, threading.Thread]:
 app: Flask | None = None
 
 
-if __name__ == "__main__":
+def _main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--selftest", action="store_true", help="Run UI preflight/self-test and exit")
+    args, _ = parser.parse_known_args()
+    if args.selftest:
+        sys.exit(ui_selftest())
     app = create_app()
     threads = start_websockets()
     try:
@@ -2050,3 +2097,7 @@ if __name__ == "__main__":
             if loop is not None:
                 loop.close()
         asyncio.run(close_session())
+
+
+if __name__ == "__main__":
+    _main()
