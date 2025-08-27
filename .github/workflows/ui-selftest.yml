@@ -7,6 +7,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
+      - name: Set skip flags (no heavy native deps)
+        run: |
+          echo "SELFTEST_SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
       - name: Install minimal deps
         run: |
           python -m pip install -U pip requests

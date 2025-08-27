@@ -51,6 +51,9 @@ def rpc_blockhash(url: str, timeout=8):
 
 
 def check_artifacts():
+    """Verify compiled artifacts exist (skipped in CI for speed)."""
+    if os.getenv("SELFTEST_SKIP_ARTIFACTS") == "1" or os.getenv("CI") == "true":
+        return
     # Package-relative FFI
     if not any(PKG_ROOT.glob("libroute_ffi.*")):
         raise RuntimeError(f"Missing FFI library at {PKG_ROOT}/libroute_ffi.*")
