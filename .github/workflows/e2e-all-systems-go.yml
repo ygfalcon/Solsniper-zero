@@ -1,0 +1,53 @@
+name: E2E — All Systems Go (paper-safe)
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping || exit 1"
+          --health-interval 2s
+          --health-timeout 1s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install deps
+        run: |
+          python -m pip install -U pip requests fastapi uvicorn pytest
+      - name: Start Mock RL (port 7070)
+        run: |
+          nohup python -m uvicorn scripts.mock_rl:app --host 0.0.0.0 --port 7070 >/tmp/mock_rl.log 2>&1 &
+          sleep 1
+      - name: Start Mock UI (port 8002)
+        run: |
+          nohup python scripts/mock_ui.py >/tmp/mock_ui.log 2>&1 &
+          sleep 1
+      - name: Paper-safe env (+ gates)
+        run: |
+          echo "ENV=dev" >> $GITHUB_ENV
+          echo "RISK_MODE=paper" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+          echo "SELFTEST_SKIP_ARTIFACTS=1" >> $GITHUB_ENV
+          echo "USE_REDIS=1" >> $GITHUB_ENV
+          echo "EVENT_BUS_URL=redis://127.0.0.1:6379/0" >> $GITHUB_ENV
+          echo "RL_HEALTH_URL=http://127.0.0.1:7070/health" >> $GITHUB_ENV
+          echo "CHECK_UI_HEALTH=1" >> $GITHUB_ENV
+          echo "UI_HEALTH_URL=http://127.0.0.1:8002/healthz" >> $GITHUB_ENV
+          echo "SOLANA_RPC_URL=https://api.mainnet-beta.solana.com" >> $GITHUB_ENV
+          echo "START_ALL_EXIT_AFTER_GATES=1" >> $GITHUB_ENV
+          mkdir -p keypairs && echo "[1,2,3,4]" > keypairs/bot.json
+          echo "KEYPAIR_PATH=$(pwd)/keypairs/bot.json" >> $GITHUB_ENV
+      - name: UI Self-test
+        run: python -m solhunter_zero.ui --selftest
+      - name: Full-stack Smoke
+        run: python scripts/smoke_fullstack.py
+      - name: Start-all (exit after gates)
+        run: python start_all.py
