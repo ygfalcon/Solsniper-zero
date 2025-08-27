@@ -69,6 +69,9 @@ python scripts/soak_runtime.py
 ```
 Or trigger **Runtime Soak (on-demand)** in GitHub Actions and set inputs.
 
+### E2E in GitHub Actions (paper-safe)
+An on-demand workflow **E2E — All Systems Go** spins up Redis + mock RL + mock UI, runs the UI self-test, the full-stack smoke, and `start_all.py` (exits after gates). Trigger it from the Actions tab or push to any branch.
+
 Use `--min-delay` or `--max-delay` from the CLI to bound the delay between trade iterations during manual runs.
 
 The mandatory Rust `depth_service` is already enabled and starts automatically, so no extra step is required. All optional agents are enabled by default and wallet selection is always manual. Offline data (around two to three days of history, capped at 50 GB by default) downloads automatically. Set `OFFLINE_DATA_LIMIT_GB` to adjust the size limit. The bot begins with an initial $20 balance linked to [`min_portfolio_value`](#minimum-portfolio-value).

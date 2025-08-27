@@ -62,6 +62,11 @@ def main() -> int:
             raise SystemExit(f"UI gate failed: {msg}")
         log.info("UI healthy: %s", UI_HEALTH_URL)
 
+    # Allow CI to stop after gates so jobs don't hang:
+    if os.getenv("START_ALL_EXIT_AFTER_GATES", "0") == "1":
+        log.info("All gates green; exiting due to START_ALL_EXIT_AFTER_GATES=1")
+        return 0
+
     if os.getenv("CHECK_DEPTH_SERVICE", "0") == "1":
         ok, msg = wait_for(check_depth_service)
         if not ok:
