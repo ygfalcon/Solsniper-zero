@@ -13,14 +13,14 @@ from .paths import ROOT
 from .backtester import backtest_weighted, DEFAULT_STRATEGIES
 from .backtest_cli import bayesian_optimize_weights
 from .advanced_memory import AdvancedMemory
+
 try:
     import torch
-except ImportError as exc:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
+
     class _TorchStub:
         def __getattr__(self, name):
-            raise ImportError(
-                "torch is required for AgentManager features"
-            )
+            raise ImportError("torch is required for AgentManager features")
 
     torch = _TorchStub()  # type: ignore
 
@@ -39,12 +39,16 @@ from .agents.memory import MemoryAgent
 from .agents.emotion_agent import EmotionAgent
 from .agents.discovery import DiscoveryAgent
 from .swarm_coordinator import SwarmCoordinator
+
 try:  # optional torch-based swarm
     from .agents.attention_swarm import AttentionSwarm, load_model
 except Exception:  # pragma: no cover - torch not available
     AttentionSwarm = None  # type: ignore
+
     def load_model(*args, **kwargs):  # type: ignore
         raise ImportError("AttentionSwarm requires torch")
+
+
 from .agents.rl_weight_agent import RLWeightAgent
 from .agents.hierarchical_rl_agent import HierarchicalRLAgent
 from .device import get_default_device
@@ -141,9 +145,7 @@ class StrategySelector:
 
         ranked = sorted(names, key=lambda n: rois.get(n, 0.0), reverse=True)
         top = ranked[0]
-        second_roi = (
-            rois.get(ranked[1], 0.0) if len(ranked) > 1 else float("-inf")
-        )
+        second_roi = rois.get(ranked[1], 0.0) if len(ranked) > 1 else float("-inf")
         if rois[top] - second_roi >= self.vote_threshold:
             selected = [a for a in agents if a.name == top]
             return selected, {top: base_weights.get(top, 1.0)}
@@ -164,7 +166,6 @@ class StrategySelector:
 class AgentManager:
     """Manage and coordinate trading agents and execute actions."""
 
-
     def __init__(
         self,
         agents: Iterable[BaseAgent],
@@ -184,29 +185,29 @@ class AgentManager:
         file_weights: Dict[str, float] = {}
         if self.weights_path and os.path.exists(self.weights_path):
             file_weights = self._load_weights(self.weights_path)
-    
+
         init_weights = cfg.weights or {}
         self.weights = {**file_weights, **init_weights}
         self.regime_weights = cfg.regime_weights or {}
-    
+
         self.memory_agent = cfg.memory_agent or next(
             (a for a in self.agents if isinstance(a, MemoryAgent)),
             None,
         )
-    
+
         self.emotion_agent = cfg.emotion_agent or next(
             (a for a in self.agents if isinstance(a, EmotionAgent)),
             None,
         )
-    
+
         self.population_rl = cfg.population_rl
         self.rl_daemon = cfg.rl_daemon
-    
+
         self.weight_config_paths = list(cfg.weight_config_paths or [])
         self.weight_configs = self._load_weight_configs(self.weight_config_paths)
         self.strategy_rotation_interval = int(cfg.strategy_rotation_interval)
         self.active_weight_config: str | None = None
-    
+
         self.use_attention_swarm = bool(cfg.use_attention_swarm)
         self.attention_swarm: AttentionSwarm | None = None
         self._attn_history: list[list[float]] = []
@@ -215,10 +216,12 @@ class AgentManager:
                 attn_device = os.getenv(
                     "ATTENTION_SWARM_DEVICE", str(get_default_device())
                 )
-                self.attention_swarm = load_model(cfg.attention_model_path, device=attn_device)
+                self.attention_swarm = load_model(
+                    cfg.attention_model_path, device=attn_device
+                )
             except Exception:
                 self.attention_swarm = None
-    
+
         self.use_rl_weights = bool(cfg.use_rl_weights)
         self.rl_weight_agent: RLWeightAgent | None = None
         if self.use_rl_weights:
@@ -227,29 +230,31 @@ class AgentManager:
                 weights_path=cfg.rl_weights_path or "rl_weights.json",
             )
             self.agents.append(self.rl_weight_agent)
-    
+
         self.hierarchical_rl = cfg.hierarchical_rl
         self.hierarchical_agent: HierarchicalRLAgent | None = None
         if self.hierarchical_rl is not None:
             self.hierarchical_agent = HierarchicalRLAgent(self.hierarchical_rl)
             self.agents.append(self.hierarchical_agent)
-    
+
         self.supervisor: SupervisorAgent | None = None
         if cfg.use_supervisor:
             self.supervisor = SupervisorAgent(
                 checkpoint=cfg.supervisor_checkpoint or "supervisor.json",
             )
-    
+
         self.coordinator = SwarmCoordinator(
             self.memory_agent, self.weights, self.regime_weights
         )
-    
+
         self.mutation_path = (
-            str(cfg.mutation_path) if cfg.mutation_path is not None else "mutation_state.json"
+            str(cfg.mutation_path)
+            if cfg.mutation_path is not None
+            else "mutation_state.json"
         )
         self.mutation_state = mutation.load_state(self.mutation_path)
         self._restore_mutations()
-    
+
         self.strategy_selection = cfg.strategy_selection
         self.vote_threshold = float(cfg.vote_threshold)
         self.selector: StrategySelector | None = None
@@ -257,10 +262,10 @@ class AgentManager:
             self.selector = StrategySelector(
                 self.memory_agent, vote_threshold=self.vote_threshold
             )
-    
+
         self.evolve_interval = int(cfg.evolve_interval)
         self.mutation_threshold = float(cfg.mutation_threshold)
-    
+
         self.depth_service = cfg.depth_service
         self._event_executors: Dict[str, EventExecutor] = {}
         self._event_tasks: Dict[str, asyncio.Task] = {}
@@ -273,7 +278,11 @@ class AgentManager:
         self.rl_policy: Dict[str, float] = {}
 
         def _merge_rl_weights(payload):
-            data = payload.weights if hasattr(payload, "weights") else payload.get("weights", {})
+            data = (
+                payload.weights
+                if hasattr(payload, "weights")
+                else payload.get("weights", {})
+            )
             if isinstance(data, dict):
                 try:
                     self.rl_policy = {str(k): float(v) for k, v in data.items()}
@@ -321,7 +330,9 @@ class AgentManager:
         if self.selector:
             agents, weights = self.selector.weight_agents(agents, weights)
         if self.supervisor:
-            sup_w = self.supervisor.predict_weights([a.name for a in agents], token, portfolio)
+            sup_w = self.supervisor.predict_weights(
+                [a.name for a in agents], token, portfolio
+            )
             selected = []
             for ag in agents:
                 w = sup_w.get(ag.name, 1.0)
@@ -350,6 +361,7 @@ class AgentManager:
             price = prices[-1] if prices else 0.0
             try:
                 from .order_book_ws import snapshot
+
                 depth, _imb, rate = snapshot(token)
             except Exception:
                 depth = 0.0
@@ -367,16 +379,24 @@ class AgentManager:
         if self.use_attention_swarm and self.attention_swarm:
             rois = self.coordinator._roi_by_agent([a.name for a in agents])
             prices = portfolio.price_history.get(token, [])
-            vol = float(np.std(prices) / (np.mean(prices) or 1.0)) if len(prices) > 1 else 0.0
+            vol = (
+                float(np.std(prices) / (np.mean(prices) or 1.0))
+                if len(prices) > 1
+                else 0.0
+            )
             reg_val = 1.0 if regime == "bull" else -1.0 if regime == "bear" else 0.0
-            self._attn_history.append([rois.get(a.name, 0.0) for a in agents] + [reg_val, vol])
+            self._attn_history.append(
+                [rois.get(a.name, 0.0) for a in agents] + [reg_val, vol]
+            )
             if len(self._attn_history) >= self.attention_swarm.seq_len:
-                seq = self._attn_history[-self.attention_swarm.seq_len:]
+                seq = self._attn_history[-self.attention_swarm.seq_len :]
                 pred = self.attention_swarm.predict(seq)
                 weights = {a.name: float(pred[i]) for i, a in enumerate(agents)}
                 publish("weights_updated", WeightsUpdated(weights=dict(weights)))
         swarm = AgentSwarm(agents)
-        return await swarm.propose(token, portfolio, weights=weights, rl_action=rl_action)
+        return await swarm.propose(
+            token, portfolio, weights=weights, rl_action=rl_action
+        )
 
     async def execute(self, token: str, portfolio) -> List[Any]:
         actions = await self.evaluate(token, portfolio)
@@ -399,7 +419,9 @@ class AgentManager:
                     if callable(fn):
                         try:
                             if inspect.iscoroutinefunction(fn):
-                                explain = await fn([action], token=token, portfolio=portfolio)
+                                explain = await fn(
+                                    [action], token=token, portfolio=portfolio
+                                )
                             else:
                                 explain = fn([action], token=token, portfolio=portfolio)
                         except Exception:
@@ -602,9 +624,7 @@ class AgentManager:
                 best_weights = weights
         if best_weights is None:
             return
-        changed = any(
-            self.weights.get(k) != float(v) for k, v in best_weights.items()
-        )
+        changed = any(self.weights.get(k) != float(v) for k, v in best_weights.items())
         if changed:
             for k, v in best_weights.items():
                 self.weights[str(k)] = float(v)
@@ -654,8 +674,19 @@ class AgentManager:
             if name in existing:
                 continue
             base_cls = str(info.get("base"))
-            params = info.get("params", {}) if isinstance(info.get("params", {}), dict) else {}
-            base_agent = next((a for a in self.agents if a.__class__.__name__ == base_cls or a.name == base_cls), None)
+            params = (
+                info.get("params", {})
+                if isinstance(info.get("params", {}), dict)
+                else {}
+            )
+            base_agent = next(
+                (
+                    a
+                    for a in self.agents
+                    if a.__class__.__name__ == base_cls or a.name == base_cls
+                ),
+                None,
+            )
             if base_agent is None:
                 try:
                     base_agent = load_agent(base_cls)
@@ -674,18 +705,14 @@ class AgentManager:
         base_agents = [
             a
             for a in self.agents
-            if a.name not in self._active_names()
-            and not isinstance(a, MemoryAgent)
+            if a.name not in self._active_names() and not isinstance(a, MemoryAgent)
         ]
         spawned: List[BaseAgent] = []
         if not base_agents:
             return spawned
         for _ in range(count):
             base = random.choice(base_agents)
-            name = (
-                f"{base.name}_m"
-                f"{len(self._active_names()) + 1}"
-            )
+            name = f"{base.name}_m{len(self._active_names()) + 1}"
             mutated = mutation.mutate_agent(base, name=name)
             self.agents.append(mutated)
             self.mutation_state.setdefault("active", []).append(
@@ -721,9 +748,7 @@ class AgentManager:
         self.mutation_state["active"] = keep_entries
         self.mutation_state.setdefault("roi", {}).update(rois)
 
-    def save_mutation_state(
-        self, path: str | os.PathLike | None = None
-    ) -> None:
+    def save_mutation_state(self, path: str | os.PathLike | None = None) -> None:
         path = path or self.mutation_path
         if path:
             mutation.save_state(self.mutation_state, str(path))
@@ -762,7 +787,9 @@ class AgentManager:
                     self.agents.remove(agent)
                     act = self.mutation_state.get("active", [])
                     for i, info in enumerate(list(act)):
-                        if (isinstance(info, dict) and info.get("name") == agent.name) or info == agent.name:
+                        if (
+                            isinstance(info, dict) and info.get("name") == agent.name
+                        ) or info == agent.name:
                             act.pop(i)
                             break
                 else:
@@ -799,9 +826,7 @@ class AgentManager:
                 self.weights.update(opt)
                 self.coordinator.base_weights = self.weights
             except Exception as exc:
-                logger.exception(
-                    "bayesian_optimize_weights failed", exc_info=exc
-                )
+                logger.exception("bayesian_optimize_weights failed", exc_info=exc)
 
         self.prune_underperforming(threshold)
         if self.mutation_path:
@@ -911,9 +936,7 @@ class AgentManager:
         depth_service = bool(cfg.get("depth_service", False))
         priority_rpc = cfg.get("priority_rpc")
         if isinstance(priority_rpc, str):
-            priority_rpc = [
-                u.strip() for u in priority_rpc.split(",") if u.strip()
-            ]
+            priority_rpc = [u.strip() for u in priority_rpc.split(",") if u.strip()]
         elif not isinstance(priority_rpc, list):
             priority_rpc = None
         regime_weights = cfg.get("regime_weights") or {}
@@ -999,7 +1022,9 @@ class AgentManager:
     @classmethod
     def from_default(cls) -> "AgentManager | None":
         """Instantiate with bundled default agent configuration."""
-        default_path = Path(__file__).resolve().parent.parent / "config" / "default.toml"
+        default_path = (
+            Path(__file__).resolve().parent.parent / "config" / "default.toml"
+        )
         try:
             cfg = load_config(default_path)
         except Exception:
