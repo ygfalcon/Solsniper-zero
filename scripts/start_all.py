@@ -41,6 +41,7 @@ log_startup("start_all launched")
 
 from solhunter_zero import device  # noqa: E402
 from solhunter_zero.system import set_rayon_threads  # noqa: E402
+from solhunter_zero.ui import ui_selftest  # noqa: E402
 
 device.ensure_gpu_env()
 set_rayon_threads()
@@ -339,6 +340,9 @@ def launch_ui(pm: ProcessManager) -> None:
 
 
 def main() -> None:
+    rc = ui_selftest()
+    if rc != 0:
+        raise SystemExit(rc)
     with ProcessManager() as pm:
         try:
             launch_services(pm)

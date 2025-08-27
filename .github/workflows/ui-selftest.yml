@@ -1,0 +1,29 @@
+name: UI Self-test
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  ui_preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install minimal deps
+        run: |
+          python -m pip install -U pip requests
+          # If a YAML config is used, install PyYAML dynamically
+          python - <<'PY'
+import pathlib, sys, subprocess
+if any(pathlib.Path('.').glob('config.y*ml')):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "PyYAML"])
+PY
+      - name: Paper-safe env
+        run: |
+          [ -f .env.example ] && cp .env.example .env || true
+          echo "ENV=dev" >> .env
+          echo "RISK_MODE=paper" >> .env
+          mkdir -p keypairs && echo "[1,2,3,4]" > keypairs/bot.json
+          echo "KEYPAIR_PATH=./keypairs/bot.json" >> .env
+          echo "AUTO_SELECT_KEYPAIR=1" >> .env
+          echo "SOLANA_RPC_URL=${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}" >> .env
+      - name: Run UI self-test
+        run: python -m solhunter_zero.ui --selftest
