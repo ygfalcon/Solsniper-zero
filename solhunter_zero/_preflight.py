@@ -1,0 +1,132 @@
+from __future__ import annotations
+import os, time, random
+from pathlib import Path
+from urllib.parse import urlparse, urlunparse
+from typing import Dict, Any, Optional
+import requests
+
+PKG_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = PKG_ROOT.parent
+
+
+def derive_ws_url(http_url: str) -> str:
+    p = urlparse(http_url)
+    if p.scheme not in ("http", "https"):
+        raise ValueError(f"RPC URL must be http/https, got: {http_url}")
+    scheme = "ws" if p.scheme == "http" else "wss"
+    return urlunparse((scheme, p.netloc, p.path, p.params, p.query, p.fragment))
+
+
+def _retry(fn, tries=3, base=0.25, cap=2.0):
+    for i in range(1, tries + 1):
+        try:
+            return fn()
+        except Exception:
+            if i == tries:
+                raise
+            time.sleep(min(cap, base * (2 ** (i - 1))) + random.random() * 0.1)
+
+
+def rpc_ping(url: str, timeout=8):
+    r = _retry(lambda: requests.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "getVersion"}, timeout=timeout))
+    r.raise_for_status()
+    return r.json()
+
+
+def rpc_blockhash(url: str, timeout=8):
+    r = _retry(
+        lambda: requests.post(
+            url,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getLatestBlockhash",
+                "params": [{"commitment": "processed"}],
+            },
+            timeout=timeout,
+        )
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def check_artifacts():
+    if os.getenv("SKIP_ARTIFACT_CHECKS") == "1":
+        return
+    # Package-relative FFI
+    if not any(PKG_ROOT.glob("libroute_ffi.*")):
+        raise RuntimeError(f"Missing FFI library at {PKG_ROOT}/libroute_ffi.*")
+    # Repo-relative depth_service
+    if not (REPO_ROOT / "target" / "release" / "depth_service").exists():
+        raise RuntimeError("Missing depth_service (build with: cargo build --release)")
+
+
+def _load_toml(path: Path) -> Dict[str, Any]:
+    import tomllib
+
+    return tomllib.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_yaml(path: Path) -> Dict[str, Any]:
+    import yaml  # require PyYAML only if used
+
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def load_and_validate_config(explicit_path: Optional[str]) -> Dict[str, Any]:
+    p = Path(explicit_path) if explicit_path else Path("config.toml")
+    if not p.exists():
+        raise FileNotFoundError(f"Config not found: {p}")
+    ext = p.suffix.lower()
+    if ext == ".toml":
+        data = _load_toml(p)
+    elif ext in (".yaml", ".yml"):
+        data = _load_yaml(p)
+    else:
+        raise RuntimeError(f"Unsupported config extension: {ext}")
+    for k in ("solana_rpc_url", "dex_base_url", "agents"):
+        if k not in data or not data[k]:
+            raise KeyError(f"config missing `{k}`")
+    return data
+
+
+def resolve_keypair(dir_="keypairs", auto_env="AUTO_SELECT_KEYPAIR") -> Path:
+    kp_dir = Path(dir_)
+    candidates = sorted(kp_dir.glob("*.json"))
+    if not candidates:
+        raise FileNotFoundError(f"No keypairs in {kp_dir}")
+    if os.getenv(auto_env) == "1":
+        if len(candidates) == 1:
+            return candidates[0]
+        raise RuntimeError(f"Multiple keypairs found: {candidates}. Set KEYPAIR_PATH explicitly.")
+    kp = os.getenv("KEYPAIR_PATH")
+    if not kp:
+        raise RuntimeError("KEYPAIR_PATH not set and AUTO_SELECT_KEYPAIR != 1")
+    p = Path(kp)
+    if not p.exists():
+        raise FileNotFoundError(f"KEYPAIR_PATH not found: {p}")
+    return p
+
+
+def validate_agent_weights(cfg: Dict[str, Any]) -> Dict[str, float]:
+    agents = list(cfg.get("agents", []))
+    weights = dict(cfg.get("agent_weights", {}))
+    for a in agents:
+        if a not in weights:
+            weights[a] = 1.0
+    total = sum(weights.get(a, 0.0) for a in agents) or 1.0
+    cfg["agent_weights"] = {a: weights[a] / total for a in agents}
+    return cfg["agent_weights"]
+
+
+def verify_flashloan_prereqs(cfg: Dict[str, Any]):
+    if not cfg.get("use_flash_loans", False):
+        return
+    pv = float(cfg.get("portfolio_value", 0.0))
+    if pv <= 0.0:
+        raise RuntimeError("Flash loans enabled but portfolio_value <= 0")
+    proto = cfg.get("flash_loan_protocol", {})
+    required = ("program_id", "pool", "fee_bps")
+    missing = [k for k in required if k not in proto]
+    if missing:
+        raise RuntimeError(f"Flash loans enabled but protocol config missing: {missing}")

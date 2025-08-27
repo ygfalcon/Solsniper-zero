@@ -1,7 +1,56 @@
-import threading
 import os
-import asyncio
+import sys
+import argparse
 import json
+
+from ._preflight import (
+    derive_ws_url,
+    load_and_validate_config,
+    resolve_keypair,
+    check_artifacts,
+    rpc_ping,
+    rpc_blockhash,
+    validate_agent_weights,
+    verify_flashloan_prereqs,
+)
+
+
+def ui_selftest() -> int:
+    diag = {"phase": "UI_PREFLIGHT"}
+    try:
+        cfg = load_and_validate_config(os.getenv("SOLHUNTER_CONFIG"))
+        diag["config_ok"] = True
+
+        if not cfg.get("solana_ws_url") and cfg.get("solana_rpc_url"):
+            cfg["solana_ws_url"] = derive_ws_url(cfg["solana_rpc_url"])
+
+        check_artifacts()
+        diag["artifacts_ok"] = True
+
+        resolve_keypair()
+        diag["keypair_ok"] = True
+
+        rpc_ping(cfg["solana_rpc_url"])
+        rpc_blockhash(cfg["solana_rpc_url"])
+        diag["rpc_ok"] = True
+
+        validate_agent_weights(cfg)
+        verify_flashloan_prereqs(cfg)
+        diag["logic_ok"] = True
+
+        print(json.dumps({"ok": True, **diag}))
+        return 0
+    except Exception as e:
+        diag["error"] = f"{type(e).__name__}: {e}"
+        print(json.dumps({"ok": False, **diag}, indent=2))
+        return 2
+
+
+if "--selftest" in sys.argv:
+    sys.exit(ui_selftest())
+
+import threading
+import asyncio
 from dataclasses import asdict, is_dataclass
 import logging
 import socket
@@ -10,7 +59,6 @@ from collections import deque
 from typing import Any
 import time
 import subprocess
-import sys
 from pathlib import Path
 from contextlib import nullcontext
 import urllib.parse
@@ -99,6 +147,37 @@ _redis_process: subprocess.Popen | None = None
 
 # Guard to ensure the event bus is initialised only once
 _event_bus_initialized = False
+
+
+def ui_selftest() -> int:
+    diag = {"phase": "UI_PREFLIGHT"}
+    try:
+        cfg = load_and_validate_config(os.getenv("SOLHUNTER_CONFIG"))
+        diag["config_ok"] = True
+
+        if not cfg.get("solana_ws_url") and cfg.get("solana_rpc_url"):
+            cfg["solana_ws_url"] = derive_ws_url(cfg["solana_rpc_url"])
+
+        check_artifacts()
+        diag["artifacts_ok"] = True
+
+        resolve_keypair()
+        diag["keypair_ok"] = True
+
+        rpc_ping(cfg["solana_rpc_url"])
+        rpc_blockhash(cfg["solana_rpc_url"])
+        diag["rpc_ok"] = True
+
+        validate_agent_weights(cfg)
+        verify_flashloan_prereqs(cfg)
+        diag["logic_ok"] = True
+
+        print(json.dumps({"ok": True, **diag}))
+        return 0
+    except Exception as e:
+        diag["error"] = f"{type(e).__name__}: {e}"
+        print(json.dumps({"ok": False, **diag}, indent=2))
+        return 2
 
 
 def _check_redis_connection() -> None:
@@ -2035,7 +2114,9 @@ def start_websockets() -> dict[str, threading.Thread]:
 app: Flask | None = None
 
 
-if __name__ == "__main__":
+def _main():
+    parser = argparse.ArgumentParser()
+    parser.parse_known_args()
     app = create_app()
     threads = start_websockets()
     try:
@@ -2050,3 +2131,7 @@ if __name__ == "__main__":
             if loop is not None:
                 loop.close()
         asyncio.run(close_session())
+
+
+if __name__ == "__main__":
+    _main()

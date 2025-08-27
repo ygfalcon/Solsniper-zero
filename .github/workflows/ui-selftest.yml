@@ -1,0 +1,31 @@
+name: UI Self-test
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  ui_preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal deps
+        run: |
+          python -m pip install -U pip requests PyYAML
+      - name: Prepare env
+        run: |
+          mkdir -p keypairs && echo "[1,2,3,4]" > keypairs/bot.json
+          cat > ci-config.toml <<'CFG'
+          solana_rpc_url = "https://api.mainnet-beta.solana.com"
+          dex_base_url = "https://example.invalid"
+          agents = ["simulation"]
+          use_flash_loans = false
+          CFG
+      - name: Run UI self-test
+        env:
+          KEYPAIR_PATH: ./keypairs/bot.json
+          SOLANA_RPC_URL: https://api.mainnet-beta.solana.com
+          RISK_MODE: paper
+          ENV: dev
+          SKIP_ARTIFACT_CHECKS: "1"
+          SOLHUNTER_CONFIG: ci-config.toml
+        run: python -m solhunter_zero.ui --selftest
