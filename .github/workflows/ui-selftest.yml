@@ -31,3 +31,8 @@ PY
           echo "SOLANA_RPC_URL=${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}" >> .env
       - name: Run UI self-test
         run: python -m solhunter_zero.ui --selftest
+      - name: Run unit tests (preflight + selftest)
+        run: |
+          python -m pip install -U pytest
+          # targeted, fast unit tests
+          pytest -q tests/test_selftest.py
