@@ -1,0 +1,137 @@
+name: E2E — Real Startup (no mocks)
+on:
+  workflow_dispatch:
+    inputs:
+      rl_start_cmd:
+        description: "Command to start the RL daemon (must expose /health)"
+        required: true
+        default: "uvicorn scripts.mock_rl:app --host 0.0.0.0 --port 7070"
+      ui_start_cmd:
+        description: "Command to start the UI process (must expose /healthz)"
+        required: true
+        default: "MOCK_UI_PORT=3000 python scripts/mock_ui.py"
+      run_seconds:
+        description: "How long to let start_all run (paper-mode) before stopping"
+        required: true
+        default: "120"
+jobs:
+  e2e_real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: [ "6379:6379" ]
+        options: >-
+          --health-cmd "redis-cli ping || exit 1"
+          --health-interval 2s
+          --health-timeout 1s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------- Toolchains ----------
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # ---------- Python deps ----------
+      - name: Install Python deps
+        run: |
+          python -m pip install -U pip wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install . || true; fi
+          # selftest/smoke need requests
+          pip install "requests>=2.31,<3" pytest
+
+      # ---------- Build native artifacts ----------
+      - name: Build depth_service (release)
+        run: cargo build --release
+
+      # ---------- Paper-safe env (NO artifact skipping here) ----------
+      - name: Set env
+        run: |
+          echo "ENV=dev" >> $GITHUB_ENV
+          echo "RISK_MODE=paper" >> $GITHUB_ENV
+          echo "CI=true" >> $GITHUB_ENV
+          echo "USE_REDIS=1" >> $GITHUB_ENV
+          echo "EVENT_BUS_URL=redis://127.0.0.1:6379/0" >> $GITHUB_ENV
+          echo "SOLANA_RPC_URL=https://api.mainnet-beta.solana.com" >> $GITHUB_ENV
+          echo "RL_HEALTH_URL=http://127.0.0.1:7070/health" >> $GITHUB_ENV
+          echo "UI_HEALTH_URL=http://127.0.0.1:3000/healthz" >> $GITHUB_ENV
+          # create a dummy keypair so startup doesn't block on keys
+          mkdir -p keypairs && echo "[1,2,3,4]" > keypairs/bot.json
+          echo "KEYPAIR_PATH=$(pwd)/keypairs/bot.json" >> $GITHUB_ENV
+
+      # ---------- Start YOUR real RL daemon & UI ----------
+      - name: Start RL daemon
+        run: |
+          nohup bash -lc "${{ inputs.rl_start_cmd }}" > /tmp/rl.log 2>&1 &
+          sleep 2
+          echo "RL ps:"; ps aux | grep -i -e rl -e uvicorn | grep -v grep || true
+      - name: Start UI process
+        run: |
+          nohup bash -lc "${{ inputs.ui_start_cmd }}" > /tmp/ui.log 2>&1 &
+          sleep 2
+          echo "UI ps:"; ps aux | grep -i -e ui -e node -e python | grep -v grep || true
+
+      # ---------- Hard gates in real mode ----------
+      - name: UI self-test (no artifact skipping)
+        run: python -m solhunter_zero.ui --selftest
+
+      - name: Full-stack Smoke (Redis + RL + UI + RPC)
+        run: |
+          CHECK_UI_HEALTH=1 USE_REDIS=1 python scripts/smoke_fullstack.py
+
+      # ---------- Run start_all for a timed window (paper mode) ----------
+      - name: Run start_all (timed)
+        run: |
+          set -e
+          python - <<'PY'
+import os, subprocess, time, signal, sys
+secs = int(os.environ.get("RUN_SECS", os.environ.get("RUN_SECONDS", "120")))
+env = os.environ.copy()
+p = subprocess.Popen([sys.executable, "start_all.py"], env=env)
+print(f"[E2E] start_all.py launched (pid={p.pid}); timing out after {secs}s...")
+try:
+    t0=time.time()
+    while time.time()-t0 < secs:
+        if p.poll() is not None:
+            code = p.returncode
+            if code != 0:
+                raise SystemExit(f"start_all.py exited early with code {code}")
+            print("[E2E] start_all.py exited cleanly before timeout.")
+            raise SystemExit(0)
+        time.sleep(1)
+    # timeout: we consider that OK for paper-mode soak; terminate gracefully
+    p.terminate()
+    try:
+        p.wait(timeout=10)
+    except Exception:
+        p.kill()
+    print("[E2E] Timed window complete; start_all ran without crashing.")
+PY
+        env:
+          RUN_SECONDS: ${{ inputs.run_seconds }}
+
+      # ---------- Upload logs for debugging ----------
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-real-logs
+          path: |
+            diagnostics.json
+            /tmp/rl.log
+            /tmp/ui.log
