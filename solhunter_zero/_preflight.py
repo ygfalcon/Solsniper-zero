@@ -5,6 +5,9 @@ from urllib.parse import urlparse, urlunparse
 from typing import Dict, Any, Optional
 import requests
 
+# Import central config helpers for loading and environment overrides
+from .config import load_config as _load_cfg, apply_env_overrides as _apply_env
+
 PKG_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PKG_ROOT.parent
 
@@ -62,29 +65,10 @@ def check_artifacts():
         raise RuntimeError("Missing depth_service (build with: cargo build --release)")
 
 
-def _load_toml(path: Path) -> Dict[str, Any]:
-    import tomllib
-
-    return tomllib.loads(path.read_text(encoding="utf-8"))
-
-
-def _load_yaml(path: Path) -> Dict[str, Any]:
-    import yaml  # require PyYAML only if used
-
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
 def load_and_validate_config(explicit_path: Optional[str]) -> Dict[str, Any]:
-    p = Path(explicit_path) if explicit_path else Path("config.toml")
-    if not p.exists():
-        raise FileNotFoundError(f"Config not found: {p}")
-    ext = p.suffix.lower()
-    if ext == ".toml":
-        data = _load_toml(p)
-    elif ext in (".yaml", ".yml"):
-        data = _load_yaml(p)
-    else:
-        raise RuntimeError(f"Unsupported config extension: {ext}")
+    """Load config and apply environment overrides via central module."""
+    data = _load_cfg(explicit_path)
+    data = _apply_env(data)
     for k in ("solana_rpc_url", "dex_base_url", "agents"):
         if k not in data or not data[k]:
             raise KeyError(f"config missing `{k}`")
